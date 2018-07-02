@@ -28,6 +28,7 @@ local addonConfig = {
 	showScoreInCombat = true,
 	disableScoreColors = false,
 	alwaysExtendTooltip = false,
+	enableClientEnhancements = true,
 	showRaiderIOProfile = true,
 	enableProfileModifier = true,
 	inverseProfileModifier = false,
@@ -926,6 +927,10 @@ do
 			config:CreateOptionToggle(L.ENABLE_LOCK_PROFILE_FRAME, L.ENABLE_LOCK_PROFILE_FRAME_DESC, "lockProfile")
 
 			config:CreatePadding()
+			config:CreateHeadline(L.RAIDERIO_CLIENT_CUSTOMIZATION)
+			config:CreateOptionToggle(L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS, L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS_DESC, "enableClientEnhancements", true)
+
+			config:CreatePadding()
 			config:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
 			config:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
 			config:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
@@ -1236,6 +1241,8 @@ do
 			dpsScore = payload.dpsScore,
 			healScore = payload.healScore,
 			tankScore = payload.tankScore,
+			-- has been enhanced with client data
+			isEnhanced = false,
 			-- dungeons they have completed
 			dungeons = payload.dungeons,
 			-- number of keystone upgrades per dungeon
@@ -1252,39 +1259,38 @@ do
 
 		-- if character exists in the clientCharacters list then override some data with higher precision
 		-- TODO: only do this if the clientCharacters data isn't too old compared to regular addon date?
-		-- TODO: add a config var to contorl whether to look at clientCharacters
-		local nameAndRealm = name .. "-" .. realm
-		if clientCharacters[nameAndRealm] then
-			local keystoneData = clientCharacters[nameAndRealm].mythic_keystone
-			cache.allScore = keystoneData.all.score
-			cache.dpsScore = keystoneData.dps.score
-			cache.healScore = keystoneData.healer.score
-			cache.tankScore = keystoneData.tank.score
+		if addonConfig.enableClientEnhancements then
+			local nameAndRealm = name .. "-" .. realm
+			if clientCharacters[nameAndRealm] then
+				local keystoneData = clientCharacters[nameAndRealm].mythic_keystone
+				cache.isEnhanced = true
+				cache.allScore = keystoneData.all.score
 
-			local maxDungeonIndex = 0
-			local maxDungeonTime = 999
-			local maxDungeonLevel = 0
-			local maxDungeonUpgrades = 0
+				local maxDungeonIndex = 0
+				local maxDungeonTime = 999
+				local maxDungeonLevel = 0
+				local maxDungeonUpgrades = 0
 
-			for i = 1, #keystoneData.all.runs do
-				local run = keystoneData.all.runs[i]
-				cache.dungeons[i] = run.level
-				cache.dungeonUpgrades[i] = run.upgrades
-				cache.dungeonTimes[i] = run.fraction
+				for i = 1, #keystoneData.all.runs do
+					local run = keystoneData.all.runs[i]
+					cache.dungeons[i] = run.level
+					cache.dungeonUpgrades[i] = run.upgrades
+					cache.dungeonTimes[i] = run.fraction
 
-				if (run.level > maxDungeonLevel) or (run.level == maxDungeonLevel and run.fraction < maxDungeonTime) then
-					maxDungeonLevel = run.level
-					maxDungeonTime = run.fraction
-					maxDungeonUpgrades = run.upgrades
-					maxDungeonIndex = i
+					if (run.level > maxDungeonLevel) or (run.level == maxDungeonLevel and run.fraction < maxDungeonTime) then
+						maxDungeonLevel = run.level
+						maxDungeonTime = run.fraction
+						maxDungeonUpgrades = run.upgrades
+						maxDungeonIndex = i
+					end
 				end
-			end
 
-			if maxDungeonIndex > 0 then
-				cache.maxDungeonLevel = maxDungeonLevel
-				cache.maxDungeonName = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortName or ''
-				cache.maxDungeonNameLocale = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortNameLocale or ''
-				cache.maxDungeonUpgrades = maxDungeonUpgrades
+				if maxDungeonIndex > 0 then
+					cache.maxDungeonLevel = maxDungeonLevel
+					cache.maxDungeonName = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortName or ''
+					cache.maxDungeonNameLocale = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortNameLocale or ''
+					cache.maxDungeonUpgrades = maxDungeonUpgrades
+				end
 			end
 		end
 
@@ -1759,10 +1765,14 @@ do
 
 			local keyLevel = dungeon.keyLevel
 			if keyLevel ~= 0 then
-				if dungeon.upgrades == 0 then
-					colorDungeonLevel = COLOR_GREY
+				if profile.isEnhanced then
+					if dungeon.upgrades == 0 then
+						colorDungeonLevel = COLOR_GREY
+					end
+					keyLevel = GetStarsForUpgrades(dungeon.upgrades) .. keyLevel
+				else
+					keyLevel = "+" .. keyLevel
 				end
-				keyLevel = GetStarsForUpgrades(dungeon.upgrades) .. keyLevel
 			else
 				keyLevel = "-"
 				colorDungeonLevel = COLOR_GREY

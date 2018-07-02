@@ -103,5 +103,8 @@ L.ENABLE_LOCK_PROFILE_FRAME_DESC = "Prevents the M+ Profile Frame from being dra
 L.WARNING_LOCK_POSITION_FRAME_AUTO = "RaiderIO: You must disable Automatic Positioning for My M+ Profile first."
 L.LOCKING_PROFILE_FRAME = "RaiderIO: Locking the M+ Profile Frame."
 L.UNLOCKING_PROFILE_FRAME = "RaiderIO: Unlocking the M+ Profile Frame."
+L.RAIDERIO_CLIENT_CUSTOMIZATION = "RaiderIO Client Customization"
+L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS = "Allow RaiderIO Client Enhancements"
+L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS_DESC = "Enabling this will allow you to view detailed My M+ Profile data downloaded from the RaiderIO Client for your claimed characters."
 
 ns.L = L

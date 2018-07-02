@@ -52,6 +52,9 @@ local configFrame
 local dataProviderQueue = {}
 local dataProvider
 
+-- client
+local clientCharacters = {}
+
 -- tooltip related hooks and storage
 local tooltipArgs = {}
 local playerTooltip
@@ -91,6 +94,11 @@ for i = 1, #CONST_DUNGEONS do
 	ENUM_DUNGEONS[dungeon.shortName] = i
 	dungeon.shortNameLocale = L["DUNGEON_SHORT_NAME_" .. dungeon.shortName] or dungeon.shortName
 end
+
+-- colors
+local COLOR_WHITE = { r = 1, g = 1, b = 1 }
+local COLOR_GREY = { r = 0.62, g = 0.62, b = 0.62 }
+local COLOR_GREEN = { r = 0, g = 1, b = 0 }
 
 -- defined constants
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
@@ -300,6 +308,7 @@ local GetNameAndRealm
 local GetFaction
 local GetWeeklyAffix
 local GetAverageScore
+local GetStarsForUpgrades
 do
 	-- Compare two dungeon first by the keyLevel, then by their short name
 	function CompareDungeon(a, b)
@@ -315,6 +324,12 @@ do
 			return true
 		elseif a.keyLevel < b.keyLevel then
 			return false
+		end
+
+		if a.fractionalTime > b.fractionalTime then
+			return false
+		elseif a.fractionalTime < b.fractionalTime then
+			return true
 		end
 
 		if a.shortName > b.shortName then
@@ -495,6 +510,19 @@ do
 		end
 		return nil
 	end
+
+	function GetStarsForUpgrades(upgrades)
+		local stars = ""
+		for q = 1, 3 do
+			if 3 - q < upgrades then
+				stars = stars .. "+"
+			else
+				stars = stars .. " "
+			end
+		end
+		return stars
+	end
+
 end
 
 -- addon functions
@@ -1039,6 +1067,7 @@ end
 
 -- provider
 local AddProvider
+local AddClientCharacters
 local GetScore
 local GetScoreColor
 do
@@ -1201,7 +1230,6 @@ do
 			faction = faction,
 			-- current and last season overall score
 			allScore = payload.allScore,
-			prevAllScore = payload.allScore,		-- DEPRECATED, will be removed in the future
 			isPrevAllScore = payload.isPrevAllScore,
 			mainScore = payload.mainScore,
 			-- extract the scores per role
@@ -1210,12 +1238,55 @@ do
 			tankScore = payload.tankScore,
 			-- dungeons they have completed
 			dungeons = payload.dungeons,
+			-- number of keystone upgrades per dungeon
+			dungeonUpgrades = {},
+			-- fractional time for each dungeon completion
+			dungeonTimes = {},
 			maxDungeonLevel = payload.maxDungeonLevel,
+			maxDungeonUpgrades = 0,
 			maxDungeonName = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortName or '',
 			maxDungeonNameLocale = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortNameLocale or '',
 			keystoneTenPlus = payload.keystoneTenPlus,
 			keystoneFifteenPlus = payload.keystoneFifteenPlus,
 		}
+
+		-- if character exists in the clientCharacters list then override some data with higher precision
+		-- TODO: only do this if the clientCharacters data isn't too old compared to regular addon date?
+		-- TODO: add a config var to contorl whether to look at clientCharacters
+		local nameAndRealm = name .. "-" .. realm
+		if clientCharacters[nameAndRealm] then
+			local keystoneData = clientCharacters[nameAndRealm].mythic_keystone
+			cache.allScore = keystoneData.all.score
+			cache.dpsScore = keystoneData.dps.score
+			cache.healScore = keystoneData.healer.score
+			cache.tankScore = keystoneData.tank.score
+
+			local maxDungeonIndex = 0
+			local maxDungeonTime = 999
+			local maxDungeonLevel = 0
+			local maxDungeonUpgrades = 0
+
+			for i = 1, #keystoneData.all.runs do
+				local run = keystoneData.all.runs[i]
+				cache.dungeons[i] = run.level
+				cache.dungeonUpgrades[i] = run.upgrades
+				cache.dungeonTimes[i] = run.fraction
+
+				if (run.level > maxDungeonLevel) or (run.level == maxDungeonLevel and run.fraction < maxDungeonTime) then
+					maxDungeonLevel = run.level
+					maxDungeonTime = run.fraction
+					maxDungeonUpgrades = run.upgrades
+					maxDungeonIndex = i
+				end
+			end
+
+			if maxDungeonIndex > 0 then
+				cache.maxDungeonLevel = maxDungeonLevel
+				cache.maxDungeonName = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortName or ''
+				cache.maxDungeonNameLocale = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortNameLocale or ''
+				cache.maxDungeonUpgrades = maxDungeonUpgrades
+			end
+		end
 
 		-- append additional role information
 		cache.isTank, cache.isHealer, cache.isDPS = cache.tankScore > 0, cache.healScore > 0, cache.dpsScore > 0
@@ -1264,6 +1335,12 @@ do
 		assert(type(data) == "table" and type(data.name) == "string" and type(data.region) == "string" and type(data.faction) == "number", "Raider.IO has been requested to load a database that isn't supported.")
 		-- queue it for later inspection
 		dataProviderQueue[#dataProviderQueue + 1] = data
+	end
+
+	function AddClientCharacters(data)
+		-- make sure the object is what we expect it to be like (TODO: check this more deeply?)
+		assert(type(data) == "table", "Raider.IO has been requested to load a client database that isn't supported.")
+		clientCharacters = data
 	end
 
 	-- retrieves the profile of a given unit, or name+realm query
@@ -1665,21 +1742,30 @@ do
 
 		local dungeons = {}
 		for dungeonIndex, keyLevel in ipairs(profile.dungeons) do
-			table.insert(dungeons, {index = dungeonIndex, shortName = CONST_DUNGEONS[dungeonIndex].shortNameLocale, keyLevel = keyLevel})
+			table.insert(dungeons, {
+				index = dungeonIndex,
+				shortName = CONST_DUNGEONS[dungeonIndex].shortNameLocale,
+				keyLevel = keyLevel,
+				upgrades = profile.dungeonUpgrades[dungeonIndex] or 0,
+				fractionalTime = profile.dungeonTimes[dungeonIndex] or 0
+			})
 		end
 
 		table.sort(dungeons, CompareDungeon)
 
 		for i, dungeon in ipairs(dungeons) do
-			local colorDungeonName = { r = 1, g = 1, b = 1 }
-			local colorDungeonLevel = { r = 1, g = 1, b = 1 }
+			local colorDungeonName = COLOR_WHITE
+			local colorDungeonLevel = COLOR_WHITE
 
 			local keyLevel = dungeon.keyLevel
 			if keyLevel ~= 0 then
-				keyLevel = "+" .. keyLevel
+				if dungeon.upgrades == 0 then
+					colorDungeonLevel = COLOR_GREY
+				end
+				keyLevel = GetStarsForUpgrades(dungeon.upgrades) .. keyLevel
 			else
 				keyLevel = "-"
-				colorDungeonLevel = { r = 0.62, g = 0.62, b = 0.62 }
+				colorDungeonLevel = COLOR_GREY
 			end
 
 			if focusOnDungeonIndex and focusOnDungeonIndex == dungeon.index then
@@ -1699,8 +1785,8 @@ do
 --						colorDungeonLevel = { r = 0, g = 0.51, b = 1 }
 --					end
 --				else
-					colorDungeonName = { r = 0, g = 1, b = 0 }
-					colorDungeonLevel = { r = 0, g = 1, b = 0 }
+					colorDungeonName = COLOR_GREEN
+					colorDungeonLevel = COLOR_GREEN
 --				end
 			end
 
@@ -1854,8 +1940,9 @@ do
 			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUTDATED_DATABASE_S, addonName, OUTDATED_DAYS[PLAYER_FACTION]), 1, 1, 0)
 		end
 
-		-- hide the provider function from the public API
+		-- hide the provider functions from the public API
 		_G.RaiderIO.AddProvider = nil
+		_G.RaiderIO.AddClientCharacters = nil
 	end
 
 	-- we enter the world (after a loading screen, int/out of instances)
@@ -2567,19 +2654,23 @@ end
 
 -- API
 _G.RaiderIO = {
-	-- Calling GetScore requires either a unit, or you to provide a name and realm, optionally also a faction. (1 = Alliance, 2 = Horde)
-	-- RaiderIO.GetScore(unit)
-	-- RaiderIO.GetScore("Name-Realm"[, nil, 1|2])
-	-- RaiderIO.GetScore("Name", "Realm"[, 1|2])
-	GetScore = GetScore,
+	-- Calling GetProfile requires either a unit, or you to provide a name and realm, optionally also a faction. (1 = Alliance, 2 = Horde)
+	-- RaiderIO.GetProfile(unit)
+	-- RaiderIO.GetProfile("Name-Realm"[, nil, 1|2])
+	-- RaiderIO.GetProfile("Name", "Realm"[, 1|2])
+	GetProfile = GetScore,
 	-- Calling GetFaction requires a unit and returns you 1 if it's Alliance, 2 if Horde, otherwise nil.
 	-- Calling GetScoreColor requires a Mythic+ score to be passed (a number value) and it returns r, g, b for that score.
 	-- RaiderIO.GetScoreColor(1234)
 	GetScoreColor = GetScoreColor,
+
+	-- DEPRECATED
+	GetScore = GetScore,
 }
 
 -- PLEASE DO NOT USE (we need it public for the sake of the database modules)
 _G.RaiderIO.AddProvider = AddProvider
+_G.RaiderIO.AddClientCharacters = AddClientCharacters
 
 -- register events and wait for the addon load event to fire
 addon:SetScript("OnEvent", function(_, event, ...) addon[event](addon, event, ...) end)

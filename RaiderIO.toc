@@ -25,3 +25,5 @@ locale/zhTW.lua
 
 core.lua
 debug.lua
+
+db/db_client_characters.lua

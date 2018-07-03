@@ -521,7 +521,11 @@ do
 				stars = stars .. " "
 			end
 		end
-		return stars
+		if upgrades > 0 then
+			return "|cffffcf40" .. stars .. "|r"
+		else
+			return stars
+		end
 	end
 
 end

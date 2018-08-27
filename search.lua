@@ -131,7 +131,7 @@ end
 
 -- create own tooltip widget
 local function CreateTooltip()
-	local f = CreateFrame("GameTooltip", addonName .. "DebugTooltip", UIParent, "GameTooltipTemplate")
+	local f = CreateFrame("GameTooltip", addonName .. "SearchTooltip", UIParent, "GameTooltipTemplate")
 	return f
 end
 
@@ -167,7 +167,7 @@ local function Search(self, query)
 	UpdateTooltip(arg2, arg1)
 end
 
--- creates the debug widget
+-- creates the search widget
 local function Init()
 	local r = CreateEditBox()
 	local n = CreateEditBox()
@@ -277,9 +277,9 @@ local function Init()
 	-- references
 	WR, WN, TT = r, n, t
 
-	-- this is required for "/raiderio debug" to be able to toggle the dialog
-	ns.DEBUG_UI = UI
+	-- this is required for "/raiderio search" to be able to toggle the dialog
+	ns.SEARCH_UI = UI
 end
 
 -- init from the slash handler in core.lua
-ns.DEBUG_INIT = Init
+ns.SEARCH_INIT = Init

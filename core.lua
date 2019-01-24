@@ -268,6 +268,7 @@ end
 local RoundNumber
 local CompareDungeon
 local DecodeEventCount
+local DecodeBits2
 local DecodeBits3
 local GetDungeonWithData
 local GetTimezoneOffset
@@ -313,6 +314,11 @@ do
 	local CONST_DECODE_BITS3_TABLE = { 0, 1, 2, 3, 4, 5, 10, 20 }
 	function DecodeBits3(value)
 		return CONST_DECODE_BITS3_TABLE[1 + value]
+	end
+
+	local CONST_DECODE_BITS2_TABLE = { 0, 1, 2, 5 }
+	function DecodeBits2(value)
+		return CONST_DECODE_BITS2_TABLE[1 + value]
 	end
 
 	-- Compare two dungeon first by the keyLevel, then by their short name
@@ -728,11 +734,11 @@ do
 
 				prog.killsPerBoss = {}
 				for i = 1, currentNumBosses do
-					prog.killsPerBoss[i] = DecodeBits3(ReadBits(lo, hi, offset, 3))
+					prog.killsPerBoss[i] = DecodeBits2(ReadBits(lo, hi, offset, 2))
 					if prog.killsPerBoss[i] > 0 then
 						prog.progressCount = prog.progressCount + 1
 					end
-					offset = offset + 3
+					offset = offset + 2
 				end
 
 				if prog.progressCount > 0 then
@@ -755,11 +761,11 @@ do
 
 				prog.killsPerBoss = {}
 				for i = 1, currentNumBosses do
-					prog.killsPerBoss[i] = DecodeBits3(ReadBits(lo, hi, offset, 3))
+					prog.killsPerBoss[i] = DecodeBits2(ReadBits(lo, hi, offset, 2))
 					if prog.killsPerBoss[i] > 0 then
 						prog.progressCount = prog.progressCount + 1
 					end
-					offset = offset + 3
+					offset = offset + 2
 				end
 
 				if prog.difficulty ~= 0 and prog.progressCount > 0 then

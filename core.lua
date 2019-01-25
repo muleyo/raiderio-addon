@@ -268,6 +268,7 @@ end
 local RoundNumber
 local CompareDungeon
 local DecodeEventCount
+local DecodeBits2
 local DecodeBits3
 local GetDungeonWithData
 local GetTimezoneOffset
@@ -313,6 +314,11 @@ do
 	local CONST_DECODE_BITS3_TABLE = { 0, 1, 2, 3, 4, 5, 10, 20 }
 	function DecodeBits3(value)
 		return CONST_DECODE_BITS3_TABLE[1 + value]
+	end
+
+	local CONST_DECODE_BITS2_TABLE = { 0, 1, 2, 5 }
+	function DecodeBits2(value)
+		return CONST_DECODE_BITS2_TABLE[1 + value]
 	end
 
 	-- Compare two dungeon first by the keyLevel, then by their short name
@@ -728,11 +734,11 @@ do
 
 				prog.killsPerBoss = {}
 				for i = 1, currentNumBosses do
-					prog.killsPerBoss[i] = DecodeBits3(ReadBits(lo, hi, offset, 3))
+					prog.killsPerBoss[i] = DecodeBits2(ReadBits(lo, hi, offset, 2))
 					if prog.killsPerBoss[i] > 0 then
 						prog.progressCount = prog.progressCount + 1
 					end
-					offset = offset + 3
+					offset = offset + 2
 				end
 
 				if prog.progressCount > 0 then
@@ -755,11 +761,11 @@ do
 
 				prog.killsPerBoss = {}
 				for i = 1, currentNumBosses do
-					prog.killsPerBoss[i] = DecodeBits3(ReadBits(lo, hi, offset, 3))
+					prog.killsPerBoss[i] = DecodeBits2(ReadBits(lo, hi, offset, 2))
 					if prog.killsPerBoss[i] > 0 then
 						prog.progressCount = prog.progressCount + 1
 					end
-					offset = offset + 3
+					offset = offset + 2
 				end
 
 				if prog.difficulty ~= 0 and prog.progressCount > 0 then
@@ -1284,6 +1290,7 @@ do
 			end
 
 			if dataType == CONST_PROVIDER_DATA_RAIDING then
+				-- current raid progress
 				for progIndex = 1, 2 do
 					local prog = profile.progress[progIndex]
 					if prog then
@@ -1301,6 +1308,7 @@ do
 					end
 				end
 
+				-- main's current raid progress
 				if ns.addonConfig.showMainsScore and profile.mainProgress then
 					local mainProg = profile.mainProgress[1]
 					local bestProg = profile.progress[1]
@@ -1310,6 +1318,24 @@ do
 							format("|c%s%s|r %d/%d", RAID_DIFFICULTY_COLORS[mainProg.difficulty][4], RAID_DIFFICULTY_SUFFIXES[mainProg.difficulty], mainProg.progressCount, profile.currentRaid.bossCount),
 							1, 1, 1, 1, 1, 1}
 						i = i + 1
+					end
+				end
+
+				-- previous raid progress
+				for progIndex = 1, 2 do
+					local prog = profile.previousProgress and profile.previousProgress[progIndex]
+					if prog then
+						-- if they have cleared the raid we show only one line for progress (their best), otherwise we show their 2nd best too
+						if progIndex == 1 or isModKeyDown or isModKeyDownSticky or profile.previousProgress[progIndex - 1].progressCount < profile.previousRaid.bossCount then
+							output[i] = {
+								format("%s %s", profile.previousRaid.shortName, RAID_DIFFICULTY_NAMES[prog.difficulty]),
+								format("|c%s%s|r %d/%d", RAID_DIFFICULTY_COLORS[prog.difficulty][4], RAID_DIFFICULTY_SUFFIXES[prog.difficulty], prog.progressCount, profile.previousRaid.bossCount),
+								1, 1, 1,
+								1, 1, 1
+							}
+
+							i = i + 1
+						end
 					end
 				end
 			end

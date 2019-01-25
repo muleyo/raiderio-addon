@@ -1325,8 +1325,8 @@ do
 				for progIndex = 1, 2 do
 					local prog = profile.previousProgress and profile.previousProgress[progIndex]
 					if prog then
-						-- if they have cleared the raid we show only one line for progress (their best), otherwise we show their 2nd best too
-						if progIndex == 1 or isModKeyDown or isModKeyDownSticky or profile.previousProgress[progIndex - 1].progressCount < profile.previousRaid.bossCount then
+						-- for previous progress, only show both if the mod key is down
+						if progIndex == 1 or isModKeyDown or isModKeyDownSticky then
 							output[i] = {
 								format("%s %s", profile.previousRaid.shortName, RAID_DIFFICULTY_NAMES[prog.difficulty]),
 								format("|c%s%s|r %d/%d", RAID_DIFFICULTY_COLORS[prog.difficulty][4], RAID_DIFFICULTY_SUFFIXES[prog.difficulty], prog.progressCount, profile.previousRaid.bossCount),

@@ -128,6 +128,7 @@ end
 -- defined constants
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_BATTLE_FOR_AZEROTH]
 local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
+local CURRENT_SEASON = 2
 local FACTION
 local REGIONS
 local REGIONS_RESET_TIME
@@ -284,6 +285,7 @@ local GetWeeklyAffix
 local GetStarsForUpgrades
 local GetFormattedScore
 local GetFormattedRunCount
+local GetTooltipScore
 do
 	-- bracket can be 10, 100, 0.1, 0.01, and so on
 	function RoundNumber(v, bracket)
@@ -549,6 +551,43 @@ do
 			return score .. " " .. L.PREV_SEASON_SUFFIX
 		end
 		return score
+	end
+
+	local function CreateAtlasFromRole (roleName)
+		if not roleName then
+			return ""
+		end
+
+		local atlasName = "roleicon-tiny-"
+
+		if roleName == "heal" then
+			return CreateAtlasMarkup(atlasName .. "healer")
+		else
+			return CreateAtlasMarkup(atlasName .. roleName)
+		end
+	end
+
+	-- returns score with role
+	function GetTooltipScore(score)
+		local inversedRole = {}
+
+		inversedRole[score.role.tank] = "tank"
+		inversedRole[score.role.heal] = "heal"
+		inversedRole[score.role.dps] = "dps"
+
+		local atlas = ""
+
+		if inversedRole[1] then
+			atlas = atlas .. CreateAtlasFromRole(inversedRole[1])
+		end
+		if inversedRole[2] then
+			atlas = atlas .. CreateAtlasFromRole(inversedRole[2])
+		end
+		if inversedRole[3] then
+			atlas = atlas .. CreateAtlasFromRole(inversedRole[3])
+		end
+
+		return atlas .. " " .. score.score
 	end
 
 	-- we only use 11 bits for how many runs they've completed, so cap it somewhere nice and even
@@ -840,13 +879,17 @@ do
 			realm = realm,
 			faction = faction,
 			-- current and last season overall score
-			allScore = payload.allScore,
-			isPrevAllScore = payload.isPrevAllScore,
+			currentScore = {
+				score = payload.allScore,
+				role = {tank = 0, heal = 1, dps = 2}
+			},
+			previousSeason = {
+				--score = payload.previousSeasonScore,
+				score = 1500,
+				role = {tank = 1, heal = 0, dps = 0}
+			},
+			previousSeasonNumber = 1,
 			mainScore = payload.mainScore,
-			-- extract the scores per role
-			dpsScore = payload.dpsScore,
-			healScore = payload.healScore,
-			tankScore = payload.tankScore,
 			-- dungeons they have completed
 			dungeons = payload.dungeons,
 			dungeonUpgrades = payload.dungeonUpgrades,
@@ -922,10 +965,6 @@ do
 			end
 
 		end
-
-		-- append additional role information
-		cache.isTank, cache.isHealer, cache.isDPS = cache.tankScore > 0, cache.healScore > 0, cache.dpsScore > 0
-		cache.numRoles = (cache.tankScore > 0 and 1 or 0) + (cache.healScore > 0 and 1 or 0) + (cache.dpsScore > 0 and 1 or 0)
 
 		-- store it in the profile cache
 		profileCache[index] = cache
@@ -1181,6 +1220,75 @@ do
 		return output
 	end
 
+	local function GenerateScoreSeasonLabel (label, season)
+		return format(label, format(L.SEASON_LABEL, season))
+	end
+
+	local function GetScoreLine(profile, isProfile)
+		local lines = {}
+
+		if profile.currentScore and profile.currentScore.score and
+			profile.previousSeason and profile.previousSeason.score and
+			profile.currentScore.score < profile.previousSeason.score then
+
+			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
+				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, profile.previousSeasonNumber) or
+				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.previousSeasonNumber)
+			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
+
+			table.insert(lines, {
+				scoreLabel,
+				GetTooltipScore(profile.previousSeason),
+				lineColor[1], lineColor[2], lineColor[3],
+				GetScoreColor(profile.previousSeason.score)
+			})
+
+			table.insert(lines, {
+				GenerateScoreSeasonLabel(L.CURRENT_SCORE, 2),
+				GetTooltipScore(profile.currentScore),
+				1, 1, 1,
+				GetScoreColor(profile.currentScore.score)
+			})
+
+			return lines
+		end
+
+		if profile.currentScore and profile.currentScore.score then
+			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
+				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, CURRENT_SEASON) or
+				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, CURRENT_SEASON)
+			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
+
+			table.insert(lines, {
+				scoreLabel,
+				GetTooltipScore(profile.currentScore),
+				lineColor[1], lineColor[2], lineColor[3],
+				GetScoreColor(profile.currentScore.score)
+			})
+
+			return lines
+		end
+
+		if profile.previousSeason and profile.previousSeason.score then
+			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
+				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, profile.previousSeasonNumber) or
+				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.previousSeasonNumber)
+			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
+
+			table.insert(lines, {
+				scoreLabel,
+				GetTooltipScore(profile.previousSeason),
+				lineColor[1], lineColor[2], lineColor[3],
+				GetScoreColor(profile.previousSeason.score)
+			})
+
+			return lines
+		end
+
+		table.insert(lines, { scoreLabel, L.UNKNOWN_SCORE, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1 })
+		return lines
+	end
+
 	-- reads the profile and formats the output using the provided output flags
 	local function ShapeProfileData(dataType, profile, outputFlag, ...)
 		local output = { dataType = dataType, profile = profile, outputFlag = outputFlag, length = 0 }
@@ -1225,45 +1333,16 @@ do
 					i = i + #linesToInsert
 				end
 
-				local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and L.TOTAL_MP_SCORE or L.RAIDERIO_MP_SCORE
-				local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1} or { 1, 0.85, 0}
-				if profile.allScore >= 0 then
-					output[i] = { scoreLabel, GetFormattedScore(profile.allScore, profile.isPrevAllScore), lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.allScore)}
-					i = i + 1
-				else
-					output[i] = {scoreLabel, L.UNKNOWN_SCORE, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1}
-					i = i + 1
-				end
+				local scoreLinesToInsert = GetScoreLine(profile, isProfile)
+
+				output = insertToOutput(output, i, scoreLinesToInsert)
+				i = i + #scoreLinesToInsert
 
 				if not ns.addonConfig.showBestRunFirst then
 					local linesToInsert = getBestRunLines(profile, isProfile, addLFD, focusDungeon, focusKeystone, ...)
 
 					output = insertToOutput(output, i, linesToInsert)
 					i = i + #linesToInsert
-				end
-
-				if isModKeyDown or isModKeyDownSticky then
-					local scores = {}
-					local j = 1
-					if profile.tankScore then
-						scores[j] = {L.TANK_SCORE, profile.tankScore}
-						j = j + 1
-					end
-					if profile.healScore then
-						scores[j] = {L.HEALER_SCORE, profile.healScore}
-						j = j + 1
-					end
-					if profile.dpsScore then
-						scores[j] = {L.DPS_SCORE, profile.dpsScore}
-						j = j + 1
-					end
-					table.sort(scores, SortScoresByRole)
-					for k = 1, j - 1 do
-						if scores[k][2] > 0 then
-							output[i] = {scores[k][1], scores[k][2], 1, 1, 1, GetScoreColor(scores[k][2])}
-							i = i + 1
-						end
-					end
 				end
 
 				do

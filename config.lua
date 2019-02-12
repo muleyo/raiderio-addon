@@ -13,13 +13,14 @@ local addonConfig = {
 	enableWhoMessages = true,
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
-	showBestRunFirst = false,
+	mplusHeadlineMode = 1,
+	-- showBestRunFirst = false,
 	showMainsScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
 	showScoreInCombat = true,
 	disableScoreColors = false,
-	alwaysExtendTooltip = false,
+	-- alwaysExtendTooltip = false,
 	enableClientEnhancements = true,
 	showClientGuildBest = true,
 	displayWeeklyGuildBest = false,
@@ -402,11 +403,11 @@ do
 			config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
 			config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 			config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
-			config:CreateOptionToggle(L.ALWAYS_SHOW_EXTENDED_INFO, L.ALWAYS_SHOW_EXTENDED_INFO_DESC, "alwaysExtendTooltip")
+			-- config:CreateOptionToggle(L.ALWAYS_SHOW_EXTENDED_INFO, L.ALWAYS_SHOW_EXTENDED_INFO_DESC, "alwaysExtendTooltip")
 			config:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
 			config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 			config:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
-			config:CreateOptionToggle(L.SHOW_RAIDERIO_BESTRUN_FIRST, L.SHOW_RAIDERIO_BESTRUN_FIRST_DESC, "showBestRunFirst", { needReload = true })
+			-- config:CreateOptionToggle(L.SHOW_RAIDERIO_BESTRUN_FIRST, L.SHOW_RAIDERIO_BESTRUN_FIRST_DESC, "showBestRunFirst", { needReload = true })
 
 			config:CreatePadding()
 			config:CreateHeadline(L.TOOLTIP_PROFILE)

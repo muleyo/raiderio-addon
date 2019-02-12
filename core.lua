@@ -94,6 +94,13 @@ local TooltipProfileOutput = {
 	NAME = bor(ProfileOutput.DEFAULT, ProfileOutput.ADD_NAME),
 }
 
+-- modes for what is placed in the headline of mythic plus tooltips
+local MythicPlusHeadlineModes = {
+	CURRENT_SEASON = 0,
+	BEST_SEASON = 1,
+	BEST_RUN = 2
+}
+
 -- setup outdated struct
 do
 	for i = 1, #CONST_PROVIDER_DATA_LIST do
@@ -1242,22 +1249,22 @@ do
 		end
 
 		if not best.text and (not best.dungeon or overallBest.dungeon.index ~= best.dungeon.index) and overallBest.level > 0 then
-			local bestRunLabel = (isProfile or not ns.addonConfig.showBestRunFirst) and L.BEST_RUN or L.RAIDERIO_BEST_RUN
-			local lineColor = (isProfile or not ns.addonConfig.showBestRunFirst) and {1, 1, 1} or {1, 0.85, 0}
+			local bestRunLabel = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and L.BEST_RUN or L.RAIDERIO_BEST_RUN
+			local lineColor = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and {1, 1, 1} or {1, 0.85, 0}
 			table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[overallBest.dungeon.index]) .. overallBest.level .. " " .. overallBest.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1})
 		end
 
 		if best.dungeon and best.level > 0 then
 			if best.dungeon == profile.maxDungeon then
-				local bestRunLabel = (isProfile or not ns.addonConfig.showBestRunFirst) and L.BEST_FOR_DUNGEON or L.RAIDERIO_BEST_RUN
-				local lineColor = (isProfile or not ns.addonConfig.showBestRunFirst) and {0, 1, 0} or {1, 0.85, 0}
+				local bestRunLabel = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and L.BEST_FOR_DUNGEON or L.RAIDERIO_BEST_RUN
+				local lineColor = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and {0, 1, 0} or {1, 0.85, 0}
 				table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1})
 			else
 				table.insert(lines, {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, 1, 1, 1})
 			end
 		elseif best.text then
-			local bestRunLabel = (isProfile or not ns.addonConfig.showBestRunFirst) and L.BEST_RUN or L.RAIDERIO_BEST_RUN
-			local lineColor = (isProfile or not ns.addonConfig.showBestRunFirst) and {1, 1, 1} or {1, 0.85, 0}
+			local bestRunLabel = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and L.BEST_RUN or L.RAIDERIO_BEST_RUN
+			local lineColor = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and {1, 1, 1} or {1, 0.85, 0}
 			table.insert(lines, {bestRunLabel, best.text, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1})
 		end
 
@@ -1276,94 +1283,80 @@ do
 		return format(label, format(L["SEASON_LABEL_S" .. season], season))
 	end
 
-	local function GetScoreLine(profile, isProfile)
+	local function GetScoreLines(profile, isProfile)
 		local lines = {}
 
-		local mode = 0	-- 0 = current score first, 1 = best score first, 2 = best run first
-
-		if mode == 0 then
-			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
-				GenerateScoreSeasonLabel(L.CURRENT_SCORE, profile.mplusCurrent.season) or
-				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.mplusCurrent.season)
-			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
-
+		if isProfile then
 			table.insert(lines, {
-				scoreLabel,
-				GetTooltipScore(profile.mplusCurrent),
-				lineColor[1], lineColor[2], lineColor[3],
-				GetScoreColor(profile.mplusCurrent.score)
-			})
-
-			if profile.mplusPrevious.score > profile.mplusCurrent.score then
-				local scoreLabel = GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, profile.mplusPrevious.season)
-
-				table.insert(lines, {
-					scoreLabel,
-					GetTooltipScore(profile.mplusPrevious),
-					1, 1, 1,
-					1, 1, 1		-- do not color previous score
-				})
-			end
-
-			return lines
-		end
-
-		if profile.mplusCurrent.score < profile.mplusPrevious.score then
-			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
-				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, profile.mplusPrevious.season) or
-				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.mplusPrevious.season)
-			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
-
-			table.insert(lines, {
-				scoreLabel,
-				GetTooltipScore(profile.mplusPrevious),
-				lineColor[1], lineColor[2], lineColor[3],
-				GetScoreColor(profile.mplusPrevious.score)
-			})
-
-			table.insert(lines, {
-				GenerateScoreSeasonLabel(L.CURRENT_SCORE, CURRENT_SEASON_ID),
+				GenerateScoreSeasonLabel(L.CURRENT_SCORE, profile.mplusCurrent.season),
 				GetTooltipScore(profile.mplusCurrent),
 				1, 1, 1,
 				GetScoreColor(profile.mplusCurrent.score)
 			})
 
-			return lines
+			if profile.mplusPrevious.score > profile.mplusCurrent.score then
+				table.insert(lines, {
+					GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, profile.mplusPrevious.season),
+					GetTooltipScore(profile.mplusPrevious),
+					1, 1, 1,
+					1, 1, 1		-- do not color previous score
+				})
+			end
+		else
+			if ns.addonConfig.mplusHeadlineMode == MythicPlusHeadlineModes.CURRENT_SEASON then
+				-- headline
+				table.insert(lines, {
+					GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.mplusCurrent.season),
+					GetTooltipScore(profile.mplusCurrent),
+					1, 0.85, 0,
+					GetScoreColor(profile.mplusCurrent.score)
+				})
+	
+				if profile.mplusPrevious.score > profile.mplusCurrent.score then
+					table.insert(lines, {
+						GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, profile.mplusPrevious.season),
+						GetTooltipScore(profile.mplusPrevious),
+						1, 1, 1,
+						1, 1, 1		-- do not color previous score
+					})
+				end
+			elseif ns.addonConfig.mplusHeadlineMode == MythicPlusHeadlineModes.BEST_SEASON then
+				if profile.mplusPrevious.score > profile.mplusCurrent.score then
+					-- headline
+					table.insert(lines, {
+						GenerateScoreSeasonLabel(L.RAIDERIO_MP_BEST_SCORE, profile.mplusPrevious.season),
+						GetTooltipScore(profile.mplusPrevious),
+						1, 0.85, 0,
+						1, 1, 1		-- do not color previous score
+					})
+
+					table.insert(lines, {
+						GenerateScoreSeasonLabel(L.CURRENT_SCORE, profile.mplusCurrent.season),
+						GetTooltipScore(profile.mplusCurrent),
+						1, 1, 1,
+						GetScoreColor(profile.mplusCurrent.score)
+					})
+				end
+			elseif ns.addonConfig.mplusHeadlineMode == MythicPlusHeadlineModes.BEST_RUN then
+				-- headline would have been added previously, so just add the scores without any color highlights
+				table.insert(lines, {
+					GenerateScoreSeasonLabel(L.CURRENT_SCORE, profile.mplusCurrent.season),
+					GetTooltipScore(profile.mplusCurrent),
+					1, 1, 1,
+					GetScoreColor(profile.mplusCurrent.score)
+				})
+	
+				if profile.mplusPrevious.score > profile.mplusCurrent.score then
+					table.insert(lines, {
+						GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, profile.mplusPrevious.season),
+						GetTooltipScore(profile.mplusPrevious),
+						1, 1, 1,
+						1, 1, 1		-- do not color previous score
+					})
+				end
+			end
 		end
 
-		if profile.mplusCurrent.score then
-			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
-				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, CURRENT_SEASON_ID) or
-				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, CURRENT_SEASON_ID)
-			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
-
-			table.insert(lines, {
-				scoreLabel,
-				GetTooltipScore(profile.mplusCurrent),
-				lineColor[1], lineColor[2], lineColor[3],
-				GetScoreColor(profile.mplusCurrent.score)
-			})
-
-			return lines
-		end
-
-		if profile.mplusPrevious.score then
-			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
-				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, profile.mplusPreviousId) or
-				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.mplusPreviousId)
-			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
-
-			table.insert(lines, {
-				scoreLabel,
-				GetTooltipScore(profile.mplusPrevious),
-				lineColor[1], lineColor[2], lineColor[3],
-				GetScoreColor(profile.mplusPrevious.score)
-			})
-
-			return lines
-		end
-
-		table.insert(lines, { scoreLabel, L.UNKNOWN_SCORE, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1 })
 		return lines
 	end
 
@@ -1404,23 +1397,25 @@ do
 			end
 
 			if dataType == CONST_PROVIDER_DATA_MYTHICPLUS then
-				if ns.addonConfig.showBestRunFirst then
-					local linesToInsert = getBestRunLines(profile, isProfile, addLFD, focusDungeon, focusKeystone, ...)
+				local bestRunLines = getBestRunLines(profile, isProfile, addLFD, focusDungeon, focusKeystone, ...)
 
-					output = insertToOutput(output, i, linesToInsert)
-					i = i + #linesToInsert
+				if ns.addonConfig.mplusHeadlineMode == MythicPlusHeadlineModes.BEST_RUN then
+					output = insertToOutput(output, i, bestRunLines)
+					i = i + #bestRunLines
 				end
 
-				local scoreLinesToInsert = GetScoreLine(profile, isProfile)
+				local scoreLines = GetScoreLines(profile, isProfile)
+				output = insertToOutput(output, i, scoreLines)
+				i = i + #scoreLines
 
-				output = insertToOutput(output, i, scoreLinesToInsert)
-				i = i + #scoreLinesToInsert
+				if ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN then
+					output = insertToOutput(output, i, bestRunLines)
+					i = i + #bestRunLines
+				end
 
-				if not ns.addonConfig.showBestRunFirst then
-					local linesToInsert = getBestRunLines(profile, isProfile, addLFD, focusDungeon, focusKeystone, ...)
-
-					output = insertToOutput(output, i, linesToInsert)
-					i = i + #linesToInsert
+				if ns.addonConfig.showMainsScore and profile.mplusMain.score and profile.mplusCurrent.score and profile.mplusMain.score > profile.mplusCurrent.score then
+					output[i] = {L.MAINS_SCORE, GetTooltipScore(profile.mplusMain), 1, 1, 1, GetScoreColor(profile.mplusMain.score)}
+					i = i + 1
 				end
 
 				do
@@ -1445,11 +1440,6 @@ do
 						output[i] = {L.TIMED_5_RUNS, GetFormattedRunCount(profile.keystoneFivePlus) .. (profile.keystoneFivePlus > 10 and '+' or ''), 1, 1, 1, 1, 1, 1}
 						i = i + 1
 					end
-				end
-
-				if ns.addonConfig.showMainsScore and profile.mplusMain.score and profile.mplusCurrent.score and profile.mplusMain.score > profile.mplusCurrent.score then
-					output[i] = {L.MAINS_SCORE, GetTooltipScore(profile.mplusMain), 1, 1, 1, GetScoreColor(profile.mplusMain.score)}
-					i = i + 1
 				end
 			end
 
@@ -2788,6 +2778,7 @@ do
 	ns.GetStarsForUpgrades = GetStarsForUpgrades
 	ns.ProfileOutput = ProfileOutput
 	ns.TooltipProfileOutput = TooltipProfileOutput
+	ns.MythicPlusHeadlineModes = MythicPlusHeadlineModes
 	ns.GetPlayerProfile = GetPlayerProfile
 	ns.HasPlayerProfile = HasPlayerProfile
 	ns.ShowTooltip = ShowTooltip

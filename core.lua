@@ -53,7 +53,7 @@ local CONST_PROVIDER_DATA_LIST = { CONST_PROVIDER_DATA_MYTHICPLUS, CONST_PROVIDE
 local CONST_PROVIDER_INTERFACE = { MYTHICPLUS = CONST_PROVIDER_DATA_MYTHICPLUS, RAIDING = CONST_PROVIDER_DATA_RAIDING }
 local CONST_PROVIDER_DATA_FIELDS_PER_CHARACTER = {
 	3,	-- Mythic Plus
-	2	-- Raiding
+	2		-- Raiding
 }
 
 -- we size the buckets so that we never have to worry about data overlapping multiple buckets
@@ -128,7 +128,8 @@ end
 -- defined constants
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_BATTLE_FOR_AZEROTH]
 local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
-local CURRENT_SEASON = 2
+local CURRENT_SEASON_ID = 2
+local SEASON_TERMS
 local FACTION
 local REGIONS
 local REGIONS_RESET_TIME
@@ -149,6 +150,13 @@ do
 		"eu",
 		"tw",
 		"cn"
+	}
+
+	SEASON_TERMS = {
+		[1] = "S1",
+		[2] = "S2",
+		[3] = "S3",
+		[4] = "S4",
 	}
 
 	REGIONS_RESET_TIME = {
@@ -581,9 +589,15 @@ do
 			atlas = atlas .. CreateAtlasFromRole(inversedRole[1])
 		end
 		if inversedRole[2] then
+			if atlas ~= "" then
+				atlas = atlas .. " "
+			end
 			atlas = atlas .. CreateAtlasFromRole(inversedRole[2])
 		end
 		if inversedRole[3] then
+			if atlas ~= "" then
+				atlas = atlas .. " "
+			end
 			atlas = atlas .. CreateAtlasFromRole(inversedRole[3])
 		end
 
@@ -665,20 +679,38 @@ do
 		lo, hi = Split64BitNumber(data1)
 		offset = 0
 
+		-- current score
 		results.allScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
 		offset = offset + PAYLOAD_BITS
 
-		results.healScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+		results.currentDpsOrdinal = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
+
+		results.currentTankOrdinal = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
+
+		results.currentHealerOrdinal = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
+
+		-- previous score
+		results.previousScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
 		offset = offset + PAYLOAD_BITS
 
-		results.tankScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
-		offset = offset + PAYLOAD_BITS
+		results.previousSeasonId = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
 
+		results.previousDpsOrdinal = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
+
+		results.previousTankOrdinal = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
+
+		results.previousHealerOrdinal = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
+
+		-- main score
 		results.mainScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
 		offset = offset + PAYLOAD_BITS
-
-		results.isPrevAllScore = not (ReadBits(lo, hi, offset, 1) == 0)
-		offset = offset + 1
 
 		--
 		-- Field 2
@@ -716,9 +748,6 @@ do
 		lo, hi = Split64BitNumber(data3)
 		offset = 0
 
-		results.dpsScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
-		offset = offset + PAYLOAD_BITS
-
 		for i = dungeonIndex, 10 do
 			results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
 			offset = offset + 5
@@ -741,6 +770,21 @@ do
 
 		results.keystoneFifteenPlus, results.isFifteenPlusAchievement = DecodeEventCount(ReadBits(lo, hi, offset, 6))
 		offset = offset + 6
+
+		results.keystoneTwentyPlus, results.isTwentyPlusAchievement = DecodeEventCount(ReadBits(lo, hi, offset, 6))
+		offset = offset + 6
+
+		results.mainSeasonId = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
+
+		results.mainDpsOrdinal = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
+
+		results.mainTankOrdinal = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
+
+		results.mainHealerOrdinal = ReadBits(lo, hi, offset, 2)
+		offset = offset + 2
 
 		-- Post processing
 		if results.maxDungeonIndex > #results.dungeons then
@@ -879,17 +923,23 @@ do
 			realm = realm,
 			faction = faction,
 			-- current and last season overall score
-			currentScore = {
+			mplusCurrent = {
 				score = payload.allScore,
-				role = {tank = 0, heal = 1, dps = 2}
+				role = {tank = payload.currentTankOrdinal, heal = payload.currentHealerOrdinal, dps = payload.currentDpsOrdinal},
+				season = CURRENT_SEASON_ID
 			},
-			previousSeason = {
-				--score = payload.previousSeasonScore,
-				score = 1500,
-				role = {tank = 1, heal = 0, dps = 0}
+			mplusPrevious = {
+				score = payload.previousScore,
+				role = {tank = payload.previousTankOrdinal, heal = payload.previousHealerOrdinal, dps = payload.previousDpsOrdinal},
+				season = 1 + payload.previousSeasonId
 			},
-			previousSeasonNumber = 1,
-			mainScore = payload.mainScore,
+			mplusMain = {
+				score = payload.mainScore,
+				role = {tank = payload.mainTankOrdinal, heal = payload.mainHealerOrdinal, dps = payload.mainDpsOrdinal},
+				season = 1 + payload.mainSeasonId
+			},
+			allScore = payload.allScore, 		-- deprecated
+			mainScore = payload.mainScore,	-- deprecated
 			-- dungeons they have completed
 			dungeons = payload.dungeons,
 			dungeonUpgrades = payload.dungeonUpgrades,
@@ -900,9 +950,11 @@ do
 			keystoneFivePlus = payload.keystoneFivePlus,
 			keystoneTenPlus = payload.keystoneTenPlus,
 			keystoneFifteenPlus = payload.keystoneFifteenPlus,
+			keystoneTwentyPlus = payload.keystoneTwentyPlus,
 			isFivePlusAchievement = payload.isFivePlusAchievement,
 			isTenPlusAchievement = payload.isTenPlusAchievement,
 			isFifteenPlusAchievement = payload.isFifteenPlusAchievement,
+			isTwentyPlusAchievement = payload.isTwentyPlusAchievement,
 		}
 
 		-- client related data populates these fields
@@ -1192,21 +1244,21 @@ do
 		if not best.text and (not best.dungeon or overallBest.dungeon.index ~= best.dungeon.index) and overallBest.level > 0 then
 			local bestRunLabel = (isProfile or not ns.addonConfig.showBestRunFirst) and L.BEST_RUN or L.RAIDERIO_BEST_RUN
 			local lineColor = (isProfile or not ns.addonConfig.showBestRunFirst) and {1, 1, 1} or {1, 0.85, 0}
-			table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[overallBest.dungeon.index]) .. overallBest.level .. " " .. overallBest.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.allScore)})
+			table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[overallBest.dungeon.index]) .. overallBest.level .. " " .. overallBest.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1})
 		end
 
 		if best.dungeon and best.level > 0 then
 			if best.dungeon == profile.maxDungeon then
 				local bestRunLabel = (isProfile or not ns.addonConfig.showBestRunFirst) and L.BEST_FOR_DUNGEON or L.RAIDERIO_BEST_RUN
 				local lineColor = (isProfile or not ns.addonConfig.showBestRunFirst) and {0, 1, 0} or {1, 0.85, 0}
-				table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.allScore)})
+				table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1})
 			else
-				table.insert(lines, {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)})
+				table.insert(lines, {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, 1, 1, 1})
 			end
 		elseif best.text then
 			local bestRunLabel = (isProfile or not ns.addonConfig.showBestRunFirst) and L.BEST_RUN or L.RAIDERIO_BEST_RUN
 			local lineColor = (isProfile or not ns.addonConfig.showBestRunFirst) and {1, 1, 1} or {1, 0.85, 0}
-			table.insert(lines, {bestRunLabel, best.text, lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.allScore)})
+			table.insert(lines, {bestRunLabel, best.text, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1})
 		end
 
 		return lines
@@ -1221,65 +1273,91 @@ do
 	end
 
 	local function GenerateScoreSeasonLabel (label, season)
-		return format(label, format(L.SEASON_LABEL, season))
+		return format(label, format(L["SEASON_LABEL_S" .. season], season))
 	end
 
 	local function GetScoreLine(profile, isProfile)
 		local lines = {}
 
-		if profile.currentScore and profile.currentScore.score and
-			profile.previousSeason and profile.previousSeason.score and
-			profile.currentScore.score < profile.previousSeason.score then
+		local mode = 0	-- 0 = current score first, 1 = best score first, 2 = best run first
 
+		if mode == 0 then
 			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
-				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, profile.previousSeasonNumber) or
-				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.previousSeasonNumber)
+				GenerateScoreSeasonLabel(L.CURRENT_SCORE, profile.mplusCurrent.season) or
+				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.mplusCurrent.season)
 			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
 
 			table.insert(lines, {
 				scoreLabel,
-				GetTooltipScore(profile.previousSeason),
+				GetTooltipScore(profile.mplusCurrent),
 				lineColor[1], lineColor[2], lineColor[3],
-				GetScoreColor(profile.previousSeason.score)
+				GetScoreColor(profile.mplusCurrent.score)
+			})
+
+			if profile.mplusPrevious.score > profile.mplusCurrent.score then
+				local scoreLabel = GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, profile.mplusPrevious.season)
+
+				table.insert(lines, {
+					scoreLabel,
+					GetTooltipScore(profile.mplusPrevious),
+					1, 1, 1,
+					1, 1, 1		-- do not color previous score
+				})
+			end
+
+			return lines
+		end
+
+		if profile.mplusCurrent.score < profile.mplusPrevious.score then
+			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
+				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, profile.mplusPrevious.season) or
+				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.mplusPrevious.season)
+			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
+
+			table.insert(lines, {
+				scoreLabel,
+				GetTooltipScore(profile.mplusPrevious),
+				lineColor[1], lineColor[2], lineColor[3],
+				GetScoreColor(profile.mplusPrevious.score)
 			})
 
 			table.insert(lines, {
-				GenerateScoreSeasonLabel(L.CURRENT_SCORE, 2),
-				GetTooltipScore(profile.currentScore),
+				GenerateScoreSeasonLabel(L.CURRENT_SCORE, CURRENT_SEASON_ID),
+				GetTooltipScore(profile.mplusCurrent),
 				1, 1, 1,
-				GetScoreColor(profile.currentScore.score)
+				GetScoreColor(profile.mplusCurrent.score)
 			})
 
 			return lines
 		end
 
-		if profile.currentScore and profile.currentScore.score then
+		if profile.mplusCurrent.score then
 			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
-				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, CURRENT_SEASON) or
-				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, CURRENT_SEASON)
+				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, CURRENT_SEASON_ID) or
+				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, CURRENT_SEASON_ID)
 			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
 
 			table.insert(lines, {
 				scoreLabel,
-				GetTooltipScore(profile.currentScore),
+				GetTooltipScore(profile.mplusCurrent),
 				lineColor[1], lineColor[2], lineColor[3],
-				GetScoreColor(profile.currentScore.score)
+				GetScoreColor(profile.mplusCurrent.score)
 			})
 
 			return lines
 		end
 
-		if profile.previousSeason and profile.previousSeason.score then
+		if profile.mplusPrevious.score then
 			local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and
-				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, profile.previousSeasonNumber) or
-				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.previousSeasonNumber)
+				GenerateScoreSeasonLabel(L.TOTAL_MP_SCORE, profile.mplusPreviousId) or
+				GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.mplusPreviousId)
 			local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1 } or { 1, 0.85, 0 }
 
 			table.insert(lines, {
 				scoreLabel,
-				GetTooltipScore(profile.previousSeason),
+				GetTooltipScore(profile.mplusPrevious),
 				lineColor[1], lineColor[2], lineColor[3],
-				GetScoreColor(profile.previousSeason.score)
+				GetScoreColor(profile.mplusPrevious.score)
 			})
 
 			return lines
@@ -1346,24 +1424,31 @@ do
 				end
 
 				do
+					local timedRunsStartLine = i		-- used to prevent showing more than 2 "Timed Runs" lines
+
+					if profile.keystoneTwentyPlus > 0 then
+						output[i] = {L.TIMED_20_RUNS, GetFormattedRunCount(profile.keystoneTwentyPlus) .. (profile.keystoneTwentyPlus > 10 and '+' or ''), 1, 1, 1, 1, 1, 1}
+						i = i + 1
+					end
+
 					if profile.keystoneFifteenPlus > 0 then
-						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus) .. (profile.keystoneFifteenPlus > 10 and '+' or ''), 1, 1, 1, GetScoreColor(profile.allScore)}
+						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus) .. (profile.keystoneFifteenPlus > 10 and '+' or ''), 1, 1, 1, 1, 1, 1}
 						i = i + 1
 					end
 
-					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or isModKeyDown or isModKeyDownSticky) then
-						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus) .. (profile.keystoneTenPlus > 10 and '+' or ''), 1, 1, 1, GetScoreColor(profile.allScore)}
+					if profile.keystoneTenPlus > 0 and i - timedRunsStartLine < 2 and (isModKeyDown or isModKeyDownSticky) then
+						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus) .. (profile.keystoneTenPlus > 10 and '+' or ''), 1, 1, 1, 1, 1, 1}
 						i = i + 1
 					end
 
-					if profile.keystoneFivePlus > 0 and (profile.keystoneTenPlus == 0 or isModKeyDown or isModKeyDownSticky) then
-						output[i] = {L.TIMED_5_RUNS, GetFormattedRunCount(profile.keystoneFivePlus) .. (profile.keystoneFivePlus > 10 and '+' or ''), 1, 1, 1, GetScoreColor(profile.allScore)}
+					if profile.keystoneFivePlus > 0 and i - timedRunsStartLine < 2 and (isModKeyDown or isModKeyDownSticky) then
+						output[i] = {L.TIMED_5_RUNS, GetFormattedRunCount(profile.keystoneFivePlus) .. (profile.keystoneFivePlus > 10 and '+' or ''), 1, 1, 1, 1, 1, 1}
 						i = i + 1
 					end
 				end
 
-				if ns.addonConfig.showMainsScore and profile.mainScore > profile.allScore then
-					output[i] = {L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore)}
+				if ns.addonConfig.showMainsScore and profile.mplusMain.score and profile.mplusCurrent.score and profile.mplusMain.score > profile.mplusCurrent.score then
+					output[i] = {L.MAINS_SCORE, GetTooltipScore(profile.mplusMain), 1, 1, 1, GetScoreColor(profile.mplusMain.score)}
 					i = i + 1
 				end
 			end
@@ -1388,8 +1473,8 @@ do
 				end
 
 				-- main's current raid progress
-				if ns.addonConfig.showMainsScore and profile.mainProgress then
-					local mainProg = profile.mainProgress[1]
+				if ns.addonConfig.showMainsScore and profile.mplusMainProgress then
+					local mainProg = profile.mplusMainProgress[1]
 					local bestProg = profile.progress[1]
 					if mainProg and bestProg and ((mainProg.difficulty > bestProg.difficulty) or (mainProg.progressCount > bestProg.progressCount)) then
 						output[i] = {
@@ -2275,13 +2360,13 @@ do
 		local function score(profile)
 			text = ""
 
-			if profile.allScore > 0 then
-				text = text .. (L.RAIDERIO_MP_SCORE .. ": "):gsub("%.", "|cffFFFFFF|r.") .. GetFormattedScore(profile.allScore, profile.isPrevAllScore) .. ". "
+			if profile.mplusCurrent.score > 0 then
+				text = text .. (L.RAIDERIO_MP_SCORE .. ": "):gsub("%.", "|cffFFFFFF|r.") .. GetFormattedScore(profile.mplusCurrent.score, profile.isPrevAllScore) .. ". "
 			end
 
 			-- show the mains season score
-			if ns.addonConfig.showMainsScore and profile.mainScore > profile.allScore then
-				text = text .. "(" .. L.MAINS_SCORE .. ": " .. profile.mainScore .. "). "
+			if ns.addonConfig.showMainsScore and profile.mplusMain.score > profile.mplusCurrent.score then
+				text = text .. "(" .. L.MAINS_SCORE .. ": " .. profile.mplusMain.score .. "). "
 			end
 
 			-- show tank, healer and dps scores

@@ -1336,6 +1336,13 @@ do
 						1, 1, 1,
 						GetScoreColor(profile.mplusCurrent.score)
 					})
+				else
+					table.insert(lines, {
+						GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, profile.mplusCurrent.season),
+						GetTooltipScore(profile.mplusCurrent),
+						1, 0.85, 0,
+						GetScoreColor(profile.mplusCurrent.score)
+					})
 				end
 			elseif ns.addonConfig.mplusHeadlineMode == MythicPlusHeadlineModes.BEST_RUN then
 				-- headline would have been added previously, so just add the scores without any color highlights
@@ -1408,14 +1415,14 @@ do
 				output = insertToOutput(output, i, scoreLines)
 				i = i + #scoreLines
 
-				if ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN then
-					output = insertToOutput(output, i, bestRunLines)
-					i = i + #bestRunLines
-				end
-
 				if ns.addonConfig.showMainsScore and profile.mplusMain.score and profile.mplusCurrent.score and profile.mplusMain.score > profile.mplusCurrent.score then
 					output[i] = {L.MAINS_SCORE, GetTooltipScore(profile.mplusMain), 1, 1, 1, GetScoreColor(profile.mplusMain.score)}
 					i = i + 1
+				end
+
+				if ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN then
+					output = insertToOutput(output, i, bestRunLines)
+					i = i + #bestRunLines
 				end
 
 				do

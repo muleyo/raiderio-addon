@@ -203,6 +203,18 @@ do
 					end
 				end
 			end
+
+			for cvar in pairs(config.radios) do
+				local radios = config.radios[cvar]
+				for i = 1, #radios do
+					local f = radios[i]
+					local checked = f.checkButton:GetChecked()
+
+					if checked then
+						ns.addonConfig[f.cvar] = f.valueRadio
+					end
+				end
+			end
 			if reload then
 				StaticPopup_Show("RAIDERIO_RELOADUI_CONFIRM")
 			end
@@ -212,6 +224,7 @@ do
 		config = {
 			modules = {},
 			options = {},
+			radios = {},
 			backdrop = {
 				bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
 				edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 16,
@@ -228,6 +241,14 @@ do
 			for i = 1, #self.options do
 				local f = self.options[i]
 				f.checkButton:SetChecked(ns.addonConfig[f.cvar] ~= false)
+			end
+			for cvar in pairs(self.radios) do
+				local radios = config.radios[cvar]
+				for i = 1, #radios do
+					local f = radios[i]
+
+					f.checkButton:SetChecked(f.valueRadio == ns.addonConfig[f.cvar])
+				end
 			end
 		end
 
@@ -317,7 +338,7 @@ do
 			return frame
 		end
 
-		function config.CreateOptionToggle(self, label, description, cvar, config)
+		function config.CreateToggle(self, label, description, cvar, config)
 			local frame = self:CreateWidget("Frame")
 			frame.text:SetText(label)
 			frame.tooltip = description
@@ -327,8 +348,41 @@ do
 			frame.help.tooltip = description
 			frame.help:Show()
 			frame.checkButton:Show()
+
+			return frame
+		end
+
+		function config.CreateOptionToggle(self, label, description, cvar, config)
+			local frame = self:CreateToggle(label, description, cvar, config)
 			self.options[#self.options + 1] = frame
 			return frame
+		end
+
+		function config.CreateRadioToggle(self, label, description, cvar, value)
+			local frame = self:CreateToggle(label, description, cvar, {})
+
+			frame.valueRadio = value
+
+			if self.radios[cvar] == nil then
+				self.radios[cvar] = {}
+			end
+
+			self.radios[cvar][#self.radios[cvar] +1] = frame
+
+			frame.checkButton:SetScript("OnClick", function ()
+				-- Disable unchecking radio (to avoid having nothing chosen)
+				if not frame.checkButton:GetChecked() then
+					frame.checkButton:SetChecked(true)
+				end
+
+				-- Uncheck every other radio for same cvar
+				for i = 1, #self.radios[cvar] do
+					local f = self.radios[cvar][i]
+					if f.valueRadio ~= frame.valueRadio then
+						f.checkButton:SetChecked(false)
+					end
+				end
+			end)
 		end
 
 		-- customize the look and feel
@@ -397,6 +451,12 @@ do
 			config:CreateOptionToggle(L.SHOW_ON_GUILD_ROSTER, L.SHOW_ON_GUILD_ROSTER_DESC, "enableGuildTooltips")
 			config:CreateOptionToggle(L.SHOW_IN_WHO_UI, L.SHOW_IN_WHO_UI_DESC, "enableWhoTooltips")
 			config:CreateOptionToggle(L.SHOW_IN_SLASH_WHO_RESULTS, L.SHOW_IN_SLASH_WHO_RESULTS_DESC, "enableWhoMessages")
+
+			config:CreatePadding()
+			config:CreateHeadline(L.CHOOSE_HEADLINE_HEADER)
+			config:CreateRadioToggle(L.SHOW_CURRENT_SEASON, L.SHOW_CURRENT_SEASON_DESC, "mplusHeadlineMode", 0)
+			config:CreateRadioToggle(L.SHOW_BEST_SEASON, L.SHOW_BEST_SEASON_DESC, "mplusHeadlineMode", 1)
+			config:CreateRadioToggle(L.SHOW_BEST_RUN, L.SHOW_BEST_RUN_DESC, "mplusHeadlineMode", 2)
 
 			config:CreatePadding()
 			config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)

@@ -180,7 +180,7 @@ L.SHOW_BEST_SEASON = "Show best season as headline"
 L.SHOW_BEST_SEASON_DESC = "Show best season as headline"
 L.SHOW_BEST_RUN = "Show best run as headline"
 L.SHOW_BEST_RUN_DESC = "Show best run as headline"
-L.SEASON_LABEL_S1 = "S1"
-L.SEASON_LABEL_S2 = "S2"
+L.SEASON_LABEL_1 = "S1"
+L.SEASON_LABEL_2 = "S2"
 
 ns.L = L

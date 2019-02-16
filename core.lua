@@ -135,8 +135,8 @@ end
 -- defined constants
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_BATTLE_FOR_AZEROTH]
 local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
+local PREVIOUS_SEASON_ID = 1
 local CURRENT_SEASON_ID = 2
-local SEASON_TERMS
 local FACTION
 local REGIONS
 local REGIONS_RESET_TIME
@@ -157,13 +157,6 @@ do
 		"eu",
 		"tw",
 		"cn"
-	}
-
-	SEASON_TERMS = {
-		[1] = "S1",
-		[2] = "S2",
-		[3] = "S3",
-		[4] = "S4",
 	}
 
 	REGIONS_RESET_TIME = {
@@ -938,7 +931,7 @@ do
 			mplusPrevious = {
 				score = payload.previousScore,
 				role = {tank = payload.previousTankOrdinal, heal = payload.previousHealerOrdinal, dps = payload.previousDpsOrdinal},
-				season = 1 + payload.previousSeasonId
+				season = PREVIOUS_SEASON_ID
 			},
 			mplusMain = {
 				score = payload.mainScore,
@@ -1280,7 +1273,7 @@ do
 	end
 
 	local function GenerateScoreSeasonLabel (label, season)
-		return format(label, format(L["SEASON_LABEL_S" .. season], season))
+		return format(label, format(L["SEASON_LABEL_" .. season], season))
 	end
 
 	local function GetScoreLines(profile, isProfile)
@@ -1311,7 +1304,7 @@ do
 					1, 0.85, 0,
 					GetScoreColor(profile.mplusCurrent.score)
 				})
-	
+
 				if profile.mplusPrevious.score > profile.mplusCurrent.score then
 					table.insert(lines, {
 						GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, profile.mplusPrevious.season),
@@ -1352,7 +1345,7 @@ do
 					1, 1, 1,
 					GetScoreColor(profile.mplusCurrent.score)
 				})
-	
+
 				if profile.mplusPrevious.score > profile.mplusCurrent.score then
 					table.insert(lines, {
 						GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, profile.mplusPrevious.season),

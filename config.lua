@@ -14,7 +14,6 @@ local addonConfig = {
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
 	mplusHeadlineMode = 0,
-	-- showBestRunFirst = false,
 	showMainsScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
@@ -467,7 +466,6 @@ do
 			config:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
 			config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 			config:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
-			-- config:CreateOptionToggle(L.SHOW_RAIDERIO_BESTRUN_FIRST, L.SHOW_RAIDERIO_BESTRUN_FIRST_DESC, "showBestRunFirst", { needReload = true })
 
 			config:CreatePadding()
 			config:CreateHeadline(L.TOOLTIP_PROFILE)

@@ -15,7 +15,7 @@ local addonConfig = {
 	enableKeystoneTooltips = true,
 	mplusHeadlineMode = 0,
 	showMainsScore = true,
-	showBestMainsScore = false,
+	showMainBestScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
 	showScoreInCombat = true,
@@ -466,7 +466,7 @@ do
 			config:CreatePadding()
 			config:CreateHeadline(L.GENERAL_TOOLTIP_OPTIONS)
 			config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
-			config:CreateOptionToggle(L.SHOW_BEST_MAINS_SCORE, L.SHOW_BEST_MAINS_SCORE_DESC, "showBestMainsScore")
+			config:CreateOptionToggle(L.SHOW_BEST_MAINS_SCORE, L.SHOW_BEST_MAINS_SCORE_DESC, "showMainBestScore")
 			config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 			config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
 			config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")

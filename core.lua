@@ -1414,21 +1414,37 @@ do
 				i = i + #scoreLines
 
 				if ns.addonConfig.showMainsScore then
-					if not ns.addonConfig.showBestMainsScore then
+					if not ns.addonConfig.showMainBestScore then
 						-- show current season
 						if profile.mplusMainCurrent.score > profile.mplusCurrent.score then
 							output[i] = {L.MAINS_SCORE, GetTooltipScore(profile.mplusMainCurrent), 1, 1, 1, GetScoreColor(profile.mplusMainCurrent.score)}
 							i = i + 1
 						end
 					else
-						-- show best season
+						-- show best season and current
 						if profile.mplusMainCurrent.score > profile.mplusCurrent.score or profile.mplusMainPrevious.score > profile.mplusCurrent.score then
-							if profile.mplusMainPrevious.score > profile.mplusMainCurrent.score then
-								output[i] = {format(L.MAINS_SCORE_BEST_SEASON, L["SEASON_LABEL_" .. PREVIOUS_SEASON_ID]), GetTooltipScore(profile.mplusMainPrevious), 1, 1, 1, GetPreviousScoreColor(profile.mplusMainPrevious.score)}
-							else
-								output[i] = {L.MAINS_SCORE, GetTooltipScore(profile.mplusMainCurrent), 1, 1, 1, GetScoreColor(profile.mplusMainCurrent.score)}
+							local displayedPreviousSeason = false
+							if profile.mplusMainCurrent.score < profile.mplusMainPrevious.score then
+								displayedPreviousSeason = true
+								output[i] = {
+									format(L.MAINS_BEST_SCORE_BEST_SEASON, L["SEASON_LABEL_" .. PREVIOUS_SEASON_ID]),
+									GetTooltipScore(profile.mplusMainPrevious),
+									1, 1, 1,
+									GetPreviousScoreColor(profile.mplusMainPrevious.score)
+								}
+								i = i + 1
 							end
-							i = i + 1
+
+							-- Show current score on modifier (or if previous wasn't shown)
+							if profile.mplusMainCurrent.score ~= 0 and (not displayedPreviousSeason or isModKeyDown or isModKeyDownSticky) then
+								output[i] = {
+									L.CURRENT_MAINS_SCORE,
+									GetTooltipScore(profile.mplusMainCurrent),
+									1, 1, 1,
+									GetScoreColor(profile.mplusMainCurrent.score)
+								}
+								i = i + 1
+							end
 						end
 					end
 				end

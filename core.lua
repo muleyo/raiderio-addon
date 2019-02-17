@@ -41,6 +41,8 @@ local CONST_REALM_SLUGS = ns.realmSlugs
 local CONST_REGION_IDS = ns.regionIDs
 local CONST_SCORE_TIER = ns.scoreTiers
 local CONST_SCORE_TIER_SIMPLE = ns.scoreTiersSimple
+local CONST_PREVIOUS_SCORE_TIER = ns.previousScoreTiers or ns.scoreTiers
+local CONST_PREVIOUS_SCORE_TIER_SIMPLE = ns.previousScoreTiersSimple or ns.previousScoreTiersSimple
 local CONST_DUNGEONS = ns.dungeons
 local CONST_AVERAGE_SCORE = ns.scoreLevelStats
 local L = ns.L
@@ -643,6 +645,7 @@ end
 -- provider
 local AddProvider
 local GetScoreColor
+local GetPreviousScoreColor
 local GetRaidDifficultyColor
 local GetPlayerProfile
 local HasPlayerProfile
@@ -1130,15 +1133,15 @@ do
 	end
 
 	-- returns score color using item colors
-	function GetScoreColor(score)
+	function GetScoreColorFromTable(score, tbl, tblSimple)
 		if score == 0 or ns.addonConfig.disableScoreColors then
 			return 1, 1, 1
 		end
 		local r, g, b = 0.62, 0.62, 0.62
 		if type(score) == "number" then
 			if not ns.addonConfig.showSimpleScoreColors then
-				for i = 1, #CONST_SCORE_TIER do
-					local tier = CONST_SCORE_TIER[i]
+				for i = 1, #tbl do
+					local tier = tbl[i]
 					if score >= tier.score then
 						local color = tier.color
 						r, g, b = color[1], color[2], color[3]
@@ -1147,8 +1150,8 @@ do
 				end
 			else
 				local qualityColor = 1
-				for i = 1, #CONST_SCORE_TIER_SIMPLE do
-					local tier = CONST_SCORE_TIER_SIMPLE[i]
+				for i = 1, #tblSimple do
+					local tier = tblSimple[i]
 					if score >= tier.score then
 						qualityColor = tier.quality
 						break
@@ -1158,6 +1161,16 @@ do
 			end
 		end
 		return r, g, b
+	end
+
+	-- returns score color using item colors
+	function GetScoreColor(score)
+		return GetScoreColorFromTable(score, CONST_SCORE_TIER, CONST_SCORE_TIER_SIMPLE)
+	end
+
+	-- returns score color using item colors with scale from previous tier
+	function GetPreviousScoreColor(score)
+		return GetScoreColorFromTable(score, CONST_PREVIOUS_SCORE_TIER, CONST_PREVIOUS_SCORE_TIER_SIMPLE)
 	end
 
 	-- returns score color using item colors
@@ -1264,7 +1277,7 @@ do
 		return output
 	end
 
-	local function GenerateScoreSeasonLabel (label, season)
+	local function GenerateScoreSeasonLabel(label, season)
 		return format(label, format(L["SEASON_LABEL_" .. season], season))
 	end
 
@@ -1284,7 +1297,7 @@ do
 					GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, PREVIOUS_SEASON_ID),
 					GetTooltipScore(profile.mplusPrevious),
 					1, 1, 1,
-					1, 1, 1		-- do not color previous score
+					GetPreviousScoreColor(profile.mplusPrevious.score)
 				})
 			end
 		else
@@ -1302,7 +1315,7 @@ do
 						GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, PREVIOUS_SEASON_ID),
 						GetTooltipScore(profile.mplusPrevious),
 						1, 1, 1,
-						1, 1, 1		-- do not color previous score
+						GetPreviousScoreColor(profile.mplusPrevious.score)
 					})
 				end
 			elseif ns.addonConfig.mplusHeadlineMode == MythicPlusHeadlineModes.BEST_SEASON then
@@ -1312,7 +1325,7 @@ do
 						GenerateScoreSeasonLabel(L.RAIDERIO_MP_BEST_SCORE, PREVIOUS_SEASON_ID),
 						GetTooltipScore(profile.mplusPrevious),
 						1, 0.85, 0,
-						1, 1, 1		-- do not color previous score
+						GetPreviousScoreColor(profile.mplusPrevious.score)
 					})
 
 					table.insert(lines, {
@@ -1343,7 +1356,7 @@ do
 						GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, PREVIOUS_SEASON_ID),
 						GetTooltipScore(profile.mplusPrevious),
 						1, 1, 1,
-						1, 1, 1		-- do not color previous score
+						GetPreviousScoreColor(profile.mplusPrevious.score)
 					})
 				end
 			end
@@ -1411,7 +1424,7 @@ do
 						-- show best season
 						if profile.mplusMainCurrent.score > profile.mplusCurrent.score or profile.mplusMainPrevious.score > profile.mplusCurrent.score then
 							if profile.mplusMainPrevious.score > profile.mplusMainCurrent.score then
-								output[i] = {format(L.MAINS_SCORE_BEST_SEASON, L["SEASON_LABEL_" .. PREVIOUS_SEASON_ID]), GetTooltipScore(profile.mplusMainPrevious), 1, 1, 1, 1, 1, 1}
+								output[i] = {format(L.MAINS_SCORE_BEST_SEASON, L["SEASON_LABEL_" .. PREVIOUS_SEASON_ID]), GetTooltipScore(profile.mplusMainPrevious), 1, 1, 1, GetPreviousScoreColor(profile.mplusMainPrevious.score)}
 							else
 								output[i] = {L.MAINS_SCORE, GetTooltipScore(profile.mplusMainCurrent), 1, 1, 1, GetScoreColor(profile.mplusMainCurrent.score)}
 							end

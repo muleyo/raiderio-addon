@@ -15,11 +15,11 @@ local addonConfig = {
 	enableKeystoneTooltips = true,
 	mplusHeadlineMode = 0,
 	showMainsScore = true,
+	showBestMainsScore = false,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
 	showScoreInCombat = true,
 	disableScoreColors = false,
-	-- alwaysExtendTooltip = false,
 	enableClientEnhancements = true,
 	showClientGuildBest = true,
 	displayWeeklyGuildBest = false,
@@ -211,12 +211,17 @@ do
 
 					if checked then
 						ns.addonConfig[f.cvar] = f.valueRadio
+
+						if f.needReload then
+							reload = 1
+						end
 					end
 				end
 			end
 			if reload then
 				StaticPopup_Show("RAIDERIO_RELOADUI_CONFIRM")
 			end
+			ns.FlushTooltipCache()
 			ns.PROFILE_UI.SaveConfig()
 		end
 
@@ -357,8 +362,8 @@ do
 			return frame
 		end
 
-		function config.CreateRadioToggle(self, label, description, cvar, value)
-			local frame = self:CreateToggle(label, description, cvar, {})
+		function config.CreateRadioToggle(self, label, description, cvar, value, config)
+			local frame = self:CreateToggle(label, description, cvar, config)
 
 			frame.valueRadio = value
 
@@ -443,7 +448,7 @@ do
 			local header = config:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(GetAddOnMetadata(addonName, "Version")), configHeaderFrame)
 			header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
 
-			config:CreateHeadline(L.CONFIG_SHOW_TOOLTIPS_HEADER)
+			config:CreateHeadline(L.CONFIG_WHERE_TO_SHOW_TOOLTIPS)
 			config:CreateOptionToggle(L.SHOW_ON_PLAYER_UNITS, L.SHOW_ON_PLAYER_UNITS_DESC, "enableUnitTooltips")
 			config:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
 			config:CreateOptionToggle(L.SHOW_IN_FRIENDS, L.SHOW_IN_FRIENDS_DESC, "enableFriendsTooltips")
@@ -458,12 +463,11 @@ do
 			config:CreateRadioToggle(L.SHOW_BEST_RUN, L.SHOW_BEST_RUN_DESC, "mplusHeadlineMode", 2)
 
 			config:CreatePadding()
-			config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)
+			config:CreateHeadline(L.GENERAL_TOOLTIP_OPTIONS)
 			config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
+			config:CreateOptionToggle(L.SHOW_BEST_MAINS_SCORE, L.SHOW_BEST_MAINS_SCORE_DESC, "showBestMainsScore")
 			config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 			config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
-			-- config:CreateOptionToggle(L.ALWAYS_SHOW_EXTENDED_INFO, L.ALWAYS_SHOW_EXTENDED_INFO_DESC, "alwaysExtendTooltip")
-			config:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
 			config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 			config:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
 

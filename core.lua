@@ -325,7 +325,6 @@ local GetFaction
 local IsUnitMaxLevel
 local GetWeeklyAffix
 local GetStarsForUpgrades
-local GetFormattedScore
 local GetFormattedRunCount
 local GetTooltipScore
 do
@@ -582,10 +581,7 @@ do
 	end
 
 	-- returns score formatted for current or prev season
-	function GetFormattedScore(score, isPrevious)
-		if isPrevious then
-			return score .. " " .. L.PREV_SEASON_SUFFIX
-		end
+	function GetFormattedScore(score)
 		return score
 	end
 
@@ -605,6 +601,10 @@ do
 
 	-- returns score with role
 	function GetTooltipScore(score)
+		if not ns.addonConfig.showRoleIcons then
+			return score.score
+		end
+
 		local inversedRole = {}
 
 		inversedRole[score.role.tank] = "tank"
@@ -632,10 +632,10 @@ do
 		return atlas .. " " .. score.score
 	end
 
-	-- we only use 11 bits for how many runs they've completed, so cap it somewhere nice and even
-	function GetFormattedRunCount(count)
-		if count > 2000 then
-			return "2000+"
+	-- run counts are packed so we print it as a range (with "+" suffix after a certain number)
+	function GetFormattedRunCount(count, pluralAt)
+		if count >= pluralAt then
+			return count .. "+"
 		else
 			return count
 		end
@@ -1249,16 +1249,16 @@ do
 		if not best.text and (not best.dungeon or overallBest.dungeon.index ~= best.dungeon.index) and overallBest.level > 0 then
 			local bestRunLabel = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and L.BEST_RUN or L.RAIDERIO_BEST_RUN
 			local lineColor = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and {1, 1, 1} or {1, 0.85, 0}
-			table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[overallBest.dungeon.index]) .. overallBest.level .. " " .. overallBest.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1})
+			table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[overallBest.dungeon.index]) .. "|cFFFFFFFF" .. overallBest.level .. "|r " .. overallBest.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.mplusCurrent.score)})
 		end
 
 		if best.dungeon and best.level > 0 then
 			if best.dungeon == profile.maxDungeon then
 				local bestRunLabel = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and L.BEST_FOR_DUNGEON or L.RAIDERIO_BEST_RUN
 				local lineColor = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and {0, 1, 0} or {1, 0.85, 0}
-				table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1})
+				table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. "|cFFFFFFFF" .. best.level .. "|r " .. best.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.mplusCurrent.score)})
 			else
-				table.insert(lines, {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, 1, 1, 1})
+				table.insert(lines, {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. "|cFFFFFFFF" ..best.level .. "|r " .. best.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.mplusCurrent.score)})
 			end
 		elseif best.text then
 			local bestRunLabel = (isProfile or ns.addonConfig.mplusHeadlineMode ~= MythicPlusHeadlineModes.BEST_RUN) and L.BEST_RUN or L.RAIDERIO_BEST_RUN
@@ -1458,22 +1458,22 @@ do
 					local timedRunsStartLine = i		-- used to prevent showing more than 2 "Timed Runs" lines
 
 					if profile.keystoneTwentyPlus > 0 then
-						output[i] = {L.TIMED_20_RUNS, GetFormattedRunCount(profile.keystoneTwentyPlus) .. (profile.keystoneTwentyPlus > 10 and '+' or ''), 1, 1, 1, 1, 1, 1}
+						output[i] = {L.TIMED_20_RUNS, GetFormattedRunCount(profile.keystoneTwentyPlus, 10), 1, 1, 1, 1, 1, 1}
 						i = i + 1
 					end
 
 					if profile.keystoneFifteenPlus > 0 then
-						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus) .. (profile.keystoneFifteenPlus > 10 and '+' or ''), 1, 1, 1, 1, 1, 1}
+						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus, 5), 1, 1, 1, 1, 1, 1}
 						i = i + 1
 					end
 
-					if profile.keystoneTenPlus > 0 and i - timedRunsStartLine < 2 and (isModKeyDown or isModKeyDownSticky) then
-						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus) .. (profile.keystoneTenPlus > 10 and '+' or ''), 1, 1, 1, 1, 1, 1}
+					if profile.keystoneTenPlus > 0 and (i - timedRunsStartLine < 1 or (isModKeyDown or isModKeyDownSticky)) then
+						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus, 5), 1, 1, 1, 1, 1, 1}
 						i = i + 1
 					end
 
-					if profile.keystoneFivePlus > 0 and i - timedRunsStartLine < 2 and (isModKeyDown or isModKeyDownSticky) then
-						output[i] = {L.TIMED_5_RUNS, GetFormattedRunCount(profile.keystoneFivePlus) .. (profile.keystoneFivePlus > 10 and '+' or ''), 1, 1, 1, 1, 1, 1}
+					if profile.keystoneFivePlus > 0 and (i - timedRunsStartLine < 1 or (isModKeyDown or isModKeyDownSticky)) then
+						output[i] = {L.TIMED_5_RUNS, GetFormattedRunCount(profile.keystoneFivePlus, 5), 1, 1, 1, 1, 1, 1}
 						i = i + 1
 					end
 				end
@@ -2392,7 +2392,7 @@ do
 			text = ""
 
 			if profile.mplusCurrent.score > 0 then
-				text = text .. (L.RAIDERIO_MP_SCORE .. ": "):gsub("%.", "|cffFFFFFF|r.") .. GetFormattedScore(profile.mplusCurrent.score, profile.isPrevAllScore) .. ". "
+				text = text .. (L.RAIDERIO_MP_SCORE .. ": "):gsub("%.", "|cffFFFFFF|r.") .. profile.mplusCurrent.score .. ". "
 			end
 
 			-- show the mains season score

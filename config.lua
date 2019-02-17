@@ -208,11 +208,12 @@ do
 				for i = 1, #radios do
 					local f = radios[i]
 					local checked = f.checkButton:GetChecked()
+					local currentValue = ns.addonConfig[f.cvar]
 
 					if checked then
 						ns.addonConfig[f.cvar] = f.valueRadio
 
-						if f.needReload then
+						if currentValue ~= f.valueRadio and f.needReload then
 							reload = 1
 						end
 					end

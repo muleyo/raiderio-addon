@@ -1267,7 +1267,7 @@ do
 		return format(label, format(L["SEASON_LABEL_" .. season], season))
 	end
 
-	local function GetScoreLines(profile, isProfile)
+	local function GetScoreLines(profile, isProfile, hasRunLines)
 		local lines = {}
 
 		if isProfile then
@@ -1333,12 +1333,13 @@ do
 					})
 				end
 			elseif ns.addonConfig.mplusHeadlineMode == MythicPlusHeadlineModes.BEST_RUN then
+				local keyColor = hasRunLines and { 1, 1, 1 } or { 1, 0.85, 0 }
 				-- headline would have been added previously, so just add the scores without any color highlights
 				if profile.mplusCurrent.score > 0 then
 					table.insert(lines, {
 						GenerateScoreSeasonLabel(L.CURRENT_SCORE, CURRENT_SEASON_ID),
 						GetTooltipScore(profile.mplusCurrent),
-						1, 1, 1,
+						keyColor[1], keyColor[2], keyColor[3],
 						GetScoreColor(profile.mplusCurrent.score)
 					})
 				end
@@ -1347,7 +1348,7 @@ do
 					table.insert(lines, {
 						GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, PREVIOUS_SEASON_ID),
 						GetTooltipScore(profile.mplusPrevious),
-						1, 1, 1,
+						keyColor[1], keyColor[2], keyColor[3],
 						GetPreviousScoreColor(profile.mplusPrevious.score)
 					})
 				end
@@ -1401,7 +1402,7 @@ do
 					i = i + #bestRunLines
 				end
 
-				local scoreLines = GetScoreLines(profile, isProfile)
+				local scoreLines = GetScoreLines(profile, isProfile, #bestRunLines > 0)
 				output = insertToOutput(output, i, scoreLines)
 				i = i + #scoreLines
 

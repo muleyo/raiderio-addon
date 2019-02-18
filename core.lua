@@ -928,8 +928,6 @@ do
 			region = dataProviderGroup.region,
 			date = dataProviderGroup.date,
 			dataType = dataProviderGroup.data,
-			currentSeasonId = dataProviderGroup.currentSeasonId,
-			previousSeasonId = dataProviderGroup.previousSeasonId,
 			-- basic information about the character
 			name = name,
 			realm = realm,
@@ -951,8 +949,8 @@ do
 				score = payload.mainPreviousScore,
 				role = ROLE_ORDINALS[payload.mainPreviousRoleOrdinalIndex] or ROLE_ORDINALS[1]
 			},
-			allScore = payload.allScore, 		-- deprecated
-			mainScore = payload.mainScore,	-- deprecated
+			allScore = 0, 			-- deprecated: refer to mplusCurrent.score
+			mainScore = 0,			-- deprecated: refer to mplusMainCurrent.score
 			-- dungeons they have completed
 			dungeons = payload.dungeons,
 			dungeonUpgrades = payload.dungeonUpgrades,
@@ -977,26 +975,14 @@ do
 
 			-- if character exists in the clientCharacters list then override some data with higher precision
 			-- TODO: only do this if the clientCharacters data isn't too old compared to regular addon date?
-			if false and ns.CLIENT_CHARACTERS and ns.addonConfig.enableClientEnhancements then
+			if ns.CLIENT_CHARACTERS and ns.addonConfig.enableClientEnhancements then
 				local nameAndRealm = name .. "-" .. realm
 				local clientData = ns.CLIENT_CHARACTERS[nameAndRealm]
 
 				if clientData then
 					local keystoneData = clientData.mythic_keystone
 					cache.isEnhanced = true
-					cache.allScore = keystoneData.all.score
-
-					if keystoneData.dps then
-						cache.dpsScore = keystoneData.dps.score
-					end
-
-					if keystoneData.tank then
-						cache.tankScore = keystoneData.tank.score
-					end
-
-					if keystoneData.healer then
-						cache.healerScore = keystoneData.healer.score
-					end
+					cache.mplusCurrent.score = keystoneData.all.score
 
 					local maxDungeonIndex = 0
 					local maxDungeonTime = 999
@@ -1285,12 +1271,14 @@ do
 		local lines = {}
 
 		if isProfile then
-			table.insert(lines, {
-				GenerateScoreSeasonLabel(L.CURRENT_SCORE, CURRENT_SEASON_ID),
-				GetTooltipScore(profile.mplusCurrent),
-				1, 1, 1,
-				GetScoreColor(profile.mplusCurrent.score)
-			})
+			if profile.mplusCurrent.score > 0 then
+				table.insert(lines, {
+					GenerateScoreSeasonLabel(L.CURRENT_SCORE, CURRENT_SEASON_ID),
+					GetTooltipScore(profile.mplusCurrent),
+					1, 1, 1,
+					GetScoreColor(profile.mplusCurrent.score)
+				})
+			end
 
 			if profile.mplusPrevious.score > profile.mplusCurrent.score then
 				table.insert(lines, {
@@ -1328,12 +1316,14 @@ do
 						GetPreviousScoreColor(profile.mplusPrevious.score)
 					})
 
-					table.insert(lines, {
-						GenerateScoreSeasonLabel(L.CURRENT_SCORE, CURRENT_SEASON_ID),
-						GetTooltipScore(profile.mplusCurrent),
-						1, 1, 1,
-						GetScoreColor(profile.mplusCurrent.score)
-					})
+					if profile.mplusCurrent.score > 0 then
+						table.insert(lines, {
+							GenerateScoreSeasonLabel(L.CURRENT_SCORE, CURRENT_SEASON_ID),
+							GetTooltipScore(profile.mplusCurrent),
+							1, 1, 1,
+							GetScoreColor(profile.mplusCurrent.score)
+						})
+					end
 				else
 					table.insert(lines, {
 						GenerateScoreSeasonLabel(L.RAIDERIO_MP_SCORE, CURRENT_SEASON_ID),
@@ -1344,12 +1334,14 @@ do
 				end
 			elseif ns.addonConfig.mplusHeadlineMode == MythicPlusHeadlineModes.BEST_RUN then
 				-- headline would have been added previously, so just add the scores without any color highlights
-				table.insert(lines, {
-					GenerateScoreSeasonLabel(L.CURRENT_SCORE, CURRENT_SEASON_ID),
-					GetTooltipScore(profile.mplusCurrent),
-					1, 1, 1,
-					GetScoreColor(profile.mplusCurrent.score)
-				})
+				if profile.mplusCurrent.score > 0 then
+					table.insert(lines, {
+						GenerateScoreSeasonLabel(L.CURRENT_SCORE, CURRENT_SEASON_ID),
+						GetTooltipScore(profile.mplusCurrent),
+						1, 1, 1,
+						GetScoreColor(profile.mplusCurrent.score)
+					})
+				end
 
 				if profile.mplusPrevious.score > profile.mplusCurrent.score then
 					table.insert(lines, {
@@ -1480,6 +1472,8 @@ do
 			end
 
 			if dataType == CONST_PROVIDER_DATA_RAIDING then
+				local startOffset = i
+
 				-- current raid progress
 				for progIndex = 1, 2 do
 					local prog = profile.progress[progIndex]
@@ -1512,19 +1506,21 @@ do
 				end
 
 				-- previous raid progress
-				for progIndex = 1, 2 do
-					local prog = profile.previousProgress and profile.previousProgress[progIndex]
-					if prog then
-						-- for previous progress, only show both if the mod key is down
-						if progIndex == 1 or isModKeyDown or isModKeyDownSticky then
-							output[i] = {
-								format("%s %s", profile.previousRaid.shortName, RAID_DIFFICULTY_NAMES[prog.difficulty]),
-								format("|c%s%s|r %d/%d", RAID_DIFFICULTY_COLORS[prog.difficulty][4], RAID_DIFFICULTY_SUFFIXES[prog.difficulty], prog.progressCount, profile.previousRaid.bossCount),
-								1, 1, 1,
-								1, 1, 1
-							}
+				if i - startOffset == 0 or isModKeyDown or isModKeyDownSticky then
+					for progIndex = 1, 2 do
+						local prog = profile.previousProgress and profile.previousProgress[progIndex]
+						if prog then
+							-- for previous progress, only show both if the mod key is down
+							if progIndex == 1 or isModKeyDown or isModKeyDownSticky then
+								output[i] = {
+									format("%s %s", profile.previousRaid.shortName, RAID_DIFFICULTY_NAMES[prog.difficulty]),
+									format("|c%s%s|r %d/%d", RAID_DIFFICULTY_COLORS[prog.difficulty][4], RAID_DIFFICULTY_SUFFIXES[prog.difficulty], prog.progressCount, profile.previousRaid.bossCount),
+									1, 1, 1,
+									1, 1, 1
+								}
 
-							i = i + 1
+								i = i + 1
+							end
 						end
 					end
 				end

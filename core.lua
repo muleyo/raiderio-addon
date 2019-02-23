@@ -15,7 +15,6 @@ local rshift = bit.rshift
 local band = bit.band
 local bor = bit.bor
 local bxor = bit.bxor
-local SCORE_BITS = 12
 local LOOKUP_MAX_SIZE = floor(2^18-1)
 local CONST_COMPLETED_FROM_ACHIEVEMENT_VALUE = 63
 
@@ -102,37 +101,103 @@ local MythicPlusHeadlineModes = {
 	BEST_RUN = 2
 }
 
+local ROLE_ICONS = {
+	dps = {
+		full = "|TInterface\\AddOns\\RaiderIO\\icons\\roles:14:14:0:0:64:64:0:18:0:18|t",
+		partial = "|TInterface\\AddOns\\RaiderIO\\icons\\roles:14:14:0:0:64:64:0:18:36:54|t"
+	},
+	healer = {
+		full = "|TInterface\\AddOns\\RaiderIO\\icons\\roles:14:14:0:0:64:64:19:37:0:18|t",
+		partial = "|TInterface\\AddOns\\RaiderIO\\icons\\roles:14:14:0:0:64:64:19:37:36:54|t"
+	},
+	tank = {
+		full = "|TInterface\\AddOns\\RaiderIO\\icons\\roles:14:14:0:0:64:64:38:56:0:18|t",
+		partial	= "|TInterface\\AddOns\\RaiderIO\\icons\\roles:14:14:0:0:64:64:38:56:36:54|t"
+	}
+}
+
 -- look up the tuple of ordinals in this table and store that index to indicate the order
 -- in which to show roles in addon allowing us to store just 5 bits for all the role ordinals vs 6 bits.
-local ROLE_ORDINALS = {
-  { ["tank"] = 0, ["heal"] = 0, ["dps"] = 0 },	-- 0
-  { ["tank"] = 0, ["heal"] = 1, ["dps"] = 2 },	-- 1
-  { ["tank"] = 0, ["heal"] = 1, ["dps"] = 3 },	-- 2
-  { ["tank"] = 0, ["heal"] = 2, ["dps"] = 1 },	-- 3
-  { ["tank"] = 0, ["heal"] = 2, ["dps"] = 3 },	-- 4
-  { ["tank"] = 0, ["heal"] = 3, ["dps"] = 1 },	-- 5
-  { ["tank"] = 0, ["heal"] = 3, ["dps"] = 2 },	-- 6
-  { ["tank"] = 1, ["heal"] = 0, ["dps"] = 3 },	-- 7
-  { ["tank"] = 1, ["heal"] = 0, ["dps"] = 2 },	-- 8
-  { ["tank"] = 1, ["heal"] = 2, ["dps"] = 3 },	-- 9
-  { ["tank"] = 1, ["heal"] = 2, ["dps"] = 0 },	-- 10
-  { ["tank"] = 1, ["heal"] = 3, ["dps"] = 2 },	-- 11
-  { ["tank"] = 1, ["heal"] = 3, ["dps"] = 0 },	-- 12
-  { ["tank"] = 2, ["heal"] = 0, ["dps"] = 1 },	-- 13
-  { ["tank"] = 2, ["heal"] = 0, ["dps"] = 3 },	-- 14
-  { ["tank"] = 2, ["heal"] = 1, ["dps"] = 0 },	-- 15
-  { ["tank"] = 2, ["heal"] = 1, ["dps"] = 3 },	-- 16
-  { ["tank"] = 2, ["heal"] = 3, ["dps"] = 0 },	-- 17
-  { ["tank"] = 2, ["heal"] = 3, ["dps"] = 1 },	-- 18
-  { ["tank"] = 3, ["heal"] = 0, ["dps"] = 2 },	-- 19
-  { ["tank"] = 3, ["heal"] = 0, ["dps"] = 1 },	-- 20
-  { ["tank"] = 3, ["heal"] = 1, ["dps"] = 2 },	-- 21
-  { ["tank"] = 3, ["heal"] = 1, ["dps"] = 0 },	-- 22
-  { ["tank"] = 3, ["heal"] = 2, ["dps"] = 1 },	-- 23
-  { ["tank"] = 3, ["heal"] = 2, ["dps"] = 0 },	-- 24
-  { ["tank"] = 1, ["heal"] = 0, ["dps"] = 0 },	-- 25
-  { ["tank"] = 0, ["heal"] = 1, ["dps"] = 0 },	-- 26
-  { ["tank"] = 0, ["heal"] = 0, ["dps"] = 1 }		-- 27
+local ORDERED_ROLES = {
+	{ },
+	{ {"dps","full"}, },
+	{ {"dps","full"}, {"healer","full"}, },
+	{ {"dps","full"}, {"healer","full"}, {"tank","full"}, },
+	{ {"dps","full"}, {"healer","full"}, {"tank","partial"}, },
+	{ {"dps","full"}, {"healer","partial"}, },
+	{ {"dps","full"}, {"healer","partial"}, {"tank","full"}, },
+	{ {"dps","full"}, {"healer","partial"}, {"tank","partial"}, },
+	{ {"dps","full"}, {"tank","full"}, },
+	{ {"dps","full"}, {"tank","full"}, {"healer","full"}, },
+	{ {"dps","full"}, {"tank","full"}, {"healer","partial"}, },
+	{ {"dps","full"}, {"tank","partial"}, },
+	{ {"dps","full"}, {"tank","partial"}, {"healer","full"}, },
+	{ {"dps","full"}, {"tank","partial"}, {"healer","partial"}, },
+	{ {"dps","partial"}, },
+	{ {"dps","partial"}, {"healer","full"}, },
+	{ {"dps","partial"}, {"healer","full"}, {"tank","full"}, },
+	{ {"dps","partial"}, {"healer","full"}, {"tank","partial"}, },
+	{ {"dps","partial"}, {"healer","partial"}, },
+	{ {"dps","partial"}, {"healer","partial"}, {"tank","full"}, },
+	{ {"dps","partial"}, {"healer","partial"}, {"tank","partial"}, },
+	{ {"dps","partial"}, {"tank","full"}, },
+	{ {"dps","partial"}, {"tank","full"}, {"healer","full"}, },
+	{ {"dps","partial"}, {"tank","full"}, {"healer","partial"}, },
+	{ {"dps","partial"}, {"tank","partial"}, },
+	{ {"dps","partial"}, {"tank","partial"}, {"healer","full"}, },
+	{ {"dps","partial"}, {"tank","partial"}, {"healer","partial"}, },
+	{ {"healer","full"}, },
+	{ {"healer","full"}, {"dps","full"}, },
+	{ {"healer","full"}, {"dps","full"}, {"tank","full"}, },
+	{ {"healer","full"}, {"dps","full"}, {"tank","partial"}, },
+	{ {"healer","full"}, {"dps","partial"}, },
+	{ {"healer","full"}, {"dps","partial"}, {"tank","full"}, },
+	{ {"healer","full"}, {"dps","partial"}, {"tank","partial"}, },
+	{ {"healer","full"}, {"tank","full"}, },
+	{ {"healer","full"}, {"tank","full"}, {"dps","full"}, },
+	{ {"healer","full"}, {"tank","full"}, {"dps","partial"}, },
+	{ {"healer","full"}, {"tank","partial"}, },
+	{ {"healer","full"}, {"tank","partial"}, {"dps","full"}, },
+	{ {"healer","full"}, {"tank","partial"}, {"dps","partial"}, },
+	{ {"healer","partial"}, },
+	{ {"healer","partial"}, {"dps","full"}, },
+	{ {"healer","partial"}, {"dps","full"}, {"tank","full"}, },
+	{ {"healer","partial"}, {"dps","full"}, {"tank","partial"}, },
+	{ {"healer","partial"}, {"dps","partial"}, },
+	{ {"healer","partial"}, {"dps","partial"}, {"tank","full"}, },
+	{ {"healer","partial"}, {"dps","partial"}, {"tank","partial"}, },
+	{ {"healer","partial"}, {"tank","full"}, },
+	{ {"healer","partial"}, {"tank","full"}, {"dps","full"}, },
+	{ {"healer","partial"}, {"tank","full"}, {"dps","partial"}, },
+	{ {"healer","partial"}, {"tank","partial"}, },
+	{ {"healer","partial"}, {"tank","partial"}, {"dps","full"}, },
+	{ {"healer","partial"}, {"tank","partial"}, {"dps","partial"}, },
+	{ {"tank","full"}, },
+	{ {"tank","full"}, {"dps","full"}, },
+	{ {"tank","full"}, {"dps","full"}, {"healer","full"}, },
+	{ {"tank","full"}, {"dps","full"}, {"healer","partial"}, },
+	{ {"tank","full"}, {"dps","partial"}, },
+	{ {"tank","full"}, {"dps","partial"}, {"healer","full"}, },
+	{ {"tank","full"}, {"dps","partial"}, {"healer","partial"}, },
+	{ {"tank","full"}, {"healer","full"}, },
+	{ {"tank","full"}, {"healer","full"}, {"dps","full"}, },
+	{ {"tank","full"}, {"healer","full"}, {"dps","partial"}, },
+	{ {"tank","full"}, {"healer","partial"}, },
+	{ {"tank","full"}, {"healer","partial"}, {"dps","full"}, },
+	{ {"tank","full"}, {"healer","partial"}, {"dps","partial"}, },
+	{ {"tank","partial"}, },
+	{ {"tank","partial"}, {"dps","full"}, },
+	{ {"tank","partial"}, {"dps","full"}, {"healer","full"}, },
+	{ {"tank","partial"}, {"dps","full"}, {"healer","partial"}, },
+	{ {"tank","partial"}, {"dps","partial"}, },
+	{ {"tank","partial"}, {"dps","partial"}, {"healer","full"}, },
+	{ {"tank","partial"}, {"dps","partial"}, {"healer","partial"}, },
+	{ {"tank","partial"}, {"healer","full"}, },
+	{ {"tank","partial"}, {"healer","full"}, {"dps","full"}, },
+	{ {"tank","partial"}, {"healer","full"}, {"dps","partial"}, },
+	{ {"tank","partial"}, {"healer","partial"}, },
+	{ {"tank","partial"}, {"healer","partial"}, {"dps","full"}, },
+	{ {"tank","partial"}, {"healer","partial"}, {"dps","partial"}, },
 }
 
 -- setup outdated struct
@@ -585,51 +650,27 @@ do
 		return score
 	end
 
-	local function CreateAtlasFromRole (roleName)
-		if not roleName then
-			return ""
-		end
-
-		local atlasName = "roleicon-tiny-"
-
-		if roleName == "heal" then
-			return CreateAtlasMarkup(atlasName .. "healer")
-		else
-			return CreateAtlasMarkup(atlasName .. roleName)
-		end
-	end
-
 	-- returns score with role
-	function GetTooltipScore(score)
+	function GetTooltipScore(score, isApproximated)
 		if not ns.addonConfig.showRoleIcons then
 			return score.score
 		end
 
 		local inversedRole = {}
 
-		inversedRole[score.role.tank] = "tank"
-		inversedRole[score.role.heal] = "heal"
-		inversedRole[score.role.dps] = "dps"
+		local roles = {
+			["tank"] = 0,
+			["heal"] = 0,
+			["dps"] = 0,
+		}
 
-		local atlas = ""
+		local icons = ""
 
-		if inversedRole[1] then
-			atlas = atlas .. CreateAtlasFromRole(inversedRole[1])
-		end
-		if inversedRole[2] then
-			if atlas ~= "" then
-				atlas = atlas .. " "
-			end
-			atlas = atlas .. CreateAtlasFromRole(inversedRole[2])
-		end
-		if inversedRole[3] then
-			if atlas ~= "" then
-				atlas = atlas .. " "
-			end
-			atlas = atlas .. CreateAtlasFromRole(inversedRole[3])
+		for i = 1, #score.roles do
+			icons = icons .. ROLE_ICONS[score.roles[i][1]][score.roles[i][2]]
 		end
 
-		return atlas .. " " .. score.score
+		return icons .. " " .. (isApproximated and "±" or "") .. score.score
 	end
 
 	-- run counts are packed so we print it as a range (with "+" suffix after a certain number)
@@ -684,15 +725,15 @@ do
 			local mask = lshift(1, (offset + bits) - 32) - 1
 			local p1 = rshift(lo, offset)
 			local p2 = lshift(band(hi, mask), 32 - offset)
-			return p1 + p2
+			return p1 + p2, offset + bits
 		else
 			local mask = lshift(1, bits) - 1
 			if offset < 32 then
 				-- standard read from loword
-				return band(rshift(lo, offset), mask)
+				return band(rshift(lo, offset), mask), offset + bits
 			else
 				-- standard read from hiword
-				return band(rshift(hi, offset - 32), mask)
+				return band(rshift(hi, offset - 32), mask), offset + bits
 			end
 		end
 	end
@@ -701,6 +742,7 @@ do
 		local results = {}
 		local lo, hi
 		local offset
+		local value
 
 		--
 		-- Field 1
@@ -708,26 +750,24 @@ do
 		lo, hi = Split64BitNumber(data1)
 		offset = 0
 
-		-- current season
-		results.currentScore = ReadBits(lo, hi, offset, SCORE_BITS)
-		offset = offset + SCORE_BITS
+		results.currentScore, offset = ReadBits(lo, hi, offset, 12)
 
-		results.currentRoleOrdinalIndex = 1 + ReadBits(lo, hi, offset, 5)
-		offset = offset + 5
+		value, offset = ReadBits(lo, hi, offset, 7)
+		results.currentRoleOrdinalIndex = 1 + value			-- indexes are one-based
 
-		-- previous season
-		results.previousScore = ReadBits(lo, hi, offset, SCORE_BITS)
-		offset = offset + SCORE_BITS
+		value, offset = ReadBits(lo, hi, offset, 4)
+		results.keystoneFivePlus = DecodeBits4(value)
 
-		results.previousRoleOrdinalIndex = 1 + ReadBits(lo, hi, offset, 5)
-		offset = offset + 5
+		value, offset = ReadBits(lo, hi, offset, 4)
+		results.keystoneTenPlus = DecodeBits4(value)
 
-		-- main current season
-		results.mainCurrentScore = ReadBits(lo, hi, offset, SCORE_BITS)
-		offset = offset + SCORE_BITS
+		value, offset = ReadBits(lo, hi, offset, 7)
+		results.previousRoleOrdinalIndex = 1 + value			-- indexes are one-based
 
-		results.mainCurrentRoleOrdinalIndex = 1 + ReadBits(lo, hi, offset, 5)
-		offset = offset + 5
+		results.mainCurrentScore, offset = ReadBits(lo, hi, offset, 12)
+
+		value, offset = ReadBits(lo, hi, offset, 7)
+		results.mainCurrentRoleOrdinalIndex = 1 + value 	-- indexes are one-based
 
 		--
 		-- Field 2
@@ -737,8 +777,8 @@ do
 
 		-- since we do not store score in addon, we need an explicit value indicating which dungeon was the best run
 		-- note: stored as zero-based, so offset it here on load
-		results.maxDungeonIndex = 1 + ReadBits(lo, hi, offset, 4)
-		offset = offset + 4
+		value, offset = ReadBits(lo, hi, offset, 4)
+		results.maxDungeonIndex = 1 + value
 
 		local dungeonIndex = 1
 		results.dungeons = {}
@@ -746,11 +786,8 @@ do
 		results.dungeonTimes = {}
 
 		for i = 1, 7 do
-			results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
-			offset = offset + 5
-
-			results.dungeonUpgrades[dungeonIndex] = ReadBits(lo, hi, offset, 2)
-			offset = offset + 2
+			results.dungeons[dungeonIndex], offset = ReadBits(lo, hi, offset, 5)
+			results.dungeonUpgrades[dungeonIndex], offset = ReadBits(lo, hi, offset, 2)
 
 			-- this is just set so that dungeons will be sorted by key level and number of stars.
 			-- it may be overridden by client data.
@@ -766,11 +803,8 @@ do
 		offset = 0
 
 		for i = dungeonIndex, 10 do
-			results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
-			offset = offset + 5
-
-			results.dungeonUpgrades[dungeonIndex] = ReadBits(lo, hi, offset, 2)
-			offset = offset + 2
+			results.dungeons[dungeonIndex], offset = ReadBits(lo, hi, offset, 5)
+			results.dungeonUpgrades[dungeonIndex], offset = ReadBits(lo, hi, offset, 2)
 
 			-- this is just set so that dungeons will be sorted by key level and number of stars.
 			-- it may be overridden by client data.
@@ -779,24 +813,21 @@ do
 			dungeonIndex = dungeonIndex + 1
 		end
 
-		results.keystoneFivePlus = DecodeBits4(ReadBits(lo, hi, offset, 4))
-		offset = offset + 4
+		value, offset = ReadBits(lo, hi, offset, 4)
+		results.keystoneFifteenPlus = DecodeBits4(value)
 
-		results.keystoneTenPlus = DecodeBits4(ReadBits(lo, hi, offset, 4))
-		offset = offset + 4
+		value, offset = ReadBits(lo, hi, offset, 3)
+		results.keystoneTwentyPlus = DecodeBits3(value)
 
-		results.keystoneFifteenPlus = DecodeBits4(ReadBits(lo, hi, offset, 4))
-		offset = offset + 4
-
-		results.keystoneTwentyPlus = DecodeBits3(ReadBits(lo, hi, offset, 3))
-		offset = offset + 3
+		value, offset = ReadBits(lo, hi, offset, 9)
+		results.previousScore = 10 * value
 
 		-- main previous season
-		results.mainPreviousScore = ReadBits(lo, hi, offset, SCORE_BITS)
-		offset = offset + SCORE_BITS
+		value, offset = ReadBits(lo, hi, offset, 7)
+		results.mainPreviousRoleOrdinalIndex = 1 + value		-- indexes are one-based
 
-		results.mainPreviousRoleOrdinalIndex = 1 + ReadBits(lo, hi, offset, 5)
-		offset = offset + 5
+		value, offset = ReadBits(lo, hi, offset, 9)
+		results.mainPreviousScore = 10 * value
 
 		-- Post processing
 		if results.maxDungeonIndex > #results.dungeons then
@@ -815,6 +846,7 @@ do
 		}
 
 		local currentNumBosses = dataProviderGroup.currentRaid.bossCount
+		local value
 
 		do
 			local lo, hi = Split64BitNumber(data1)
@@ -824,16 +856,15 @@ do
 			for bucketIndex = 1, 2 do
 				prog = { progressCount = 0 }
 
-				prog.difficulty = ReadBits(lo, hi, offset, 2)
-				offset = offset + 2
+				prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
 
 				prog.killsPerBoss = {}
 				for i = 1, currentNumBosses do
-					prog.killsPerBoss[i] = DecodeBits2(ReadBits(lo, hi, offset, 2))
+					value, offset = ReadBits(lo, hi, offset, 2)
+					prog.killsPerBoss[i] = DecodeBits2(value)
 					if prog.killsPerBoss[i] > 0 then
 						prog.progressCount = prog.progressCount + 1
 					end
-					offset = offset + 2
 				end
 
 				if prog.progressCount > 0 then
@@ -851,16 +882,15 @@ do
 			do
 				prog = { progressCount = 0 }
 
-				prog.difficulty = ReadBits(lo, hi, offset, 2)
-				offset = offset + 2
+				prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
 
 				prog.killsPerBoss = {}
 				for i = 1, currentNumBosses do
-					prog.killsPerBoss[i] = DecodeBits2(ReadBits(lo, hi, offset, 2))
+					value, offset = ReadBits(lo, hi, offset, 2)
+					prog.killsPerBoss[i] = DecodeBits2(value)
 					if prog.killsPerBoss[i] > 0 then
 						prog.progressCount = prog.progressCount + 1
 					end
-					offset = offset + 2
 				end
 
 				if prog.difficulty ~= 0 and prog.progressCount > 0 then
@@ -872,11 +902,9 @@ do
 			for i = 1, 2 do
 				prog = {}
 
-				prog.difficulty = ReadBits(lo, hi, offset, 2)
-				offset = offset + 2
+				prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
 
-				prog.progressCount = ReadBits(lo, hi, offset, 4)
-				offset = offset + 4
+				prog.progressCount, offset = ReadBits(lo, hi, offset, 4)
 
 				if prog.progressCount > 0 then
 					if not results.previousProgress then
@@ -890,11 +918,9 @@ do
 			for i = 1, 2 do
 				prog = {}
 
-				prog.difficulty = ReadBits(lo, hi, offset, 2)
-				offset = offset + 2
+				prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
 
-				prog.progressCount = ReadBits(lo, hi, offset, 4)
-				offset = offset + 4
+				prog.progressCount, offset = ReadBits(lo, hi, offset, 4)
 
 				if prog.progressCount > 0 then
 					if not results.mainProgress then
@@ -935,19 +961,19 @@ do
 			-- current and last season overall score
 			mplusCurrent = {
 				score = payload.currentScore,
-				role = ROLE_ORDINALS[payload.currentRoleOrdinalIndex] or ROLE_ORDINALS[1]
+				roles = ORDERED_ROLES[payload.currentRoleOrdinalIndex] or ORDERED_ROLES[1]
 			},
 			mplusPrevious = {
 				score = payload.previousScore,
-				role = ROLE_ORDINALS[payload.previousRoleOrdinalIndex] or ROLE_ORDINALS[1]
+				roles = ORDERED_ROLES[payload.previousRoleOrdinalIndex] or ORDERED_ROLES[1]
 			},
 			mplusMainCurrent = {
 				score = payload.mainCurrentScore,
-				role = ROLE_ORDINALS[payload.mainCurrentRoleOrdinalIndex] or ROLE_ORDINALS[1]
+				roles = ORDERED_ROLES[payload.mainCurrentRoleOrdinalIndex] or ORDERED_ROLES[1]
 			},
 			mplusMainPrevious = {
 				score = payload.mainPreviousScore,
-				role = ROLE_ORDINALS[payload.mainPreviousRoleOrdinalIndex] or ROLE_ORDINALS[1]
+				roles = ORDERED_ROLES[payload.mainPreviousRoleOrdinalIndex] or ORDERED_ROLES[1]
 			},
 			allScore = 0, 			-- deprecated: refer to mplusCurrent.score
 			mainScore = 0,			-- deprecated: refer to mplusMainCurrent.score
@@ -1283,7 +1309,7 @@ do
 			if profile.mplusPrevious.score > profile.mplusCurrent.score then
 				table.insert(lines, {
 					GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, PREVIOUS_SEASON_ID),
-					GetTooltipScore(profile.mplusPrevious),
+					GetTooltipScore(profile.mplusPrevious, true),
 					1, 1, 1,
 					GetPreviousScoreColor(profile.mplusPrevious.score)
 				})
@@ -1301,7 +1327,7 @@ do
 				if profile.mplusPrevious.score > profile.mplusCurrent.score then
 					table.insert(lines, {
 						GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, PREVIOUS_SEASON_ID),
-						GetTooltipScore(profile.mplusPrevious),
+						GetTooltipScore(profile.mplusPrevious, true),
 						1, 1, 1,
 						GetPreviousScoreColor(profile.mplusPrevious.score)
 					})
@@ -1311,7 +1337,7 @@ do
 					-- headline
 					table.insert(lines, {
 						GenerateScoreSeasonLabel(L.RAIDERIO_MP_BEST_SCORE, PREVIOUS_SEASON_ID),
-						GetTooltipScore(profile.mplusPrevious),
+						GetTooltipScore(profile.mplusPrevious, true),
 						1, 0.85, 0,
 						GetPreviousScoreColor(profile.mplusPrevious.score)
 					})
@@ -1347,7 +1373,7 @@ do
 				if profile.mplusPrevious.score > profile.mplusCurrent.score then
 					table.insert(lines, {
 						GenerateScoreSeasonLabel(L.PREVIOUS_SCORE, PREVIOUS_SEASON_ID),
-						GetTooltipScore(profile.mplusPrevious),
+						GetTooltipScore(profile.mplusPrevious, true),
 						keyColor[1], keyColor[2], keyColor[3],
 						GetPreviousScoreColor(profile.mplusPrevious.score)
 					})
@@ -1421,7 +1447,7 @@ do
 								displayedPreviousSeason = true
 								output[i] = {
 									format(L.MAINS_BEST_SCORE_BEST_SEASON, L["SEASON_LABEL_" .. PREVIOUS_SEASON_ID]),
-									GetTooltipScore(profile.mplusMainPrevious),
+									GetTooltipScore(profile.mplusMainPrevious, true),
 									1, 1, 1,
 									GetPreviousScoreColor(profile.mplusMainPrevious.score)
 								}

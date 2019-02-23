@@ -1494,8 +1494,8 @@ do
 				end
 
 				-- main's current raid progress
-				if ns.addonConfig.showMainsScore and profile.mplusMainProgress then
-					local mainProg = profile.mplusMainProgress[1]
+				if ns.addonConfig.showMainsScore and profile.mainProgress then
+					local mainProg = profile.mainProgress[1]
 					local bestProg = profile.progress[1]
 					if mainProg and bestProg and ((mainProg.difficulty > bestProg.difficulty) or (mainProg.progressCount > bestProg.progressCount)) then
 						output[i] = {

@@ -975,8 +975,17 @@ do
 				score = payload.mainPreviousScore,
 				roles = ORDERED_ROLES[payload.mainPreviousRoleOrdinalIndex] or ORDERED_ROLES[1]
 			},
-			allScore = 0, 			-- deprecated: refer to mplusCurrent.score
-			mainScore = 0,			-- deprecated: refer to mplusMainCurrent.score
+			allScore = 0, 											-- deprecated: refer to mplusCurrent.score
+			mainScore = 0,											-- deprecated: refer to mplusMainCurrent.score
+			dpsScore = 0,												-- deprecated: refer to mplusXYZ.roles to see the roles they have contribution from
+			healScore = 0,											-- deprecated: refer to mplusXYZ.roles to see the roles they have contribution from
+			tankScore = 0,											-- deprecated: refer to mplusXYZ.roles to see the roles they have contribution from
+			season = '',												-- deprecated
+			prevSeason = '',										-- deprecated
+			isPrevAllScore = false,							-- deprecated: use mplusPrevious.score and mplusCurrent.score independently
+			isFivePlusAchievement = false,			-- deprecated
+			isTenPlusAchievement = false,				-- deprecated
+			isFifteenPlusAchievement = false,		-- deprecated
 			-- dungeons they have completed
 			dungeons = payload.dungeons,
 			dungeonUpgrades = payload.dungeonUpgrades,
@@ -2404,9 +2413,6 @@ do
 			pattern = pattern:gsub("%%%%%%[%d%.%,]+f", "([%%d%%.%%,]+)")
 			return pattern
 		end
-		local function sortRoleScores(a, b)
-			return a[2] > b[2]
-		end
 		local FORMAT_GUILD = "^" .. pattern(WHO_LIST_GUILD_FORMAT) .. "$"
 		local FORMAT = "^" .. pattern(WHO_LIST_FORMAT) .. "$"
 		local nameLink, name, level, race, class, guild, zone
@@ -2421,32 +2427,6 @@ do
 			-- show the mains season score
 			if ns.addonConfig.showMainsScore and profile.mplusMainCurrent.score > profile.mplusCurrent.score then
 				text = text .. "(" .. L.MAINS_SCORE .. ": " .. profile.mplusMainCurrent.score .. "). "
-			end
-
-			-- show tank, healer and dps scores
-			local scores = {}
-
-			if profile.tankScore then
-				scores[#scores + 1] = { L.TANK, profile.tankScore }
-			end
-
-			if profile.healScore then
-				scores[#scores + 1] = { L.HEALER, profile.healScore }
-			end
-
-			if profile.dpsScore then
-				scores[#scores + 1] = { L.DPS, profile.dpsScore }
-			end
-
-			sort(scores, sortRoleScores)
-
-			for i = 1, #scores do
-				if scores[i][2] > 0 then
-					if i > 1 then
-						text = text .. ", "
-					end
-					text = text .. scores[i][1] .. ": " .. scores[i][2]
-				end
 			end
 
 			return text

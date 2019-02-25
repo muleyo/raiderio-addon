@@ -6,7 +6,7 @@ This is a companion addon to go along with the Raid and Mythic+ Rankings site, R
 
 Simply hover over a player with your mouse, your guild roster, or even the Group Finder list where you see queued people; if they meet the minimum qualifications then you'll see their score and best run in the tooltip.
 
-![Raider.IO Tooltip Example](https://cdnassets.raider.io/images/addon/tooltip_details.jpg "Raider.IO Tooltip Example")
+![Raider.IO Tooltip Example](https://cdnassets.raider.io/images/addon/tooltip_details_20190225.png "Raider.IO Tooltip Example")
 
 Additionally, you can right-click players from the standard target unit frame to `Copy Raider.IO URL` and then easily look up their full profile on the site. With this functionality you can directly paste these URLs anywhere on Raider.IO to navigate to that player's profile page.
 
@@ -30,7 +30,11 @@ Once installed you can load into the game and you will start seeing Scores and B
 
 Our intent with this AddOn is to provide an easy way for people to get some information at a glance when forming groups. There is no substitute for talking with your fellow players, so be a pal and listen if an applicant whispers you. These are the fields we show, and when we show them:
 
-### Character Mythic+ Tooltips
+### Character Raid & Mythic+ Tooltips
+
+Raid information in tooltips simply lists the best progress seen for the player.
+
+Mythic+ tooltips have a lot of parts to them:
 
 - `Raider.IO M+ Score`: This is the overall score for this character. If the score is from a previous season, then the value of the score is rounded to the nearest 10s, and is prefixed with `±`. You can also identify the previous season score by looking for the `(S#)` suffix on the tooltip headline.
 - `Best Run`: This will indicate the Mythic+ level for the player's best scoring run, along with the specific dungeon. Up to three plus signs `+` will be prefixed to the keystone level to indicate how much the keystone was upgraded during that run. Note: when this keyword is highlighted green it means that the player's `Best For Dungeon` is also the same as their overall `Best Run`.
@@ -38,14 +42,7 @@ Our intent with this AddOn is to provide an easy way for people to get some info
 - `Timed #+ Runs`: These lines indicate how many M+ runs have been completed by this player within the timer over the course of the current season. The player's two highest categories of Timed Runs will show by default.
 - `Main's Best M+ Score` / `Main's Current M+ Score`: This indicates the best character score on this player's account, if they have [registered on Raider.IO](https://raider.io/register) and linked their Battle.Net account. This will only show if the Main's Score is greater than the current character's score. If someone has a good score on their main, then much of their prior experience will help them perform better in dungeons while on their alt.
 
-_A note on Role Icons_
-Role icons included on tooltips indicate a character's experience in that role:
-- Fully opaque icons indicate the player has earned at least 80-100% of their overall score in that role.
-- Semi-transparent icons indicate the player has earned between 40-79% of their overall score in that role.
-
-### Character Raiding Tooltips
-
-Raiding information will show the player's top fully cleared raid, or top 2 partially cleared raid difficulties.
+Role icons included on Mythic+ tooltips can be thought of as badges earned by accumulating certain amounts of score while playing as that role. Fully opaque icons indicate they've earned at least 80% of their overall score in that role. Semi-transparent role icons indicate they have earned at least 40% of their overall score in that role.
 
 ### Character Profile Tooltips
 
@@ -53,7 +50,9 @@ You can view your personal M+ and Raid Progress profile when you open the Dungeo
 
 This can be used to help understand what dungeons you should try to focus on in order to raise your score.
 
-While in the dungeon finder you can press a modifier key (Shift/Alt/Ctrl/Cmd) to show the target character's full profile, rather than yours.
+![Raider.IO Profile](https://cdnassets.raider.io/images/addon/raiderio_profile_20190225.png "Raider.IO Profile")
+
+By default when you are in the Dungeon Finder it will show your own profile. However, you can press a modifier key (Shift/Alt/Ctrl/Cmd) to show the target character's full profile instead. There is also a config option to invert this behavior.
 
 ### Keystone Tooltips
 
@@ -83,7 +82,7 @@ This will then take you to the Raider.IO Advanced Search page for all the charac
 
 This will take you to that character's profile page.
 
-### (Advanced) In-Game Character Search
+### In-Game Character Search (Advanced)
 
 ![Raider.IO In-Game Character Search](https://cdnassets.raider.io/images/addon/raiderio_search.png "Raider.IO In-Game Character Search")
 
@@ -104,7 +103,6 @@ _Remember to click "Save" to save the changes, or "Cancel" to abort and close th
 ## Score Color Tiers
 
 Scores map to a specific color based on their range. We've followed the standard WoW quality colors, but added additional gradients between the base values to provide more brackets to ascend through. These tiers are recalculated based on actual scores.
-
 
 ## Patreon Rewards
 

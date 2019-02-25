@@ -13,13 +13,13 @@ local addonConfig = {
 	enableWhoMessages = true,
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
-	showBestRunFirst = false,
+	mplusHeadlineMode = 1,
 	showMainsScore = true,
+	showMainBestScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
 	showScoreInCombat = true,
 	disableScoreColors = false,
-	alwaysExtendTooltip = false,
 	enableClientEnhancements = true,
 	showClientGuildBest = true,
 	displayWeeklyGuildBest = false,
@@ -30,6 +30,7 @@ local addonConfig = {
 	inverseProfileModifier = false,
 	positionProfileAuto = true,
 	lockProfile = false,
+	showRoleIcons = true,
 	profilePoint = { point = nil, x = 0, y = 0 },
 }
 
@@ -202,15 +203,34 @@ do
 					end
 				end
 			end
+
+			for cvar in pairs(config.radios) do
+				local radios = config.radios[cvar]
+				for i = 1, #radios do
+					local f = radios[i]
+					local checked = f.checkButton:GetChecked()
+					local currentValue = ns.addonConfig[f.cvar]
+
+					if checked then
+						ns.addonConfig[f.cvar] = f.valueRadio
+
+						if currentValue ~= f.valueRadio and f.needReload then
+							reload = 1
+						end
+					end
+				end
+			end
 			if reload then
 				StaticPopup_Show("RAIDERIO_RELOADUI_CONFIRM")
 			end
+			ns.FlushTooltipCache()
 			ns.PROFILE_UI.SaveConfig()
 		end
 
 		config = {
 			modules = {},
 			options = {},
+			radios = {},
 			backdrop = {
 				bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
 				edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 16,
@@ -227,6 +247,14 @@ do
 			for i = 1, #self.options do
 				local f = self.options[i]
 				f.checkButton:SetChecked(ns.addonConfig[f.cvar] ~= false)
+			end
+			for cvar in pairs(self.radios) do
+				local radios = config.radios[cvar]
+				for i = 1, #radios do
+					local f = radios[i]
+
+					f.checkButton:SetChecked(f.valueRadio == ns.addonConfig[f.cvar])
+				end
 			end
 		end
 
@@ -316,7 +344,7 @@ do
 			return frame
 		end
 
-		function config.CreateOptionToggle(self, label, description, cvar, config)
+		function config.CreateToggle(self, label, description, cvar, config)
 			local frame = self:CreateWidget("Frame")
 			frame.text:SetText(label)
 			frame.tooltip = description
@@ -326,8 +354,41 @@ do
 			frame.help.tooltip = description
 			frame.help:Show()
 			frame.checkButton:Show()
+
+			return frame
+		end
+
+		function config.CreateOptionToggle(self, label, description, cvar, config)
+			local frame = self:CreateToggle(label, description, cvar, config)
 			self.options[#self.options + 1] = frame
 			return frame
+		end
+
+		function config.CreateRadioToggle(self, label, description, cvar, value, config)
+			local frame = self:CreateToggle(label, description, cvar, config)
+
+			frame.valueRadio = value
+
+			if self.radios[cvar] == nil then
+				self.radios[cvar] = {}
+			end
+
+			self.radios[cvar][#self.radios[cvar] +1] = frame
+
+			frame.checkButton:SetScript("OnClick", function ()
+				-- Disable unchecking radio (to avoid having nothing chosen)
+				if not frame.checkButton:GetChecked() then
+					frame.checkButton:SetChecked(true)
+				end
+
+				-- Uncheck every other radio for same cvar
+				for i = 1, #self.radios[cvar] do
+					local f = self.radios[cvar][i]
+					if f.valueRadio ~= frame.valueRadio then
+						f.checkButton:SetChecked(false)
+					end
+				end
+			end)
 		end
 
 		-- customize the look and feel
@@ -389,24 +450,29 @@ do
 			local header = config:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(GetAddOnMetadata(addonName, "Version")), configHeaderFrame)
 			header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
 
-			config:CreateHeadline(L.CONFIG_SHOW_TOOLTIPS_HEADER)
+			config:CreateHeadline(L.CHOOSE_HEADLINE_HEADER)
+			config:CreateRadioToggle(L.SHOW_BEST_SEASON, L.SHOW_BEST_SEASON_DESC, "mplusHeadlineMode", 1)
+			config:CreateRadioToggle(L.SHOW_CURRENT_SEASON, L.SHOW_CURRENT_SEASON_DESC, "mplusHeadlineMode", 0)
+			config:CreateRadioToggle(L.SHOW_BEST_RUN, L.SHOW_BEST_RUN_DESC, "mplusHeadlineMode", 2)
+
+			config:CreatePadding()
+			config:CreateHeadline(L.GENERAL_TOOLTIP_OPTIONS)
+			config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
+			config:CreateOptionToggle(L.SHOW_BEST_MAINS_SCORE, L.SHOW_BEST_MAINS_SCORE_DESC, "showMainBestScore")
+			config:CreateOptionToggle(L.SHOW_ROLE_ICONS, L.SHOW_ROLE_ICONS_DESC, "showRoleIcons")
+			config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
+			config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
+			config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
+			config:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
+
+			config:CreatePadding()
+			config:CreateHeadline(L.CONFIG_WHERE_TO_SHOW_TOOLTIPS)
 			config:CreateOptionToggle(L.SHOW_ON_PLAYER_UNITS, L.SHOW_ON_PLAYER_UNITS_DESC, "enableUnitTooltips")
 			config:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
 			config:CreateOptionToggle(L.SHOW_IN_FRIENDS, L.SHOW_IN_FRIENDS_DESC, "enableFriendsTooltips")
 			config:CreateOptionToggle(L.SHOW_ON_GUILD_ROSTER, L.SHOW_ON_GUILD_ROSTER_DESC, "enableGuildTooltips")
 			config:CreateOptionToggle(L.SHOW_IN_WHO_UI, L.SHOW_IN_WHO_UI_DESC, "enableWhoTooltips")
 			config:CreateOptionToggle(L.SHOW_IN_SLASH_WHO_RESULTS, L.SHOW_IN_SLASH_WHO_RESULTS_DESC, "enableWhoMessages")
-
-			config:CreatePadding()
-			config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)
-			config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
-			config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
-			config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
-			config:CreateOptionToggle(L.ALWAYS_SHOW_EXTENDED_INFO, L.ALWAYS_SHOW_EXTENDED_INFO_DESC, "alwaysExtendTooltip")
-			config:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
-			config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
-			config:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
-			config:CreateOptionToggle(L.SHOW_RAIDERIO_BESTRUN_FIRST, L.SHOW_RAIDERIO_BESTRUN_FIRST_DESC, "showBestRunFirst", { needReload = true })
 
 			config:CreatePadding()
 			config:CreateHeadline(L.TOOLTIP_PROFILE)

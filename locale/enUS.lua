@@ -162,5 +162,7 @@ L.SHOW_BEST_RUN = "Show Best Mythic+ Run as Headline"
 L.SHOW_BEST_RUN_DESC = "Show the player's best Mythic+ run from the current season as the tooltip headline."
 L.SEASON_LABEL_1 = "S1"
 L.SEASON_LABEL_2 = "S2"
+L.USE_ENGLISH_ABBREVIATION = "Use the dungeon's english abbreviation"
+L.USE_ENGLISH_ABBREVIATION_DESC = "When set, this will overrides the abbreviation's translation to display the english version."
 
 ns.L = L

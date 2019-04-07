@@ -14,6 +14,7 @@ local addonConfig = {
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
 	mplusHeadlineMode = 1,
+	useEnglishAbbreviations = false,
 	showMainsScore = true,
 	showMainBestScore = true,
 	showDropDownCopyURL = true,
@@ -465,6 +466,9 @@ do
 			config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 			config:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
 			config:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
+			config:CreateOptionToggle(L.USE_ENGLISH_ABBREVIATION, L.USE_ENGLISH_ABBREVIATION_DESC, "useEnglishAbbreviations", {
+				callback = function() ns.UpdateConstDungeon() end
+			})
 
 			config:CreatePadding()
 			config:CreateHeadline(L.CONFIG_WHERE_TO_SHOW_TOOLTIPS)

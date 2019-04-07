@@ -216,19 +216,26 @@ local ENUM_DUNGEONS = {}
 local KEYSTONE_INST_TO_DUNGEONID = {}
 local DUNGEON_INSTANCEMAPID_TO_DUNGEONID = {}
 local LFD_ACTIVITYID_TO_DUNGEONID = {}
-for i = 1, #CONST_DUNGEONS do
-	local dungeon = CONST_DUNGEONS[i]
-	dungeon.index = i
 
-	ENUM_DUNGEONS[dungeon.shortName] = i
-	KEYSTONE_INST_TO_DUNGEONID[dungeon.keystone_instance] = i
-	DUNGEON_INSTANCEMAPID_TO_DUNGEONID[dungeon.instance_map_id] = i
+local function UpdateConstDungeon()
+	for i = 1, #CONST_DUNGEONS do
+		local dungeon = CONST_DUNGEONS[i]
+		dungeon.index = i
 
-	for _, activity_id in ipairs(dungeon.lfd_activity_ids) do
-		LFD_ACTIVITYID_TO_DUNGEONID[activity_id] = i
+		ENUM_DUNGEONS[dungeon.shortName] = i
+		KEYSTONE_INST_TO_DUNGEONID[dungeon.keystone_instance] = i
+		DUNGEON_INSTANCEMAPID_TO_DUNGEONID[dungeon.instance_map_id] = i
+
+		for _, activity_id in ipairs(dungeon.lfd_activity_ids) do
+			LFD_ACTIVITYID_TO_DUNGEONID[activity_id] = i
+		end
+
+		if ns.addonConfig.useEnglishAbbreviations == true then
+			dungeon.shortNameLocale = dungeon.shortName
+		else
+			dungeon.shortNameLocale = L["DUNGEON_SHORT_NAME_" .. dungeon.shortName] or dungeon.shortName
+		end
 	end
-
-	dungeon.shortNameLocale = L["DUNGEON_SHORT_NAME_" .. dungeon.shortName] or dungeon.shortName
 end
 
 -- defined constants
@@ -1963,6 +1970,9 @@ do
 		ns.PLAYER_FACTION = PLAYER_FACTION
 		ns.PLAYER_REGION = PLAYER_REGION
 
+		-- Now that the config is loaded, update the dungeon's abbreviation locale
+		UpdateConstDungeon()
+
 		-- we can now create the empty table that contains all providers and provider groups
 		dataProvider = {}
 
@@ -2827,6 +2837,7 @@ do
 	ns.HasPlayerProfile = HasPlayerProfile
 	ns.ShowTooltip = ShowTooltip
 	ns.FlushTooltipCache = FlushTooltipCache
+	ns.UpdateConstDungeon = UpdateConstDungeon
 end
 
 -- mirror certain data exposed in the public API to avoid external users changing our internal data

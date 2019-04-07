@@ -152,8 +152,11 @@ do
 	end
 
 	local function GetJSON()
-		local data = {}
-		data.region = ns.PLAYER_REGION
+		local data = {
+			["activity"] = 0,
+			["region"] = ns.PLAYER_REGION
+		}
+
 		local prefix, x, y, i
 		if IsInRaid() then
 			prefix, x, y = "raid", 1, GetNumGroupMembers()
@@ -172,16 +175,11 @@ do
 				end
 			end
 		end
+
 		local activityEntryInfo = C_LFGList.GetActiveEntryInfo()
 
-		if not activityEntryInfo then
-			return
-		end
-
-		local activityID = activityEntryInfo.activityID
-
-		if activityID then
-			data.activity = activityID
+		if activityEntryInfo and activityEntryInfo.activityID then
+			data.activity = activityEntryInfo.activityID
 			data.queue = {}
 			i = 0
 			local numApps, numActiveApps = C_LFGList.GetNumApplicants()

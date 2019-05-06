@@ -255,7 +255,7 @@ function ExportButton.ToggleCopyDialog()
 end
 
 function ExportButton.OpenCopyDialog()
-	local _ frame = StaticPopup_Visible(StaticPopupName)
+	local _, frame = StaticPopup_Visible(StaticPopupName)
 	if frame then UpdateCopyDialog() return end
 	frame = StaticPopup_Show(StaticPopupName)
 end

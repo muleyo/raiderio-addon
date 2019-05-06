@@ -397,8 +397,9 @@ local GetFaction
 local IsUnitMaxLevel
 local GetWeeklyAffix
 local GetStarsForUpgrades
-local GetFormattedRunCount
+local GetFormattedScore
 local GetTooltipScore
+local GetFormattedRunCount
 do
 	-- bracket can be 10, 100, 0.1, 0.01, and so on
 	function RoundNumber(v, bracket)
@@ -1161,7 +1162,7 @@ do
 	end
 
 	-- returns score color using item colors
-	function GetScoreColorFromTable(score, tbl, tblSimple)
+	local function GetScoreColorFromTable(score, tbl, tblSimple)
 		if score == 0 or ns.addonConfig.disableScoreColors then
 			return 1, 1, 1
 		end

@@ -2559,6 +2559,19 @@ do
 						return 1
 					end
 				},
+				{ -- AddOnSkins
+					name = "AddOnSkins",
+					func = function(list)
+						local AS = _G.AddOnSkins[1]
+						local menu = _G[list:GetName() .. "MenuBackdrop"]
+						if not menu.reskinned then
+							AS:SkinFrame(menu)
+							menu.reskinned = true
+						end
+						OFFSET_BETWEEN = -1 -- we also need no gap with AddOnSkins
+						return 1 -- Is this needed?
+					end
+				},
 			}
 			local skinned = {}
 			function reskinDropDownList(list)

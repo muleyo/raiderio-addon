@@ -33,6 +33,7 @@ local addonConfig = {
 	lockProfile = false,
 	showRoleIcons = true,
 	profilePoint = { point = nil, x = 0, y = 0 },
+	debugMode = false,
 }
 
 -- namespace config reference
@@ -597,12 +598,36 @@ do
 			_G["SLASH_" .. addonName .. "1"] = "/raiderio"
 			_G["SLASH_" .. addonName .. "2"] = "/rio"
 
+			_G.StaticPopupDialogs["RAIDERIO_DEBUG_CONFIRM"] = {
+				text = ns.addonConfig.debugMode and L.DISABLE_DEBUG_MODE_RELOAD or L.ENABLE_DEBUG_MODE_RELOAD,
+				button1 = L.CONFIRM,
+				button2 = L.CANCEL,
+				hasEditBox = false,
+				preferredIndex = 3,
+				timeout = 0,
+				whileDead = true,
+				hideOnEscape = true,
+				OnShow = nil,
+				OnHide = nil,
+				OnAccept = function ()
+					ns.addonConfig.debugMode = not ns.addonConfig.debugMode
+					ReloadUI()
+				end,
+				OnCancel = nil
+			}
+
 			local function handler(text)
 				if type(text) == "string" then
 
 					-- if the keyword "lock" is present in the command we toggle lock behavior on profile frame
 					if text:find("[Ll][Oo][Cc][Kk]") then
 						ns.PROFILE_UI.ToggleLock()
+						return
+					end
+
+					-- if the keyword "debug" is present in the command we toggle debug behavior
+					if text:find("[Dd][Ee][Bb][Uu][Gg]") then
+						StaticPopup_Show("RAIDERIO_DEBUG_CONFIRM")
 						return
 					end
 

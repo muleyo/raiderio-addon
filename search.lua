@@ -2,17 +2,53 @@ local addonName, ns = ...
 
 -- widget references
 local Frame
+local RegionEditBox
 local RealmEditBox
 local NameEditBox
 local Tooltip
 
--- sort realms or names
+-- sort regions, realms or names
 local function SortReturn(a, b)
 	return a.name < b.name
 end
 
+-- Search region for activated provider
+local function GetRegions(text, maxResults, cursorPosition)
+	text = text:lower()
+
+	local temp = {}
+	local unique = {}
+	local count = 0
+
+	for regionName in pairs(ns.dataProvider) do
+		if count >= maxResults then
+			break
+		end
+
+		if not unique[regionName] and regionName:find(text, nil, true) == 1 then
+			unique[regionName] = true
+			count = count + 1
+
+			temp[count] = {
+				name = regionName,
+				priority = 7,
+			}
+		end
+	end
+
+	table.wipe(unique)
+	table.sort(temp, SortReturn)
+	return temp
+end
+
 -- searches for realms
 local function GetRealms(text, maxResults, cursorPosition)
+	local regionName = (RegionEditBox:GetText() and RegionEditBox:GetText() ~= "") and RegionEditBox:GetText() or ns.PLAYER_REGION
+
+	if not ns.dataProvider[regionName] then
+		return
+	end
+
 	text = text:lower()
 	local temp = {}
 	local count = 0
@@ -23,7 +59,7 @@ local function GetRealms(text, maxResults, cursorPosition)
 		if count >= maxResults then
 			break
 		end
-		for _, dataProviderGroup in pairs(ns.dataProvider) do
+		for _, dataProviderGroup in pairs(ns.dataProvider[regionName]) do
 			data = dataProviderGroup["db" .. i]
 			if data then
 				for k, _ in pairs(data) do
@@ -50,6 +86,12 @@ end
 
 -- searches for character names
 local function GetNames(text, maxResults, cursorPosition)
+	local regionName = (RegionEditBox:GetText() and RegionEditBox:GetText() ~= "") and RegionEditBox:GetText() or ns.PLAYER_REGION
+
+	if not ns.dataProvider[regionName] then
+		return
+	end
+
 	text = text:lower()
 	local realm = RealmEditBox:GetText()
 	if not realm or strlenutf8(realm) < 1 then return end
@@ -59,11 +101,12 @@ local function GetNames(text, maxResults, cursorPosition)
 	local count
 	local name
 	local namel
+	local unique = {}
 	for i = 1, 2 do
 		if rcount >= maxResults then
 			break
 		end
-		for _, dataProviderGroup in pairs(ns.dataProvider) do
+		for _, dataProviderGroup in pairs(ns.dataProvider[regionName]) do
 			data = dataProviderGroup["db" .. i]
 			if data then
 				data = data[realm]
@@ -75,8 +118,9 @@ local function GetNames(text, maxResults, cursorPosition)
 						end
 						name = data[j]
 						namel = name:lower()
-						if namel:find(text, nil, true) == 1 then
+						if not unique[namel] and namel:find(text, nil, true) == 1 then
 							rcount = rcount + 1
+							unique[namel] = true
 							temp[rcount] = {
 								name = name,
 								priority = 7,
@@ -143,17 +187,17 @@ local function CreateTooltip()
 end
 
 -- update the tooltip
-local function UpdateTooltip(realm, name)
+local function UpdateTooltip(region, realm, name)
 	if realm and name and strlenutf8(realm) > 0 and strlenutf8(name) > 0 then
 		Tooltip:SetParent(Frame)
 		Tooltip:SetOwner(Frame, "ANCHOR_BOTTOM", 0, -8)
-		local isShown = ns.ShowTooltip(Tooltip, bit.bor(ns.ProfileOutput.DEFAULT, ns.ProfileOutput.MOD_KEY_DOWN_STICKY, ns.ProfileOutput.ADD_NAME), name, realm)
+		local isShown = ns.ShowTooltipRegion(Tooltip, bit.bor(ns.ProfileOutput.DEFAULT, ns.ProfileOutput.MOD_KEY_DOWN_STICKY, ns.ProfileOutput.ADD_NAME), name, realm, nil, region)
 		if not isShown then
 			Tooltip:AddLine(ERR_FRIEND_NOT_FOUND, 1, 1, 1, false)
 		end
 		Tooltip:Show()
 		if isShown then
-			ns.PROFILE_UI.ShowProfile(name, realm, nil, Tooltip)
+			ns.PROFILE_UI.ShowProfile(name, realm, nil, region, Frame, nil, nil, nil, true)
 		end
 	else
 		Tooltip:Hide()
@@ -175,17 +219,20 @@ local function Search(self, query)
 		arg1 = arg1q[1].name
 	end
 	NameEditBox:SetText(arg1)
-	UpdateTooltip(arg2, arg1)
+	UpdateTooltip(ns.PLAYER_REGION, arg2, arg1)
 end
 
 -- creates the search widget
 local function Init()
-	local r = CreateEditBox()
-	local n = CreateEditBox()
+	local regionBox = CreateEditBox()
+	local realmBox = CreateEditBox()
+	local nameBox = CreateEditBox()
 	local t = CreateTooltip()
 
-	r.autoCompleteFunction = GetRealms
-	n.autoCompleteFunction = GetNames
+	regionBox.autoCompleteFunction = GetRegions
+	regionBox:SetText(ns.PLAYER_REGION)
+	realmBox.autoCompleteFunction = GetRealms
+	nameBox.autoCompleteFunction = GetNames
 
 	Frame = CreateFrame("Frame", nil, UIParent)
 	do
@@ -194,7 +241,7 @@ local function Init()
 		Frame:SetFrameStrata("DIALOG")
 		Frame:SetToplevel(true)
 
-		Frame:SetSize(310, 100)
+		Frame:SetSize(310, ns.addonConfig.debugMode and 130 or 100)
 		Frame:SetPoint("CENTER")
 
 		Frame:SetBackdrop({
@@ -215,29 +262,45 @@ local function Init()
 		Frame:SetScript("OnDragStart", function() Frame:StartMoving() end)
 		Frame:SetScript("OnDragStop", function() Frame:StopMovingOrSizing() end)
 
-		Frame:SetScript("OnShow", function() UpdateTooltip(r:GetText(), n:GetText()) end)
+		Frame:SetScript("OnShow", function() UpdateTooltip(regionBox:GetText(), realmBox:GetText(), nameBox:GetText()) end)
 		Frame:SetScript("OnHide", function() UpdateTooltip() end)
 
 		Frame.Search = Search
 	end
 
-	r:SetParent(Frame)
-	n:SetParent(Frame)
+	if ns.addonConfig.debugMode then
+		regionBox:SetParent(Frame)
+	end
+	realmBox:SetParent(Frame)
+	nameBox:SetParent(Frame)
 
-	r:SetPoint("CENTER")
-	n:SetPoint("TOP", r, "BOTTOM", 0, 11)
+	if ns.addonConfig.debugMode then
+		regionBox:SetPoint("CENTER")
+		realmBox:SetPoint("TOP", regionBox, "BOTTOM", 0, 11)
+	else
+		realmBox:SetPoint("CENTER")
+	end
+	nameBox:SetPoint("TOP", realmBox, "BOTTOM", 0, 11)
 
 	local function OnTabPressed(self)
 		if self.autoComplete:IsShown() then
 			return
 		end
 		self:ClearFocus()
-		if self == r then
-			n:SetFocus()
-			n:HighlightText()
-		elseif self == n then
-			r:SetFocus()
-			r:HighlightText()
+		if self == regionBox then
+			realmBox:SetFocus()
+			realmBox:HighlightText()
+		elseif self == realmBox then
+			nameBox:SetFocus()
+			nameBox:HighlightText()
+		elseif self == nameBox then
+			if ns.addonConfig.debugMode then
+				regionBox:SetFocus()
+				regionBox:HighlightText()
+			else
+				realmBox:SetFocus()
+				realmBox:HighlightText()
+			end
 		end
 	end
 
@@ -246,15 +309,19 @@ local function Init()
 	end
 
 	local function OnEnterPressed(self)
-		if self == r then
+		if self == regionBox then
 			self:ClearFocus()
-			n:SetFocus()
-			n:HighlightText()
-		elseif self == n then
+			realmBox:SetFocus()
+			realmBox:HighlightText()
+		elseif self == realmBox then
+			self:ClearFocus()
+			nameBox:SetFocus()
+			nameBox:HighlightText()
+		elseif self == nameBox then
 			self:ClearFocus()
 			self:HighlightText(0, 0)
 		end
-		UpdateTooltip(r:GetText(), n:GetText())
+		UpdateTooltip(regionBox:GetText(), realmBox:GetText(), nameBox:GetText())
 	end
 
 	local function OnEscapePressed(self)
@@ -270,24 +337,30 @@ local function Init()
 		end
 	end
 
-	r:HookScript("OnTabPressed", OnTabPressed)
-	n:HookScript("OnTabPressed", OnTabPressed)
+	regionBox:HookScript("OnTabPressed", OnTabPressed)
+	realmBox:HookScript("OnTabPressed", OnTabPressed)
+	nameBox:HookScript("OnTabPressed", OnTabPressed)
 
-	r:HookScript("OnEditFocusLost", OnEditFocusLost)
-	n:HookScript("OnEditFocusLost", OnEditFocusLost)
+	regionBox:HookScript("OnEditFocusLost", OnEditFocusLost)
+	realmBox:HookScript("OnEditFocusLost", OnEditFocusLost)
+	nameBox:HookScript("OnEditFocusLost", OnEditFocusLost)
 
-	r:HookScript("OnEnterPressed", OnEnterPressed)
-	n:HookScript("OnEnterPressed", OnEnterPressed)
+	regionBox:HookScript("OnEnterPressed", OnEnterPressed)
+	realmBox:HookScript("OnEnterPressed", OnEnterPressed)
+	nameBox:HookScript("OnEnterPressed", OnEnterPressed)
 
-	r:HookScript("OnEscapePressed", OnEscapePressed)
-	n:HookScript("OnEscapePressed", OnEscapePressed)
+	regionBox:HookScript("OnEscapePressed", OnEscapePressed)
+	realmBox:HookScript("OnEscapePressed", OnEscapePressed)
+	nameBox:HookScript("OnEscapePressed", OnEscapePressed)
 
-	r:HookScript("OnTextChanged", OnTextChanged)
-	n:HookScript("OnTextChanged", OnTextChanged)
+	regionBox:HookScript("OnTextChanged", OnTextChanged)
+	realmBox:HookScript("OnTextChanged", OnTextChanged)
+	nameBox:HookScript("OnTextChanged", OnTextChanged)
 
 	-- references
-	RealmEditBox = r
-	NameEditBox = n
+	RegionEditBox = regionBox
+	RealmEditBox = realmBox
+	NameEditBox = nameBox
 	Tooltip = t
 
 	-- this is required for "/raiderio search" to be able to toggle the dialog

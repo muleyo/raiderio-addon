@@ -1223,14 +1223,7 @@ do
 		local best = { dungeon = nil, level = 0, text = nil }			-- dungeon best
 		local overallBest = { dungeon = profile.maxDungeon, level = profile.dungeons[profile.maxDungeon.index] }	-- overall best
 
-		if addLFD then
-			local hasArgs, dungeonIndex = ...
-			if hasArgs == true then
-				best.dungeon = CONST_DUNGEONS[dungeonIndex] or best.dungeon
-			end
-		end
-
-		if focusDungeon then
+		if addLFD or focusDungeon then
 			local hasArgs, dungeonIndex = ...
 			if hasArgs == true then
 				best.dungeon = CONST_DUNGEONS[dungeonIndex] or best.dungeon
@@ -1602,6 +1595,49 @@ do
 		return output
 	end
 
+	-- Parse input of "GetPlayerProfile"
+	-- Can be either :
+	-- - name, realm, (faction, (region))
+	-- - name, faction
+	-- - name
+	-- Each of these option above can be followed by either :
+	-- - boolean, arg1, arg2, ...
+	-- - {boolean, arg1, arg2, ...}}
+	local function GetInputPlayerProfile(...)
+		local args = {...}
+		local queryName, queryRealm, queryFaction, queryRegion, passThroughArg
+
+		for i, arg in pairs(args) do
+			local typeArg = type(arg)
+
+			-- if boolean or table, this means that these are the additional arguments
+			if typeArg == "boolean" then
+				passThroughArg = {select(i, ...)}
+				break
+			elseif typeArg == "table" then
+				passThroughArg = arg
+				break
+			end
+
+			if typeArg == "string" then
+				if i == 1 then
+					queryName = arg
+				elseif i == 2 then
+					queryRealm = arg
+				elseif i == 4 then
+					queryRegion = arg
+				end
+			end
+
+			-- Number is always faction
+			if typeArg == "number" then
+				queryFaction = arg
+			end
+		end
+
+		return queryName, queryRealm, queryFaction, queryRegion, type(passThroughArg) == "table" and passThroughArg or {}
+	end
+
 	-- retrieves the complete player profile from all providers
 	function GetPlayerProfile(outputFlag, ...)
 		if not dataProvider then
@@ -1611,32 +1647,9 @@ do
 		if type(outputFlag) ~= "number" or outputFlag < 1 then
 			outputFlag = ProfileOutput.DATA
 		end
-		-- read the first args and figure out the request
-		local arg1, arg2, arg3, arg4, arg5, arg6 = ...
-		local targ1, targ2, targ3, targ4 = type(arg1), type(arg2), type(arg3), type(arg4)
-		local passThroughAt, passThroughArg1, passThroughArg2, passThroughArg1Table
-		local queryName, queryRealm, queryFaction, queryRegion
-		if targ1 == "string" and targ2 == "string" and (arg3 == nil or targ3 == "number") and targ4 == "string" then
-			passThroughAt, passThroughArg1, passThroughArg2 = 4, arg5, arg6
-			queryName, queryRealm, queryFaction, queryRegion = arg1, arg2, arg3, arg4
-		elseif targ1 == "string" and (arg2 == nil or targ2 == "string") and targ3 == "number" then
-			passThroughAt, passThroughArg1, passThroughArg2 = 4, arg4, arg5
-			queryName, queryRealm, queryFaction, queryRegion = arg1, arg2, arg3, nil
-		elseif targ1 == "string" and targ2 == "string" then
-			passThroughAt, passThroughArg1, passThroughArg2 = 3, arg3, arg4
-			queryName, queryRealm, queryFaction, queryRegion = arg1, arg2, nil, nil
-		elseif targ1 == "string" and targ2 == "number" then
-			passThroughAt, passThroughArg1, passThroughArg2 = 3, arg3, arg4
-			queryName, queryRealm, queryFaction, queryRegion = arg1, nil, arg2, nil
-		else
-			passThroughAt, passThroughArg1, passThroughArg2 = 2, arg2, arg3
-			queryName, queryRealm, queryFaction, queryRegion = arg1, nil, nil, nil
-		end
 
-		-- is the pass args an object? if so we pass it directly
-		if type(passThroughArg1) == "table" and passThroughArg2 == nil then
-			passThroughArg1Table = passThroughArg1
-		end
+		local queryName, queryRealm, queryFaction, queryRegion, passThroughArg = GetInputPlayerProfile(...)
+
 		-- lookup name, realm and potentially unit identifier
 		local name, realm, unit = GetNameAndRealm(queryName, queryRealm)
 		if name and realm then
@@ -1702,11 +1715,7 @@ do
 					localOutputFlag = bor(localOutputFlag, ProfileOutput.ADD_FOOTER)
 				end
 
-				if passThroughArg1Table then
-					profile[dataType] = ShapeProfileData(dataType, data, localOutputFlag, passThroughArg1Table)
-				else
-					profile[dataType] = ShapeProfileData(dataType, data, localOutputFlag, select(passThroughAt, ...))
-				end
+				profile[dataType] = ShapeProfileData(dataType, data, localOutputFlag, unpack(passThroughArg))
 			end
 
 			-- if we only requested specific mythic+ or raiding data we only return that specific table

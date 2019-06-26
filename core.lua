@@ -2397,11 +2397,11 @@ do
 					GameTooltip:Hide()
 				end
 			end
-			for i = 1, 16 do
-				local b = _G["GuildRosterContainerButton" .. i]
-				b:HookScript("OnEnter", OnEnter)
-				b:HookScript("OnLeave", OnLeave)
-			end
+			-- Disable, "CommunitiesFrame.MemberList.ListScrollFrame.buttons" returns nul ?
+			-- for _, b in pairs(CommunitiesFrame.MemberList.ListScrollFrame.buttons) do
+			--	b:HookScript("OnEnter", OnEnter)
+			--	b:HookScript("OnLeave", OnLeave)
+			-- end
 			return 1
 		end
 	end

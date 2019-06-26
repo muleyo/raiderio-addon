@@ -2430,11 +2430,29 @@ do
 			local function OnLeave(self)
 				GameTooltip:Hide()
 			end
-			-- Disable, "CommunitiesFrame.MemberList.ListScrollFrame.buttons" returns nul ?
-			-- for _, b in pairs(CommunitiesFrame.MemberList.ListScrollFrame.buttons) do
-			--	b:HookScript("OnEnter", OnEnter)
-			--	b:HookScript("OnLeave", OnLeave)
-			-- end
+			local hooked = {}
+			local completed
+			local function HookButtons()
+				if completed then
+					return
+				end
+				local buttons = _G.CommunitiesFrame.MemberList.ListScrollFrame.buttons
+				if not buttons then
+					return
+				end
+				for _, b in pairs(buttons) do
+					if not hooked[b] then
+						hooked[b] = true
+						b:HookScript("OnEnter", OnEnter)
+						b:HookScript("OnLeave", OnLeave)
+					end
+				end
+				if next(hooked) then
+					completed = true -- one pass seems to create all the buttons
+				end
+			end
+			HookButtons()
+			hooksecurefunc(_G.CommunitiesFrame.MemberList, "RefreshLayout", HookButtons)
 			return 1
 		end
 	end

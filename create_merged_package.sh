@@ -11,13 +11,18 @@ mkdir -p package
 
 cd package
 
-echo "Downloading latest zip to base off of..."
-wget -O latest.zip https://wow.curseforge.com/projects/raiderio/files/latest
+echo "Downloading latest zip to base locale off of..."
+DOWNLOADPATH=$(curl 'https://www.curseforge.com/wow/addons/raiderio/download' | grep '/wow/addons/raiderio/download/' | head -1 | cut -d '"' -f2)
+wget -O latest.zip "https://www.curseforge.com$DOWNLOADPATH"
 
 rm -rf addon
 mkdir addon
 find ../db -type d -name 'RaiderIO_DB_*' -exec cp -av {} addon \;
 unzip -o -d addon latest.zip
+if [ $? != 0 ]; then
+    echo "Zip file is invalid; aborting package"
+    exit 1
+fi
 find addon -name '*.xml' -exec rm -f {} \;
 rm -rf addon/RaiderIO/db/RaiderIO_DB_*   # leftovers that could be in config
 echo "Manual build $NEW_VERSION" > addon/CHANGES.txt

@@ -1643,6 +1643,7 @@ do
 		if not dataProvider then
 			return
 		end
+
 		-- must be a number 0 or larger
 		if type(outputFlag) ~= "number" or outputFlag < 1 then
 			outputFlag = ProfileOutput.DATA
@@ -1653,15 +1654,19 @@ do
 		-- lookup name, realm and potentially unit identifier
 		local name, realm, unit = GetNameAndRealm(queryName, queryRealm)
 		if name and realm then
+
 			-- global flag to avoid caching LFD/instance flagged tooltips everywhere
 			if not ns.enableTooltipCaching and band(outputFlag, ProfileOutput.ADD_LFD) ~= ProfileOutput.ADD_LFD then
 				outputFlag = bor(outputFlag, ProfileOutput.ADD_LFD)
 			end
+
 			-- what modules are we looking into?
 			local reqMythicPlus = band(outputFlag, ProfileOutput.MYTHICPLUS) == ProfileOutput.MYTHICPLUS
 			local reqRaiding = band(outputFlag, ProfileOutput.RAIDING) == ProfileOutput.RAIDING
+
 			-- profile GUID for this particular request
 			local profileGUID = realm .. "-" .. name .. "-" .. outputFlag
+
 			-- return cached table if it exists, and if we are capable of caching this particular tooltip
 			local canCacheProfile = band(outputFlag, ProfileOutput.ADD_LFD) ~= ProfileOutput.ADD_LFD and band(outputFlag, ProfileOutput.FOCUS_DUNGEON) ~= ProfileOutput.FOCUS_DUNGEON and band(outputFlag, ProfileOutput.FOCUS_KEYSTONE) ~= ProfileOutput.FOCUS_KEYSTONE and true or false
 			if canCacheProfile then
@@ -1670,12 +1675,15 @@ do
 					return cachedProfile, true, true, reqMythicPlus and reqRaiding
 				end
 			end
+
 			-- unless the flag to specifically ignore the level check, do make sure we only query max level players
 			if not IsUnitMaxLevel(unit, true) and band(outputFlag, ProfileOutput.INCLUDE_LOWBIES) ~= ProfileOutput.INCLUDE_LOWBIES then
 				return
 			end
+
 			-- establish faction for the lookups
 			local faction = type(queryFaction) == "number" and queryFaction or GetFaction(unit)
+
 			-- retrieve data from the various data types
 			local profile = {}
 			local hasData = false
@@ -1724,10 +1732,18 @@ do
 			elseif not reqMythicPlus and reqRaiding then
 				profile = profile[CONST_PROVIDER_DATA_RAIDING]
 			end
+
 			-- cache profile before returning, if we are allowed to cache this particular tooltip
 			if canCacheProfile then
 				profileCacheTooltip[profileGUID] = profile
+
+				-- if the unit exists we try to store the fact they don't have a profile
+				if _G.RaiderIO_MissingCharacters and not hasData and UnitExists(unit) then
+					local realmSlug = GetRealmSlug(realm)
+					_G.RaiderIO_MissingCharacters[format("%s-%s-%s", faction or "", name or "", realmSlug or "")] = true
+				end
 			end
+
 			return profile, hasData, canCacheProfile, reqMythicPlus and reqRaiding
 		end
 	end
@@ -1757,7 +1773,7 @@ local UpdateTooltips
 do
 	-- tooltip related hooks and storage
 	local tooltipArgs = {}
-	local tooltipHooks = { Wipe = function(tooltip) table.wipe(tooltipArgs[tooltip]) end }
+	local tooltipHooks = { Wipe = function(tooltip) wipe(tooltipArgs[tooltip]) end }
 
 	-- draws the tooltip based on the returned profile data from the data providers
 	local function AppendTooltipLines(tooltip, profile, multipleProviders)
@@ -1918,8 +1934,8 @@ do
 	end
 
 	function FlushTooltipCache()
-		table.wipe(profileCache)
-		table.wipe(profileCacheTooltip)
+		wipe(profileCache)
+		wipe(profileCacheTooltip)
 	end
 end
 
@@ -1958,6 +1974,9 @@ do
 			ns.addon:RegisterEvent("GROUP_ROSTER_UPDATE")
 			ns.addon:RegisterEvent("ZONE_CHANGED")
 			ns.addon:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+
+			-- purge missing players cache at login
+			_G.RaiderIO_MissingCharacters = wipe(_G.RaiderIO_MissingCharacters or {})
 		end
 
 		-- apply hooks to interface elements
@@ -2070,7 +2089,7 @@ do
 				-- disable the provider addon from loading in the future
 				DisableAddOn(data.name)
 				-- wipe the table to free up memory
-				table.wipe(data)
+				wipe(data)
 			end
 
 			-- remove reference from the queue

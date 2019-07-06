@@ -1740,7 +1740,7 @@ do
 				-- if the unit exists we try to store the fact they don't have a profile
 				if _G.RaiderIO_MissingCharacters and not hasData and UnitExists(unit) then
 					local realmSlug = GetRealmSlug(realm)
-					_G.RaiderIO_MissingCharacters[format("%s-%s-%s", faction or "", name or "", realmSlug or "")] = true
+					_G.RaiderIO_MissingCharacters[format("%s-%s-%s", PLAYER_REGION or "", name or "", realmSlug or "")] = true
 				end
 			end
 

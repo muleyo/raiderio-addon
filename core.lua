@@ -241,8 +241,8 @@ end
 -- defined constants
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_BATTLE_FOR_AZEROTH]
 local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
-local PREVIOUS_SEASON_ID = 1
-local CURRENT_SEASON_ID = 2
+local PREVIOUS_SEASON_ID = 2
+local CURRENT_SEASON_ID = 3
 local FACTION
 local REGIONS
 local REGIONS_RESET_TIME

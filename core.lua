@@ -2364,7 +2364,9 @@ do
 			local fullName, faction, level
 			if self.buttonType == FRIENDS_BUTTON_TYPE_BNET then
 				local bnetIDAccount = BNGetFriendInfo(self.id)
-				fullName, faction, level = GetNameAndRealmForBNetFriend(bnetIDAccount)
+				if bnetIDAccount then 
+					fullName, faction, level = GetNameAndRealmForBNetFriend(bnetIDAccount)
+				end
 			elseif self.buttonType == FRIENDS_BUTTON_TYPE_WOW then
 				fullName, level = GetFriendInfo(self.id)
 				faction = PLAYER_FACTION

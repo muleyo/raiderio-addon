@@ -11,12 +11,10 @@ mkdir -p package
 
 cd package
 
-echo "Downloading latest zip to base locale off of..."
-DOWNLOADPATH=$(curl 'https://www.curseforge.com/wow/addons/raiderio/download' | grep '/wow/addons/raiderio/download/' | head -1 | cut -d '"' -f2)
-wget -O latest.zip "https://www.curseforge.com$DOWNLOADPATH"
+wget -O latest.zip "https://raiderio-assets.s3.amazonaws.com/addon-build/locale_ref.zip"
 
 rm -rf addon
-mkdir addon
+mkdir -p addon/RaiderIO/db
 find ../db -type d -name 'RaiderIO_DB_*' -exec cp -av {} addon \;
 unzip -o -d addon latest.zip
 if [ $? != 0 ]; then

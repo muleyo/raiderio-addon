@@ -2329,14 +2329,14 @@ do
 			if not ns.addonConfig.enableWhoTooltips then
 				return
 			end
-			if self.whoIndex then
-				local name, guild, level, race, class, zone, classFileName = GetWhoInfo(self.whoIndex)
-				if name and level and level >= MAX_LEVEL then
+			if self.index then
+                 local info = C_FriendList.GetWhoInfo(self.index)
+                 if info and info.fullName and info.level and info.level >= MAX_LEVEL then
 					local hasOwner = GameTooltip:GetOwner()
 					if not hasOwner then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 					end
-					if not ShowTooltip(GameTooltip, bor(TooltipProfileOutput.DEFAULT(), hasOwner and ProfileOutput.ADD_PADDING or 0), name, nil, PLAYER_FACTION) and not hasOwner then
+					if not ShowTooltip(GameTooltip, bor(TooltipProfileOutput.DEFAULT(), hasOwner and ProfileOutput.ADD_PADDING or 0), info.fullName, nil, PLAYER_FACTION) and not hasOwner then
 						GameTooltip:Hide()
 					end
 				end
@@ -2347,10 +2347,9 @@ do
 				GameTooltip:Hide()
 			end
 		end
-		for i = 1, 17 do
-			local b = _G["WhoFrameButton" .. i]
-			b:HookScript("OnEnter", OnEnter)
-			b:HookScript("OnLeave", OnLeave)
+		for _, button in pairs(WhoListScrollFrame.buttons) do
+			button:HookScript("OnEnter", OnEnter)
+			button:HookScript("OnLeave", OnLeave)
 		end
 		return 1
 	end
@@ -2386,12 +2385,12 @@ do
 			end
 			GameTooltip:Hide()
 		end
-		local buttons = FriendsFrameFriendsScrollFrame.buttons
+		local buttons = FriendsListFrameScrollFrame.buttons
 		for i = 1, #buttons do
 			local button = buttons[i]
 			button:HookScript("OnEnter", OnEnter)
 		end
-		hooksecurefunc("FriendsFrameTooltip_Show", OnEnter)
+		--hooksecurefunc("FriendsFrameTooltip_Show", OnEnter)
 		hooksecurefunc(FriendsTooltip, "Hide", FriendTooltip_Hide)
 		return 1
 	end

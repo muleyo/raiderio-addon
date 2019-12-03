@@ -2203,7 +2203,7 @@ do
 	local function CopyURLForNameAndRealm(...)
 		local name, realm = GetNameAndRealm(...)
 		local realmSlug = GetRealmSlug(realm)
-		local url = format("https://raider.io/characters/%s/%s/%s", PLAYER_REGION, realmSlug, name)
+		local url = format("https://raider.io/characters/%s/%s/%s?utm_source=addon", PLAYER_REGION, realmSlug, name)
 		if IsModifiedClick("CHATLINK") then
 			local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
 			editBox:HighlightText()

@@ -62,7 +62,7 @@ do
 		if not forceDisableModifier and ns.addonConfig.enableProfileModifier then
 			if (ns.addonConfig.inverseProfileModifier == ns.addon:IsModifierKeyDown(true) or not ns.HasPlayerProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, regionOrNil)) then
 				if not (not ns.addonConfig.showRaiderIOProfile) then
-					unitOrNameOrNameAndRealm, realmOrNil = "player"
+					unitOrNameOrNameAndRealm, realmOrNil = "player", nil
 				end
 			end
 		end
@@ -72,6 +72,21 @@ do
 		end
 
 		local isPlayer = unitOrNameOrNameAndRealm == "player"
+
+		local name, realm, unit = ns.GetNameAndRealm(unitOrNameOrNameAndRealm, realmOrNil)
+		local faction = type(factionOrNil) == "number" and factionOrNil or ns.GetFaction(unit)
+
+		if ns.DB_OUTDATED[1][faction] == "hard" or ns.DB_OUTDATED[2][faction] == "hard" then
+			ProfileTooltip:AddLine("Raider.IO Addon Data Too Old", 1, 0.85, 0, false)
+			ProfileTooltip:AddLine(" ", 1, 0.85, 0, false)
+			ProfileTooltip:AddLine("Players work hard to increase their Mythic+ Scores and displaying very old data", 1, 1, 1, false)
+			ProfileTooltip:AddLine("is a disservice to them. Please update your addon now so you can see the most", 1, 1, 1, false)
+			ProfileTooltip:AddLine("accurate scores for players in the Group Finder.", 1, 1, 1, false)
+			ProfileTooltip:AddLine(" ", 1, 0.85, 0, false)
+			ProfileTooltip:AddLine("Using the Raider.IO Client will always keep your data up to date.", 1, 1, 1, false)
+			ProfileTooltip:AddLine("https://raider.io/addon", 1, 1, 1, false)
+			return true
+		end
 
 		-- mythic plus data
 		local hasMythicPlusProfile = false

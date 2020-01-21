@@ -1910,8 +1910,7 @@ do
 		local faction = type(factionOrNil) == "number" and factionOrNil or GetFaction(unit)
 		if faction and (DB_OUTDATED[CONST_PROVIDER_DATA_RAIDING][faction] == "hard" or DB_OUTDATED[CONST_PROVIDER_DATA_MYTHICPLUS][faction] == "hard") then
 			tooltip:AddLine(" ", 1, 0.85, 0, false)
-			tooltip:AddLine("Raider.IO is using data that is too old", 1, 0.85, 0, false)
-			tooltip:AddLine("Please update the addon", 1, 0.85, 0, false)
+			tooltip:AddLine(L.OUTDATED_GAME_TOOLTIP_MESSAGE, 1, 0.85, 0, false)
 
 			tooltip:Show()
 			return true

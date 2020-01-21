@@ -192,5 +192,7 @@ L.CONFIRM = "Confirm"
 L.ENABLE_DEBUG_MODE_RELOAD = "You are enabling Debug Mode. This is intended for testing and development purposes only, and will incur additional memory usage.\n\n Clicking Confirm will Reload your Interface."
 L.DISABLE_DEBUG_MODE_RELOAD = "Your are disabling Debug Mode.\n\nClicking Confirm will Reload your Interface."
 L.WARNING_DEBUG_MODE_ENABLE = "|cffFFFFFF%s|r Debug Mode is enabled. You may disable it by typing |cffFFFFFF/raiderio debug|r."
-
+L.OUTDATED_PROFILE_TOOLTIP_HEADER = "Raider.IO Addon Data Too Old"
+L.OUTDATED_PROFILE_TOOLTIP_MESSAGE = "Players work hard to increase their Mythic+ Scores and displaying very old data is a disservice to them. \nPlease update your addon now so you can see the most accurate scores for players in the Group Finder. \n\nUsing the Raider.IO Client will always keep your data up to date. \n\nhttps://raider.io/addon"
+L.OUTDATED_GAME_TOOLTIP_MESSAGE = "Raider.IO is using data that is too old\nPlease update the addon"
 ns.L = L

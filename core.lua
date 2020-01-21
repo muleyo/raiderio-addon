@@ -2635,6 +2635,7 @@ do
 		do
 			local function CopyOnClick()
 				ShowCopyURLPopup(custom.kind, custom.query, custom.bnetChar, custom.bnetFaction)
+				CloseDropDownMenus()
 			end
 			local function UpdateCopyButton()
 				local copy = custom.copy

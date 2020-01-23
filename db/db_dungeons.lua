@@ -81,5 +81,21 @@ ns.dungeons = {
 		["lfd_activity_ids"] = { 503, 505, 645, 504 },
 		["name"] = "Temple of Sethraliss",
 		["shortName"] = "TOS"
+	},
+	[11] = {
+		["id"] = 800001,
+		["keystone_instance"] = 369,
+		["instance_map_id"] = 2097,
+		["lfd_activity_ids"] = { 679, 682 },
+		["name"] = "Mechagon Junkyard",
+		["shortName"] = "YARD"
+	},
+	[12] = {
+		["id"] = 800002,
+		["keystone_instance"] = 370,
+		["instance_map_id"] = 2097,
+		["lfd_activity_ids"] = { 683, 684 },
+		["name"] = "Mechagon Workshop",
+		["shortName"] = "WORK"
 	}
 }

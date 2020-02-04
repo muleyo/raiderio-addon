@@ -196,16 +196,6 @@ do
 			end
 		end
 
-
-		-- TODO: this working right?
-		if ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS] and ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 1 then
-			ProfileTooltip:AddLine(" ")
-			ProfileTooltip:AddLine(format(L.OUTDATED_DATABASE, ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
-		elseif ns.OUTDATED_HOURS[ns.CONST_PROVIDER_DATA_MYTHICPLUS] and ns.OUTDATED_HOURS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 12 then
-			ProfileTooltip:AddLine(" ")
-			ProfileTooltip:AddLine(format(L.OUTDATED_DATABASE_HOURS, ns.OUTDATED_HOURS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
-		end
-
 		return true
 	end
 

@@ -1653,6 +1653,8 @@ do
 						message = format(L.OUTDATED_GAME_TOOLTIP_EXPIRE_IN_HOURS, expiresInHours)
 					end
 
+					output[i] = " "
+					i = i + 1
 					output[i] = {message, "", 1, 1, 1, 1, 1, 1, false}
 					i = i + 1
 				end

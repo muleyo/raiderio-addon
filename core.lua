@@ -1644,7 +1644,16 @@ do
 
 			if addFooter then
 				if DB_OUTDATED[dataType][profile.faction] then
-					output[i] = {format(L.OUTDATED_DATABASE, OUTDATED_DAYS[dataType][profile.faction]), "", 1, 1, 1, 1, 1, 1, false}
+					local expiresInHours = floor((HARD_OUTDATED_SECONDS / 60 / 60) - OUTDATED_HOURS[dataType][profile.faction])
+
+					local message = ""
+					if expiresInHours > 24 then
+						message = format(L.OUTDATED_GAME_TOOLTIP_EXPIRE_IN_DAYS, floor(expiresInHours / 24))
+					else
+						message = format(L.OUTDATED_GAME_TOOLTIP_EXPIRE_IN_HOURS, expiresInHours)
+					end
+
+					output[i] = {message, "", 1, 1, 1, 1, 1, 1, false}
 					i = i + 1
 				end
 

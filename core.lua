@@ -269,8 +269,8 @@ end
 
 -- defined constants
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_BATTLE_FOR_AZEROTH]
-local SOFT_OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
-local HARD_OUTDATED_SECONDS = 86400 * 5 -- number of seconds before we hide the data
+local STALE_SECOND = 86400 * 3 -- number of seconds before we start warning about stale data
+local EXPIRED_SECOND = 86400 * 5 -- number of seconds before we hide the data
 local CURRENT_SEASON_ID = 4
 local FACTION
 local REGIONS
@@ -1644,7 +1644,7 @@ do
 
 			if addFooter then
 				if DB_OUTDATED[dataType][profile.faction] then
-					local expiresInHours = floor((HARD_OUTDATED_SECONDS / 60 / 60) - OUTDATED_HOURS[dataType][profile.faction])
+					local expiresInHours = floor((EXPIRED_SECOND / 60 / 60) - OUTDATED_HOURS[dataType][profile.faction])
 
 					local message = ""
 					if expiresInHours > 24 then
@@ -1766,7 +1766,7 @@ do
 			-- establish faction for the lookups
 			local faction = type(queryFaction) == "number" and queryFaction or GetFaction(unit)
 
-			if DB_OUTDATED[CONST_PROVIDER_DATA_MYTHICPLUS][faction] == "hard" or DB_OUTDATED[CONST_PROVIDER_DATA_RAIDING][faction] == "hard" then
+			if DB_OUTDATED[CONST_PROVIDER_DATA_MYTHICPLUS][faction] == "expired" or DB_OUTDATED[CONST_PROVIDER_DATA_RAIDING][faction] == "expired" then
 				return
 			end
 
@@ -1917,7 +1917,7 @@ do
 
 		local name, realm, unit = GetNameAndRealm(unitOrNameOrNameAndRealm, realmOrNil)
 		local faction = type(factionOrNil) == "number" and factionOrNil or GetFaction(unit)
-		if faction and (DB_OUTDATED[CONST_PROVIDER_DATA_RAIDING][faction] == "hard" or DB_OUTDATED[CONST_PROVIDER_DATA_MYTHICPLUS][faction] == "hard") then
+		if faction and (DB_OUTDATED[CONST_PROVIDER_DATA_RAIDING][faction] == "expired" or DB_OUTDATED[CONST_PROVIDER_DATA_MYTHICPLUS][faction] == "expired") then
 			tooltip:AddLine(" ", 1, 0.85, 0, false)
 			tooltip:AddLine(L.OUTDATED_GAME_TOOLTIP_MESSAGE, 1, 0.85, 0, false)
 
@@ -2091,10 +2091,10 @@ do
 		local diff = time() - ts - offset
 		-- figure out of the DB is outdated or not by comparing to our threshold
 		local outdated = false
-		if diff >= HARD_OUTDATED_SECONDS then
-			outdated = 'hard'
-		elseif diff >= SOFT_OUTDATED_SECONDS then
-			outdated = 'soft'
+		if diff >= EXPIRED_SECOND then
+			outdated = 'expired'
+		elseif diff >= STALE_SECOND then
+			outdated = 'stale'
 		end
 		local outdatedHours = floor(diff/ 3600 + 0.5)
 		local outdatedDays = floor(diff / 86400 + 0.5)

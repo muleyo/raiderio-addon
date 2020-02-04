@@ -76,7 +76,7 @@ do
 		local name, realm, unit = ns.GetNameAndRealm(unitOrNameOrNameAndRealm, realmOrNil)
 		local faction = type(factionOrNil) == "number" and factionOrNil or ns.GetFaction(unit)
 
-		if ns.DB_OUTDATED[1][faction] == "hard" or ns.DB_OUTDATED[2][faction] == "hard" then
+		if ns.DB_OUTDATED[1][faction] == "expired" or ns.DB_OUTDATED[2][faction] == "expired" then
 			ProfileTooltip:AddLine(L.OUTDATED_PROFILE_TOOLTIP_HEADER, 1, 0.85, 0, false)
 			ProfileTooltip:AddLine(" ", 1, 0.85, 0, false)
 			ProfileTooltip:AddLine(L.OUTDATED_PROFILE_TOOLTIP_MESSAGE, 1, 1, 1, true)

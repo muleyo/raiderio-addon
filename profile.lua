@@ -86,10 +86,9 @@ do
 		if isDataExpired and not isPlayer then
 			-- prevent showing profile data when expired and looking at anyone but yourself
 			ProfileTooltip:AddLine(L.OUTDATED_EXPIRED_TITLE, 1, 0, 0, false)
+			ProfileTooltip:AddLine(format(L.OUTDATED_DOWNLOAD_LINK, TEXT_COLOR_START_RAIDERIO .. RAIDERIO_ADDON_DOWNLOAD_URL .. TEXT_COLOR_CLOSE), 1, 1, 1, true)
 			ProfileTooltip:AddLine(" ", 1, 1, 1, false)
 			ProfileTooltip:AddLine(L.OUTDATED_PROFILE_TOOLTIP_MESSAGE, 1, 1, 1, true)
-			ProfileTooltip:AddLine(" ", 1, 1, 1, false)
-			ProfileTooltip:AddLine(format(L.OUTDATED_DOWNLOAD_LINK, TEXT_COLOR_START_RAIDERIO .. RAIDERIO_ADDON_DOWNLOAD_URL .. TEXT_COLOR_CLOSE), 1, 1, 1, true)
 			return true
 		end
 
@@ -102,7 +101,6 @@ do
 			if profile and hasProfile then
 				if isDataExpired then
 					ProfileTooltip:AddLine(L.OUTDATED_EXPIRED_TITLE, 1, 0, 0, false)
-					ProfileTooltip:AddLine(" ", 1, 1, 1, false)
 					ProfileTooltip:AddLine(format(L.OUTDATED_DOWNLOAD_LINK, TEXT_COLOR_START_RAIDERIO .. RAIDERIO_ADDON_DOWNLOAD_URL .. TEXT_COLOR_CLOSE), 1, 1, 1, true)
 					ProfileTooltip:AddLine(" ", 1, 1, 1, false)
 				end

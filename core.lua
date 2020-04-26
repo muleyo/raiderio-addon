@@ -269,8 +269,8 @@ end
 
 -- defined constants
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_BATTLE_FOR_AZEROTH]
-local DATA_EXPIRED_SECONDS = 86400 * 15 -- number of seconds before we hide the data
-local DATA_STALE_SECONDS = DATA_EXPIRED_SECONDS - (86400 * 5) -- number of seconds before we start warning about stale data
+local DATA_EXPIRED_SECONDS = 86400 * 7 -- number of seconds before we hide the data
+local DATA_STALE_SECONDS = 86400 * 3 -- number of seconds before we start warning about stale data
 local CURRENT_SEASON_ID = 4
 local FACTION
 local REGIONS

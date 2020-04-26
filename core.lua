@@ -2883,11 +2883,7 @@ do
 		end
 		DropDownList1:HookScript("OnShow", OnShow)
 		DropDownList1:HookScript("OnHide", OnHide)
-<<<<<<< HEAD
 		--[=[
-=======
-
->>>>>>> Show warning and stop displaying data when data >5d
 		-- https://github.com/Gethe/wow-ui-source/commit/356d028f9d245f6e75dc8a806deb3c38aa0aa77f#diff-4c5ca6424de48e2c9b959163c421d767R1145
 		local originalFunction = UIDropDownMenu_HandleGlobalMouseEvent
 		UIDropDownMenu_HandleGlobalMouseEvent = function (button, event)
@@ -2898,11 +2894,7 @@ do
 			end
 			originalFunction(button, event)
 		end
-<<<<<<< HEAD
 		--]=]
-=======
-
->>>>>>> Show warning and stop displaying data when data >5d
 		return 1
 	end
 

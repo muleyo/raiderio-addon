@@ -2228,7 +2228,7 @@ do
 		if isAnyProviderDesynced then
 			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUT_OF_SYNC_DATABASE_S, addonName), 1, 1, 0)
 		elseif isAnyProviderOutdated then
-			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUTDATED_DATABASE_S, addonName, RAIDERIO_ADDON_DOWNLOAD_URL), 1, 1, 0)
+			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUTDATED_EXPIRED_ALERT, addonName, RAIDERIO_ADDON_DOWNLOAD_URL), 1, 1, 0)
 		end
 
 		if neededProviderLoaded == 0 then

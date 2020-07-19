@@ -49,8 +49,8 @@ do
         DEFAULT_CHAT_FRAME:AddMessage(tostring(text), r, g, b, ...)
     end
 
-    ns.EXPANSION = GetExpansionLevel()
-    ns.MAX_LEVEL = GetMaxLevelForExpansionLevel and GetMaxLevelForExpansionLevel(ns.EXPANSION) or MAX_PLAYER_LEVEL_TABLE[ns.EXPANSION] -- TODO: 9.0
+    ns.EXPANSION = max(GetClientDisplayExpansionLevel(), GetAccountExpansionLevel(), GetExpansionLevel())
+    ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
     ns.REGION_TO_LTD = {"us", "kr", "eu", "tw", "cn"}
     ns.FACTION_TO_ID = {Alliance = 1, Horde = 2, Neutral = 3}
     ns.PLAYER_REGION = nil
@@ -1084,7 +1084,8 @@ do
                     break
                 end
             end
-            return GetItemQualityColor(quality)
+            local r, g, b = GetItemQualityColor(quality)
+            return r, g, b
         end
         -- otherwise we use regular color table
         for i = 1, #colors do
@@ -3985,7 +3986,7 @@ do
     end
 
     function fanfare:CanLoad()
-        return config:IsEnabled() and _G.ChallengeModeCompleteBanner
+        return config:IsEnabled() and _G.ChallengeModeCompleteBanner and config:Get("debugMode") -- TODO: do not load this module by default (it's not yet tested well enough) but we do load it if debug mode is enabled
     end
 
     function fanfare:OnLoad()
@@ -4821,7 +4822,7 @@ do
     local function CreateGuildWeeklyFrame()
         ---@type GuildWeeklyFrame
         local frame = CreateFrame("Frame", nil, ChallengesFrame)
-        if BackdropTemplateMixin then Mixin(frame, BackdropTemplateMixin) end -- TODO: 9.0
+        -- if BackdropTemplateMixin then Mixin(frame, BackdropTemplateMixin) end -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28
         frame.maxVisible = 5
         -- inherit from the mixin
         for k, v in pairs(GuildWeeklyFrameMixin) do
@@ -4891,9 +4892,11 @@ do
             frame:SetScale(1.2)
             frame:SetFrameStrata("HIGH")
             frame:SetSize(100, 115)
-            frame:SetBackdrop(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
-            frame:SetBackdropBorderColor(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT.backdropBorderColor:GetRGB())
-            frame:SetBackdropColor(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT.backdropColor:GetRGB())
+            if frame.SetBackdrop then
+                frame:SetBackdrop(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
+                frame:SetBackdropBorderColor(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT.backdropBorderColor:GetRGB())
+                frame:SetBackdropColor(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT.backdropColor:GetRGB())
+            end
             -- update anchor
             frame:ClearAllPoints()
             if IsAddOnLoaded("AngryKeystones") then
@@ -5160,7 +5163,7 @@ do
         nameBox.autoCompleteFunction = GetNames
 
         local Frame = CreateFrame("Frame", nil, UIParent)
-        if BackdropTemplateMixin then Mixin(Frame, BackdropTemplateMixin) end -- TODO: 9.0
+        -- if BackdropTemplateMixin then Mixin(Frame, BackdropTemplateMixin) end -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28
         do
             Frame:Hide()
             Frame:EnableMouse(true)
@@ -5168,10 +5171,12 @@ do
             Frame:SetToplevel(true)
             Frame:SetSize(310, config:Get("debugMode") and 115 or 100)
             Frame:SetPoint("CENTER")
-            Frame:SetBackdrop(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
-            Frame:SetBackdropBorderColor(TOOLTIP_DEFAULT_COLOR:GetRGB())
-            Frame:SetBackdropColor(TOOLTIP_DEFAULT_BACKGROUND_COLOR:GetRGB())
-            Frame:SetBackdropColor(0, 0, 0, 1) -- TODO: ?
+            if Frame.SetBackdrop then
+                Frame:SetBackdrop(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
+                Frame:SetBackdropBorderColor(TOOLTIP_DEFAULT_COLOR:GetRGB())
+                Frame:SetBackdropColor(TOOLTIP_DEFAULT_BACKGROUND_COLOR:GetRGB())
+                Frame:SetBackdropColor(0, 0, 0, 1) -- TODO: ?
+            end
             Frame.header = Frame:CreateFontString(nil, nil, "ChatFontNormal")
             Frame.header:SetPoint("TOPLEFT", 16, -12)
             Frame.header:SetText("Enter realm and character name:")
@@ -5417,7 +5422,7 @@ do
 
     local function CreateOptions()
         local configParentFrame = CreateFrame("Frame", nil, UIParent)
-        if BackdropTemplateMixin then Mixin(configParentFrame, BackdropTemplateMixin) end -- TODO: 9.0
+        -- if BackdropTemplateMixin then Mixin(configParentFrame, BackdropTemplateMixin) end -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28
         configParentFrame:SetSize(400, 600)
         configParentFrame:SetPoint("CENTER")
 
@@ -5477,13 +5482,17 @@ do
         end
 
         local function WidgetButton_OnEnter(self)
-            self:SetBackdropColor(0.3, 0.3, 0.3, 1)
-            self:SetBackdropBorderColor(1, 1, 1, 1)
+            if self.SetBackdrop then
+                self:SetBackdropColor(0.3, 0.3, 0.3, 1)
+                self:SetBackdropBorderColor(1, 1, 1, 1)
+            end
         end
 
         local function WidgetButton_OnLeave(self)
-            self:SetBackdropColor(0, 0, 0, 1)
-            self:SetBackdropBorderColor(1, 1, 1, 0.3)
+            if self.SetBackdrop then
+                self:SetBackdropColor(0, 0, 0, 1)
+                self:SetBackdropBorderColor(1, 1, 1, 0.3)
+            end
         end
 
         local function Close_OnClick()
@@ -5586,7 +5595,7 @@ do
 
         function configOptions.CreateWidget(self, widgetType, height, parentFrame)
             local widget = CreateFrame(widgetType, nil, parentFrame or configFrame)
-            if BackdropTemplateMixin then Mixin(widget, BackdropTemplateMixin) end -- TODO: 9.0
+            -- if BackdropTemplateMixin then Mixin(widget, BackdropTemplateMixin) end -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28
 
             if self.lastWidget then
                 widget:SetPoint("TOPLEFT", self.lastWidget, "BOTTOMLEFT", 0, -24)
@@ -5630,9 +5639,11 @@ do
             if widgetType == "Button" then
                 widget.bg:Hide()
                 widget.text:SetTextColor(1, 1, 1)
-                widget:SetBackdrop(self.backdrop)
-                widget:SetBackdropColor(0, 0, 0, 1)
-                widget:SetBackdropBorderColor(1, 1, 1, 0.3)
+                if widget.SetBackdrop then
+                    widget:SetBackdrop(self.backdrop)
+                    widget:SetBackdropColor(0, 0, 0, 1)
+                    widget:SetBackdropBorderColor(1, 1, 1, 0.3)
+                end
                 widget:SetScript("OnEnter", WidgetButton_OnEnter)
                 widget:SetScript("OnLeave", WidgetButton_OnLeave)
             end
@@ -5761,9 +5772,11 @@ do
             configParentFrame:SetMovable(true)
             configParentFrame:RegisterForDrag("LeftButton")
 
-            configParentFrame:SetBackdrop(configOptions.backdrop)
-            configParentFrame:SetBackdropColor(0, 0, 0, 0.8)
-            configParentFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.8)
+            if configParentFrame.SetBackdrop then
+                configParentFrame:SetBackdrop(configOptions.backdrop)
+                configParentFrame:SetBackdropColor(0, 0, 0, 0.8)
+                configParentFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.8)
+            end
 
             configParentFrame:SetScript("OnShow", ConfigFrame_OnShow)
             configParentFrame:SetScript("OnDragStart", ConfigFrame_OnDragStart)

@@ -1617,7 +1617,7 @@ do
 				if ns.addonConfig.showMainsScore and profile.mainProgress then
 					local mainProg = profile.mainProgress[1]
 					local bestProg = profile.progress[1]
-					if mainProg and bestProg and ((mainProg.difficulty > bestProg.difficulty) or (mainProg.progressCount > bestProg.progressCount)) then
+					if mainProg and not bestProg or (bestProg and ((mainProg.difficulty > bestProg.difficulty) or (mainProg.progressCount > bestProg.progressCount))) then
 						output[i] = {
 							L.MAINS_RAID_PROGRESS,
 							format("|c%s%s|r %d/%d", RAID_DIFFICULTY_COLORS[mainProg.difficulty][4], RAID_DIFFICULTY_SUFFIXES[mainProg.difficulty], mainProg.progressCount, profile.currentRaid.bossCount),

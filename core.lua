@@ -863,6 +863,25 @@ do
         return ns.FACTION_TO_ID[faction], localizedFaction
     end
 
+    local CLIENT_RACE_TO_FACTION_ID = {}
+
+    do
+        for i = 1, 100 do
+            local raceInfo = C_CreatureInfo.GetRaceInfo(i)
+            if raceInfo and raceInfo.clientFileString ~= "Pandaren" then -- this is ambiguous so we better not assume
+                local factionInfo = C_CreatureInfo.GetFactionInfo(raceInfo.raceID)
+                if factionInfo then
+                    CLIENT_RACE_TO_FACTION_ID[raceInfo.clientFileString] = ns.FACTION_TO_ID[factionInfo.groupTag]
+                end
+            end
+        end
+    end
+
+    ---@return number, string @arg1 is the faction ID or nil if no faction is appropriate
+    function util:GetFactionFromRace(race, fallback)
+        return CLIENT_RACE_TO_FACTION_ID[race] or fallback
+    end
+
     local REALMS = ns:GetRealmData()
 
     function util:GetRealmSlug(realm, fallback)
@@ -3145,11 +3164,12 @@ do
                             tooltip:AddLine(" ")
                         end
                     elseif isOutdated then
-                        local numDays = floor(outdated / 86400 + 0.5)
+                        local numDays = floor(isOutdated / 86400 + 0.5)
+                        local numHours = floor(isOutdated / 3600 + 0.5)
                         if numDays >= 2 then
                             tooltip:AddLine(format(L.OUTDATED_EXPIRES_IN_DAYS, numDays), 1, 1, 1)
                         else
-                            tooltip:AddLine(format(L.OUTDATED_EXPIRES_IN_HOURS, numDays * 24), 1, 1, 1)
+                            tooltip:AddLine(format(L.OUTDATED_EXPIRES_IN_HOURS, numHours), 1, 1, 1)
                         end
                         tooltip:AddLine(format(L.OUTDATED_DOWNLOAD_LINK, ns.RAIDERIO_ADDON_DOWNLOAD_URL), 1, 1, 1)
                         if showPadding and easterEgg then
@@ -4408,15 +4428,37 @@ do
         if not config:Get("enableGuildTooltips") then
             return
         end
-        local info = self:GetMemberInfo()
-        if not info or (info.clubType ~= Enum.ClubType.Guild and info.clubType ~= Enum.ClubType.Character) or not info.name or not util:IsMaxLevel(info.level, true) then
+        local clubType
+        local nameAndRealm
+        local level
+        local faction = ns.PLAYER_FACTION
+        if type(self.GetMemberInfo) == "function" then
+            local info = self:GetMemberInfo()
+            clubType = info.clubType
+            nameAndRealm = info.name
+            level = info.level
+        elseif type(self.cardInfo) == "table" then
+            nameAndRealm = util:GetNameRealm(self.cardInfo.guildLeader)
+        else
+            return
+        end
+        if type(self.GetLastPosterGUID) == "function" then
+            local playerGUID = self:GetLastPosterGUID()
+            if playerGUID then
+                local _, _, _, race = GetPlayerInfoByGUID(playerGUID)
+                if race then
+                    faction = util:GetFactionFromRace(race, faction)
+                end
+            end
+        end
+        if (clubType and clubType ~= Enum.ClubType.Guild and clubType ~= Enum.ClubType.Character) or not nameAndRealm or not util:IsMaxLevel(level, true) then
             return
         end
         local hasOwner = GameTooltip:GetOwner()
         if not hasOwner then
             GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
         end
-        if render:ShowProfile(GameTooltip, info.name, ns.PLAYER_FACTION, render.Preset.UnitSmartPadding(hasOwner)) then
+        if render:ShowProfile(GameTooltip, nameAndRealm, faction, render.Preset.UnitSmartPadding(hasOwner)) then
             return
         end
         if not hasOwner then
@@ -4431,22 +4473,37 @@ do
         GameTooltip:Hide()
     end
 
-    local function OnRefreshApplyHooks()
-        if completed then
-            return
-        end
-        local buttons = _G.CommunitiesFrame.MemberList.ListScrollFrame.buttons
+    local function SmartHookButtons(buttons)
         if not buttons then
             return
         end
+        local numButtons = 0
         for _, button in pairs(buttons) do
+            numButtons = numButtons + 1
             if not hooked[button] then
                 hooked[button] = true
                 button:HookScript("OnEnter", OnEnter)
                 button:HookScript("OnLeave", OnLeave)
+                if type(button.OnEnter) == "function" then hooksecurefunc(button, "OnEnter", OnEnter) end
+                if type(button.OnLeave) == "function" then hooksecurefunc(button, "OnLeave", OnLeave) end
             end
         end
-        completed = true
+        return numButtons > 0
+    end
+
+    local function OnRefreshApplyHooks()
+        if completed then
+            return
+        end
+        SmartHookButtons(_G.CommunitiesFrame.MemberList.ListScrollFrame.buttons)
+        SmartHookButtons(_G.ClubFinderGuildFinderFrame.CommunityCards.ListScrollFrame.buttons)
+        SmartHookButtons(_G.ClubFinderGuildFinderFrame.PendingCommunityCards.ListScrollFrame.buttons)
+        SmartHookButtons(_G.ClubFinderGuildFinderFrame.GuildCards.Cards)
+        SmartHookButtons(_G.ClubFinderGuildFinderFrame.PendingGuildCards.Cards)
+        SmartHookButtons(_G.ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ListScrollFrame.buttons)
+        SmartHookButtons(_G.ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ListScrollFrame.buttons)
+        SmartHookButtons(_G.ClubFinderCommunityAndGuildFinderFrame.GuildCards.Cards)
+        SmartHookButtons(_G.ClubFinderCommunityAndGuildFinderFrame.PendingGuildCards.Cards)
         return true
     end
 
@@ -4459,13 +4516,25 @@ do
     end
 
     function tooltip:CanLoad()
-        return _G.CommunitiesFrame
+        return _G.CommunitiesFrame and _G.ClubFinderGuildFinderFrame and _G.ClubFinderCommunityAndGuildFinderFrame
     end
 
     function tooltip:OnLoad()
         self:Enable()
         hooksecurefunc(_G.CommunitiesFrame.MemberList, "RefreshLayout", OnRefreshApplyHooks)
         hooksecurefunc(_G.CommunitiesFrame.MemberList, "Update", OnScroll)
+        hooksecurefunc(_G.ClubFinderGuildFinderFrame.CommunityCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(_G.ClubFinderGuildFinderFrame.CommunityCards.ListScrollFrame, "update", OnScroll)
+        hooksecurefunc(_G.ClubFinderGuildFinderFrame.PendingCommunityCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(_G.ClubFinderGuildFinderFrame.PendingCommunityCards.ListScrollFrame, "update", OnScroll)
+        hooksecurefunc(_G.ClubFinderGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(_G.ClubFinderGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(_G.ClubFinderCommunityAndGuildFinderFrame.CommunityCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(_G.ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ListScrollFrame, "update", OnScroll)
+        hooksecurefunc(_G.ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(_G.ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ListScrollFrame, "update", OnScroll)
+        hooksecurefunc(_G.ClubFinderCommunityAndGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(_G.ClubFinderCommunityAndGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
     end
 
 end
@@ -4838,8 +4907,7 @@ do
 
     local function CreateGuildWeeklyFrame()
         ---@type GuildWeeklyFrame
-        local frame = CreateFrame("Frame", nil, ChallengesFrame)
-        -- if BackdropTemplateMixin then Mixin(frame, BackdropTemplateMixin) end -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28
+        local frame = CreateFrame("Frame", nil, ChallengesFrame, false and BackdropTemplateMixin and "BackdropTemplate") -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28
         frame.maxVisible = 5
         -- inherit from the mixin
         for k, v in pairs(GuildWeeklyFrameMixin) do
@@ -5195,8 +5263,7 @@ do
         realmBox.autoCompleteFunction = GetRealms
         nameBox.autoCompleteFunction = GetNames
 
-        local Frame = CreateFrame("Frame", nil, UIParent)
-        -- if BackdropTemplateMixin then Mixin(Frame, BackdropTemplateMixin) end -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28
+        local Frame = CreateFrame("Frame", nil, UIParent, false and BackdropTemplateMixin and "BackdropTemplate") -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28)
         do
             Frame:Hide()
             Frame:EnableMouse(true)
@@ -5454,8 +5521,7 @@ do
     }
 
     local function CreateOptions()
-        local configParentFrame = CreateFrame("Frame", nil, UIParent)
-        -- if BackdropTemplateMixin then Mixin(configParentFrame, BackdropTemplateMixin) end -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28
+        local configParentFrame = CreateFrame("Frame", nil, UIParent, false and BackdropTemplateMixin and "BackdropTemplate") -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28)
         configParentFrame:SetSize(400, 600)
         configParentFrame:SetPoint("CENTER")
 
@@ -5627,8 +5693,7 @@ do
         end
 
         function configOptions.CreateWidget(self, widgetType, height, parentFrame)
-            local widget = CreateFrame(widgetType, nil, parentFrame or configFrame)
-            -- if BackdropTemplateMixin then Mixin(widget, BackdropTemplateMixin) end -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28
+            local widget = CreateFrame(widgetType, nil, parentFrame or configFrame, false and BackdropTemplateMixin and "BackdropTemplate") -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28)
 
             if self.lastWidget then
                 widget:SetPoint("TOPLEFT", self.lastWidget, "BOTTOMLEFT", 0, -24)

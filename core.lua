@@ -2034,6 +2034,7 @@ do
 
     ---@class DataProviderMythicKeystoneProfile
     ---@field public outdated number|nil @number or nil
+    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
     ---@field public blocked number|nil @number or nil
     ---@field public softBlocked number|nil @number or nil - Only defined when the profile looked up is the players own profile
     ---@field public isEnhanced boolean|nil @true if client enhanced data (fractionalTime and .dungeonTimes are 1 for timed and 3 for depleted, but when enhanced it's the actual time fraction)
@@ -2122,7 +2123,7 @@ do
 
     local function UnpackMythicKeystoneData(bucket, baseOffset, encodingOrder, providerOutdated, providerBlocked, name, realm, region)
         ---@type DataProviderMythicKeystoneProfile
-        local results = { outdated = providerOutdated }
+        local results = { outdated = providerOutdated, hasRenderableData = false }
         if providerBlocked then
             if util:IsUnitPlayer(name, realm, region) then
                 results.softBlocked = providerBlocked
@@ -2137,17 +2138,20 @@ do
             local field = encodingOrder[encoderIndex]
             if field == ENCODER_MYTHICPLUS_FIELDS.CURRENT_SCORE then
                 results.currentScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 13)
+                results.hasRenderableData = results.hasRenderableData or results.currentScore > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.CURRENT_ROLES then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.currentRoleOrdinalIndex = 1 + value -- indexes are one-based
             elseif field == ENCODER_MYTHICPLUS_FIELDS.PREVIOUS_SCORE then
                 results.previousScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 12)
                 results.previousScoreSeason, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+                results.hasRenderableData = results.hasRenderableData or results.previousScore > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.PREVIOUS_ROLES then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.previousRoleOrdinalIndex = 1 + value -- indexes are one-based
             elseif field == ENCODER_MYTHICPLUS_FIELDS.MAIN_CURRENT_SCORE then
                 results.mainCurrentScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 13)
+                results.hasRenderableData = results.hasRenderableData or results.mainCurrentScore > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.MAIN_CURRENT_ROLES then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.mainCurrentRoleOrdinalIndex = 1 + value -- indexes are one-based
@@ -2155,6 +2159,7 @@ do
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 9)
                 results.mainPreviousScore = 10 * value
                 results.mainPreviousScoreSeason, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+                results.hasRenderableData = results.hasRenderableData or results.mainPreviousScore > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.MAIN_PREVIOUS_ROLES then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.mainPreviousRoleOrdinalIndex = 1 + value -- indexes are one-based
@@ -2167,6 +2172,7 @@ do
                 results.keystoneFifteenPlus = (DecodeBits6 or DecodeBits7)(value) -- TODO: enable once the new feature `show-more-15s` is live
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 6)
                 results.keystoneTwentyPlus = DecodeBits6(value)
+                results.hasRenderableData = results.hasRenderableData or results.keystoneFivePlus > 0 or results.keystoneTenPlus > 0 or results.keystoneFifteenPlus > 0 or results.keystoneTwentyPlus > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_LEVELS then
                 results.dungeons = {}
                 results.dungeonUpgrades = {}
@@ -2175,6 +2181,7 @@ do
                     results.dungeons[i], bitOffset = ReadBitsFromString(bucket, bitOffset, 5)
                     results.dungeonUpgrades[i], bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
                     results.dungeonTimes[i] = 3 - results.dungeonUpgrades[i]
+                    results.hasRenderableData = results.hasRenderableData or results.dungeons[i] > 0
                 end
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_BEST_INDEX then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
@@ -2256,6 +2263,7 @@ do
 
     ---@class DataProviderRaidProfile
     ---@field public outdated number|nil @number or nil
+    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
     ---@field public progress DataProviderRaidProgress[]
     ---@field public mainProgress DataProviderRaidProgress[]
     ---@field public previousProgress DataProviderRaidProgress[]
@@ -2291,7 +2299,8 @@ do
             progress = {},
             previousProgress = nil,
             mainProgress = nil,
-            sortedProgress = {}
+            sortedProgress = {},
+            hasRenderableData = false
         }
         local value
         do
@@ -2408,16 +2417,24 @@ do
                 end
             end
         end
+        for i = 1, #results.sortedProgress do
+            local prog = results.sortedProgress[i]
+            if not prog.obsolete and prog.progress.progressCount > 0 then
+                results.hasRenderableData = true
+                break
+            end
+        end
         return results
     end
 
     ---@class DataProviderPvpProfile
     ---@field public outdated number|nil @number or nil
+    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
 
     ---@param provider DataProvider
     local function UnpackPvpData(bucket, baseOffset, provider)
         ---@type DataProviderPvpProfile
-        local results = { outdated = provider.outdated }
+        local results = { outdated = provider.outdated, hasRenderableData = false }
         -- TODO: NYI
         return results
     end
@@ -3002,7 +3019,7 @@ do
                 local showFooter = Has(state.options, render.Flags.SHOW_FOOTER)
                 local showPadding = Has(state.options, render.Flags.SHOW_PADDING)
                 local showName = Has(state.options, render.Flags.SHOW_NAME)
-                if keystoneProfile and not keystoneProfile.blocked then
+                if keystoneProfile and keystoneProfile.hasRenderableData and not keystoneProfile.blocked then
                     local headlineMode = config:Get("mplusHeadlineMode")
                     if isUnitTooltip then
                         if showPadding then
@@ -3079,7 +3096,7 @@ do
                         tooltip:AddDoubleLine(sortedMilestone.label, sortedMilestone.text, 1, 1, 1, 1, 1, 1)
                     end
                 end
-                if raidProfile and config:Get("showRaidEncountersInProfile") then
+                if raidProfile and raidProfile.hasRenderableData and config:Get("showRaidEncountersInProfile") then
                     if showPadding then
                         tooltip:AddLine(" ")
                     end
@@ -3099,7 +3116,7 @@ do
                         end
                     end
                 end
-                if pvpProfile then
+                if pvpProfile and pvpProfile.hasRenderableData then
                     if showPadding then
                         tooltip:AddLine(" ")
                     end
@@ -4960,8 +4977,8 @@ do
         end
         REGIONS = {}
         local unique = {}
-        for _, provider in ipairs(PROVIDERS) do
-            local regionName = provider.region
+        for _, dataProvider in ipairs(PROVIDERS) do
+            local regionName = dataProvider.region
             if not unique[regionName] then
                 unique[regionName] = true
                 REGIONS[#REGIONS + 1] = {
@@ -5008,18 +5025,22 @@ do
         return (searchRegionBox:GetText() and searchRegionBox:GetText() ~= "") and searchRegionBox:GetText() or ns.PLAYER_REGION
     end
 
-    local function GetRegionProvider()
+    local function GetRegionProviders()
         local regionName = GetRegionName()
-        for _, provider in ipairs(PROVIDERS) do
-            if provider.region == regionName then
-                return provider
+        local temp ---@type DataProvider[]
+        for i = 1, #PROVIDERS do
+            local dataProvider = PROVIDERS[i]
+            if dataProvider.region == regionName then
+                if not temp then temp = {} end
+                temp[#temp + 1] = dataProvider
             end
         end
+        return temp
     end
 
     local function GetRealms(text, maxResults, cursorPosition)
-        local provider = GetRegionProvider()
-        if not provider then
+        local providers = GetRegionProviders()
+        if not providers then
             return
         end
         text = text:lower()
@@ -5028,24 +5049,30 @@ do
         local unique = {}
         local data
         local kl
-        for i = 1, 2 do
+        for x = 1, #providers do
             if count >= maxResults then
                 break
             end
-            data = provider["db" .. i]
-            if data then
-                for k, _ in pairs(data) do
-                    if count >= maxResults then
-                        break
-                    end
-                    kl = k:lower()
-                    if not unique[kl] and kl:find(text, nil, true) == 1 then
-                        unique[kl] = true
-                        count = count + 1
-                        temp[count] = {
-                            name = k,
-                            priority = 7
-                        }
+            local dataProvider = providers[x]
+            for i = 1, 2 do
+                if count >= maxResults then
+                    break
+                end
+                data = dataProvider["db" .. i]
+                if data then
+                    for k, _ in pairs(data) do
+                        if count >= maxResults then
+                            break
+                        end
+                        kl = k:lower()
+                        if not unique[kl] and kl:find(text, nil, true) == 1 then
+                            unique[kl] = true
+                            count = count + 1
+                            temp[count] = {
+                                name = k,
+                                priority = 7
+                            }
+                        end
                     end
                 end
             end
@@ -5056,8 +5083,8 @@ do
     end
 
     local function GetNames(text, maxResults, cursorPosition)
-        local provider = GetRegionProvider()
-        if not provider then
+        local providers = GetRegionProviders()
+        if not providers then
             return
         end
         text = text:lower()
@@ -5070,28 +5097,34 @@ do
         local name
         local namel
         local unique = {}
-        for i = 1, 2 do
+        for x = 1, #providers do
             if rcount >= maxResults then
                 break
             end
-            data = provider["db" .. i]
-            if data then
-                data = data[realm]
+            local dataProvider = providers[x]
+            for i = 1, 2 do
+                if rcount >= maxResults then
+                    break
+                end
+                data = dataProvider["db" .. i]
                 if data then
-                    count = #data
-                    for j = 2, count do
-                        if rcount >= maxResults then
-                            break
-                        end
-                        name = data[j]
-                        namel = name:lower()
-                        if not unique[namel] and namel:find(text, nil, true) == 1 then
-                            rcount = rcount + 1
-                            unique[namel] = true
-                            temp[rcount] = {
-                                name = name,
-                                priority = 7
-                            }
+                    data = data[realm]
+                    if data then
+                        count = #data
+                        for j = 2, count do
+                            if rcount >= maxResults then
+                                break
+                            end
+                            name = data[j]
+                            namel = name:lower()
+                            if not unique[namel] and namel:find(text, nil, true) == 1 then
+                                rcount = rcount + 1
+                                unique[namel] = true
+                                temp[rcount] = {
+                                    name = name,
+                                    priority = 7
+                                }
+                            end
                         end
                     end
                 end

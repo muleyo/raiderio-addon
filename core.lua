@@ -5398,13 +5398,16 @@ do
         if faction then
             startIndex, stopIndex = faction, faction
         end
+        local playerProfile
         local shown
         for i = startIndex, stopIndex do
-            faction = i
-            shown = render:ShowProfile(searchTooltip, name, realm, faction, bor(render.Preset.UnitNoPadding(), render.Flags.MOD_STICKY), region)
-            if shown then
+            playerProfile = provider:GetProfile(name, realm, i, region)
+            if playerProfile and playerProfile.success then
+                faction = i
+                shown = render:ShowProfile(searchTooltip, name, realm, faction, bor(render.Preset.UnitNoPadding(), render.Flags.MOD_STICKY), region)
                 break
             end
+            playerProfile = nil
         end
         if not shown then
             searchTooltip:SetParent(searchFrame)

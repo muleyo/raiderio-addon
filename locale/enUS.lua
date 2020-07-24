@@ -9,6 +9,7 @@ L.OUTDATED_EXPIRED_ALERT = "|cffFFFFFF%s|r is using expired data. Please update 
 L.OUTDATED_EXPIRED_TITLE = "Raider.IO Data Has Expired"
 L.OUTDATED_EXPIRES_IN_DAYS = "Raider.IO Data Expires In %d Days"
 L.OUTDATED_EXPIRES_IN_HOURS = "Raider.IO Data Expires In %d Hours"
+L.OUTDATED_EXPIRES_IN_MINUTES = "Raider.IO Data Expires In %d Minutes"
 L.OUTDATED_DOWNLOAD_LINK = "Download: |cffffbd0a%s|r"
 L.OUTDATED_PROFILE_TOOLTIP_MESSAGE = "Please update your addon now to see the most accurate data.\n\nPlayers work hard to improve their progress, and displaying very old data is a disservice to them.\n\nYou can use the Raider.IO Client to keep your data in sync automatically."
 L.PROVIDER_NOT_LOADED = "|cffFF0000Warning:|r |cffFFFFFF%s|r cannot find data for your current faction. Please check your |cffFFFFFF/raiderio|r settings and enable tooltip data for |cffFFFFFF%s|r."

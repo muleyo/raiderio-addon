@@ -3164,12 +3164,18 @@ do
                             tooltip:AddLine(" ")
                         end
                     elseif isOutdated then
-                        local numDays = floor(isOutdated / 86400 + 0.5)
-                        local numHours = floor(isOutdated / 3600 + 0.5)
+                        local secondsRemainingUntilBlocked = ns.OUTDATED_BLOCK_CUTOFF - isOutdated - ns.OUTDATED_CUTOFF
+                        local numDays = floor(secondsRemainingUntilBlocked / 86400 + 0.5)
+                        local numHours = floor(secondsRemainingUntilBlocked / 3600 + 0.5)
+                        local numMinutes = floor(secondsRemainingUntilBlocked / 60 + 0.5)
                         if numDays >= 2 then
-                            tooltip:AddLine(format(L.OUTDATED_EXPIRES_IN_DAYS, numDays), 1, 1, 1)
+                            tooltip:AddLine(format(L.OUTDATED_EXPIRES_IN_DAYS, numDays), 1, 0.85, 0)
+                        elseif numHours > 1 then
+                            tooltip:AddLine(format(L.OUTDATED_EXPIRES_IN_HOURS, numHours), 1, 0.85, 0)
+                        elseif numMinutes > 0 then
+                            tooltip:AddLine(format(L.OUTDATED_EXPIRES_IN_MINUTES, numMinutes), 1, 0.85, 0)
                         else
-                            tooltip:AddLine(format(L.OUTDATED_EXPIRES_IN_HOURS, numHours), 1, 1, 1)
+                            tooltip:AddLine(L.OUTDATED_EXPIRED_TITLE, 1, 0.85, 0)
                         end
                         tooltip:AddLine(format(L.OUTDATED_DOWNLOAD_LINK, ns.RAIDERIO_ADDON_DOWNLOAD_URL), 1, 1, 1)
                         if showPadding and easterEgg then

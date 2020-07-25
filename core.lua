@@ -894,12 +894,52 @@ do
         return realmSlug
     end
 
+    local UNIT_TOKENS = {
+        mouseover = true,
+        player = true,
+        target = true,
+        focus = true,
+        pet = true,
+        vehicle = true,
+    }
+
+    do
+        for i = 1, 40 do
+            UNIT_TOKENS["raid" .. i] = true
+            UNIT_TOKENS["raidpet" .. i] = true
+            UNIT_TOKENS["nameplate" .. i] = true
+        end
+
+        for i = 1, 4 do
+            UNIT_TOKENS["party" .. i] = true
+            UNIT_TOKENS["partypet" .. i] = true
+        end
+
+        for i = 1, 5 do
+            UNIT_TOKENS["arena" .. i] = true
+            UNIT_TOKENS["arenapet" .. i] = true
+        end
+
+        for i = 1, MAX_BOSS_FRAMES do
+            UNIT_TOKENS["boss" .. i] = true
+        end
+
+        for k, _ in pairs(UNIT_TOKENS) do
+            UNIT_TOKENS[k .. "target"] = true
+        end
+    end
+
+    ---@return boolean @If the unit provided is a unit token this returns true, otherwise false
+    function util:IsUnitToken(unit)
+        return type(unit) == "string" and UNIT_TOKENS[unit]
+    end
+
     ---@param arg1 string @"unit", "name", or "name-realm"
     ---@param arg2 string @"realm" or nil
     ---@return string, string, string @name, realm, unit
     function util:GetNameRealm(arg1, arg2)
         local unit, name, realm
-        if UnitExists(arg1) and not arg2 then
+        if UnitExists(arg1) and (not arg2 or util:IsUnitToken(arg1)) then
             unit = arg1
             if UnitIsPlayer(arg1) then
                 name, realm = UnitName(arg1)
@@ -3325,7 +3365,7 @@ do
         end,
         GetProfile = function(arg1, arg2, arg3, ...)
             local name, realm, faction = arg1, arg2, arg3
-            if UnitIsPlayer(arg1) and not arg2 and not arg3 then
+            if UnitIsPlayer(arg1) and (not arg2 or util:IsUnitToken(arg1)) then
                 name, realm = util:GetNameRealm(arg1)
                 faction = util:GetFaction(arg1)
             end

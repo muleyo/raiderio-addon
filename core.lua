@@ -936,12 +936,24 @@ do
 
     ---@param arg1 string @"unit", "name", or "name-realm"
     ---@param arg2 string @"realm" or nil
+    ---@return boolean, boolean, boolean @If the args used in the call makes it out to be a proper unit, arg1 is true and only then is arg2 true if unit exists and arg3 is true if unit is a player.
+    function util:IsUnit(arg1, arg2)
+        if not arg2 and type(arg1) == "string" and arg1:find("-", nil, true) then
+            arg2 = true
+        end
+        local isUnit = not arg2 or util:IsUnitToken(arg1)
+        return isUnit, isUnit and UnitExists(arg1), isUnit and UnitIsPlayer(arg1)
+    end
+
+    ---@param arg1 string @"unit", "name", or "name-realm"
+    ---@param arg2 string @"realm" or nil
     ---@return string, string, string @name, realm, unit
     function util:GetNameRealm(arg1, arg2)
         local unit, name, realm
-        if UnitExists(arg1) and (not arg2 or util:IsUnitToken(arg1)) then
+        local _, unitExists, unitIsPlayer = util:IsUnit(arg1, arg2)
+        if unitExists then
             unit = arg1
-            if UnitIsPlayer(arg1) then
+            if unitIsPlayer then
                 name, realm = UnitName(arg1)
                 realm = realm and realm ~= "" and realm or GetNormalizedRealmName()
             end
@@ -3322,7 +3334,7 @@ do
     local function OnModifierStateChanged()
         for tooltip, state in pairs(tooltipStates) do
             -- we only want to update tooltips that have a valid state (i.e. in use and visible)
-            if state.success then
+            if state.success and tooltip:IsShown() then
                 UpdateTooltip(tooltip, state)
             end
         end
@@ -3365,7 +3377,8 @@ do
         end,
         GetProfile = function(arg1, arg2, arg3, ...)
             local name, realm, faction = arg1, arg2, arg3
-            if UnitIsPlayer(arg1) and (not arg2 or util:IsUnitToken(arg1)) then
+            local _, _, unitIsPlayer = util:IsUnit(arg1, arg2)
+            if unitIsPlayer then
                 name, realm = util:GetNameRealm(arg1)
                 faction = util:GetFaction(arg1)
             end
@@ -5332,6 +5345,7 @@ do
             Frame:SetScript("OnDragStart", function() Frame:StartMoving() end)
             Frame:SetScript("OnDragStop", function() Frame:StopMovingOrSizing() end)
             Frame:SetScript("OnShow", function() search:ShowProfile(regionBox:GetText(), nil, realmBox:GetText(), nameBox:GetText()) end)
+            Frame:SetScript("OnHide", function() search:ShowProfile() end)
         end
 
         local activeBoxes = {}

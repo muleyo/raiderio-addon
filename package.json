@@ -4,7 +4,8 @@
   "description": "Raider.IO Addon Build Tools",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "exportdungeons": "node tools/exportDungeonsData/export.js"
   },
   "repository": {
     "type": "git",
@@ -18,7 +19,9 @@
   "homepage": "https://github.com/jahraphael/raiderio-addon#readme",
   "dependencies": {
     "faker": "^4.1.0",
+    "fast-csv": "^4.3.1",
     "lodash": "^4.17.15",
-    "moment": "^2.22.1"
+    "moment": "^2.22.1",
+    "node-fetch": "^2.6.0"
   }
 }

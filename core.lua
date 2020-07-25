@@ -899,7 +899,7 @@ do
     ---@return string, string, string @name, realm, unit
     function util:GetNameRealm(arg1, arg2)
         local unit, name, realm
-        if UnitExists(arg1) then
+        if UnitExists(arg1) and not arg2 then
             unit = arg1
             if UnitIsPlayer(arg1) then
                 name, realm = UnitName(arg1)
@@ -3325,7 +3325,7 @@ do
         end,
         GetProfile = function(arg1, arg2, arg3, ...)
             local name, realm, faction = arg1, arg2, arg3
-            if UnitIsPlayer(arg1) then
+            if UnitIsPlayer(arg1) and not arg2 and not arg3 then
                 name, realm = util:GetNameRealm(arg1)
                 faction = util:GetFaction(arg1)
             end

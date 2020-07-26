@@ -29,6 +29,7 @@ echo "Overlaying latest DB..."
 cp -v ../db/db_*.lua addon/RaiderIO/db
 cp ../*.{lua,toc,xml} addon/RaiderIO
 cp ../locale/enUS.lua addon/RaiderIO/locale
+cp -a ../libs addon/RaiderIO/
 (cd .. ; tar cf - icons) | (cd addon/RaiderIO ; tar xvf -)
 
 echo "Setting up as version v$NEW_VERSION"

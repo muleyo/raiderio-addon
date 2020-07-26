@@ -1690,7 +1690,7 @@ do
     end
 
     ---@type LibDropDownExtension
-    local LibDropDownExtension = LibStub:GetLibrary("LibDropDownExtension-1.0", true)
+    local LibDropDownExtension = LibStub and LibStub:GetLibrary("LibDropDownExtension-1.0", true)
 
     function dropdown:CanLoad()
         return LibDropDownExtension
@@ -5038,8 +5038,8 @@ do
             frame:SetSize(100, 115)
             if frame.SetBackdrop then
                 frame:SetBackdrop(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
-                frame:SetBackdropBorderColor(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT.backdropBorderColor:GetRGB())
-                frame:SetBackdropColor(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT.backdropColor:GetRGB())
+                frame:SetBackdropBorderColor(1, 1, 1, 1)
+                frame:SetBackdropColor(0, 0, 0, 0.6)
             end
             -- update anchor
             frame:ClearAllPoints()

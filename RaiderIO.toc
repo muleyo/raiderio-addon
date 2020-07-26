@@ -5,6 +5,7 @@
 ## Version: 8.1.0 (@project-version@)
 ## SavedVariables: RaiderIO_Config, RaiderIO_LastCharacter, RaiderIO_MissingCharacters
 ## X-Website: https://raider.io
+## X-AddonProvider: github
 
 db/db_regions.lua
 db/db_realms.lua

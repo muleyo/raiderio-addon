@@ -3106,6 +3106,8 @@ do
                 local raidProfile = profile.raidProfile
                 local pvpProfile = profile.pvpProfile
                 local isKeystoneBlockShown = keystoneProfile and keystoneProfile.hasRenderableData and not keystoneProfile.blocked
+                local isBlocked = keystoneProfile and (keystoneProfile.blocked or keystoneProfile.softBlocked)
+                local isOutdated = keystoneProfile and keystoneProfile.outdated
                 local isRaidBlockShown = raidProfile and raidProfile.hasRenderableData and config:Get("showRaidEncountersInProfile")
                 local isPvpBlockShown = pvpProfile and pvpProfile.hasRenderableData
                 local isAnyBlockShown = isKeystoneBlockShown or isRaidBlockShown or isPvpBlockShown
@@ -3117,7 +3119,9 @@ do
                 local showFooter = Has(state.options, render.Flags.SHOW_FOOTER)
                 local showPadding = Has(state.options, render.Flags.SHOW_PADDING)
                 local showName = Has(state.options, render.Flags.SHOW_NAME)
-                if isAnyBlockShown then
+                local showTopLine = isAnyBlockShown or isBlocked or isOutdated
+                local showTopLinePadding = showTopLine and not isUnitTooltip and isExtendedProfile and showPadding
+                if showTopLine then
                     if isUnitTooltip then
                         if showPadding then
                             tooltip:AddLine(" ")
@@ -3233,9 +3237,7 @@ do
                             easterEgg = easterEgg[profile.name]
                         end
                     end
-                    local isBlocked = isAnyBlockShown and keystoneProfile and (keystoneProfile.blocked or keystoneProfile.softBlocked)
-                    local isOutdated = isAnyBlockShown and keystoneProfile and keystoneProfile.outdated
-                    if showPadding and isAnyBlockShown and (easterEgg or isBlocked or isOutdated) then
+                    if showPadding and (not showTopLinePadding or isAnyBlockShown) and (isBlocked or isOutdated or easterEgg) then
                         tooltip:AddLine(" ")
                     end
                     if isBlocked then

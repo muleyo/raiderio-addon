@@ -1778,7 +1778,7 @@ do
                         DisableAddOn(provider.name)
                         table.wipe(provider)
                         table.remove(providers, i)
-                    elseif provider.blocked and provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
+                    elseif provider.blocked and provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone and false then -- TODO: do not purge the data just keep it labeled as blocked this way we can always lookup the players own data and still show the warning that its expired
                         provider.blockedPurged = true
                         if provider.db1 then table.wipe(provider.db1) end
                         if provider.db2 then table.wipe(provider.db2) end
@@ -2627,9 +2627,13 @@ do
                 local lookup = provider["lookup" .. faction]
                 local data = provider["db" .. faction]
                 if provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
-                    local tempMythicKeystoneProfile = GetMythicKeystoneProfile(provider, lookup, data, name, realm)
-                    if tempMythicKeystoneProfile and (not mythicKeystoneProfile or mythicKeystoneProfile.blockedPurged) then
-                        mythicKeystoneProfile = tempMythicKeystoneProfile
+                    if provider.blockedPurged then
+                        local tempMythicKeystoneProfile = GetMythicKeystoneProfile(provider, lookup, data, name, realm)
+                        if tempMythicKeystoneProfile and (not mythicKeystoneProfile or mythicKeystoneProfile.blockedPurged) then
+                            mythicKeystoneProfile = tempMythicKeystoneProfile
+                        end
+                    elseif not mythicKeystoneProfile then
+                        mythicKeystoneProfile = GetMythicKeystoneProfile(provider, lookup, data, name, realm)
                     end
                 elseif provider.data == ns.PROVIDER_DATA_TYPE.Raid then
                     if not raidProfile then

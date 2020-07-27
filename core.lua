@@ -1752,6 +1752,7 @@ do
     ---@field public desynced boolean @Added dynamically in AddProvider - nil or true if provider tables are desynced
     ---@field public outdated number @Added dynamically in AddProvider - nil or number of seconds past our time()
     ---@field public blocked number @Added dynamically in AddProvider - nil or number of seconds past our time()
+    ---@field public blockedPurged boolean @Added dynamically in AddProvider - if true it means the provider is just an empty shell without any data
 
     ---@type DataProvider[]
     local providers = {}
@@ -1773,16 +1774,16 @@ do
                     outdated = outdated and max(outdated, provider.outdated) or provider.outdated
                 end
                 if not config:Get("debugMode") then
-                    if provider.blocked and provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
-                        -- TODO: clearing the data and disabling the addon makes us unaware that there is outdated data at all so loading it keeps the warning visible - we need to figure out a smarter method to detect oudated data and unloading the modules to free space
-                        -- DisableAddOn(provider.name)
-                        -- table.wipe(provider)
-                        -- table.remove(providers, i)
-                    end
                     if provider.region ~= ns.PLAYER_REGION then
                         DisableAddOn(provider.name)
                         table.wipe(provider)
                         table.remove(providers, i)
+                    elseif provider.blocked and provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
+                        provider.blockedPurged = true
+                        if provider.db1 then table.wipe(provider.db1) end
+                        if provider.db2 then table.wipe(provider.db2) end
+                        if provider.lookup1 then table.wipe(provider.lookup1) end
+                        if provider.lookup2 then table.wipe(provider.lookup2) end
                     end
                 end
             end
@@ -2112,6 +2113,7 @@ do
     ---@field public outdated number|nil @number or nil
     ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
     ---@field public blocked number|nil @number or nil
+    ---@field public blockedPurged boolean|nil @True if the provider has been blocked and purged
     ---@field public softBlocked number|nil @number or nil - Only defined when the profile looked up is the players own profile
     ---@field public isEnhanced boolean|nil @true if client enhanced data (fractionalTime and .dungeonTimes are 1 for timed and 3 for depleted, but when enhanced it's the actual time fraction)
     ---@field public currentScore number
@@ -2201,7 +2203,7 @@ do
         ---@type DataProviderMythicKeystoneProfile
         local results = { outdated = providerOutdated, hasRenderableData = false }
         if providerBlocked then
-            if util:IsUnitPlayer(name, realm, region) then
+            if name and util:IsUnitPlayer(name, realm, region) then
                 results.softBlocked = providerBlocked
             else
                 results.blocked = providerBlocked
@@ -2544,6 +2546,18 @@ do
 
     ---@param provider DataProvider
     local function GetMythicKeystoneProfile(provider, ...)
+        if provider.blockedPurged then
+            local _, _, name, realm = ...
+            local guid = provider.data .. ":" .. provider.region .. ":" .. provider.faction .. ":-1:-1:blockedPurged"
+            local cache = mythicKeystoneProfileCache[guid]
+            if cache then
+                return cache
+            end
+            local profile = UnpackMythicKeystoneData(nil, nil, nil, true, true, name, realm, provider.region)
+            profile.blockedPurged = true
+            mythicKeystoneProfileCache[guid] = profile
+            return profile
+        end
         local bucket, baseOffset, guid, name, realm = SearchForBucketByName(provider, ...)
         if not bucket then
             return
@@ -2613,8 +2627,9 @@ do
                 local lookup = provider["lookup" .. faction]
                 local data = provider["db" .. faction]
                 if provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
-                    if not mythicKeystoneProfile then
-                        mythicKeystoneProfile = GetMythicKeystoneProfile(provider, lookup, data, name, realm)
+                    local tempMythicKeystoneProfile = GetMythicKeystoneProfile(provider, lookup, data, name, realm)
+                    if tempMythicKeystoneProfile and (not mythicKeystoneProfile or mythicKeystoneProfile.blockedPurged) then
+                        mythicKeystoneProfile = tempMythicKeystoneProfile
                     end
                 elseif provider.data == ns.PROVIDER_DATA_TYPE.Raid then
                     if not raidProfile then
@@ -2629,6 +2644,9 @@ do
                     break
                 end
             end
+        end
+        if mythicKeystoneProfile and mythicKeystoneProfile.blockedPurged and not raidProfile and not pvpProfile then
+            mythicKeystoneProfile = nil
         end
         cache = {
             success = (mythicKeystoneProfile or raidProfile or pvpProfile) and true or false,
@@ -3090,6 +3108,7 @@ do
                 local isKeystoneBlockShown = keystoneProfile and keystoneProfile.hasRenderableData and not keystoneProfile.blocked
                 local isRaidBlockShown = raidProfile and raidProfile.hasRenderableData and config:Get("showRaidEncountersInProfile")
                 local isPvpBlockShown = pvpProfile and pvpProfile.hasRenderableData
+                local isAnyBlockShown = isKeystoneBlockShown or isRaidBlockShown or isPvpBlockShown
                 local isUnitTooltip = Has(state.options, render.Flags.UNIT_TOOLTIP)
                 local isExtendedProfile = Has(state.options, render.Flags.PROFILE_TOOLTIP)
                 local hasMod = Has(state.options, render.Flags.MOD)
@@ -3098,7 +3117,7 @@ do
                 local showFooter = Has(state.options, render.Flags.SHOW_FOOTER)
                 local showPadding = Has(state.options, render.Flags.SHOW_PADDING)
                 local showName = Has(state.options, render.Flags.SHOW_NAME)
-                do
+                if isAnyBlockShown then
                     if isUnitTooltip then
                         if showPadding then
                             tooltip:AddLine(" ")
@@ -3214,9 +3233,9 @@ do
                             easterEgg = easterEgg[profile.name]
                         end
                     end
-                    local isBlocked = keystoneProfile and (keystoneProfile.blocked or keystoneProfile.softBlocked)
-                    local isOutdated = keystoneProfile and keystoneProfile.outdated
-                    if showPadding and (isKeystoneBlockShown or isRaidBlockShown or isPvpBlockShown) and (easterEgg or isBlocked or isOutdated) then
+                    local isBlocked = isAnyBlockShown and keystoneProfile and (keystoneProfile.blocked or keystoneProfile.softBlocked)
+                    local isOutdated = isAnyBlockShown and keystoneProfile and keystoneProfile.outdated
+                    if showPadding and isAnyBlockShown and (easterEgg or isBlocked or isOutdated) then
                         tooltip:AddLine(" ")
                     end
                     if isBlocked then

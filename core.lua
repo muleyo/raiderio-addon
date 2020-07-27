@@ -1764,22 +1764,26 @@ do
             local provider = providers[i]
             if provider.queued then
                 provider.queued = false
-                if provider.blocked then
-                    blocked = true
-                end
                 if provider.desynced then
                     desynced = true
                 end
-                if not provider.blocked and provider.region == ns.PLAYER_REGION then
-                    if provider.outdated then
-                        outdated = outdated and max(outdated, provider.outdated) or provider.outdated
+                if provider.blocked then
+                    blocked = true
+                elseif provider.outdated then
+                    outdated = outdated and max(outdated, provider.outdated) or provider.outdated
+                end
+                if not config:Get("debugMode") then
+                    if provider.blocked and provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
+                        -- TODO: clearing the data and disabling the addon makes us unaware that there is outdated data at all so loading it keeps the warning visible - we need to figure out a smarter method to detect oudated data and unloading the modules to free space
+                        -- DisableAddOn(provider.name)
+                        -- table.wipe(provider)
+                        -- table.remove(providers, i)
                     end
-                elseif not config:Get("debugMode") then
-                    if not provider.blocked then
+                    if provider.region ~= ns.PLAYER_REGION then
                         DisableAddOn(provider.name)
+                        table.wipe(provider)
+                        table.remove(providers, i)
                     end
-                    table.wipe(provider)
-                    table.remove(providers, i)
                 end
             end
         end
@@ -1809,15 +1813,15 @@ do
         local keystoneDate, raidDate, pvpDate
         for i = 1, #providers do
             local provider = providers[i]
-            if provider.data == 1 then
+            if provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
                 if not keystoneDate or keystoneDate < provider.date then
                     keystoneDate = provider.date
                 end
-            elseif provider.data == 2 then
+            elseif provider.data == ns.PROVIDER_DATA_TYPE.Raid then
                 if not raidDate or raidDate < provider.date then
                     raidDate = provider.date
                 end
-            elseif provider.data == 3 then
+            elseif provider.data == ns.PROVIDER_DATA_TYPE.PvP then
                 if not pvpDate or pvpDate < provider.date then
                     pvpDate = provider.date
                 end
@@ -1870,6 +1874,7 @@ do
             for k, v in pairs(data) do
                 provider[k] = provider[k] or v
             end
+            table.wipe(data)
         else
             table.insert(providers, data)
         end
@@ -3082,6 +3087,9 @@ do
                 local keystoneProfile = profile.mythicKeystoneProfile
                 local raidProfile = profile.raidProfile
                 local pvpProfile = profile.pvpProfile
+                local isKeystoneBlockShown = keystoneProfile and keystoneProfile.hasRenderableData and not keystoneProfile.blocked
+                local isRaidBlockShown = raidProfile and raidProfile.hasRenderableData and config:Get("showRaidEncountersInProfile")
+                local isPvpBlockShown = pvpProfile and pvpProfile.hasRenderableData
                 local isUnitTooltip = Has(state.options, render.Flags.UNIT_TOOLTIP)
                 local isExtendedProfile = Has(state.options, render.Flags.PROFILE_TOOLTIP)
                 local hasMod = Has(state.options, render.Flags.MOD)
@@ -3090,8 +3098,7 @@ do
                 local showFooter = Has(state.options, render.Flags.SHOW_FOOTER)
                 local showPadding = Has(state.options, render.Flags.SHOW_PADDING)
                 local showName = Has(state.options, render.Flags.SHOW_NAME)
-                if keystoneProfile and keystoneProfile.hasRenderableData and not keystoneProfile.blocked then
-                    local headlineMode = config:Get("mplusHeadlineMode")
+                do
                     if isUnitTooltip then
                         if showPadding then
                             tooltip:AddLine(" ")
@@ -3107,6 +3114,9 @@ do
                             tooltip:AddLine(" ")
                         end
                     end
+                end
+                if isKeystoneBlockShown then
+                    local headlineMode = config:Get("mplusHeadlineMode")
                     if showHeader then
                         if headlineMode == ns.HEADLINE_MODE.BEST_SEASON then
                             if keystoneProfile.mplusPrevious.score > keystoneProfile.mplusCurrent.score then
@@ -3167,8 +3177,8 @@ do
                         tooltip:AddDoubleLine(sortedMilestone.label, sortedMilestone.text, 1, 1, 1, 1, 1, 1)
                     end
                 end
-                if raidProfile and raidProfile.hasRenderableData and config:Get("showRaidEncountersInProfile") then
-                    if showPadding then
+                if isRaidBlockShown then
+                    if showPadding and isKeystoneBlockShown then
                         tooltip:AddLine(" ")
                     end
                     if showHeader then
@@ -3187,8 +3197,8 @@ do
                         end
                     end
                 end
-                if pvpProfile and pvpProfile.hasRenderableData then
-                    if showPadding then
+                if isPvpBlockShown then
+                    if showPadding and (isKeystoneBlockShown or isRaidBlockShown) then
                         tooltip:AddLine(" ")
                     end
                     if showHeader then
@@ -3206,7 +3216,7 @@ do
                     end
                     local isBlocked = keystoneProfile and (keystoneProfile.blocked or keystoneProfile.softBlocked)
                     local isOutdated = keystoneProfile and keystoneProfile.outdated
-                    if showPadding and (easterEgg or isBlocked or isOutdated) then
+                    if showPadding and (isKeystoneBlockShown or isRaidBlockShown or isPvpBlockShown) and (easterEgg or isBlocked or isOutdated) then
                         tooltip:AddLine(" ")
                     end
                     if isBlocked then

@@ -2649,7 +2649,7 @@ do
                 end
             end
         end
-        if mythicKeystoneProfile and mythicKeystoneProfile.blockedPurged and not raidProfile and not pvpProfile then
+        if mythicKeystoneProfile and (not mythicKeystoneProfile.hasRenderableData and mythicKeystoneProfile.blocked) and not raidProfile and not pvpProfile then -- TODO: if we don't use blockedPurged functionality we have to then purge when the data is blocked and no rendering is available instead of checking the blockedPurged property
             mythicKeystoneProfile = nil
         end
         cache = {
@@ -5500,11 +5500,14 @@ do
             if playerProfile and playerProfile.success then
                 faction = i
                 shown = render:ShowProfile(searchTooltip, name, realm, faction, bor(render.Preset.UnitNoPadding(), render.Flags.MOD_STICKY), region)
-                break
+                if shown then
+                    break
+                end
             end
             playerProfile = nil
         end
         if not shown then
+            render:ShowProfile(searchTooltip)
             searchTooltip:SetParent(searchFrame)
             searchTooltip:SetOwner(searchFrame, "ANCHOR_BOTTOM", 0, -8)
             searchTooltip:AddLine(ERR_FRIEND_NOT_FOUND, 1, 1, 1)

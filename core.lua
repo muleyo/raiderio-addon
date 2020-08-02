@@ -778,7 +778,7 @@ do
     ---@param object Widget @Any interface widget object that supports the methods GetScript.
     ---@param handler string @The script handler like OnEnter, OnClick, etc.
     ---@return boolean|nil @If successfully executed returns true, otherwise false if nothing has been called. nil if the widget had no handler to execute.
-    function util:ExecuteWidgetHandler(object, handler)
+    function util:ExecuteWidgetHandler(object, handler, ...)
         if type(object) ~= "table" or type(object.GetScript) ~= "function" then
             return false
         end
@@ -786,7 +786,9 @@ do
         if type(func) ~= "function" then
             return
         end
-        func(object)
+        if not pcall(func, object, ...) then
+            return false
+        end
         return true
     end
 
@@ -3326,7 +3328,7 @@ do
             local oe = o1:GetScript("OnEnter")
             if oe then
                 tooltip:Hide()
-                oe(o1)
+                pcall(oe, o1)
                 return
             end
         end

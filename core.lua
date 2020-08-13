@@ -634,7 +634,7 @@ do
         showDropDownCopyURL = true,
         showSimpleScoreColors = false,
         showScoreInCombat = true,
-        showScoreModifier = false, -- NEW
+        showScoreModifier = false, -- NEW in 9.0
         disableScoreColors = false,
         enableClientEnhancements = true,
         showClientGuildBest = true,
@@ -1810,6 +1810,15 @@ do
 
     function provider:GetProviders()
         return providers
+    end
+
+    function provider:GetProviderByType(providerDataType)
+        for i = 1, #providers do
+            local provider = providers[i]
+            if provider.data == providerDataType then
+                return provider
+            end
+        end
     end
 
     function provider:GetProvidersDates()
@@ -3190,14 +3199,6 @@ do
                     do
                         AppendBestRunToTooltip(tooltip, keystoneProfile, state)
                     end
-                    if isExtendedProfile and (hasMod or hasModSticky) then
-                        for i = 1, #keystoneProfile.sortedDungeons do
-                            local sortedDungeon = keystoneProfile.sortedDungeons[i]
-                            if sortedDungeon.level > 0 then
-                                tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, util:GetNumChests(sortedDungeon.chests) .. sortedDungeon.level, 1, 1, 1, util:GetKeystoneChestColor(sortedDungeon.chests))
-                            end
-                        end
-                    end
                     for i = 1, #keystoneProfile.sortedMilestones do
                         if i >= 2 and (not hasMod and not hasModSticky) then
                             break
@@ -3205,23 +3206,73 @@ do
                         local sortedMilestone = keystoneProfile.sortedMilestones[i]
                         tooltip:AddDoubleLine(sortedMilestone.label, sortedMilestone.text, 1, 1, 1, 1, 1, 1)
                     end
+                    if isExtendedProfile and (hasMod or hasModSticky) then
+                        local hasBestDungeons = false
+                        for i = 1, #keystoneProfile.sortedDungeons do
+                            local sortedDungeon = keystoneProfile.sortedDungeons[i]
+                            if sortedDungeon.level > 0 then
+                                hasBestDungeons = true
+                                break
+                            end
+                        end
+                        if hasBestDungeons then
+                            if showHeader then
+                                if showPadding then
+                                    tooltip:AddLine(" ")
+                                end
+                                tooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0)
+                            end
+                            for i = 1, #keystoneProfile.sortedDungeons do
+                                local sortedDungeon = keystoneProfile.sortedDungeons[i]
+                                if sortedDungeon.level > 0 then
+                                    tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, util:GetNumChests(sortedDungeon.chests) .. sortedDungeon.level, 1, 1, 1, util:GetKeystoneChestColor(sortedDungeon.chests))
+                                end
+                            end
+                        end
+                    end
                 end
                 if isRaidBlockShown then
                     if showPadding and isKeystoneBlockShown then
                         tooltip:AddLine(" ")
                     end
                     if showHeader then
-                        tooltip:AddLine(L.RAIDING_DATA_HEADER, 1, 0.85, 0)
+                        if isExtendedProfile then
+                            tooltip:AddLine(L.RAID_ENCOUNTERS_DEFEATED_TITLE, 1, 0.85, 0)
+                        else
+                            tooltip:AddLine(L.RAIDING_DATA_HEADER, 1, 0.85, 0)
+                        end
                     end
-                    for i = 1, #raidProfile.sortedProgress do
-                        local sortedProgress = raidProfile.sortedProgress[i]
-                        local prog = sortedProgress.progress
-                        if (hasMod or hasModSticky or not sortedProgress.obsolete) and (not sortedProgress.isMainProgress or config:Get("showMainsScore")) then
-                            local raidDiff = ns.RAID_DIFFICULTY[prog.difficulty]
-                            if sortedProgress.isMainProgress then
-                                tooltip:AddDoubleLine(L.MAINS_RAID_PROGRESS, format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, prog.progressCount, prog.raid.bossCount), 1, 1, 1, 1, 1, 1)
-                            else
-                                tooltip:AddDoubleLine(format("%s %s", prog.raid.shortName, raidDiff.name), format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, prog.progressCount, prog.raid.bossCount), 1, 1, 1, 1, 1, 1)
+                    if isExtendedProfile then
+                        local raidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid)
+                        for i = 1, raidProvider.currentRaid.bossCount do
+                            local progressFound = false
+                            for j = 1, #raidProfile.progress do
+                                local progress = raidProfile.progress[j]
+                                local bossKills = progress.killsPerBoss[i]
+                                if bossKills > 0 then
+                                    progressFound = true
+                                    local difficulty = ns.RAID_DIFFICULTY[progress.difficulty]
+                                    tooltip:AddDoubleLine(format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix, L[format("RAID_BOSS_%s_%d", raidProvider.currentRaid.shortName, i)]), bossKills, 1, 1, 1, 1, 1, 1)
+                                end
+                                if progressFound then
+                                    break
+                                end
+                            end
+                            if not progressFound then
+                                tooltip:AddDoubleLine(L[format("RAID_BOSS_%s_%d", raidProvider.currentRaid.shortName, i)], "-", 0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+                            end
+                        end
+                    else
+                        for i = 1, #raidProfile.sortedProgress do
+                            local sortedProgress = raidProfile.sortedProgress[i]
+                            local prog = sortedProgress.progress
+                            if (hasMod or hasModSticky or not sortedProgress.obsolete) and (not sortedProgress.isMainProgress or config:Get("showMainsScore")) then
+                                local raidDiff = ns.RAID_DIFFICULTY[prog.difficulty]
+                                if sortedProgress.isMainProgress then
+                                    tooltip:AddDoubleLine(L.MAINS_RAID_PROGRESS, format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, prog.progressCount, prog.raid.bossCount), 1, 1, 1, 1, 1, 1)
+                                else
+                                    tooltip:AddDoubleLine(format("%s %s", prog.raid.shortName, raidDiff.name), format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, prog.progressCount, prog.raid.bossCount), 1, 1, 1, 1, 1, 1)
+                                end
                             end
                         end
                     end
@@ -5003,7 +5054,7 @@ do
 
     local function CreateGuildWeeklyFrame()
         ---@type GuildWeeklyFrame
-        local frame = CreateFrame("Frame", nil, ChallengesFrame, false and BackdropTemplateMixin and "BackdropTemplate") -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28
+        local frame = CreateFrame("Frame", nil, ChallengesFrame, BackdropTemplateMixin and "BackdropTemplate")
         frame.maxVisible = 5
         -- inherit from the mixin
         for k, v in pairs(GuildWeeklyFrameMixin) do
@@ -5359,7 +5410,7 @@ do
         realmBox.autoCompleteFunction = GetRealms
         nameBox.autoCompleteFunction = GetNames
 
-        local Frame = CreateFrame("Frame", nil, UIParent, false and BackdropTemplateMixin and "BackdropTemplate") -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28)
+        local Frame = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate")
         do
             Frame:Hide()
             Frame:EnableMouse(true)
@@ -5624,7 +5675,7 @@ do
     }
 
     local function CreateOptions()
-        local configParentFrame = CreateFrame("Frame", nil, UIParent, false and BackdropTemplateMixin and "BackdropTemplate") -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28)
+        local configParentFrame = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate")
         configParentFrame:SetSize(400, 600)
         configParentFrame:SetPoint("CENTER")
 
@@ -5796,7 +5847,7 @@ do
         end
 
         function configOptions.CreateWidget(self, widgetType, height, parentFrame)
-            local widget = CreateFrame(widgetType, nil, parentFrame or configFrame, false and BackdropTemplateMixin and "BackdropTemplate") -- TODO: 9.0 -- https://github.com/Stanzilla/WoWUIBugs/issues/28)
+            local widget = CreateFrame(widgetType, nil, parentFrame or configFrame, BackdropTemplateMixin and "BackdropTemplate")
 
             if self.lastWidget then
                 widget:SetPoint("TOPLEFT", self.lastWidget, "BOTTOMLEFT", 0, -24)

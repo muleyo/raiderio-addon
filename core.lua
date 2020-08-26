@@ -1130,6 +1130,28 @@ do
         return util:GetDungeonByInstanceMapID(instanceMapID)
     end
 
+    function util:GetLFDStatusForCurrentActivity(activityID)
+        ---@type Dungeon
+        local focusDungeon
+        local activityDungeon = activityID and util:GetDungeonByLFDActivityID(activityID)
+        if activityDungeon then
+            focusDungeon = activityDungeon
+        end
+        if not focusDungeon then
+            local lfd = util:GetLFDStatus()
+            if lfd then
+                focusDungeon = lfd.dungeon
+            end
+        end
+        if not focusDungeon then
+            local instanceDungeon = util:GetInstanceStatus()
+            if instanceDungeon then
+                focusDungeon = instanceDungeon
+            end
+        end
+        return focusDungeon
+    end
+
     local SCORE_TIER = ns:GetScoreTiersData()
     local SCORE_TIER_SIMPLE = ns:GetScoreTiersSimpleData()
     local SCORE_TIER_PREV = ns:GetScoreTiersPrevData()
@@ -3003,25 +3025,7 @@ do
         local best = { dungeon = nil, level = 0, text = nil } ---@type BestRun @best dungeon
         local overallBest = { dungeon = keystoneProfile.maxDungeon, level = keystoneProfile.maxDungeonLevel, text = nil } ---@type BestRun @overall best
         if showLFD then
-            ---@type Dungeon
-            local focusDungeon
-            local activityID = state.args and state.args.activityID
-            local activityDungeon = activityID and util:GetDungeonByLFDActivityID(activityID)
-            if activityDungeon then
-                focusDungeon = activityDungeon
-            end
-            if not focusDungeon then
-                local lfd = util:GetLFDStatus()
-                if lfd then
-                    focusDungeon = lfd.dungeon
-                end
-            end
-            if not focusDungeon then
-                local instanceDungeon = util:GetInstanceStatus()
-                if instanceDungeon then
-                    focusDungeon = instanceDungeon
-                end
-            end
+            local focusDungeon = util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
             if focusDungeon then
                 best.dungeon = focusDungeon
                 best.level = keystoneProfile.dungeons[focusDungeon.index]
@@ -3134,6 +3138,7 @@ do
                 local showFooter = Has(state.options, render.Flags.SHOW_FOOTER)
                 local showPadding = Has(state.options, render.Flags.SHOW_PADDING)
                 local showName = Has(state.options, render.Flags.SHOW_NAME)
+                local showLFD = Has(state.options, render.Flags.SHOW_LFD)
                 local showTopLine = isAnyBlockShown or isBlocked or isOutdated
                 local showTopLinePadding = showTopLine and not isUnitTooltip and isExtendedProfile and showPadding
                 if showTopLine then
@@ -3222,10 +3227,29 @@ do
                                 end
                                 tooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0)
                             end
-                            for i = 1, #keystoneProfile.sortedDungeons do
-                                local sortedDungeon = keystoneProfile.sortedDungeons[i]
-                                if sortedDungeon.level > 0 then
-                                    tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, util:GetNumChests(sortedDungeon.chests) .. sortedDungeon.level, 1, 1, 1, util:GetKeystoneChestColor(sortedDungeon.chests))
+                            local mythicKeystoneDungeons = ns:GetDungeonData()
+                            local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
+                            for i = 1, #mythicKeystoneDungeons do
+                                local dungeon = mythicKeystoneDungeons[i]
+                                local inFocus = dungeon == focusDungeon
+                                for j = 1, #keystoneProfile.sortedDungeons do
+                                    local sortedDungeon = keystoneProfile.sortedDungeons[j]
+                                    if dungeon == sortedDungeon.dungeon then
+                                        local r, g, b = 1, 1, 1
+                                        if inFocus then
+                                            if sortedDungeon.level > 0 then
+                                                r, g, b = 0, 1, 0
+                                            else
+                                                r, g, b = 0.5, 0.8, 0.5
+                                            end
+                                        end
+                                        if sortedDungeon.level > 0 then
+                                            tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, util:GetNumChests(sortedDungeon.chests) .. sortedDungeon.level, r, g, b, util:GetKeystoneChestColor(sortedDungeon.chests))
+                                        else
+                                            tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, "-", r, g, b, 0.5, 0.5, 0.5)
+                                        end
+                                        break
+                                    end
                                 end
                             end
                         end

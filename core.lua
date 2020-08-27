@@ -4378,7 +4378,7 @@ do
         end
         local isPlayer = IsPlayer(unit, name, realm, region)
         if not isPlayer and config:Get("enableProfileModifier") then
-            if config:Get("inverseProfileModifier") and band(options, render.Flags.MOD) == render.Flags.MOD then
+            if config:Get("inverseProfileModifier") == (config:Get("alwaysExtendTooltip") or band(options, render.Flags.MOD) == render.Flags.MOD) then
                 unit, name, realm, faction = "player", nil, nil, ns.PLAYER_FACTION
             end
         end

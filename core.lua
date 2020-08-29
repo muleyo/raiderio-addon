@@ -1,7 +1,4 @@
--- because writing lua for wow doesn't use require to load lua files,
--- this forces us to write the addon in one file rather in order for
--- autocompletion to function. let me know if you know a trick around
--- this particular issue. https://github.com/EmmyLua/VSCode-EmmyLua
+if WOW_PROJECT_ID ~= WOW_PROJECT_MAINLINE then return end
 
 local addonName = ... ---@type string @The name of the addon.
 local ns = select(2, ...) ---@type ns @The addon namespace.

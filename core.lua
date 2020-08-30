@@ -700,6 +700,12 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
 
     local DUNGEONS = ns:GetDungeonData()
+    local SORTED_DUNGEONS = {} ---@type Dungeon[]
+    do
+        for i = 1, #DUNGEONS do
+            SORTED_DUNGEONS[i] = DUNGEONS[i]
+        end
+    end
 
     -- update the dungeon properties for shortNameLocale at the appropriate events
     local function OnSettingsChanged()
@@ -715,9 +721,17 @@ do
                 dungeon.shortNameLocale = L["DUNGEON_SHORT_NAME_" .. dungeon.shortName] or dungeon.shortName
             end
         end
+        table.sort(SORTED_DUNGEONS, function(a, b)
+            return a.shortNameLocale < b.shortNameLocale
+        end)
     end
     callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")
     callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_SAVED")
+
+    ---@return Dungeon[]
+    function util:GetSortedDungeons()
+        return SORTED_DUNGEONS
+    end
 
     ---@return Dungeon|nil
     function util:GetDungeonByIndex(index)
@@ -3224,7 +3238,7 @@ do
                                 end
                                 tooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0)
                             end
-                            local mythicKeystoneDungeons = ns:GetDungeonData()
+                            local mythicKeystoneDungeons = util:GetSortedDungeons()
                             local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
                             for i = 1, #mythicKeystoneDungeons do
                                 local dungeon = mythicKeystoneDungeons[i]
@@ -3234,11 +3248,7 @@ do
                                     if dungeon == sortedDungeon.dungeon then
                                         local r, g, b = 1, 1, 1
                                         if inFocus then
-                                            if sortedDungeon.level > 0 then
-                                                r, g, b = 0, 1, 0
-                                            else
-                                                r, g, b = 0.5, 0.8, 0.5
-                                            end
+                                            r, g, b = 0, 1, 0
                                         end
                                         if sortedDungeon.level > 0 then
                                             tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, util:GetNumChests(sortedDungeon.chests) .. sortedDungeon.level, r, g, b, util:GetKeystoneChestColor(sortedDungeon.chests))
@@ -4374,7 +4384,7 @@ do
             SetAnchor(anchor, anchor:GetFrameStrata())
         end
         local isPlayer = IsPlayer(unit, name, realm, region)
-        if not isPlayer and config:Get("enableProfileModifier") then
+        if not isPlayer and config:Get("enableProfileModifier") and not band(options, render.Flags.MOD_STICKY) == render.Flags.MOD_STICKY then
             if config:Get("inverseProfileModifier") == (config:Get("alwaysExtendTooltip") or band(options, render.Flags.MOD) == render.Flags.MOD) then
                 unit, name, realm, faction = "player", nil, nil, ns.PLAYER_FACTION
             end

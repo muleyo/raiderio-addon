@@ -2990,8 +2990,9 @@ do
             ["Skullcrusher"] = {
                 ["Aspyrox"] = "Raider.IO Creator",
                 ["Ulsoga"] = "Raider.IO Creator",
-                ["Fittlewak"] = "Raider.IO Contributor"
-            },
+				["Mccaffrey"] = "Killing Keys Since 1977!",
+				["Oscassey"] = "Master of dis guys"
+			},
             ["Thrall"] = {
                 ["Firstclass"] = "Author of mythicpl.us"
             },

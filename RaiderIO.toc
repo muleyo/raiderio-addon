@@ -5,4 +5,5 @@
 ## Version: 8.3.0 (@project-version@)
 ## SavedVariables: RaiderIO_Config, RaiderIO_LastCharacter, RaiderIO_MissingCharacters, RaiderIO_CachedRuns
 ## X-Website: https://raider.io
+## X-AddonProvider: github
 core.xml

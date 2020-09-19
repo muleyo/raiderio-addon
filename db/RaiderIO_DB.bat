@@ -1,8 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set toc_interface=80205
-set toc_author=Vladinator ^(Voidzone-Ravencrest^) and Aspyr ^(Aspyrael-Skullcrusher^)
+set toc_interface=80300
+set toc_author=Vladinator ^(Voidzone-Ravencrest^), Aspyr ^(Aspyrox-Skullcrusher^) and Isak ^(Isak-Sargeras^)
 set toc_addon=RaiderIO
 
 for %%r in (
@@ -15,8 +15,8 @@ for %%r in (
 	set r1=!r:~1,2!
 	set r2=!r:~4,-1!
 
-::"R	Raiding"
 	for %%t in (
+		"R	Raiding"
 		"M	Mythic Plus"
 	) do (
 		set t=%%t
@@ -63,8 +63,13 @@ for %%r in (
 			echo ## X-Region: !r2!>>"!f!"
 			echo ## X-Faction: !f2!>>"!f!"
 			echo ## X-Website: https:^/^/raider.io>>"!f!"
-			echo ../!toc_addon!/db/db_!lr!_!lf!!lt!_characters.lua>>"!f!"
-			echo ../!toc_addon!/db/db_!lr!_!lf!!lt!_lookup.lua>>"!f!"
+			if !t1! == _R (
+				echo ../!toc_addon!/db/db_raiding_!lr!_!lf!_characters.lua>>"!f!"
+				echo ../!toc_addon!/db/db_raiding_!lr!_!lf!_lookup.lua>>"!f!"
+			) else (
+				echo ../!toc_addon!/db/db_!lr!_!lf!!lt!_characters.lua>>"!f!"
+				echo ../!toc_addon!/db/db_!lr!_!lf!!lt!_lookup.lua>>"!f!"
+			)
 		)
 	)
 )

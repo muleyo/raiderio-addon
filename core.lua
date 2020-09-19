@@ -2670,26 +2670,28 @@ do
             if provider.faction == faction and provider.region == region then
                 local lookup = provider["lookup" .. faction]
                 local data = provider["db" .. faction]
-                if provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
-                    if provider.blockedPurged then
-                        local tempMythicKeystoneProfile = GetMythicKeystoneProfile(provider, lookup, data, name, realm)
-                        if tempMythicKeystoneProfile and (not mythicKeystoneProfile or mythicKeystoneProfile.blockedPurged) then
-                            mythicKeystoneProfile = tempMythicKeystoneProfile
+                if lookup and data then
+                    if provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
+                        if provider.blockedPurged then
+                            local tempMythicKeystoneProfile = GetMythicKeystoneProfile(provider, lookup, data, name, realm)
+                            if tempMythicKeystoneProfile and (not mythicKeystoneProfile or mythicKeystoneProfile.blockedPurged) then
+                                mythicKeystoneProfile = tempMythicKeystoneProfile
+                            end
+                        elseif not mythicKeystoneProfile then
+                            mythicKeystoneProfile = GetMythicKeystoneProfile(provider, lookup, data, name, realm)
                         end
-                    elseif not mythicKeystoneProfile then
-                        mythicKeystoneProfile = GetMythicKeystoneProfile(provider, lookup, data, name, realm)
+                    elseif provider.data == ns.PROVIDER_DATA_TYPE.Raid then
+                        if not raidProfile then
+                            raidProfile = GetRaidProfile(provider, lookup, data, name, realm)
+                        end
+                    elseif provider.data == ns.PROVIDER_DATA_TYPE.PvP then
+                        if not pvpProfile then
+                            pvpProfile = GetPvpProfile(provider, lookup, data, name, realm)
+                        end
                     end
-                elseif provider.data == ns.PROVIDER_DATA_TYPE.Raid then
-                    if not raidProfile then
-                        raidProfile = GetRaidProfile(provider, lookup, data, name, realm)
+                    if mythicKeystoneProfile and raidProfile and pvpProfile then
+                        break
                     end
-                elseif provider.data == ns.PROVIDER_DATA_TYPE.PvP then
-                    if not pvpProfile then
-                        pvpProfile = GetPvpProfile(provider, lookup, data, name, realm)
-                    end
-                end
-                if mythicKeystoneProfile and raidProfile and pvpProfile then
-                    break
                 end
             end
         end

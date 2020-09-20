@@ -48,3 +48,4 @@ node_modules
 # Client related files we don't need to commit back to git
 CHANGES.txt
 db_client_*.lua
+.env

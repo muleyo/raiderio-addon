@@ -5006,7 +5006,7 @@ do
         do
             frame.CharacterName = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
             frame.CharacterName:SetJustifyH("LEFT")
-            frame.CharacterName:SetSize(60, 13)
+            frame.CharacterName:SetSize(70, 13)
             frame.CharacterName:SetPoint("LEFT")
             frame.CharacterName:SetTextColor(1, 1, 1)
         end
@@ -5014,13 +5014,13 @@ do
         do
             frame.Level = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
             frame.Level:SetJustifyH("RIGHT")
-            frame.Level:SetSize(20, 13)
+            frame.Level:SetSize(25, 13)
             frame.Level:SetPoint("RIGHT")
             frame.Level:SetTextColor(1, 1, 1)
         end
         -- the look and feel, anchoring and final touches
         do
-            frame:SetSize(80, 13)
+            frame:SetSize(95, 13)
             frame:SetScript("OnEnter", RunFrame_OnEnter)
             frame:SetScript("OnLeave", GameTooltip_Hide)
         end
@@ -5159,7 +5159,7 @@ do
         -- no runs available overlay
         do
             frame.GuildBestNoRun = CreateFrame("Frame", nil, frame)
-            frame.GuildBestNoRun:SetSize(80, 13)
+            frame.GuildBestNoRun:SetSize(95, 13)
             frame.GuildBestNoRun:SetPoint("TOPLEFT", frame.Title, "BOTTOMLEFT", 0, -14)
             frame.GuildBestNoRun.Text = frame.GuildBestNoRun:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
             frame.GuildBestNoRun.Text:SetJustifyH("LEFT")
@@ -5200,7 +5200,7 @@ do
             -- look and feel
             frame:SetScale(1.2)
             frame:SetFrameStrata("HIGH")
-            frame:SetSize(100, 115)
+            frame:SetSize(115, 115)
             if frame.SetBackdrop then
                 frame:SetBackdrop(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
                 frame:SetBackdropBorderColor(1, 1, 1, 1)
@@ -5241,6 +5241,7 @@ do
         callback:RegisterEvent(UpdateShown, "RAIDERIO_SETTINGS_SAVED")
         PVEFrame:HookScript("OnShow", UpdateShown)
         ChallengesFrame:HookScript("OnShow", UpdateShown)
+        callback:RegisterEvent(UpdateShown, "CHALLENGE_MODE_LEADERS_UPDATE")
     end
 
 end

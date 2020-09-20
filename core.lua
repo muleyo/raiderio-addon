@@ -676,7 +676,7 @@ do
     end
 
     function config:OnLoad()
-        callback:RegisterEvent(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
+        callback:RegisterEventOnce(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
     end
 
     function config:Set(key, val)
@@ -1843,7 +1843,7 @@ do
     end
 
     function provider:OnLoad()
-        callback:RegisterEvent(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
+        callback:RegisterEventOnce(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
     end
 
     function provider:GetProviders()
@@ -2783,8 +2783,8 @@ do
         ns.PLAYER_REALM_SLUG = util:GetRealmSlug(ns.PLAYER_REALM)
         _G.RaiderIO_LastCharacter = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_NAME, ns.PLAYER_REALM_SLUG or ns.PLAYER_REALM)
         _G.RaiderIO_MissingCharacters = {}
-        LoadModules()
         callback:SendEvent("RAIDERIO_PLAYER_LOGIN")
+        LoadModules()
     end
 
     local function OnAddOnLoaded(_, name)
@@ -5050,9 +5050,11 @@ do
 
         local keyBest = "season_best"
         local title = L.GUILD_BEST_SEASON
+        local blizzScoreboard
 
         if not guildData or config:Get("displayWeeklyGuildBest") then
             if not guildData then
+                blizzScoreboard = true
                 guildData = GetGuildScoreboard()
             end
             keyBest = "weekly_best"
@@ -5060,7 +5062,7 @@ do
         end
 
         self.SubTitle:SetText(title)
-        self.SwitchGuildBest:SetShown(guildData)
+        self.SwitchGuildBest:SetShown(guildData and not blizzScoreboard)
 
         local switchShown = self.SwitchGuildBest:IsShown()
         local switchHeight = self.SwitchGuildBest:GetHeight()

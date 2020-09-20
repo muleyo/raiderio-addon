@@ -672,11 +672,15 @@ do
     end
 
     function config:CanLoad()
-        return self.SavedVariablesLoaded and not self:IsLoaded()
+        return not self:IsLoaded() and self.SavedVariablesLoaded
     end
 
     function config:OnLoad()
-        callback:RegisterEvent(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
+        if not IsLoggedIn() then
+            callback:RegisterEvent(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
+        else
+            OnPlayerLogin()
+        end
     end
 
     function config:Set(key, val)
@@ -1843,7 +1847,11 @@ do
     end
 
     function provider:OnLoad()
-        callback:RegisterEvent(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
+        if not IsLoggedIn() then
+            callback:RegisterEvent(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
+        else
+            OnPlayerLogin()
+        end
     end
 
     function provider:GetProviders()
@@ -5229,7 +5237,7 @@ do
     end
 
     function guildweekly:CanLoad()
-        return not frame and config:IsLoaded() and _G.PVEFrame and _G.ChallengesFrame
+        return not frame and config:IsEnabled() and _G.PVEFrame and _G.ChallengesFrame
     end
 
     function guildweekly:OnLoad()

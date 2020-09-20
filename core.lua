@@ -611,6 +611,7 @@ end
 do
 
     ---@class ConfigModule : Module
+    ---@field public SavedVariablesLoaded boolean This is etonce the SV are loaded to indicate we are ready to read from the settings table.
     local config = ns:NewModule("Config") ---@type ConfigModule
     local callback = ns:GetModule("Callback") ---@type CallbackModule
 
@@ -668,6 +669,10 @@ do
             ns.Print(format(L.WARNING_DEBUG_MODE_ENABLE, addonName))
         end
         callback:SendEvent("RAIDERIO_CONFIG_READY")
+    end
+
+    function config:CanLoad()
+        return self.SavedVariablesLoaded and not self:IsLoaded()
     end
 
     function config:OnLoad()
@@ -2783,6 +2788,9 @@ do
     end
 
     local function OnAddOnLoaded(_, name)
+        if name == addonName then
+            config.SavedVariablesLoaded = true
+        end
         LoadModules()
         if name == addonName then
             if not IsLoggedIn() then
@@ -5038,7 +5046,7 @@ do
         self:Reset()
 
         local guildsData = ns:GetClientGuildData()
-        local guildData = guildsData[guildName] ---@type GuildCollection
+        local guildData = guildsData and guildsData[guildName] ---@type GuildCollection
 
         local keyBest = "season_best"
         local title = L.GUILD_BEST_SEASON

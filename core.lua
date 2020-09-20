@@ -676,11 +676,7 @@ do
     end
 
     function config:OnLoad()
-        if not IsLoggedIn() then
-            callback:RegisterEvent(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
-        else
-            OnPlayerLogin()
-        end
+        callback:RegisterEvent(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
     end
 
     function config:Set(key, val)
@@ -1847,11 +1843,7 @@ do
     end
 
     function provider:OnLoad()
-        if not IsLoggedIn() then
-            callback:RegisterEvent(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
-        else
-            OnPlayerLogin()
-        end
+        callback:RegisterEvent(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
     end
 
     function provider:GetProviders()
@@ -2791,8 +2783,8 @@ do
         ns.PLAYER_REALM_SLUG = util:GetRealmSlug(ns.PLAYER_REALM)
         _G.RaiderIO_LastCharacter = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_NAME, ns.PLAYER_REALM_SLUG or ns.PLAYER_REALM)
         _G.RaiderIO_MissingCharacters = {}
-        callback:SendEvent("RAIDERIO_PLAYER_LOGIN")
         LoadModules()
+        callback:SendEvent("RAIDERIO_PLAYER_LOGIN")
     end
 
     local function OnAddOnLoaded(_, name)

@@ -2191,7 +2191,7 @@ do
     ---@field public dungeon Dungeon
     ---@field public level number
     ---@field public chests number
-    ---@field public fractionalTime number
+    ---@field public fractionalTime number If we have client data `isEnhanced` is set and the values are then `0.0` to `1.0` is within the timer, anything above is depleted over the timer. If `isEnhanced` is false then this value is 0 to 3 where 3 is depleted, and the rest is in time.
 
     ---@class SortedMilestone
     ---@field public level number
@@ -2240,7 +2240,15 @@ do
     ---@param a SortedDungeon
     ---@param b SortedDungeon
     local function SortDungeons(a, b)
-        return a.dungeon.shortNameLocale < b.dungeon.shortNameLocale
+        local al, bl = a.level, b.level
+        if al == bl then
+            local at, bt = a.fractionalTime, b.fractionalTime
+            if at == bt then
+                return a.dungeon.shortNameLocale < b.dungeon.shortNameLocale
+            end
+            return at < bt
+        end
+        return al > bl
     end
 
     local function UnpackMythicKeystoneData(bucket, baseOffset, encodingOrder, providerOutdated, providerBlocked, name, realm, region)
@@ -2873,7 +2881,9 @@ do
         SHOW_HEADER = 1024,
         SHOW_FOOTER = 2048,
         SHOW_NAME = 4096,
-        SHOW_LFD = 8192
+        SHOW_LFD = 8192,
+        -- ignore modifier state logic processing
+        IGNORE_MOD = 16384
     }
 
     ---@class RenderPreset
@@ -2893,7 +2903,15 @@ do
     render.Preset.UnitNoPadding = bxor(render.Preset.Unit, render.Flags.SHOW_PADDING)
 
     for k, v in pairs(render.Preset) do
-        render.Preset[k] = function() return bor(v, IsModifierKeyDown() and render.Flags.MOD or 0) end
+        render.Preset[k] = function(additional)
+            if type(additional) == "number" then
+                if additional < 0 then
+                    additional = bxor(v, -additional)
+                end
+                return bor(v, additional, IsModifierKeyDown() and render.Flags.MOD or 0)
+            end
+            return bor(v, IsModifierKeyDown() and render.Flags.MOD or 0)
+        end
     end
 
     render.Preset.UnitSmartPadding = function(hasOwner)
@@ -3241,25 +3259,17 @@ do
                                 end
                                 tooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0)
                             end
-                            local mythicKeystoneDungeons = util:GetSortedDungeons()
                             local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
-                            for i = 1, #mythicKeystoneDungeons do
-                                local dungeon = mythicKeystoneDungeons[i]
-                                local inFocus = dungeon == focusDungeon
-                                for j = 1, #keystoneProfile.sortedDungeons do
-                                    local sortedDungeon = keystoneProfile.sortedDungeons[j]
-                                    if dungeon == sortedDungeon.dungeon then
-                                        local r, g, b = 1, 1, 1
-                                        if inFocus then
-                                            r, g, b = 0, 1, 0
-                                        end
-                                        if sortedDungeon.level > 0 then
-                                            tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, util:GetNumChests(sortedDungeon.chests) .. sortedDungeon.level, r, g, b, util:GetKeystoneChestColor(sortedDungeon.chests))
-                                        else
-                                            tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, "-", r, g, b, 0.5, 0.5, 0.5)
-                                        end
-                                        break
-                                    end
+                            for i = 1, #keystoneProfile.sortedDungeons do
+                                local sortedDungeon = keystoneProfile.sortedDungeons[i]
+                                local r, g, b = 1, 1, 1
+                                if sortedDungeon.dungeon == focusDungeon then
+                                    r, g, b = 0, 1, 0
+                                end
+                                if sortedDungeon.level > 0 then
+                                    tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, util:GetNumChests(sortedDungeon.chests) .. sortedDungeon.level, r, g, b, util:GetKeystoneChestColor(sortedDungeon.chests))
+                                else
+                                    tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, "-", r, g, b, 0.5, 0.5, 0.5)
                                 end
                             end
                         end
@@ -3503,14 +3513,28 @@ do
             if unitIsPlayer then
                 name, realm = util:GetNameRealm(arg1)
                 faction = util:GetFaction(arg1)
+            elseif type(arg1) == "string" then
+                if arg1:find("-", nil, true) then
+                    name, realm = util:GetNameRealm(arg1)
+                    faction = arg2
+                    return provider:GetProfile(name, realm, faction, arg3, ...)
+                else
+                    name, realm = util:GetNameRealm(arg1, arg2)
+                end
             end
             return provider:GetProfile(name, realm, faction, ...)
         end,
-        ShowProfile = function(...)
-            return render:ShowProfile(...)
+        ShowProfile = function(tooltip, ...)
+            if type(tooltip) ~= "table" or type(tooltip.GetObjectType) ~= "function" or tooltip:GetObjectType() ~= "GameTooltip" then
+                return
+            end
+            return render:ShowProfile(tooltip, ...)
         end,
-        GetScoreColor = function(...)
-            return util:GetScoreColor(...)
+        GetScoreColor = function(score, ...)
+            if type(score) ~= "number" then
+                score = 0
+            end
+            return util:GetScoreColor(score, ...)
         end
     }
 
@@ -3538,7 +3562,16 @@ do
                 return
             end
             return pristine.GetScoreColor(...)
-        end
+        end,
+        -- DEPRECATED: these are here just to help mitigate the transition but do avoid using these as they will probably go away during Shadowlands
+        ProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
+        TooltipProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
+        DataProvider = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
+        HasPlayerProfile = function(...) return _G.RaiderIO.GetProfile(...) end, -- passes the request to the GetProfile API (if its there then it exists)
+        GetPlayerProfile = function(mask, ...) return _G.RaiderIO.GetProfile(...) end, -- skips the mask and passes the rest to the GetProfile API
+        ShowTooltip = function(tooltip, mask, ...) return _G.RaiderIO.ShowProfile(tooltip, ...) end, -- skips the mask and passes the rest to the ShowProfile API
+        GetRaidDifficultyColor = function(difficulty) local rd = ns.RAID_DIFFICULTY[difficulty] local t if rd then t = { rd.color[1], rd.color[2], rd.color[3], rd.color.hex } end return t end, -- returns the color table for the queried raid difficulty
+        GetScore = function() end, -- deprecated early BfA so we just return nothing
     }
 
     ---@class RaiderIOInterface
@@ -4381,13 +4414,13 @@ do
             return
         end
         local unit, name, realm, faction, options, args, region = render.GetQuery(...)
-        options = render.Preset.Profile()
+        options = options or render.Preset.Profile()
         UpdatePosition()
         if IsFrame(anchor) then
             SetAnchor(anchor, anchor:GetFrameStrata())
         end
         local isPlayer = IsPlayer(unit, name, realm, region)
-        if not isPlayer and config:Get("enableProfileModifier") and not band(options, render.Flags.MOD_STICKY) == render.Flags.MOD_STICKY then
+        if not isPlayer and config:Get("enableProfileModifier") and band(options, render.Flags.IGNORE_MOD) ~= render.Flags.IGNORE_MOD then
             if config:Get("inverseProfileModifier") == (config:Get("alwaysExtendTooltip") or band(options, render.Flags.MOD) == render.Flags.MOD) then
                 unit, name, realm, faction = "player", nil, nil, ns.PLAYER_FACTION
             end
@@ -4450,7 +4483,7 @@ do
         currentResult.activityID = entry.activityID
         currentResult.leaderName = entry.leaderName
         currentResult.keystoneLevel = util:GetKeystoneLevelFromText(entry.title) or util:GetKeystoneLevelFromText(entry.description) or 0
-        render:ShowProfile(tooltip, currentResult.leaderName, ns.PLAYER_FACTION, render.Preset.Unit(), currentResult)
+        render:ShowProfile(tooltip, currentResult.leaderName, ns.PLAYER_FACTION, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult)
         profile:ShowProfile(tooltip, currentResult.leaderName, ns.PLAYER_FACTION, currentResult)
     end
 
@@ -4473,7 +4506,7 @@ do
         if not hasOwner then
             GameTooltip:SetOwner(parent, "ANCHOR_TOPLEFT", 0, 0)
         end
-        if render:ShowProfile(GameTooltip, fullName, ns.PLAYER_FACTION, render.Preset.Unit(), currentResult) then
+        if render:ShowProfile(GameTooltip, fullName, ns.PLAYER_FACTION, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult) then
             return true, fullName
         end
         if not hasOwner then
@@ -5601,7 +5634,7 @@ do
             searchTooltip:Show()
         end
         if shown then
-            profile:ShowProfile(searchFrame, name, realm, faction, region)
+            profile:ShowProfile(searchFrame, name, realm, faction, render.Preset.Profile(render.Flags.IGNORE_MOD), region)
         else
             profile:ShowProfile()
         end

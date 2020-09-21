@@ -11,16 +11,10 @@ mkdir -p package
 
 cd package
 
-wget -O latest.zip "https://raiderio-assets.s3.amazonaws.com/addon-build/locale_ref.zip"
-
 rm -rf addon
-mkdir -p addon/RaiderIO/db
+mkdir -p addon/RaiderIO/{db,locale}
 find ../db -type d -name 'RaiderIO_DB_*' -exec cp -av {} addon \;
-unzip -o -d addon latest.zip
-if [ $? != 0 ]; then
-    echo "Zip file is invalid; aborting package"
-    exit 1
-fi
+
 find addon -name '*.xml' -exec rm -f {} \;
 rm -rf addon/RaiderIO/db/RaiderIO_DB_*   # leftovers that could be in config
 echo "Manual build $NEW_VERSION" > addon/CHANGES.txt
@@ -28,7 +22,11 @@ echo "Manual build $NEW_VERSION" > addon/CHANGES.txt
 echo "Overlaying latest DB..."
 cp -v ../db/db_*.lua addon/RaiderIO/db
 cp ../*.{lua,toc,xml} addon/RaiderIO
-cp ../locale/enUS.lua addon/RaiderIO/locale
+
+# setup the locale
+cp ../locale/*.lua addon/RaiderIO/locale
+bash ../update_locale.sh `pwd`/addon/RaiderIO/locale
+
 cp -a ../libs addon/RaiderIO/
 (cd .. ; tar cf - icons) | (cd addon/RaiderIO ; tar xvf -)
 

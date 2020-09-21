@@ -2548,6 +2548,13 @@ do
             elseif prog.tier == prevProg.tier then
                 if prevProg.progress.progressCount >= prog.progress.raid.bossCount then
                     tierObsolete[prog.tier] = true
+                    tierObsolete[prevProg.tier] = true
+                    prog.obsolete = true
+                end
+            elseif prog.tier > prevProg.tier then
+                if prevProg.progress.progressCount > 0 then
+                    tierObsolete[prog.tier] = true
+                    tierObsolete[prevProg.tier] = true
                     prog.obsolete = true
                 end
             end
@@ -2910,15 +2917,23 @@ do
 
     render.Preset.UnitNoPadding = bxor(render.Preset.Unit, render.Flags.SHOW_PADDING)
 
+    local function IsModifierKeyDownOrAlwaysExtend()
+        return IsModifierKeyDown() or config:Get("alwaysExtendTooltip")
+    end
+
     for k, v in pairs(render.Preset) do
         render.Preset[k] = function(additional)
+            local IsModKeyDown = IsModifierKeyDown
+            if k == "Unit" or k == "UnitNoPadding" then
+                IsModKeyDown = IsModifierKeyDownOrAlwaysExtend
+            end
             if type(additional) == "number" then
                 if additional < 0 then
                     additional = bxor(v, -additional)
                 end
-                return bor(v, additional, IsModifierKeyDown() and render.Flags.MOD or 0)
+                return bor(v, additional, IsModKeyDown() and render.Flags.MOD or 0)
             end
-            return bor(v, IsModifierKeyDown() and render.Flags.MOD or 0)
+            return bor(v, IsModKeyDown() and render.Flags.MOD or 0)
         end
     end
 

@@ -2395,6 +2395,7 @@ do
     ---@field public difficulty number
     ---@field public killsPerBoss number[]
     ---@field public raid Raid
+    ---@field public current boolean
 
     ---@class DataProviderRaidProfile
     ---@field public outdated number|nil @number or nil
@@ -2422,6 +2423,21 @@ do
             return a.progress.difficulty > b.progress.difficulty
         end
         return a.tier < b.tier
+    end
+
+    ---@param a SortedRaidProgress
+    ---@param b SortedRaidProgress
+    local function SortRaidProgressMainLast(a, b)
+        if a.isMainProgress == b.isMainProgress then
+            if a.tier == b.tier then
+                if a.progress.difficulty == b.progress.difficulty then
+                    return a.progress.progressCount > b.progress.progressCount
+                end
+                return a.progress.difficulty > b.progress.difficulty
+            end
+            return a.tier < b.tier
+        end
+        return not a.isMainProgress and b.isMainProgress
     end
 
     ---@param provider DataProvider
@@ -2465,7 +2481,7 @@ do
             ---@type DataProviderRaidProgress
             local prog
             do
-                prog = { raid = provider.currentRaid, progressCount = 0 }
+                prog = { current = true, raid = provider.currentRaid, progressCount = 0 }
                 prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
                 prog.killsPerBoss = {}
                 for i = 1, provider.currentRaid.bossCount do
@@ -2480,7 +2496,7 @@ do
                 end
             end
             for i = 1, 2 do
-                prog = { raid = provider.previousRaid }
+                prog = { current = false, raid = provider.previousRaid }
                 prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
                 prog.progressCount, offset = ReadBits(lo, hi, offset, 4)
                 if prog.progressCount > 0 then
@@ -2491,7 +2507,7 @@ do
                 end
             end
             for i = 1, 2 do
-                prog = { raid = provider.currentRaid }
+                prog = { current = true, raid = provider.currentRaid }
                 prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
                 prog.progressCount, offset = ReadBits(lo, hi, offset, 4)
                 if prog.progressCount > 0 then
@@ -2502,14 +2518,13 @@ do
                 end
             end
         end
-        -- TODO: progress, mainProgress, previousProgress priorities and visibility rules `obsolete` logic
         local maxCurrentDiff
         local maxCurrentCount
         if results.progress then
             for i = 1, #results.progress do
                 local prog = results.progress[i]
-                maxCurrentDiff = max(maxCurrentDiff or 0, prog.difficulty)
-                maxCurrentCount = max(maxCurrentCount or 0, prog.progressCount)
+                maxCurrentDiff = maxCurrentDiff and min(maxCurrentDiff, prog.difficulty) or prog.difficulty
+                maxCurrentCount = maxCurrentCount and max(maxCurrentCount, prog.progressCount) or prog.progressCount
                 results.sortedProgress[#results.sortedProgress + 1] = {
                     tier = 1,
                     progress = prog,
@@ -2524,7 +2539,7 @@ do
                     tier = 2,
                     progress = prog,
                     isMainProgress = true,
-                    obsolete = (maxCurrentDiff and prog.difficulty < maxCurrentDiff) or (maxCurrentCount and prog.progressCount > maxCurrentCount)
+                    obsolete = (maxCurrentDiff and prog.difficulty <= maxCurrentDiff) and (maxCurrentCount and prog.progressCount >= maxCurrentCount)
                 }
             end
         end
@@ -2539,26 +2554,22 @@ do
             end
         end
         table.sort(results.sortedProgress, SortRaidProgress)
-        local tierObsolete = {}
         for i = 2, #results.sortedProgress do
             local prog = results.sortedProgress[i]
             local prevProg = results.sortedProgress[i - 1]
-            if tierObsolete[prog.tier] then
+            if prevProg.obsolete then
                 prog.obsolete = true
-            elseif prog.tier == prevProg.tier then
+            elseif prog.progress.raid == prevProg.progress.raid then
                 if prevProg.progress.progressCount >= prog.progress.raid.bossCount then
-                    tierObsolete[prog.tier] = true
-                    tierObsolete[prevProg.tier] = true
                     prog.obsolete = true
                 end
             elseif prog.tier > prevProg.tier then
                 if prevProg.progress.progressCount > 0 then
-                    tierObsolete[prog.tier] = true
-                    tierObsolete[prevProg.tier] = true
                     prog.obsolete = true
                 end
             end
         end
+        table.sort(results.sortedProgress, SortRaidProgressMainLast)
         for i = 1, #results.sortedProgress do
             local prog = results.sortedProgress[i]
             if not prog.obsolete and prog.progress.progressCount > 0 then

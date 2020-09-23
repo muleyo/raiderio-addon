@@ -2509,7 +2509,7 @@ do
             for i = 1, #results.progress do
                 local prog = results.progress[i]
                 results.sortedProgress[#results.sortedProgress + 1] = {
-                    tier = 1000 +  (3 - prog.difficulty) * 100 + prog.progressCount,
+                    tier = 1000 +  (3 - prog.difficulty) * 100 + (99 - prog.progressCount),
                     progress = prog,
                     isProgress = true
                 }
@@ -2519,7 +2519,7 @@ do
             for i = 1, #results.mainProgress do
                 local prog = results.mainProgress[i]
                 results.sortedProgress[#results.sortedProgress + 1] = {
-                    tier = 1000 + (3 - prog.difficulty) * 100 + prog.progressCount,
+                    tier = 1000 + (3 - prog.difficulty) * 100 + (99 - prog.progressCount),
                     progress = prog,
                     isMainProgress = true
                 }
@@ -2529,7 +2529,7 @@ do
             for i = 1, #results.previousProgress do
                 local prog = results.previousProgress[i]
                 results.sortedProgress[#results.sortedProgress + 1] = {
-                    tier = 2000 + (3 - prog.difficulty) * 100 + prog.progressCount,
+                    tier = 2000 + (3 - prog.difficulty) * 100 + (99 - prog.progressCount),
                     progress = prog,
                     isProgressPrev = true
                 }

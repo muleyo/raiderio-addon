@@ -808,6 +808,29 @@ do
         return true
     end
 
+    ---@param object Widget @Any interface widget object that supports the methods GetOwner.
+    ---@param owner Widget @Any interface widget object.
+    ---@param anchor string @`ANCHOR_TOPLEFT`, `ANCHOR_NONE`, `ANCHOR_CURSOR`, etc.
+    ---@param offsetX number @Optional offset X for some of the anchors.
+    ---@param offsetY number @Optional offset Y for some of the anchors.
+    ---@return boolean, boolean @If owner was set arg1 is true. If owner was updated arg2 is true. Otherwise both will be set to face to indicate we did not update the Owner of the widget.
+    function util:SetOwnerSafely(object, owner, anchor, offsetX, offsetY)
+        if type(object) ~= "table" or type(object.GetOwner) ~= "function" then
+            return
+        end
+        local currentOwner = object:GetOwner()
+        if not currentOwner then
+            object:SetOwner(owner, anchor, offsetX, offsetY)
+            return true
+        end
+        local currentAnchor, currentOffsetX, currentOffsetY = object:GetAnchorType()
+        if currentAnchor ~= anchor or currentOffsetX ~= offsetX or currentOffsetY ~= offsetY then
+            object:SetOwner(owner, anchor, offsetX, offsetY)
+            return true
+        end
+        return false, true
+    end
+
     ---@param text string @The format string like "Greetings %s! How are you?"
     ---@return string @Returns a pattern like "Greetings (.-)%! How are you%?"
     function util:FormatToPattern(text)
@@ -2933,8 +2956,8 @@ do
         end
     end
 
-    render.Preset.UnitSmartPadding = function(hasOwner)
-        return bxor(render.Preset.Unit(), not hasOwner and render.Flags.SHOW_PADDING or 0)
+    render.Preset.UnitSmartPadding = function(ownerExisted)
+        return bxor(render.Preset.Unit(), not ownerExisted and render.Flags.SHOW_PADDING or 0)
     end
 
     local StateType = {
@@ -3178,11 +3201,12 @@ do
                 local isKeystoneBlockShown = keystoneProfile and keystoneProfile.hasRenderableData and not keystoneProfile.blocked
                 local isBlocked = keystoneProfile and (keystoneProfile.blocked or keystoneProfile.softBlocked)
                 local isOutdated = keystoneProfile and keystoneProfile.outdated
-                local isRaidBlockShown = raidProfile and raidProfile.hasRenderableData and config:Get("showRaidEncountersInProfile")
+                local isExtendedProfile = Has(state.options, render.Flags.PROFILE_TOOLTIP)
+                local showRaidEncounters = config:Get("showRaidEncountersInProfile")
+                local isRaidBlockShown = raidProfile and raidProfile.hasRenderableData and (not isExtendedProfile or showRaidEncounters)
                 local isPvpBlockShown = pvpProfile and pvpProfile.hasRenderableData
                 local isAnyBlockShown = isKeystoneBlockShown or isRaidBlockShown or isPvpBlockShown
                 local isUnitTooltip = Has(state.options, render.Flags.UNIT_TOOLTIP)
-                local isExtendedProfile = Has(state.options, render.Flags.PROFILE_TOOLTIP)
                 local hasMod = Has(state.options, render.Flags.MOD)
                 local hasModSticky = Has(state.options, render.Flags.MOD_STICKY)
                 local showHeader = Has(state.options, render.Flags.SHOW_HEADER)
@@ -3300,36 +3324,40 @@ do
                     end
                     if showHeader then
                         if isExtendedProfile then
-                            tooltip:AddLine(L.RAID_ENCOUNTERS_DEFEATED_TITLE, 1, 0.85, 0)
+                            if showRaidEncounters then
+                                tooltip:AddLine(L.RAID_ENCOUNTERS_DEFEATED_TITLE, 1, 0.85, 0)
+                            end
                         else
                             tooltip:AddLine(L.RAIDING_DATA_HEADER, 1, 0.85, 0)
                         end
                     end
                     if isExtendedProfile then
-                        local raidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid)
-                        for i = 1, raidProvider.currentRaid.bossCount do
-                            local progressFound = false
-                            for j = 1, #raidProfile.progress do
-                                local progress = raidProfile.progress[j]
-                                local bossKills = progress.killsPerBoss[i]
-                                if bossKills > 0 then
-                                    progressFound = true
-                                    local difficulty = ns.RAID_DIFFICULTY[progress.difficulty]
-                                    tooltip:AddDoubleLine(format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix, L[format("RAID_BOSS_%s_%d", raidProvider.currentRaid.shortName, i)]), bossKills, 1, 1, 1, 1, 1, 1)
+                        if showRaidEncounters then
+                            local raidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid)
+                            for i = 1, raidProvider.currentRaid.bossCount do
+                                local progressFound = false
+                                for j = 1, #raidProfile.progress do
+                                    local progress = raidProfile.progress[j]
+                                    local bossKills = progress.killsPerBoss[i]
+                                    if bossKills > 0 then
+                                        progressFound = true
+                                        local difficulty = ns.RAID_DIFFICULTY[progress.difficulty]
+                                        tooltip:AddDoubleLine(format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix, L[format("RAID_BOSS_%s_%d", raidProvider.currentRaid.shortName, i)]), bossKills, 1, 1, 1, 1, 1, 1)
+                                    end
+                                    if progressFound then
+                                        break
+                                    end
                                 end
-                                if progressFound then
-                                    break
+                                if not progressFound then
+                                    tooltip:AddDoubleLine(L[format("RAID_BOSS_%s_%d", raidProvider.currentRaid.shortName, i)], "-", 0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
                                 end
-                            end
-                            if not progressFound then
-                                tooltip:AddDoubleLine(L[format("RAID_BOSS_%s_%d", raidProvider.currentRaid.shortName, i)], "-", 0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
                             end
                         end
                     else
                         for i = 1, #raidProfile.sortedProgress do
                             local sortedProgress = raidProfile.sortedProgress[i]
                             local prog = sortedProgress.progress
-                            if (hasMod or hasModSticky or not sortedProgress.obsolete) and (not sortedProgress.isMainProgress or config:Get("showMainsScore")) then
+                            if ((showRaidEncounters and (hasMod or hasModSticky)) or not sortedProgress.obsolete) and (not sortedProgress.isMainProgress or config:Get("showMainsScore")) then
                                 local raidDiff = ns.RAID_DIFFICULTY[prog.difficulty]
                                 if sortedProgress.isMainProgress then
                                     tooltip:AddDoubleLine(L.MAINS_RAID_PROGRESS, format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, prog.progressCount, prog.raid.bossCount), 1, 1, 1, 1, 1, 1)
@@ -3678,23 +3706,26 @@ do
             return
         end
         local button = self.button
-        local name, faction, level
+        local fullName, faction, level
         if button.buttonType == FRIENDS_BUTTON_TYPE_BNET then
             local bnetIDAccount = BNGetFriendInfo(button.id)
             if bnetIDAccount then
-                name, faction, level = util:GetNameRealmForBNetFriend(bnetIDAccount)
+                fullName, faction, level = util:GetNameRealmForBNetFriend(bnetIDAccount)
             end
         elseif button.buttonType == FRIENDS_BUTTON_TYPE_WOW then
-            name, level = GetFriendInfo(button.id)
+            fullName, level = GetFriendInfo(button.id)
             faction = ns.PLAYER_FACTION
         end
-        if name and util:IsMaxLevel(level) then
-            GameTooltip:SetOwner(FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
-            if render:ShowProfile(GameTooltip, name, faction, render.Preset.UnitNoPadding()) then
-                return
-            end
+        if not fullName or not util:IsMaxLevel(level) then
+            return
         end
-        GameTooltip:Hide()
+        local ownerSet, ownerExisted = util:SetOwnerSafely(GameTooltip, FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
+        if render:ShowProfile(GameTooltip, fullName, faction, render.Preset.UnitSmartPadding(ownerExisted)) then
+            return
+        end
+        if ownerSet then
+            GameTooltip:Hide()
+        end
     end
 
     local function FriendsTooltip_Hide()
@@ -3730,14 +3761,11 @@ do
         if not info or not info.fullName or not util:IsMaxLevel(info.level) then
             return
         end
-        local hasOwner = GameTooltip:GetOwner()
-        if not hasOwner then
-            GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
-        end
-        if render:ShowProfile(GameTooltip, info.fullName, ns.PLAYER_FACTION, render.Preset.UnitSmartPadding(hasOwner)) then
+        local ownerSet, ownerExisted = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_LEFT")
+        if render:ShowProfile(GameTooltip, info.fullName, ns.PLAYER_FACTION, render.Preset.UnitSmartPadding(ownerExisted)) then
             return
         end
-        if not hasOwner then
+        if ownerSet then
             GameTooltip:Hide()
         end
     end
@@ -4521,14 +4549,11 @@ do
         if not fullName then
             return false
         end
-        local hasOwner = GameTooltip:GetOwner()
-        if not hasOwner then
-            GameTooltip:SetOwner(parent, "ANCHOR_TOPLEFT", 0, 0)
-        end
+        local ownerSet, ownerExisted = util:SetOwnerSafely(GameTooltip, parent, "ANCHOR_TOPLEFT", 0, 0)
         if render:ShowProfile(GameTooltip, fullName, ns.PLAYER_FACTION, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult) then
             return true, fullName
         end
-        if not hasOwner then
+        if ownerSet then
             GameTooltip:Hide()
         end
         return false
@@ -4606,11 +4631,13 @@ do
         if not fullName or not util:IsMaxLevel(level) then
             return
         end
-        GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
-        if render:ShowProfile(GameTooltip, fullName, ns.PLAYER_FACTION, render.Preset.UnitNoPadding()) then
+        local ownerSet, ownerExisted = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_TOPLEFT", 0, 0)
+        if render:ShowProfile(GameTooltip, fullName, ns.PLAYER_FACTION, render.Preset.UnitSmartPadding(ownerExisted)) then
             return
         end
-        GameTooltip:Hide()
+        if ownerSet then
+            GameTooltip:Hide()
+        end
     end
 
     local function OnLeave(self)
@@ -4687,14 +4714,11 @@ do
         if (clubType and clubType ~= Enum.ClubType.Guild and clubType ~= Enum.ClubType.Character) or not nameAndRealm or not util:IsMaxLevel(level, true) then
             return
         end
-        local hasOwner = GameTooltip:GetOwner()
-        if not hasOwner then
-            GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
-        end
-        if render:ShowProfile(GameTooltip, nameAndRealm, faction, render.Preset.UnitSmartPadding(hasOwner)) then
+        local ownerSet, ownerExisted = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_TOPLEFT", 0, 0)
+        if render:ShowProfile(GameTooltip, nameAndRealm, faction, render.Preset.UnitSmartPadding(ownerExisted)) then
             return
         end
-        if not hasOwner then
+        if ownerSet then
             GameTooltip:Hide()
         end
     end

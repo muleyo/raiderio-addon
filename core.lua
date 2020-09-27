@@ -4551,7 +4551,7 @@ do
         if not fullName then
             return false
         end
-        local ownerSet, ownerExisted = util:SetOwnerSafely(GameTooltip, parent, "ANCHOR_TOPLEFT", 0, 0)
+        local ownerSet, ownerExisted = util:SetOwnerSafely(GameTooltip, parent, "ANCHOR_NONE", 0, 0)
         if render:ShowProfile(GameTooltip, fullName, ns.PLAYER_FACTION, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult) then
             return true, fullName
         end

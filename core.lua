@@ -3584,6 +3584,12 @@ do
                 score = 0
             end
             return util:GetScoreColor(score, ...)
+        end,
+        GetScoreForKeystone = function(level)
+            if not level then return end
+            local base = ns.KEYSTONE_LEVEL_TO_SCORE[level]
+            local average = util:GetKeystoneAverageScoreForLevel(level)
+            return base, average
         end
     }
 
@@ -3611,6 +3617,12 @@ do
                 return
             end
             return pristine.GetScoreColor(...)
+        end,
+        GetScoreForKeystone = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.GetScoreForKeystone(...)
         end,
         -- DEPRECATED: these are here just to help mitigate the transition but do avoid using these as they will probably go away during Shadowlands
         ProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query

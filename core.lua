@@ -823,8 +823,10 @@ do
             object:SetOwner(owner, anchor, offsetX, offsetY)
             return true
         end
+        offsetX, offsetY = offsetX or 0, offsetY or 0
         local currentAnchor, currentOffsetX, currentOffsetY = object:GetAnchorType()
-        if currentAnchor ~= anchor or currentOffsetX ~= offsetX or currentOffsetY ~= offsetY then
+        currentOffsetX, currentOffsetY = currentOffsetX or 0, currentOffsetY or 0
+        if currentAnchor ~= anchor or (currentOffsetX ~= offsetX and abs(currentOffsetX - offsetX) > 0.01) or (currentOffsetY ~= offsetY and abs(currentOffsetY - offsetY) > 0.01) then
             object:SetOwner(owner, anchor, offsetX, offsetY)
             return true
         end
@@ -4714,7 +4716,7 @@ do
         if (clubType and clubType ~= Enum.ClubType.Guild and clubType ~= Enum.ClubType.Character) or not nameAndRealm or not util:IsMaxLevel(level, true) then
             return
         end
-        local ownerSet, ownerExisted = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_TOPLEFT", 0, 0)
+        local ownerSet, ownerExisted = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_LEFT", 0, 0)
         if render:ShowProfile(GameTooltip, nameAndRealm, faction, render.Preset.UnitSmartPadding(ownerExisted)) then
             return
         end

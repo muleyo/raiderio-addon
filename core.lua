@@ -4396,7 +4396,7 @@ do
 
     local function Tooltip_OnDragStop()
         tooltip:StopMovingOrSizing()
-        local point, _, _, x, y = tooltip:GetPoint()
+        local point, _, _, x, y = tooltip:GetPoint() -- TODO: improve this to store a corner so that when the tip is resized the corner is the anchor point and not the center as that makes it very wobbly and unpleasant to look at
         local profilePoint = config:Get("profilePoint") ---@type ConfigProfilePoint
         config:Set("profilePoint", profilePoint)
         profilePoint.point, profilePoint.x, profilePoint.y = point, x, y
@@ -4428,6 +4428,7 @@ do
             return
         end
         UpdatePosition()
+        profile:HideProfile()
     end
 
     function profile:CanLoad()
@@ -4476,8 +4477,8 @@ do
         end
         local unit, name, realm, faction, options, args, region = render.GetQuery(...)
         options = options or render.Preset.Profile()
-        UpdatePosition()
-        if IsFrame(anchor) then
+        local positionProfileAuto = UpdatePosition()
+        if positionProfileAuto and IsFrame(anchor) then
             SetAnchor(anchor, anchor:GetFrameStrata())
         end
         local isPlayer = IsPlayer(unit, name, realm, region)
@@ -5665,6 +5666,7 @@ do
         end
         if not region or not realm or not name or strlenutf8(realm) < 1 or strlenutf8(name) < 1 then
             searchTooltip:Hide()
+            profile:HideProfile()
             return
         end
         searchTooltip:SetParent(searchFrame)
@@ -5696,7 +5698,7 @@ do
         if shown then
             profile:ShowProfile(searchFrame, name, realm, faction, render.Preset.Profile(render.Flags.IGNORE_MOD), region)
         else
-            profile:ShowProfile()
+            profile:HideProfile()
         end
     end
 

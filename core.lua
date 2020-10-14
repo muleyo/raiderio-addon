@@ -46,7 +46,7 @@ do
         DEFAULT_CHAT_FRAME:AddMessage(tostring(text), r, g, b, ...)
     end
 
-    ns.EXPANSION = GetExpansionLevel() -- max(GetClientDisplayExpansionLevel(), GetAccountExpansionLevel(), GetExpansionLevel())
+    ns.EXPANSION = GetExpansionLevel()
     ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
     ns.REGION_TO_LTD = {"us", "kr", "eu", "tw", "cn"}
     ns.FACTION_TO_ID = {Alliance = 1, Horde = 2, Neutral = 3}
@@ -1056,7 +1056,7 @@ do
         end
         local collection = {}
         local collectionIndex = 0
-        for i = 1, BNGetNumFriendGameAccounts(index), 1 do
+        for i = 1, C_BattleNet.GetFriendNumGameAccounts(index), 1 do
             local accountInfo = C_BattleNet.GetFriendGameAccountInfo(index, i)
             if accountInfo and accountInfo.clientProgram == BNET_CLIENT_WOW and (not accountInfo.wowProjectID or accountInfo.wowProjectID ~= WOW_PROJECT_CLASSIC) then
                 if accountInfo.realmName then
@@ -3722,13 +3722,16 @@ do
         local button = self.button
         local fullName, faction, level
         if button.buttonType == FRIENDS_BUTTON_TYPE_BNET then
-            local bnetIDAccount = BNGetFriendInfo(button.id)
-            if bnetIDAccount then
-                fullName, faction, level = util:GetNameRealmForBNetFriend(bnetIDAccount)
+            local bnetIDAccountInfo = C_BattleNet.GetFriendAccountInfo(button.id)
+            if bnetIDAccountInfo then
+                fullName, faction, level = util:GetNameRealmForBNetFriend(bnetIDAccountInfo.bnetAccountID)
             end
         elseif button.buttonType == FRIENDS_BUTTON_TYPE_WOW then
-            fullName, level = GetFriendInfo(button.id)
-            faction = ns.PLAYER_FACTION
+            local friendInfo = C_FriendList.GetFriendInfoByIndex(button.id)
+            if friendInfo then
+                fullName, level = friendInfo.name, friendInfo.level
+                faction = ns.PLAYER_FACTION
+            end
         end
         if not fullName or not util:IsMaxLevel(level) then
             return

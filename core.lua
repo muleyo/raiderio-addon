@@ -46,7 +46,7 @@ do
         DEFAULT_CHAT_FRAME:AddMessage(tostring(text), r, g, b, ...)
     end
 
-    ns.EXPANSION = max(GetClientDisplayExpansionLevel(), GetAccountExpansionLevel(), GetExpansionLevel())
+    ns.EXPANSION = GetExpansionLevel() -- max(GetClientDisplayExpansionLevel(), GetAccountExpansionLevel(), GetExpansionLevel())
     ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
     ns.REGION_TO_LTD = {"us", "kr", "eu", "tw", "cn"}
     ns.FACTION_TO_ID = {Alliance = 1, Horde = 2, Neutral = 3}

@@ -3437,7 +3437,10 @@ do
                         tooltip:AddDoubleLine(format(L.RAIDERIO_AVERAGE_PLAYER_SCORE, keystone.level), avgScore, 1, 1, 1, util:GetScoreColor(avgScore))
                     end
                     if keystone.instance then
-                        AppendGroupLevelsToTooltip(tooltip, keystone, util:GetDungeonByKeystoneID(keystone.instance))
+                        local dungeon = util:GetDungeonByKeystoneID(keystone.instance)
+                        if dungeon then
+                            AppendGroupLevelsToTooltip(tooltip, keystone, dungeon)
+                        end
                     end
                     -- keystone information added to tooltip successfully
                     return true

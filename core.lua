@@ -2303,7 +2303,7 @@ do
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.currentRoleOrdinalIndex = 1 + value -- indexes are one-based
             elseif field == ENCODER_MYTHICPLUS_FIELDS.PREVIOUS_SCORE then
-                results.previousScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 12)
+                results.previousScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 13)
                 results.previousScoreSeason, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
                 results.hasRenderableData = results.hasRenderableData or results.previousScore > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.PREVIOUS_ROLES then
@@ -2316,7 +2316,7 @@ do
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.mainCurrentRoleOrdinalIndex = 1 + value -- indexes are one-based
             elseif field == ENCODER_MYTHICPLUS_FIELDS.MAIN_PREVIOUS_SCORE then
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 9)
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 10)
                 results.mainPreviousScore = 10 * value
                 results.mainPreviousScoreSeason, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
                 results.hasRenderableData = results.hasRenderableData or results.mainPreviousScore > 0

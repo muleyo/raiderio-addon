@@ -3046,8 +3046,8 @@ do
             ["Ravencrest"] = {
                 ["Voidzone"] = "Raider.IO AddOn Author"
             },
-            ["Sargeras"] = {
-                ["Isak"] = "Raider.IO Contributor"
+            ["Ysondre"] = {
+                ["Isakem"] = "Raider.IO Contributor"
             }
         },
         ["us"] = {

@@ -47,7 +47,8 @@ do
     end
 
     ns.EXPANSION = GetExpansionLevel()
-    ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
+	-- temporarily consider 50 max level so the copy url feature still works
+    ns.MAX_LEVEL = 50 -- GetMaxLevelForExpansionLevel(ns.EXPANSION)
     ns.REGION_TO_LTD = {"us", "kr", "eu", "tw", "cn"}
     ns.FACTION_TO_ID = {Alliance = 1, Horde = 2, Neutral = 3}
     ns.PLAYER_REGION = nil

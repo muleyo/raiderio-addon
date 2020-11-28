@@ -3059,7 +3059,7 @@ do
         },
         ["us"] = {
             ["Skullcrusher"] = {
-                ["Aspyrox"] = "Raider.IO Creator",
+                ["Aspyric"] = "Raider.IO Creator",
                 ["Ulsoga"] = "Raider.IO Creator",
 				["Mccaffrey"] = "Killing Keys Since 1977!",
 				["Oscassey"] = "Master of dis guys"

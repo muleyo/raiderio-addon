@@ -2067,7 +2067,14 @@ do
         return 20 + (value - 20) * 4
     end
 
-    local function Split64BitNumber(dword)
+    local function DecodeBits8(value)
+        if value < 200 then
+            return value
+        end
+        return 200 + (value - 200) * 2
+    end
+
+	local function Split64BitNumber(dword)
         local lo = band(dword, 0xfffffffff)
         return lo, (dword - lo) / 0x100000000
     end
@@ -2297,20 +2304,20 @@ do
         for encoderIndex = 1, #encodingOrder do
             local field = encodingOrder[encoderIndex]
             if field == ENCODER_MYTHICPLUS_FIELDS.CURRENT_SCORE then
-                results.currentScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 14)
+                results.currentScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 12)
                 results.hasRenderableData = results.hasRenderableData or results.currentScore > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.CURRENT_ROLES then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.currentRoleOrdinalIndex = 1 + value -- indexes are one-based
             elseif field == ENCODER_MYTHICPLUS_FIELDS.PREVIOUS_SCORE then
-                results.previousScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 13)
+                results.previousScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 12)
                 results.previousScoreSeason, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
                 results.hasRenderableData = results.hasRenderableData or results.previousScore > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.PREVIOUS_ROLES then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.previousRoleOrdinalIndex = 1 + value -- indexes are one-based
             elseif field == ENCODER_MYTHICPLUS_FIELDS.MAIN_CURRENT_SCORE then
-                results.mainCurrentScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 13)
+                results.mainCurrentScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 12)
                 results.hasRenderableData = results.hasRenderableData or results.mainCurrentScore > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.MAIN_CURRENT_ROLES then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
@@ -2324,14 +2331,14 @@ do
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.mainPreviousRoleOrdinalIndex = 1 + value -- indexes are one-based
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_RUN_COUNTS then
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 6)
-                results.keystoneFivePlus = DecodeBits6(value)
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 6)
-                results.keystoneTenPlus = DecodeBits6(value)
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 6 or 7) -- TODO: enable once the new feature `show-more-15s` is live
-                results.keystoneFifteenPlus = (DecodeBits6 or DecodeBits7)(value) -- TODO: enable once the new feature `show-more-15s` is live
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 6)
-                results.keystoneTwentyPlus = DecodeBits6(value)
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
+                results.keystoneFivePlus = DecodeBits8(value)
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
+                results.keystoneTenPlus = DecodeBits8(value)
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
+                results.keystoneFifteenPlus = DecodeBits8(value)
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
+                results.keystoneTwentyPlus = DecodeBits8(value)
                 results.hasRenderableData = results.hasRenderableData or results.keystoneFivePlus > 0 or results.keystoneTenPlus > 0 or results.keystoneFifteenPlus > 0 or results.keystoneTwentyPlus > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_LEVELS then
                 results.dungeons = {}

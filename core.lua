@@ -3214,10 +3214,10 @@ do
                 local keystoneProfile = profile.mythicKeystoneProfile
                 local raidProfile = profile.raidProfile
                 local pvpProfile = profile.pvpProfile
-                local isKeystoneBlockShown = keystoneProfile and keystoneProfile.hasRenderableData and not keystoneProfile.blocked
+                local isExtendedProfile = Has(state.options, render.Flags.PROFILE_TOOLTIP)
+                local isKeystoneBlockShown = keystoneProfile and ((isExtendedProfile or keystoneProfile.hasRenderableData) and not keystoneProfile.blocked)
                 local isBlocked = keystoneProfile and (keystoneProfile.blocked or keystoneProfile.softBlocked)
                 local isOutdated = keystoneProfile and keystoneProfile.outdated
-                local isExtendedProfile = Has(state.options, render.Flags.PROFILE_TOOLTIP)
                 local showRaidEncounters = config:Get("showRaidEncountersInProfile")
                 local isRaidBlockShown = raidProfile and raidProfile.hasRenderableData and (not isExtendedProfile or showRaidEncounters)
                 local isPvpBlockShown = pvpProfile and pvpProfile.hasRenderableData
@@ -3311,25 +3311,23 @@ do
                                 break
                             end
                         end
-                        if hasBestDungeons then
-                            if showHeader then
-                                if showPadding then
-                                    tooltip:AddLine(" ")
-                                end
-                                tooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0)
+                        if showHeader then
+                            if showPadding then
+                                tooltip:AddLine(" ")
                             end
-                            local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
-                            for i = 1, #keystoneProfile.sortedDungeons do
-                                local sortedDungeon = keystoneProfile.sortedDungeons[i]
-                                local r, g, b = 1, 1, 1
-                                if sortedDungeon.dungeon == focusDungeon then
-                                    r, g, b = 0, 1, 0
-                                end
-                                if sortedDungeon.level > 0 then
-                                    tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, util:GetNumChests(sortedDungeon.chests) .. sortedDungeon.level, r, g, b, util:GetKeystoneChestColor(sortedDungeon.chests))
-                                else
-                                    tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, "-", r, g, b, 0.5, 0.5, 0.5)
-                                end
+                            tooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0)
+                        end
+                        local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
+                        for i = 1, #keystoneProfile.sortedDungeons do
+                            local sortedDungeon = keystoneProfile.sortedDungeons[i]
+                            local r, g, b = 1, 1, 1
+                            if sortedDungeon.dungeon == focusDungeon then
+                                r, g, b = 0, 1, 0
+                            end
+                            if sortedDungeon.level > 0 then
+                                tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, util:GetNumChests(sortedDungeon.chests) .. sortedDungeon.level, r, g, b, util:GetKeystoneChestColor(sortedDungeon.chests))
+                            else
+                                tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, "-", r, g, b, 0.5, 0.5, 0.5)
                             end
                         end
                     end

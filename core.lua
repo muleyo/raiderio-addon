@@ -6505,6 +6505,7 @@ do
     end
 
     local lastActive
+    local loggingSet
 
     local function CheckInstance()
         local _, _, _, instanceMapID = UnitPosition("player")
@@ -6522,6 +6523,11 @@ do
                 setLogging = false
             end
             if setLogging ~= nil then
+                if setLogging then
+                    loggingSet = true
+                elseif not loggingSet then
+                    return
+                end
                 LoggingCombat(setLogging)
                 local info = ChatTypeInfo["SYSTEM"]
                 DEFAULT_CHAT_FRAME:AddMessage(setLogging and COMBATLOGENABLED or COMBATLOGDISABLED, info.r, info.g, info.b, info.id)

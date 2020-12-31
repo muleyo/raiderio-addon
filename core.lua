@@ -234,6 +234,24 @@ do
         return ns.GUILD_BEST_DATA
     end
 
+    ---@class ClientConfig
+    ---@field public lastModified string @A date like "2017-06-03T00:41:07Z"
+    ---@field public enableCombatLogTracking boolean
+    ---@field public syncMode string @"all"
+    ---@field public syncAmericasHorde boolean
+	---@field public syncEuropeHorde boolean
+	---@field public syncKoreaHorde boolean
+	---@field public syncTaiwanHorde boolean
+	---@field public syncAmericasAlliance boolean
+	---@field public syncEuropeAlliance boolean
+	---@field public syncKoreaAlliance boolean
+	---@field public syncTaiwanAlliance boolean
+
+    ---@return ClientConfig
+    function ns:GetClientConfig()
+        return ns.CLIENT_CONFIG
+    end
+
     ---@class Dungeon
     ---@field public id number
     ---@field public keystone_instance number
@@ -6430,5 +6448,75 @@ do
     -- always have the interface panel and slash commands available
     CreateInterfacePanel()
     CreateSlashCommand()
+
+end
+
+-- combatlog.lua
+-- dependencies: module, callback, config, util
+do
+
+    ---@class CombatLogModule : Module
+    local combatlog = ns:NewModule("CombatLog") ---@type CombatLogModule
+    local callback = ns:GetModule("Callback") ---@type CallbackModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+
+    local clientConfig = util:GetClientConfig()
+
+    function combatlog:CanLoad()
+        return config:IsEnabled()
+    end
+
+    function combatlog:OnLoad()
+        UpdateModuleState()
+        callback:RegisterEvent(UpdateModuleState, "RAIDERIO_SETTINGS_SAVED") -- TODO: if we use a settings option we need to do this also and run the routine if the user toggles it on/off
+    end
+
+    local lastActiveState
+
+    local function OnEvent(event, ...)
+        local isChallengeModeActive = C_ChallengeMode.IsChallengeModeActive()
+        local isLogging = LoggingCombat()
+        if isChallengeModeActive and not lastActiveState then
+            print("A - KEYSTONE STARTED") -- DEBUG
+            if not isLogging then
+                LoggingCombat(true)
+                print("A - LOGGING ENABLED") -- DEBUG
+            end
+        elseif not isChallengeModeActive and lastActiveState then
+            print("B - KEYSTONE ENDED") -- DEBUG
+            if isLogging then
+                LoggingCombat(false)
+                print("A - LOGGING DISABLED") -- DEBUG
+            end
+        end
+        lastActiveState = isChallengeModeActive
+        -- [=[ -- DEBUG
+        local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
+        local mapChallengeModeID, level, time, onTime, keystoneUpgradeLevels, practiceRun = C_ChallengeMode.GetCompletionInfo()
+        print(event, "||", isChallengeModeActive, isLogging, "||", activeKeystoneLevel, activeAffixIDs and table.concat(activeAffixIDs, "/"), wasActiveKeystoneCharged, "||", mapChallengeModeID, level, time, onTime, keystoneUpgradeLevels, practiceRun, "")
+        --]=]
+    end
+
+    local function UpdateModuleState()
+        local enableCombatLogTracking = clientConfig.enableCombatLogTracking -- config:Get("enableCombatLogTracking") -- TODO: what about an addon setting for this as well, or solely rely on the client variable for this behavior?
+        if enableCombatLogTracking then
+            C_CVar.SetCVar("advancedCombatLogging", 1) -- TODO: do we need to warn or confirm with the user before potentially flipping this on?
+            self:Enable()
+        else
+            self:Disable()
+        end
+    end
+
+
+    function combatlog:OnEnable()
+        callback:RegisterEvent(OnEvent, "CHALLENGE_MODE_START", "CHALLENGE_MODE_RESET", "CHALLENGE_MODE_COMPLETED", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
+        print "COMBAT LOG MODULE ENABLED" -- DEBUG
+    end
+
+    function combatlog:OnDisable()
+        callback:UnregisterEvent(OnEvent)
+        print "COMBAT LOG MODULE DISABLED" -- DEBUG
+    end
 
 end

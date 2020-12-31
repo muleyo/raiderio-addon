@@ -6494,40 +6494,49 @@ do
         callback:RegisterEvent(UpdateModuleState, "RAIDERIO_SETTINGS_SAVED")
     end
 
-    local lastActiveState
+    local autoLogInstanceMapIDs do
+        autoLogInstanceMapIDs = {
+            [2296] = true, -- Castle Nathria
+        }
+        local dungeons = ns:GetDungeonData()
+        for _, dungeon in ipairs(dungeons) do
+            autoLogInstanceMapIDs[dungeon.instance_map_id] = true
+        end
+    end
 
-    local function OnEvent(event)
-        local isChallengeModeActive = C_ChallengeMode.IsChallengeModeActive()
-        local isLogging = LoggingCombat()
-        if isChallengeModeActive and not lastActiveState then
-            print("A - KEYSTONE STARTED") -- DEBUG
-            if not isLogging then
-                LoggingCombat(true)
-                print("A - LOGGING ENABLED") -- DEBUG
+    local lastActive
+
+    local function CheckInstance()
+        local _, _, _, instanceMapID = UnitPosition("player")
+        if not instanceMapID then
+            return
+        end
+        local isActive = not not autoLogInstanceMapIDs[instanceMapID]
+        if isActive ~= lastActive then
+            lastActive = isActive
+            local isLogging = LoggingCombat()
+            local setLogging
+            if isActive and not isLogging then
+                setLogging = true
+            elseif not isActive and isLogging then
+                setLogging = false
             end
-        elseif not isChallengeModeActive and lastActiveState then
-            print("B - KEYSTONE ENDED") -- DEBUG
-            if isLogging then
-                LoggingCombat(false)
-                print("A - LOGGING DISABLED") -- DEBUG
+            if setLogging ~= nil then
+                LoggingCombat(setLogging)
+                local info = ChatTypeInfo["SYSTEM"]
+                DEFAULT_CHAT_FRAME:AddMessage(setLogging and COMBATLOGENABLED or COMBATLOGDISABLED, info.r, info.g, info.b, info.id)
             end
         end
-        lastActiveState = isChallengeModeActive
-        -- [=[ -- DEBUG
-        local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
-        local mapChallengeModeID, level, time, onTime, keystoneUpgradeLevels, practiceRun = C_ChallengeMode.GetCompletionInfo()
-        print(event, "||", isChallengeModeActive, isLogging, "||", activeKeystoneLevel, activeAffixIDs and table.concat(activeAffixIDs, "/"), wasActiveKeystoneCharged, "||", mapChallengeModeID, level, time, onTime, keystoneUpgradeLevels, practiceRun, "")
-        --]=]
     end
 
     function combatlog:OnEnable()
-        OnEvent()
-        callback:RegisterEvent(OnEvent, "CHALLENGE_MODE_START", "CHALLENGE_MODE_RESET", "CHALLENGE_MODE_COMPLETED", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
+        CheckInstance()
+        callback:RegisterEvent(CheckInstance, "CHALLENGE_MODE_START", "CHALLENGE_MODE_RESET", "CHALLENGE_MODE_COMPLETED", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
     end
 
     function combatlog:OnDisable()
-        OnEvent()
-        callback:UnregisterEvent(OnEvent)
+        CheckInstance()
+        callback:UnregisterEvent(CheckInstance)
     end
 
 end

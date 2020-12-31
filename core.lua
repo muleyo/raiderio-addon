@@ -655,6 +655,8 @@ do
         enableClientEnhancements = true,
         showClientGuildBest = true,
         displayWeeklyGuildBest = false,
+        allowClientToControlCombatLog = true,
+        enableCombatLogTracking = false,
         showRaiderIOProfile = true,
         hidePersonalRaiderIOProfile = false,
         showRaidEncountersInProfile = true,
@@ -5868,8 +5870,8 @@ do
         configSliderFrame:SetPoint("TOPLEFT", configScrollFrame, "TOPRIGHT", -35, -18)
         configSliderFrame:SetPoint("BOTTOMLEFT", configScrollFrame, "BOTTOMRIGHT", -35, 18)
         configSliderFrame:SetMinMaxValues(1, 1)
-        configSliderFrame:SetValueStep(1)
-        configSliderFrame.scrollStep = 1
+        configSliderFrame:SetValueStep(50)
+        configSliderFrame.scrollStep = 50
         configSliderFrame:SetValue(0)
         configSliderFrame:SetWidth(16)
         configSliderFrame:SetScript("OnValueChanged", function (self, value)
@@ -5878,7 +5880,7 @@ do
 
         configScrollFrame:HookScript("OnMouseWheel", function(self, delta)
             local currentValue = configSliderFrame:GetValue()
-            local changes = -delta * 20
+            local changes = -delta * 50
             configSliderFrame:SetValue(currentValue + changes)
         end)
 
@@ -6252,6 +6254,11 @@ do
             configOptions:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest")
 
             configOptions:CreatePadding()
+            configOptions:CreateHeadline(L.RAIDERIO_COMBATLOG)
+            configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_COMBATLOG_SETTINGS, L.USE_RAIDERIO_CLIENT_COMBATLOG_SETTINGS_DESC, "allowClientToControlCombatLog")
+            configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking")
+
+            configOptions:CreatePadding()
             configOptions:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
             configOptions:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
             configOptions:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
@@ -6294,9 +6301,9 @@ do
 
             -- adjust frame height dynamically
             local children = {configFrame:GetChildren()}
-            local height = 70
+            local height = 0
             for i = 1, #children do
-                height = height + children[i]:GetHeight() + 2
+                height = height + children[i]:GetHeight() + 3.5
             end
 
             configSliderFrame:SetMinMaxValues(1, height - 440)
@@ -6452,16 +6459,31 @@ do
 end
 
 -- combatlog.lua
--- dependencies: module, callback, config, util
+-- dependencies: module, callback, config
 do
 
     ---@class CombatLogModule : Module
     local combatlog = ns:NewModule("CombatLog") ---@type CombatLogModule
     local callback = ns:GetModule("Callback") ---@type CallbackModule
     local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
 
-    local clientConfig = util:GetClientConfig()
+    local clientConfig = ns:GetClientConfig()
+
+    local function UpdateModuleState()
+        local enableCombatLogTracking
+        if config:Get("allowClientToControlCombatLog") then
+            enableCombatLogTracking = clientConfig and clientConfig.enableCombatLogTracking
+        end
+        if enableCombatLogTracking == nil then
+            enableCombatLogTracking = config:Get("enableCombatLogTracking")
+        end
+        if enableCombatLogTracking then
+            C_CVar.SetCVar("advancedCombatLogging", 1)
+            combatlog:Enable()
+        else
+            combatlog:Disable()
+        end
+    end
 
     function combatlog:CanLoad()
         return config:IsEnabled()
@@ -6469,12 +6491,12 @@ do
 
     function combatlog:OnLoad()
         UpdateModuleState()
-        callback:RegisterEvent(UpdateModuleState, "RAIDERIO_SETTINGS_SAVED") -- TODO: if we use a settings option we need to do this also and run the routine if the user toggles it on/off
+        callback:RegisterEvent(UpdateModuleState, "RAIDERIO_SETTINGS_SAVED")
     end
 
     local lastActiveState
 
-    local function OnEvent(event, ...)
+    local function OnEvent(event)
         local isChallengeModeActive = C_ChallengeMode.IsChallengeModeActive()
         local isLogging = LoggingCombat()
         if isChallengeModeActive and not lastActiveState then
@@ -6498,25 +6520,14 @@ do
         --]=]
     end
 
-    local function UpdateModuleState()
-        local enableCombatLogTracking = clientConfig.enableCombatLogTracking -- config:Get("enableCombatLogTracking") -- TODO: what about an addon setting for this as well, or solely rely on the client variable for this behavior?
-        if enableCombatLogTracking then
-            C_CVar.SetCVar("advancedCombatLogging", 1) -- TODO: do we need to warn or confirm with the user before potentially flipping this on?
-            self:Enable()
-        else
-            self:Disable()
-        end
-    end
-
-
     function combatlog:OnEnable()
+        OnEvent()
         callback:RegisterEvent(OnEvent, "CHALLENGE_MODE_START", "CHALLENGE_MODE_RESET", "CHALLENGE_MODE_COMPLETED", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
-        print "COMBAT LOG MODULE ENABLED" -- DEBUG
     end
 
     function combatlog:OnDisable()
+        OnEvent()
         callback:UnregisterEvent(OnEvent)
-        print "COMBAT LOG MODULE DISABLED" -- DEBUG
     end
 
 end

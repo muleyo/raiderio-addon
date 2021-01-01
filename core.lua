@@ -6095,6 +6095,7 @@ do
 
         function configOptions.CreateModuleToggle(self, name, addon1, addon2)
             local frame = self:CreateWidget("Frame")
+            frame.text:SetTextColor(1, 1, 1)
             frame.text:SetText(name)
             frame.addon2 = addon1
             frame.addon1 = addon2
@@ -6106,6 +6107,7 @@ do
 
         function configOptions.CreateToggle(self, label, description, cvar, configOptions)
             local frame = self:CreateWidget("Frame")
+            frame.text:SetTextColor(1, 1, 1)
             frame.text:SetText(label)
             frame.tooltip = description
             frame.cvar = cvar
@@ -6254,9 +6256,13 @@ do
             configOptions:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest")
 
             configOptions:CreatePadding()
-            configOptions:CreateHeadline(L.RAIDERIO_COMBATLOG)
-            configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_COMBATLOG_SETTINGS, L.USE_RAIDERIO_CLIENT_COMBATLOG_SETTINGS_DESC, "allowClientToControlCombatLog")
-            configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking")
+            configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)
+            configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC, "allowClientToControlCombatLog")
+
+            -- TODO: only show this option when the client is not controlling the combat log
+            if not config:Get('allowClientToControlCombatLog') then
+                configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking")
+            end
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
@@ -6505,7 +6511,7 @@ do
     end
 
     local lastActive
-    local loggingSet
+    local previouslyEnabledLogging
 
     local function CheckInstance()
         local _, _, _, instanceMapID = UnitPosition("player")
@@ -6523,14 +6529,13 @@ do
                 setLogging = false
             end
             if setLogging ~= nil then
-                if setLogging then
-                    loggingSet = true
-                elseif not loggingSet then
+                if not setLogging and not previouslyEnabledLogging then
                     return
                 end
+                previouslyEnabledLogging = setLogging
                 LoggingCombat(setLogging)
                 local info = ChatTypeInfo["SYSTEM"]
-                DEFAULT_CHAT_FRAME:AddMessage(setLogging and COMBATLOGENABLED or COMBATLOGDISABLED, info.r, info.g, info.b, info.id)
+                DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFFRaider.IO|r: " .. (setLogging and COMBATLOGENABLED or COMBATLOGDISABLED), info.r, info.g, info.b, info.id)
             end
         end
     end

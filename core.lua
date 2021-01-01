@@ -5996,6 +5996,25 @@ do
             }
         }
 
+        function configOptions.UpdateWidgetStates(self)
+            for i = 1, #self.options do
+                local f = self.options[i]
+                if f.isDisabled then
+                    if f:isDisabled() then
+                        f.text:SetVertexColor(0.5, 0.5, 0.5)
+                        f.help.icon:SetVertexColor(0.5, 0.5, 0.5)
+                        f.checkButton:SetEnabled(false)
+                        f.checkButton2:SetEnabled(false)
+                    else
+                        f.text:SetVertexColor(1, 1, 1)
+                        f.help.icon:SetVertexColor(1, 1, 1)
+                        f.checkButton:SetEnabled(true)
+                        f.checkButton2:SetEnabled(true)
+                    end
+                end
+            end
+        end
+
         function configOptions.Update(self)
             for i = 1, #self.modules do
                 local f = self.modules[i]
@@ -6112,16 +6131,19 @@ do
             frame.tooltip = description
             frame.cvar = cvar
             frame.needReload = (configOptions and configOptions.needReload) or false
+            frame.isDisabled = (configOptions and configOptions.isDisabled) or nil
             frame.callback = (configOptions and configOptions.callback) or nil
             frame.help.tooltip = description
             frame.help:Show()
             frame.checkButton:Show()
-
             return frame
         end
 
         function configOptions.CreateOptionToggle(self, label, description, cvar, configOptions)
             local frame = self:CreateToggle(label, description, cvar, configOptions)
+            frame.checkButton:SetScript("OnClick", function ()
+                self:UpdateWidgetStates()
+            end)
             self.options[#self.options + 1] = frame
             return frame
         end
@@ -6162,6 +6184,7 @@ do
                     HideUIPanel(GameMenuFrame)
                 end
                 configOptions:Update()
+                configOptions:UpdateWidgetStates()
             end
 
             local function ConfigFrame_OnDragStart(self)
@@ -6257,12 +6280,8 @@ do
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)
-            configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC, "allowClientToControlCombatLog")
-
-            -- TODO: only show this option when the client is not controlling the combat log
-            if not config:Get('allowClientToControlCombatLog') then
-                configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking")
-            end
+            local allowClientToControlCombatLogFrame = configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC, "allowClientToControlCombatLog")
+            configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking", { isDisabled = function(self) return allowClientToControlCombatLogFrame.checkButton:GetChecked() end })
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)

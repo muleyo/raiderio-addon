@@ -6012,6 +6012,14 @@ do
                         f.checkButton2:SetEnabled(true)
                     end
                 end
+                if f.isFakeChecked then
+                    if f:isFakeChecked() then
+                        f.checkButton.fakeCheck:Show()
+                    else
+                        f.checkButton.fakeCheck:Hide()
+                    end
+                    f.checkButton.fakeCheck:SetVertexColor(0.5, 0.5, 0.5)
+                end
             end
         end
 
@@ -6054,15 +6062,20 @@ do
             widget.text:SetPoint("RIGHT", -8, 0)
             widget.text:SetJustifyH("LEFT")
 
-            widget.checkButton = CreateFrame("CheckButton", "$parentCheckButton1", widget, "UICheckButtonTemplate")
+            widget.checkButton = CreateFrame("CheckButton", nil, widget, "UICheckButtonTemplate")
             widget.checkButton:Hide()
             widget.checkButton:SetPoint("RIGHT", -4, 0)
             widget.checkButton:SetScale(0.7)
 
-            widget.checkButton2 = CreateFrame("CheckButton", "$parentCheckButton2", widget, "UICheckButtonTemplate")
+            widget.checkButton2 = CreateFrame("CheckButton", nil, widget, "UICheckButtonTemplate")
             widget.checkButton2:Hide()
             widget.checkButton2:SetPoint("RIGHT", widget.checkButton, "LEFT", -4, 0)
             widget.checkButton2:SetScale(0.7)
+
+            widget.checkButton.fakeCheck = widget.checkButton:CreateTexture(nil, "OVERLAY")
+            widget.checkButton.fakeCheck:Hide()
+            widget.checkButton.fakeCheck:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+            widget.checkButton.fakeCheck:SetAllPoints()
 
             widget.help = CreateFrame("Frame", nil, widget)
             widget.help:Hide()
@@ -6132,6 +6145,7 @@ do
             frame.cvar = cvar
             frame.needReload = (configOptions and configOptions.needReload) or false
             frame.isDisabled = (configOptions and configOptions.isDisabled) or nil
+            frame.isFakeChecked = (configOptions and configOptions.isFakeChecked) or nil
             frame.callback = (configOptions and configOptions.callback) or nil
             frame.help.tooltip = description
             frame.help:Show()
@@ -6281,7 +6295,8 @@ do
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)
             local allowClientToControlCombatLogFrame = configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC, "allowClientToControlCombatLog")
-            configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking", { isDisabled = function(self) return allowClientToControlCombatLogFrame.checkButton:GetChecked() end })
+            local allowClientToControlCombatLogFrameIsChecked = function() return allowClientToControlCombatLogFrame.checkButton:GetChecked() end
+            configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking", { isDisabled = allowClientToControlCombatLogFrameIsChecked, isFakeChecked = allowClientToControlCombatLogFrameIsChecked })
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
@@ -6519,9 +6534,19 @@ do
         callback:RegisterEvent(UpdateModuleState, "RAIDERIO_SETTINGS_SAVED")
     end
 
-    local autoLogInstanceMapIDs do
+    local autoLogInstanceMapIDs
+    local autoLogDifficultyIDs do
         autoLogInstanceMapIDs = {
             [2296] = true, -- Castle Nathria
+        }
+        autoLogDifficultyIDs = {
+            -- party
+            [23] = true, -- Mythic
+            [8] = true, -- Mythic Keystone
+            -- raid
+            [14] = true, -- Normal
+            [15] = true, -- Heroic
+            [16] = true, -- Mythic
         }
         local dungeons = ns:GetDungeonData()
         for _, dungeon in ipairs(dungeons) do
@@ -6533,11 +6558,11 @@ do
     local previouslyEnabledLogging
 
     local function CheckInstance()
-        local _, _, _, instanceMapID = UnitPosition("player")
-        if not instanceMapID then
+        local _, _, difficultyID, _, _, _, _, instanceMapID = GetInstanceInfo()
+        if not difficultyID or not instanceMapID then
             return
         end
-        local isActive = not not autoLogInstanceMapIDs[instanceMapID]
+        local isActive = not not (autoLogInstanceMapIDs[instanceMapID] and autoLogDifficultyIDs[difficultyID])
         if isActive ~= lastActive then
             lastActive = isActive
             local isLogging = LoggingCombat()
@@ -6552,6 +6577,7 @@ do
                     return
                 end
                 previouslyEnabledLogging = setLogging
+                config:Set("previouslyEnabledLogging", setLogging)
                 LoggingCombat(setLogging)
                 local info = ChatTypeInfo["SYSTEM"]
                 DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFFRaider.IO|r: " .. (setLogging and COMBATLOGENABLED or COMBATLOGDISABLED), info.r, info.g, info.b, info.id)
@@ -6560,6 +6586,7 @@ do
     end
 
     function combatlog:OnEnable()
+        previouslyEnabledLogging = config:Get("previouslyEnabledLogging")
         CheckInstance()
         callback:RegisterEvent(CheckInstance, "CHALLENGE_MODE_START", "CHALLENGE_MODE_RESET", "CHALLENGE_MODE_COMPLETED", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
     end

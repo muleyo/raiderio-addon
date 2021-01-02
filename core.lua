@@ -574,7 +574,7 @@ do
                 end
             end
             if not eventCallbacks[1] then
-                handler:UnregisterEvent(event)
+                pcall(handler.UnregisterEvent, handler, event)
             end
         end
     end

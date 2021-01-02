@@ -6570,37 +6570,39 @@ do
             return
         end
         local isActive = not not (autoLogInstanceMapIDs[instanceMapID] and autoLogDifficultyIDs[difficultyID])
-        if isActive ~= lastActive then
-            lastActive = isActive
-            local isLogging = LoggingCombat()
-            local setLogging
-            if isActive and not isLogging then
-                setLogging = true
-            elseif not isActive and isLogging then
-                setLogging = false
-            end
-            if setLogging ~= nil then
-                if not setLogging and not previouslyEnabledLogging then
-                    return
-                end
-                previouslyEnabledLogging = setLogging
-                config:Set("previouslyEnabledLogging", setLogging)
-                LoggingCombat(setLogging)
-                local info = ChatTypeInfo["SYSTEM"]
-                DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFFRaider.IO|r: " .. (setLogging and COMBATLOGENABLED or COMBATLOGDISABLED), info.r, info.g, info.b, info.id)
-            end
+        if isActive == lastActive then
+            return
         end
+        lastActive = isActive
+        local isLogging = LoggingCombat()
+        local setLogging
+        if isActive and not isLogging then
+            setLogging = true
+        elseif not isActive and isLogging then
+            setLogging = false
+        end
+        if setLogging == nil then
+            return
+        end
+        if not setLogging and not previouslyEnabledLogging then
+            return
+        end
+        previouslyEnabledLogging = setLogging
+        config:Set("previouslyEnabledLogging", setLogging)
+        LoggingCombat(setLogging)
+        local info = ChatTypeInfo["SYSTEM"]
+        DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFFRaider.IO|r: " .. (setLogging and COMBATLOGENABLED or COMBATLOGDISABLED), info.r, info.g, info.b, info.id)
     end
 
     function combatlog:OnEnable()
         previouslyEnabledLogging = config:Get("previouslyEnabledLogging")
         CheckInstance()
-        callback:RegisterEvent(CheckInstance, "CHALLENGE_MODE_START", "CHALLENGE_MODE_RESET", "CHALLENGE_MODE_COMPLETED", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
+        callback:RegisterEvent(CheckInstance, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
     end
 
     function combatlog:OnDisable()
         CheckInstance()
-        callback:UnregisterEvent(CheckInstance)
+        callback:UnregisterCallback(CheckInstance)
     end
 
 end

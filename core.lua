@@ -6296,7 +6296,14 @@ do
             configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)
             local allowClientToControlCombatLogFrame = configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC, "allowClientToControlCombatLog")
             local allowClientToControlCombatLogFrameIsChecked = function() return allowClientToControlCombatLogFrame.checkButton:GetChecked() end
-            configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking", { isDisabled = allowClientToControlCombatLogFrameIsChecked, isFakeChecked = allowClientToControlCombatLogFrameIsChecked })
+            local isClientAutoCombatLoggingEnabled = function()
+                if allowClientToControlCombatLogFrame.checkButton:GetChecked() then
+                    local clientConfig = ns:GetClientConfig()
+                    return clientConfig and clientConfig.enableCombatLogTracking
+                end
+                return nil
+            end
+            configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking", { isDisabled = allowClientToControlCombatLogFrameIsChecked, isFakeChecked = isClientAutoCombatLoggingEnabled })
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)

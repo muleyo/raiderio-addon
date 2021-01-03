@@ -6013,12 +6013,17 @@ do
                     end
                 end
                 if f.isFakeChecked then
-                    if f:isFakeChecked() then
+                    local useFakeCheckMark, useGrayCheckMark = f:isFakeChecked()
+                    if useFakeCheckMark then
+                        if useGrayCheckMark then
+                            f.checkButton.fakeCheck:SetVertexColor(0.5, 0.5, 0.5)
+                        else
+                            f.checkButton.fakeCheck:SetVertexColor(1, 1, 1)
+                        end
                         f.checkButton.fakeCheck:Show()
                     else
                         f.checkButton.fakeCheck:Hide()
                     end
-                    f.checkButton.fakeCheck:SetVertexColor(0.5, 0.5, 0.5)
                 end
             end
         end
@@ -6301,7 +6306,7 @@ do
                 if not allowClientToControlCombatLogFrameIsChecked() then
                     return
                 end
-                return not not (clientConfig and clientConfig.enableCombatLogTracking)
+                return clientConfig and clientConfig.enableCombatLogTracking, config:Get("enableCombatLogTracking")
             end
             configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking", { isDisabled = allowClientToControlCombatLogFrameIsChecked, isFakeChecked = isClientAutoCombatLoggingEnabled })
 
@@ -6544,9 +6549,12 @@ do
     local autoLogInstanceMapIDs
     local autoLogDifficultyIDs do
         autoLogInstanceMapIDs = {
+            -- [2162] = true, -- Torghast, Tower of the Damned
             [2296] = true, -- Castle Nathria
         }
         autoLogDifficultyIDs = {
+            -- scenario
+            [167] = true, -- Torghast
             -- party
             [23] = true, -- Mythic
             [8] = true, -- Mythic Keystone
@@ -6564,7 +6572,7 @@ do
     local lastActive
     local previouslyEnabledLogging
 
-    local function CheckInstance()
+    local function CheckInstance(newModuleState)
         local _, _, difficultyID, _, _, _, _, instanceMapID = GetInstanceInfo()
         if not difficultyID or not instanceMapID then
             return
@@ -6576,7 +6584,11 @@ do
         lastActive = isActive
         local isLogging = LoggingCombat()
         local setLogging
-        if isActive and not isLogging then
+        if isActive and isLogging and newModuleState == true then
+            setLogging = true
+        elseif isActive and isLogging and newModuleState == false then
+            setLogging = false
+        elseif isActive and not isLogging then
             setLogging = true
         elseif not isActive and isLogging then
             setLogging = false
@@ -6596,13 +6608,15 @@ do
 
     function combatlog:OnEnable()
         previouslyEnabledLogging = config:Get("previouslyEnabledLogging")
-        CheckInstance()
+        CheckInstance(true)
         callback:RegisterEvent(CheckInstance, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
     end
 
     function combatlog:OnDisable()
-        CheckInstance()
+        lastActive = nil
+        CheckInstance(false)
         callback:UnregisterCallback(CheckInstance)
+        lastActive = nil
     end
 
 end

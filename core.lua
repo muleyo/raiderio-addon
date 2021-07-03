@@ -2894,11 +2894,14 @@ do
             mythicKeystoneProfile = CreateEmptyMythicKeystoneData()
         end
         if not mythicKeystoneProfile.hasOverrideScore then
-            mythicKeystoneProfile.hasOverrideScore = true
-            mythicKeystoneProfile.originalCurrentScore = mythicKeystoneProfile.currentScore
-            mythicKeystoneProfile.currentScore = overallScore
-            mythicKeystoneProfile.mplusCurrent.originalScore = mythicKeystoneProfile.mplusCurrent.score
-            mythicKeystoneProfile.mplusCurrent.score = overallScore
+			-- Avoid reducing the score of a player
+			if mythicKeystoneProfile.currentScore > overallScore then
+				mythicKeystoneProfile.hasOverrideScore = true
+				mythicKeystoneProfile.originalCurrentScore = mythicKeystoneProfile.currentScore
+				mythicKeystoneProfile.currentScore = overallScore
+				mythicKeystoneProfile.mplusCurrent.originalScore = mythicKeystoneProfile.mplusCurrent.score
+				mythicKeystoneProfile.mplusCurrent.score = overallScore
+			end
         end
         if not mythicKeystoneProfile.hasOverrideDungeonRuns and type(keystoneRuns) == "table" then
             mythicKeystoneProfile.hasOverrideDungeonRuns = true

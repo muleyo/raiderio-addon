@@ -2829,6 +2829,7 @@ do
     local function CreateEmptyMythicKeystoneData()
         ---@type DataProviderMythicKeystoneProfile
         local results = {
+            currentScore = 0,
             mplusCurrent = {
                 score = 0,
                 roles = {}
@@ -2899,7 +2900,7 @@ do
         if not mythicKeystoneProfile then
             mythicKeystoneProfile = CreateEmptyMythicKeystoneData()
         end
-        if not mythicKeystoneProfile.hasOverrideScore and type(overallScore) == "number" and overallScore > 0 then
+        if not mythicKeystoneProfile.hasOverrideScore and type(overallScore) == "number" and overallScore > 0 and overallScore > mythicKeystoneProfile.currentScore then
             mythicKeystoneProfile.hasOverrideScore = true
             mythicKeystoneProfile.originalCurrentScore = mythicKeystoneProfile.currentScore
             mythicKeystoneProfile.currentScore = overallScore

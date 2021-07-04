@@ -2895,7 +2895,7 @@ do
         end
         if not mythicKeystoneProfile.hasOverrideScore then
 			-- Avoid reducing the score of a player
-			if overallScore > mythicKeystoneProfile.currentScore then
+			if overallScore > mythicKeystoneProfile.mplusCurrent.score then
 				mythicKeystoneProfile.hasOverrideScore = true
 				mythicKeystoneProfile.originalCurrentScore = mythicKeystoneProfile.currentScore
 				mythicKeystoneProfile.currentScore = overallScore

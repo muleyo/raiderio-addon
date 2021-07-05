@@ -3142,7 +3142,7 @@ do
         _G.RaiderIO_LastCharacter = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_NAME, ns.PLAYER_REALM_SLUG or ns.PLAYER_REALM)
         _G.RaiderIO_MissingCharacters = {}
         _G.RaiderIO_MissingServers = {}
-        _G.RaiderIO_RWF = {}
+        if type(_G.RaiderIO_RWF) ~= "table" then _G.RaiderIO_RWF = {} end
         callback:SendEvent("RAIDERIO_PLAYER_LOGIN")
         LoadModules()
     end
@@ -6201,12 +6201,14 @@ do
         Loot = 1,
         Roll = 2,
         Chat = 3,
+        News = 4,
     }
 
     local LOG_TYPE_LABEL = {
         [1] = "Loot",
         [2] = "Roll",
         [3] = "Chat",
+        [4] = "News",
     }
 
     local function GetNestedTable(db, ...)
@@ -6238,12 +6240,16 @@ do
 
     ---@class RWFLootEntry
 
-    local function LogItemLink(logType, linkType, link, count, sources)
-        local _, instanceName, instanceDifficulty, instanceID = rtwf:GetLocation()
+    local function LogItemLink(logType, linkType, link, count, sources, useTimestamp)
+        local isLogging, instanceName, instanceDifficulty, instanceID = rtwf:GetLocation()
+        if not isLogging then
+            instanceName = GUILD_NEWS or "Guild News"
+            instanceID, instanceDifficulty = 0, 0
+        end
         if not instanceID or not instanceDifficulty then
             return
         end
-        local timestamp = GetServerTime()
+        local timestamp = useTimestamp or GetServerTime()
         local success, tables = GetNestedTable(_G.RaiderIO_RWF, instanceID, instanceDifficulty, link)
         if not success then
             return false
@@ -6268,6 +6274,28 @@ do
         return lootEntry
     end
 
+    local LOG_GUILD_NEWS_TYPES = {
+        [NEWS_ITEM_LOOTED] = 1,
+        [NEWS_LEGENDARY_LOOTED] = 1,
+    }
+
+    local function CanLogItem(itemLink, itemType)
+        if itemType == "currency" then
+            return true
+        end
+        local _, _, itemQuality, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+        if itemEquipLoc and itemEquipLoc == "" then
+            return true
+        end
+        if itemQuality and itemQuality == Enum.ItemQuality.Poor then
+            return false
+        end
+        local effectiveILvl = GetDetailedItemLevelInfo(itemLink)
+        if effectiveILvl and effectiveILvl >= 252 then -- Sanctum of Domination (Mythic)
+            return true
+        end
+    end
+
     local function OnEvent(event, ...)
         if event == "LOOT_READY" then
             for i = 1, GetNumLootItems() do
@@ -6275,7 +6303,7 @@ do
                 if slotType == LOOT_SLOT_ITEM or slotType == LOOT_SLOT_CURRENCY then
                     local lootLink = GetLootSlotLink(i)
                     local itemType, itemLink, itemCount = GetItemFromText(lootLink)
-                    if itemType then
+                    if itemType and CanLogItem(itemLink, itemType) then
                         local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i)
                         local lootSources = {GetLootSourceInfo(i)}
                         local itemSources = {}
@@ -6294,22 +6322,40 @@ do
             for i = 1, C_LootHistory.GetNumItems() do
                 local rollID, rollLink, numPlayers, isDone, winnerIdx, isMasterLoot, isCurrency = C_LootHistory.GetItem(i)
                 local itemType, itemLink, itemCount = GetItemFromText(rollLink)
-                if itemType then
+                if itemType and CanLogItem(itemLink, itemType) then
                     local lootEntry = LogItemLink(LOG_TYPE.Roll, itemType, rollLink)
                     if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
-                        LOOT_FRAME:AddLoot(lootEntry)
+                        LOOT_FRAME:AddLoot(lootEntry, true)
                     end
                 end
             end
         elseif event == "CHAT_MSG_LOOT" or event == "CHAT_MSG_CURRENCY" then
             local text = ...
             local itemType, itemLink, itemCount = GetItemFromText(text)
-            if itemType then
+            if itemType and CanLogItem(itemLink, itemType) then
                 local lootEntry = LogItemLink(LOG_TYPE.Chat, itemType, itemLink, itemCount or 1)
                 if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
-                    LOOT_FRAME:AddLoot(lootEntry)
+                    LOOT_FRAME:AddLoot(lootEntry, true)
                 end
             end
+        elseif event == "GUILD_NEWS_UPDATE" then
+            for i = 1, GetNumGuildNews() do
+                local newsInfo = C_GuildInfo.GetGuildNewsInfo(i)
+                if newsInfo and newsInfo.newsType and LOG_GUILD_NEWS_TYPES[newsInfo.newsType] then
+                    local itemType, itemLink, itemCount = GetItemFromText(newsInfo.whatText)
+                    if itemType and CanLogItem(itemLink, itemType) then
+                        newsInfo.year = newsInfo.year + 2000
+                        local timestamp = time(newsInfo)
+                        local lootEntry = LogItemLink(LOG_TYPE.News, itemType, itemLink, nil, nil, timestamp)
+                        if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
+                            LOOT_FRAME:AddLoot(lootEntry, true)
+                        end
+                    end
+                end
+            end
+        end
+        if LOOT_FRAME:IsShown() then
+            LOOT_FRAME:OnShow()
         end
     end
 
@@ -6328,7 +6374,7 @@ do
         end
 
         local frame = CreateFrame("Frame", nil, UIParent, "ButtonFrameTemplate")
-        frame:SetSize(400, 200)
+        frame:SetSize(400, 225)
         frame:SetPoint("CENTER")
         frame:SetFrameStrata("HIGH")
         ButtonFrameTemplate_HidePortrait(frame)
@@ -6352,7 +6398,7 @@ do
         frame.TitleBar:Init(frame)
 
         frame.Log = CreateFrame("Frame", nil, frame)
-        frame.Log:SetPoint("TOPLEFT", frame.TitleBar, "BOTTOMLEFT", 8, -32)
+        frame.Log:SetPoint("TOPLEFT", frame.TitleBar, "BOTTOMLEFT", 8, -32 + 24)
         frame.Log:SetPoint("BOTTOMRIGHT", -9, 28)
 
         frame.Log.Bar = CreateFrame("Frame", nil, frame.Log)
@@ -6361,19 +6407,19 @@ do
         frame.Log.Bar:SetPoint("TOPRIGHT", 0, 0)
 
         frame.Log.Events = CreateFrame("Frame", nil, frame.Log)
-        frame.Log.Events:SetPoint("TOPLEFT", frame.Log.Bar, "BOTTOMLEFT", 0, -2 + (frame.Log.Bar:GetHeight() + 4))
+        frame.Log.Events:SetPoint("TOPLEFT", frame.Log.Bar, "BOTTOMLEFT", 0, -2)
         frame.Log.Events:SetPoint("BOTTOMRIGHT", 0, 0)
 
         frame.Log.Events.ScrollBox = CreateFrame("Frame", nil, frame.Log.Events, "WowScrollBoxList")
         frame.Log.Events.ScrollBox:OnLoad()
-        frame.Log.Events.ScrollBox:SetPoint("TOPLEFT", 0, 0)
+        frame.Log.Events.ScrollBox:SetPoint("TOPLEFT", 0, -8) -- 0, 0
         frame.Log.Events.ScrollBox:SetPoint("BOTTOMRIGHT", -25, 0)
         frame.Log.Events.ScrollBox.bgTexture = frame.Log.Events.ScrollBox:CreateTexture(nil, "BACKGROUND")
         frame.Log.Events.ScrollBox.bgTexture:SetColorTexture(0.03, 0.03, 0.03)
 
         frame.Log.Events.ScrollBar = CreateFrame("EventFrame", nil, frame.Log.Events, "WowTrimScrollBar")
         frame.Log.Events.ScrollBar:OnLoad()
-        frame.Log.Events.ScrollBar:SetPoint("TOPLEFT", frame.Log.Events.ScrollBox, "TOPRIGHT", 0, -3)
+        frame.Log.Events.ScrollBar:SetPoint("TOPLEFT", frame.Log.Events.ScrollBox, "TOPRIGHT", 0, 3) -- 0, -3
         frame.Log.Events.ScrollBar:SetPoint("BOTTOMLEFT", frame.Log.Events.ScrollBox, "BOTTOMRIGHT", 0, 0)
 
         frame.SubTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -6418,7 +6464,7 @@ do
             local isLogging, instanceName = rtwf:GetLocation()
             self.EnableModule:SetShown(not isEnabled)
             self.DisableModule:SetShown(isEnabled)
-            self.ReloadUI:SetEnabled(isLogging)
+            self.ReloadUI:SetEnabled(self:GetNumLootItems() > 0)
             self.SubTitle:SetText(format("%s |cff%s%s|r", instanceName or "", isLogging and "55ff55" or "ff55ff", isLogging and L.RWF_SUBTITLE_LOGGING_LOOT or L.RWF_SUBTITLE_PAUSED))
         end
 
@@ -6477,7 +6523,7 @@ do
 
         local function GetDisplayText(elementData)
             local lootEntry = elementData.args[1] ---@type RWFLootEntry
-            local timeText = lootEntry.timestamp and date("%H:%M:%S", lootEntry.timestamp) or "--:--:--"
+            local timeText = lootEntry.timestamp and lootEntry.type ~= LOG_TYPE.News and date("%H:%M:%S", lootEntry.timestamp) or "--:--:--"
             local typeText = lootEntry.type and LOG_TYPE_LABEL[lootEntry.type] or "Unknown"
             local linkText = lootEntry.count and lootEntry.count > 1 and format("%sx%d", lootEntry.link, lootEntry.count) or lootEntry.link
             local sourcesText = lootEntry.sources and CountSources(lootEntry.sources) or ""
@@ -6608,8 +6654,14 @@ do
             -- button.RightLabel:SetText(GRAY_FONT_COLOR:WrapTextInColorCode(elementData.formattedTimestamp))
         end
 
-        function frame:AddLoot(lootEntry)
-            self:Show()
+        function frame:GetNumLootItems()
+            return self.logDataProvider:GetSize()
+        end
+
+        function frame:AddLoot(lootEntry, silent)
+            if not silent then
+                self:Show()
+            end
             local preInsertAtScrollEnd = self.Log.Events.ScrollBox:IsAtEnd()
             local preInsertScrollable = self.Log.Events.ScrollBox:HasScrollableExtent()
             local systemTimestamp, relativeTimestamp, eventDelta = self:GenerateTimestampData()
@@ -6654,8 +6706,8 @@ do
             return
         end
         local name, instanceType, difficultyID, difficultyName, maxPlayers, dynamicDifficulty, isDynamic, instanceID, instanceGroupSize, LfgDungeonID = GetInstanceInfo()
-        -- if config:Get("debugMode") then instanceType, difficultyID = "raid", 14 end -- DEBUG: treat any zone as a loggable zone
-        if instanceType == "raid" and (difficultyID == 14 or difficultyID == 15 or difficultyID == 16) then
+        -- if config:Get("debugMode") then instanceType, difficultyID = "raid", 16 end -- DEBUG: treat any zone as a loggable zone
+        if instanceType == "raid" and difficultyID == 16 then
             LOCATION.logging, LOCATION.instanceName, LOCATION.instanceDifficulty, LOCATION.instanceID = true, name, difficultyID, instanceID
             self:Enable()
         else
@@ -6676,6 +6728,7 @@ do
         LOOT_FRAME = CreateLootFrame()
         self:CheckLocation()
         callback:RegisterEvent(OnZoneEvent, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
+        callback:RegisterEvent(OnEvent, "GUILD_NEWS_UPDATE")
     end
 
     function rtwf:OnEnable()

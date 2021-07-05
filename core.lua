@@ -681,7 +681,7 @@ do
         showRoleIcons = true,
         profilePoint = { point = nil, x = 0, y = 0 },
         debugMode = false,
-        rtwfMode = false -- NEW in 9.1
+        rwfMode = false -- NEW in 9.1
     }
 
     -- fallback metatable looks up missing keys into the fallback config table
@@ -703,8 +703,8 @@ do
         if config:Get("debugMode") then
             ns.Print(format(L.WARNING_DEBUG_MODE_ENABLE, addonName))
         end
-        if config:Get("rtwfMode") then
-            ns.Print(format(L.WARNING_RTWF_MODE_ENABLE, addonName))
+        if config:Get("rwfMode") then
+            ns.Print(format(L.WARNING_RWF_MODE_ENABLE, addonName))
         end
         callback:SendEvent("RAIDERIO_CONFIG_READY")
     end
@@ -2936,12 +2936,11 @@ do
                     local runSeconds = run.bestRunDurationMS / 1000
                     local runNumUpgrades = 0
                     if run.finishedSuccess then
+                        runNumUpgrades = 1
                         if runSeconds <= goldTimeLimit then
                             runNumUpgrades = 3
                         elseif runSeconds <= silverTimeLimit then
                             runNumUpgrades = 2
-                        elseif runSeconds <= bronzeTimeLimit then
-                            runNumUpgrades = 1
                         end
                     end
                     local runTimerAsFraction = runSeconds / (dungeonTimeLimit and dungeonTimeLimit > 0 and dungeonTimeLimit or 1) -- convert game timer to a fraction (1 or below is timed, above is depleted)
@@ -3143,7 +3142,7 @@ do
         _G.RaiderIO_LastCharacter = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_NAME, ns.PLAYER_REALM_SLUG or ns.PLAYER_REALM)
         _G.RaiderIO_MissingCharacters = {}
         _G.RaiderIO_MissingServers = {}
-        _G.RaiderIO_RTWF = {}
+        _G.RaiderIO_RWF = {}
         callback:SendEvent("RAIDERIO_PLAYER_LOGIN")
         LoadModules()
     end
@@ -6237,7 +6236,7 @@ do
         return true, path, temp
     end
 
-    ---@class RTWFLootEntry
+    ---@class RWFLootEntry
 
     local function LogItemLink(logType, linkType, link, count, sources)
         local _, instanceName, instanceDifficulty, instanceID = rtwf:GetLocation()
@@ -6245,12 +6244,12 @@ do
             return
         end
         local timestamp = GetServerTime()
-        local success, tables = GetNestedTable(_G.RaiderIO_RTWF, instanceID, instanceDifficulty, link)
+        local success, tables = GetNestedTable(_G.RaiderIO_RWF, instanceID, instanceDifficulty, link)
         if not success then
             return false
         end
         tables[1].name = instanceName
-        local lootEntry = tables[3] ---@type RTWFLootEntry
+        local lootEntry = tables[3] ---@type RWFLootEntry
         lootEntry.type = logType
         lootEntry.isNew = not lootEntry.timestamp
         lootEntry.timestamp = lootEntry.timestamp or timestamp
@@ -6343,7 +6342,7 @@ do
         frame.idCounter = CreateCounter()
         frame.logDataProvider = CreateDataProvider()
         frame.frameCounter = 0
-        frame.TitleText:SetText(L.RTWF_FRAME_TITLE)
+        frame.TitleText:SetText(L.RWF_TITLE)
 
         frame.TitleBar = CreateFrame("Frame", nil, frame, "PanelDragBarTemplate")
         frame.TitleBar:OnLoad()
@@ -6386,27 +6385,27 @@ do
 
         frame.EnableModule = CreateFrame("Button", nil, frame, "BigRedRefreshButtonTemplate")
         frame.EnableModule.atlasName = "128-RedButton-Refresh"
-        frame.EnableModule.tooltip = L.ENABLE_RTWF_MODE_BUTTON
+        frame.EnableModule.tooltip = L.ENABLE_RWF_MODE_BUTTON
         frame.EnableModule:InitButton()
         frame.EnableModule:SetSize(24, 24)
         frame.EnableModule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 3)
         frame.EnableModule:SetScript("OnEnter", UIButtonMixin.OnEnter)
         frame.EnableModule:SetScript("OnLeave", UIButtonMixin.OnLeave)
-        frame.EnableModule:SetScript("OnClick", function() config:Set("rtwfMode", true) ReloadUI() end)
+        frame.EnableModule:SetScript("OnClick", function() config:Set("rwfMode", true) ReloadUI() end)
 
         frame.DisableModule = CreateFrame("Button", nil, frame, "BigRedRefreshButtonTemplate")
         frame.DisableModule.atlasName = "128-RedButton-Exit"
-        frame.DisableModule.tooltip = L.DISABLE_RTWF_MODE_BUTTON
+        frame.DisableModule.tooltip = L.DISABLE_RWF_MODE_BUTTON
         frame.DisableModule:InitButton()
         frame.DisableModule:SetSize(24, 24)
         frame.DisableModule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 3)
         frame.DisableModule:SetScript("OnEnter", UIButtonMixin.OnEnter)
         frame.DisableModule:SetScript("OnLeave", UIButtonMixin.OnLeave)
-        frame.DisableModule:SetScript("OnClick", function() config:Set("rtwfMode", false) ReloadUI() end)
+        frame.DisableModule:SetScript("OnClick", function() config:Set("rwfMode", false) ReloadUI() end)
 
         frame.ReloadUI = CreateFrame("Button", nil, frame, "BigRedRefreshButtonTemplate")
         frame.ReloadUI.atlasName = "128-RedButton-Refresh"
-        frame.ReloadUI.tooltip = L.RELOAD_RTWF_MODE_BUTTON
+        frame.ReloadUI.tooltip = L.RELOAD_RWF_MODE_BUTTON
         frame.ReloadUI:InitButton()
         frame.ReloadUI:SetSize(24, 24)
         frame.ReloadUI:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 5, 3)
@@ -6415,12 +6414,12 @@ do
         frame.ReloadUI:SetScript("OnClick", ReloadUI)
 
         function frame:OnShow()
-            local isEnabled = config:Get("rtwfMode")
+            local isEnabled = config:Get("rwfMode")
             local isLogging, instanceName = rtwf:GetLocation()
             self.EnableModule:SetShown(not isEnabled)
             self.DisableModule:SetShown(isEnabled)
             self.ReloadUI:SetEnabled(isLogging)
-            self.SubTitle:SetText(format("%s |cff%s%s|r", instanceName or "", isLogging and "55ff55" or "ff55ff", isLogging and L.RTWF_FRAME_SUBTITLE_LOGGING_LOOT or L.RTWF_FRAME_SUBTITLE_PAUSED))
+            self.SubTitle:SetText(format("%s |cff%s%s|r", instanceName or "", isLogging and "55ff55" or "ff55ff", isLogging and L.RWF_SUBTITLE_LOGGING_LOOT or L.RWF_SUBTITLE_PAUSED))
         end
 
         frame:HookScript("OnShow", frame.OnShow)
@@ -6477,7 +6476,7 @@ do
         end
 
         local function GetDisplayText(elementData)
-            local lootEntry = elementData.args[1] ---@type RTWFLootEntry
+            local lootEntry = elementData.args[1] ---@type RWFLootEntry
             local timeText = lootEntry.timestamp and date("%H:%M:%S", lootEntry.timestamp) or "--:--:--"
             local typeText = lootEntry.type and LOG_TYPE_LABEL[lootEntry.type] or "Unknown"
             local linkText = lootEntry.count and lootEntry.count > 1 and format("%sx%d", lootEntry.link, lootEntry.count) or lootEntry.link
@@ -6486,7 +6485,7 @@ do
         end
 
         local function GetHyperlink(elementData)
-            local lootEntry = elementData.args[1] ---@type RTWFLootEntry
+            local lootEntry = elementData.args[1] ---@type RWFLootEntry
             return lootEntry.link
         end
 
@@ -6651,7 +6650,7 @@ do
     end
 
     function rtwf:CheckLocation()
-        if not config:Get("rtwfMode") then
+        if not config:Get("rwfMode") then
             return
         end
         local name, instanceType, difficultyID, difficultyName, maxPlayers, dynamicDifficulty, isDynamic, instanceID, instanceGroupSize, LfgDungeonID = GetInstanceInfo()
@@ -6670,7 +6669,7 @@ do
     end
 
     function rtwf:CanLoad()
-        return config:IsEnabled() and config:Get("rtwfMode")
+        return config:IsEnabled() and config:Get("rwfMode")
     end
 
     function rtwf:OnLoad()
@@ -6751,8 +6750,8 @@ do
         OnCancel = nil
     }
     local rtwfPopup = {
-        id = "RAIDERIO_RTWF_CONFIRM",
-        text = function() return config:Get("rtwfMode") and L.DISABLE_RTWF_MODE_RELOAD or L.ENABLE_RTWF_MODE_RELOAD end,
+        id = "RAIDERIO_RWF_CONFIRM",
+        text = function() return config:Get("rwfMode") and L.DISABLE_RWF_MODE_RELOAD or L.ENABLE_RWF_MODE_RELOAD end,
         button1 = L.CONFIRM,
         button2 = L.CANCEL,
         hasEditBox = false,
@@ -6763,7 +6762,7 @@ do
         OnShow = nil,
         OnHide = nil,
         OnAccept = function ()
-            config:Set("rtwfMode", not config:Get("rtwfMode"))
+            config:Set("rwfMode", not config:Get("rwfMode"))
             ReloadUI()
         end,
         OnCancel = nil
@@ -7371,8 +7370,8 @@ do
                     return
                 end
 
-                if text:find("[Rr][Tt][Ww][Ff]") then
-                    if rtwf:IsLoaded() and config:Get("rtwfMode") then
+                if text:find("[Rr][Ww][Ff]") then
+                    if rtwf:IsLoaded() and config:Get("rwfMode") then
                         rtwf:ToggleFrame()
                     else
                         StaticPopup_Show(rtwfPopup.id)

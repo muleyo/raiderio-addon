@@ -680,8 +680,8 @@ do
         lockProfile = false,
         showRoleIcons = true,
         profilePoint = { point = nil, x = 0, y = 0 },
-        overrideScores = true, -- NEW in 9.1
-        debugMode = false
+        debugMode = false,
+        rtwfMode = false -- NEW in 9.1
     }
 
     -- fallback metatable looks up missing keys into the fallback config table
@@ -702,6 +702,9 @@ do
         config:Enable()
         if config:Get("debugMode") then
             ns.Print(format(L.WARNING_DEBUG_MODE_ENABLE, addonName))
+        end
+        if config:Get("rtwfMode") then
+            ns.Print(format(L.WARNING_RTWF_MODE_ENABLE, addonName))
         end
         callback:SendEvent("RAIDERIO_CONFIG_READY")
     end
@@ -1982,8 +1985,6 @@ do
         provider:Enable()
     end
 
-    local OVERRIDE_SCORES
-
     function provider:OnLoad()
         callback:RegisterEventOnce(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
     end
@@ -2892,9 +2893,6 @@ do
         local cache = provider:GetProfile(name, realm, faction, region) ---@type DataProviderCharacterProfile
         local mythicKeystoneProfile
         if cache and cache.success and cache.mythicKeystoneProfile then
-            if not OVERRIDE_SCORES then
-                return
-            end
             mythicKeystoneProfile = cache.mythicKeystoneProfile
         end
         if not mythicKeystoneProfile then
@@ -3006,21 +3004,6 @@ do
         profileCache[guid] = cache
         return cache
     end
-
-    local function OnSettingsChanged()
-        if not config:IsEnabled() then
-            return
-        end
-        local prevOverrideScores = OVERRIDE_SCORES
-        OVERRIDE_SCORES = config:Get("overrideScores")
-        if prevOverrideScores == OVERRIDE_SCORES then
-            return
-        end
-        provider:WipeCache()
-    end
-
-    callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")
-    callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_SAVED")
 
     ---@param name string
     ---@param realm string
@@ -3160,6 +3143,7 @@ do
         _G.RaiderIO_LastCharacter = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_NAME, ns.PLAYER_REALM_SLUG or ns.PLAYER_REALM)
         _G.RaiderIO_MissingCharacters = {}
         _G.RaiderIO_MissingServers = {}
+        _G.RaiderIO_RTWF = {}
         callback:SendEvent("RAIDERIO_PLAYER_LOGIN")
         LoadModules()
     end
@@ -3401,8 +3385,8 @@ do
 
     local EASTER_EGG = {
         ["eu"] = {
-            ["Ravencrest"] = {
-                ["Voidzone"] = "Raider.IO AddOn Author"
+            ["TarrenMill"] = {
+                ["Vladinator"] = "Raider.IO AddOn Author"
             },
             ["Ysondre"] = {
                 ["Isakem"] = "Raider.IO Contributor"
@@ -4261,7 +4245,7 @@ do
 
 end
 
--- fanfare.lua
+-- fanfare.lua (requires debug mode)
 -- dependencies: module, config, util, provider
 do
 
@@ -6175,6 +6159,550 @@ do
 
 end
 
+-- rtwf.lua (requires rtwf mode)
+-- dependencies: module, callback, config
+do
+
+    ---@class RaceToWorldFirstModule : Module
+    local rtwf = ns:NewModule("RaceToWorldFirst") ---@type RaceToWorldFirstModule
+    local callback = ns:GetModule("Callback") ---@type CallbackModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+
+    local LOCATION = {}
+    local LOOT_FRAME
+
+    local TRACKING_EVENTS = {
+        "LOOT_READY",
+        "LOOT_HISTORY_FULL_UPDATE",
+        "LOOT_HISTORY_ROLL_COMPLETE",
+        "CHAT_MSG_LOOT",
+        "CHAT_MSG_CURRENCY",
+    }
+
+    local function GetItemFromText(text)
+        if not text or type(text) ~= "string" then
+            return
+        end
+        local linkHexColor, linkType, linkArg1, linkArg2N, linkText, trailingText = text:match("|cff(......)|H([^:]-):(%d+)(.-)|h%[(.-)%]|h|r(.*)")
+        if not linkHexColor then
+            return
+        end
+        local link = format("|cff%s|H%s:%s%s|h[%s]|h|r", linkHexColor, linkType, linkArg1, linkArg2N, linkText)
+        local linkCount
+        if trailingText ~= "" then
+            local trailingCount, trailingText2 = trailingText:match("%s*[Xx](%d+)(.*)")
+            if trailingCount then
+                linkCount = tonumber(trailingCount)
+            end
+        end
+        return linkType, link, linkCount
+    end
+
+    local LOG_TYPE = {
+        Loot = 1,
+        Roll = 2,
+        Chat = 3,
+    }
+
+    local LOG_TYPE_LABEL = {
+        [1] = "Loot",
+        [2] = "Roll",
+        [3] = "Chat",
+    }
+
+    local function GetNestedTable(db, ...)
+        local args = {...}
+        if args[1] == nil then
+            return
+        end
+        local path = {}
+        local i = 0
+        local temp = db
+        for _, k in ipairs(args) do
+            if k == nil then
+                return nil, path, temp
+            end
+            local o = temp[k]
+            if not o then
+                o = {}
+                temp[k] = o
+            end
+            temp = o
+            i = i + 1
+            path[i] = temp
+        end
+        if i ~= #args then
+            return false, path, temp
+        end
+        return true, path, temp
+    end
+
+    ---@class RTWFLootEntry
+
+    local function LogItemLink(logType, linkType, link, count, sources)
+        local _, instanceName, instanceDifficulty, instanceID = rtwf:GetLocation()
+        if not instanceID or not instanceDifficulty then
+            return
+        end
+        local timestamp = GetServerTime()
+        local success, tables = GetNestedTable(_G.RaiderIO_RTWF, instanceID, instanceDifficulty, link)
+        if not success then
+            return false
+        end
+        tables[1].name = instanceName
+        local lootEntry = tables[3] ---@type RTWFLootEntry
+        lootEntry.type = logType
+        lootEntry.isNew = not lootEntry.timestamp
+        lootEntry.timestamp = lootEntry.timestamp or timestamp
+        lootEntry.link = link
+        lootEntry.count = (lootEntry.count or 0) + (logType == LOG_TYPE.Chat and count or 0)
+        lootEntry.sources = lootEntry.sources or {}
+        lootEntry.hasNewSources = false
+        if logType == LOG_TYPE.Loot then
+            for k, v in pairs(sources) do
+                if not lootEntry.sources[k] then
+                    lootEntry.hasNewSources = true
+                end
+                lootEntry.sources[k] = (lootEntry.sources[k] or 0) + v
+            end
+        end
+        return lootEntry
+    end
+
+    local function OnEvent(event, ...)
+        if event == "LOOT_READY" then
+            for i = 1, GetNumLootItems() do
+                local slotType = GetLootSlotType(i)
+                if slotType == LOOT_SLOT_ITEM or slotType == LOOT_SLOT_CURRENCY then
+                    local lootLink = GetLootSlotLink(i)
+                    local itemType, itemLink, itemCount = GetItemFromText(lootLink)
+                    if itemType then
+                        local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i)
+                        local lootSources = {GetLootSourceInfo(i)}
+                        local itemSources = {}
+                        for j = 1, #lootSources, 2 do
+                            local guid, quantity = lootSources[j], lootSources[j + 1]
+                            itemSources[guid] = quantity
+                        end
+                        local lootEntry = LogItemLink(LOG_TYPE.Loot, itemType, lootLink, lootQuantity, itemSources)
+                        if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
+                            LOOT_FRAME:AddLoot(lootEntry)
+                        end
+                    end
+                end
+            end
+        elseif event == "LOOT_HISTORY_FULL_UPDATE" or event == "LOOT_HISTORY_ROLL_COMPLETE" then
+            for i = 1, C_LootHistory.GetNumItems() do
+                local rollID, rollLink, numPlayers, isDone, winnerIdx, isMasterLoot, isCurrency = C_LootHistory.GetItem(i)
+                local itemType, itemLink, itemCount = GetItemFromText(rollLink)
+                if itemType then
+                    local lootEntry = LogItemLink(LOG_TYPE.Roll, itemType, rollLink)
+                    if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
+                        LOOT_FRAME:AddLoot(lootEntry)
+                    end
+                end
+            end
+        elseif event == "CHAT_MSG_LOOT" or event == "CHAT_MSG_CURRENCY" then
+            local text = ...
+            local itemType, itemLink, itemCount = GetItemFromText(text)
+            if itemType then
+                local lootEntry = LogItemLink(LOG_TYPE.Chat, itemType, itemLink, itemCount or 1)
+                if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
+                    LOOT_FRAME:AddLoot(lootEntry)
+                end
+            end
+        end
+    end
+
+    local function OnZoneEvent()
+        rtwf:CheckLocation()
+    end
+
+    local function CreateLootFrame()
+
+        local function CreateCounter(initialCount)
+            local count = initialCount or 0
+            return function()
+                count = count + 1
+                return count
+            end
+        end
+
+        local frame = CreateFrame("Frame", nil, UIParent, "ButtonFrameTemplate")
+        frame:SetSize(400, 200)
+        frame:SetPoint("CENTER")
+        frame:SetFrameStrata("HIGH")
+        ButtonFrameTemplate_HidePortrait(frame)
+        frame:SetMovable(true)
+        frame:SetResizable(true)
+        frame:EnableMouse(true)
+        frame:SetClampedToScreen(true)
+        frame.showingArguments = true
+        frame.showingTimestamp = true
+        frame.loadTime = GetTime()
+        frame.idCounter = CreateCounter()
+        frame.logDataProvider = CreateDataProvider()
+        frame.frameCounter = 0
+        frame.TitleText:SetText(L.RTWF_FRAME_TITLE)
+
+        frame.TitleBar = CreateFrame("Frame", nil, frame, "PanelDragBarTemplate")
+        frame.TitleBar:OnLoad()
+        frame.TitleBar:SetHeight(24)
+        frame.TitleBar:SetPoint("TOPLEFT", 0, 0)
+        frame.TitleBar:SetPoint("TOPRIGHT", 0, 0)
+        frame.TitleBar:Init(frame)
+
+        frame.Log = CreateFrame("Frame", nil, frame)
+        frame.Log:SetPoint("TOPLEFT", frame.TitleBar, "BOTTOMLEFT", 8, -32)
+        frame.Log:SetPoint("BOTTOMRIGHT", -9, 28)
+
+        frame.Log.Bar = CreateFrame("Frame", nil, frame.Log)
+        frame.Log.Bar:SetHeight(24)
+        frame.Log.Bar:SetPoint("TOPLEFT", 0, 0)
+        frame.Log.Bar:SetPoint("TOPRIGHT", 0, 0)
+
+        frame.Log.Events = CreateFrame("Frame", nil, frame.Log)
+        frame.Log.Events:SetPoint("TOPLEFT", frame.Log.Bar, "BOTTOMLEFT", 0, -2 + (frame.Log.Bar:GetHeight() + 4))
+        frame.Log.Events:SetPoint("BOTTOMRIGHT", 0, 0)
+
+        frame.Log.Events.ScrollBox = CreateFrame("Frame", nil, frame.Log.Events, "WowScrollBoxList")
+        frame.Log.Events.ScrollBox:OnLoad()
+        frame.Log.Events.ScrollBox:SetPoint("TOPLEFT", 0, 0)
+        frame.Log.Events.ScrollBox:SetPoint("BOTTOMRIGHT", -25, 0)
+        frame.Log.Events.ScrollBox.bgTexture = frame.Log.Events.ScrollBox:CreateTexture(nil, "BACKGROUND")
+        frame.Log.Events.ScrollBox.bgTexture:SetColorTexture(0.03, 0.03, 0.03)
+
+        frame.Log.Events.ScrollBar = CreateFrame("EventFrame", nil, frame.Log.Events, "WowTrimScrollBar")
+        frame.Log.Events.ScrollBar:OnLoad()
+        frame.Log.Events.ScrollBar:SetPoint("TOPLEFT", frame.Log.Events.ScrollBox, "TOPRIGHT", 0, -3)
+        frame.Log.Events.ScrollBar:SetPoint("BOTTOMLEFT", frame.Log.Events.ScrollBox, "BOTTOMRIGHT", 0, 0)
+
+        frame.SubTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        frame.SubTitle:SetWordWrap(false)
+        frame.SubTitle:SetJustifyH("CENTER")
+        frame.SubTitle:SetJustifyV("MIDDLE")
+        frame.SubTitle:SetPoint("TOPLEFT", frame.TitleBar, "BOTTOMLEFT", 0, 0)
+        frame.SubTitle:SetPoint("BOTTOMRIGHT", frame.Log.Events, "TOPRIGHT", 0, 0)
+
+        frame.EnableModule = CreateFrame("Button", nil, frame, "BigRedRefreshButtonTemplate")
+        frame.EnableModule.atlasName = "128-RedButton-Refresh"
+        frame.EnableModule.tooltip = L.ENABLE_RTWF_MODE_BUTTON
+        frame.EnableModule:InitButton()
+        frame.EnableModule:SetSize(24, 24)
+        frame.EnableModule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 3)
+        frame.EnableModule:SetScript("OnEnter", UIButtonMixin.OnEnter)
+        frame.EnableModule:SetScript("OnLeave", UIButtonMixin.OnLeave)
+        frame.EnableModule:SetScript("OnClick", function() config:Set("rtwfMode", true) ReloadUI() end)
+
+        frame.DisableModule = CreateFrame("Button", nil, frame, "BigRedRefreshButtonTemplate")
+        frame.DisableModule.atlasName = "128-RedButton-Exit"
+        frame.DisableModule.tooltip = L.DISABLE_RTWF_MODE_BUTTON
+        frame.DisableModule:InitButton()
+        frame.DisableModule:SetSize(24, 24)
+        frame.DisableModule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 3)
+        frame.DisableModule:SetScript("OnEnter", UIButtonMixin.OnEnter)
+        frame.DisableModule:SetScript("OnLeave", UIButtonMixin.OnLeave)
+        frame.DisableModule:SetScript("OnClick", function() config:Set("rtwfMode", false) ReloadUI() end)
+
+        frame.ReloadUI = CreateFrame("Button", nil, frame, "BigRedRefreshButtonTemplate")
+        frame.ReloadUI.atlasName = "128-RedButton-Refresh"
+        frame.ReloadUI.tooltip = L.RELOAD_RTWF_MODE_BUTTON
+        frame.ReloadUI:InitButton()
+        frame.ReloadUI:SetSize(24, 24)
+        frame.ReloadUI:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 5, 3)
+        frame.ReloadUI:SetScript("OnEnter", UIButtonMixin.OnEnter)
+        frame.ReloadUI:SetScript("OnLeave", UIButtonMixin.OnLeave)
+        frame.ReloadUI:SetScript("OnClick", ReloadUI)
+
+        function frame:OnShow()
+            local isEnabled = config:Get("rtwfMode")
+            local isLogging, instanceName = rtwf:GetLocation()
+            self.EnableModule:SetShown(not isEnabled)
+            self.DisableModule:SetShown(isEnabled)
+            self.ReloadUI:SetEnabled(isLogging)
+            self.SubTitle:SetText(format("%s |cff%s%s|r", instanceName or "", isLogging and "55ff55" or "ff55ff", isLogging and L.RTWF_FRAME_SUBTITLE_LOGGING_LOOT or L.RTWF_FRAME_SUBTITLE_PAUSED))
+        end
+
+        frame:HookScript("OnShow", frame.OnShow)
+
+        local function OnSettingsChanged()
+            if not config:IsEnabled() then
+                return
+            end
+            frame:OnShow()
+        end
+        callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")
+        callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_SAVED")
+
+        local function CalculateEventDelta(oldTimestamp, oldFrameCounter, currentTimestamp, currentFrameCounter)
+            if oldTimestamp ~= currentTimestamp then
+                return ("(%.3fs, %d)"):format(currentTimestamp - oldTimestamp, currentFrameCounter - oldFrameCounter)
+            end
+        end
+
+        function frame:GenerateTimestampData()
+            local systemTimestamp = GetTime()
+            local relativeTimestamp = systemTimestamp - self.loadTime
+            local eventDelta
+            local endElement = self.logDataProvider:Find(self.logDataProvider:GetSize())
+            if endElement then
+                eventDelta = CalculateEventDelta(endElement.relativeTimestamp, endElement.frameCounter, relativeTimestamp, self.frameCounter)
+            end
+            return systemTimestamp, relativeTimestamp, eventDelta
+        end
+
+        local MaxEvents = 1000
+
+        function frame:TrimDataProvider(dataProvider)
+            local dataProviderSize = dataProvider:GetSize()
+            if dataProviderSize > MaxEvents then
+                local extra = 100
+                local overflow = dataProviderSize - MaxEvents
+                dataProvider:RemoveIndexRange(1, overflow + extra)
+            end
+        end
+
+        local function CountSources(sources)
+            if not sources then
+                return
+            end
+            local count = 0
+            for _, _ in pairs(sources) do
+                count = count + 1
+            end
+            if count < 2 then
+                return
+            end
+            return format(" from %d %s", count, count == 0 or count > 1 and "sources" or "source")
+        end
+
+        local function GetDisplayText(elementData)
+            local lootEntry = elementData.args[1] ---@type RTWFLootEntry
+            local timeText = lootEntry.timestamp and date("%H:%M:%S", lootEntry.timestamp) or "--:--:--"
+            local typeText = lootEntry.type and LOG_TYPE_LABEL[lootEntry.type] or "Unknown"
+            local linkText = lootEntry.count and lootEntry.count > 1 and format("%sx%d", lootEntry.link, lootEntry.count) or lootEntry.link
+            local sourcesText = lootEntry.sources and CountSources(lootEntry.sources) or ""
+            return format("%s | %s | %s%s", timeText, typeText, linkText, sourcesText)
+        end
+
+        local function GetHyperlink(elementData)
+            local lootEntry = elementData.args[1] ---@type RTWFLootEntry
+            return lootEntry.link
+        end
+
+        local function FormatLogID(elementData)
+            return GRAY_FONT_COLOR:WrapTextInColorCode(string.format("[%.3d]", (elementData.id % MaxEvents)))
+        end
+
+        local function FormatLine(id, message)
+            return format("%s %s", id, message)
+        end
+
+        local function CreateClock(timestamp)
+            local units = ConvertSecondsToUnits(timestamp)
+            local seconds = units.seconds + units.milliseconds
+            return units.hours > 0 and
+                format("%.2d:%.2d:%06.3fs", units.hours, units.minutes, seconds) or
+                format("%.2d:%06.3fs", units.minutes, seconds)
+        end
+
+        local ArgumentColors = {
+            ["string"] = GREEN_FONT_COLOR,
+            ["number"] = ORANGE_FONT_COLOR,
+            ["boolean"] = BRIGHTBLUE_FONT_COLOR,
+            ["table"] = LIGHTYELLOW_FONT_COLOR,
+            ["nil"] = GRAY_FONT_COLOR,
+        }
+
+        local function GetArgumentColor(arg)
+            return ArgumentColors[type(arg)] or HIGHLIGHT_FONT_COLOR
+        end
+
+        local function FormatArgument(arg)
+            local color = GetArgumentColor(arg)
+            local t = type(arg)
+            if t == "string" then
+                return color:WrapTextInColorCode(string.format('"%s"', arg))
+            elseif t == "nil" then
+                return color:WrapTextInColorCode(t)
+            end
+            return color:WrapTextInColorCode(tostring(arg))
+        end
+
+        local function AddLineArguments(...)
+            local words = {}
+            local count = select("#", ...)
+            for index = 1, count do
+                local arg = select(index, ...)
+                table.insert(words, FormatArgument(arg))
+            end
+            local wordCount = #words
+            if wordCount == 0 then
+                return ""
+            elseif wordCount == 1 then
+                return words[1]
+            end
+            return table.concat(words, ", ")
+        end
+
+        local function AddTooltipArguments(tooltip, ...)
+            local count = select("#", ...)
+            for index = 1, count do
+                local arg = select(index, ...)
+                GameTooltip_AddColoredDoubleLine(tooltip, EVENTTRACE_ARG_FMT:format(index), FormatArgument(arg), HIGHLIGHT_FONT_COLOR, GetArgumentColor(arg))
+            end
+        end
+
+        function frame:CreateButtonAndInit(factory, elementData)
+            local button = factory("Button")
+            button.elementData = elementData
+            if not button.isInit then
+                button.isInit = true
+                button:SetHeight(20)
+                local function OnClick(self)
+                    local elementData = self.elementData
+                    local link = GetHyperlink(elementData)
+                    if not link then
+                        return
+                    end
+                    SetItemRef(link, link, GetMouseButtonClicked() or "LeftButton", ChatEdit_GetActiveWindow())
+                end
+                local function OnEnter(self)
+                    local elementData = self.elementData
+                    local link = GetHyperlink(elementData)
+                    if not link then
+                        return
+                    end
+                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    GameTooltip:SetHyperlink(link)
+                    -- GameTooltip_AddHighlightLine(GameTooltip, GetDisplayText(elementData), HIGHLIGHT_FONT_COLOR)
+                    -- GameTooltip_AddColoredDoubleLine(GameTooltip, EVENTTRACE_TIMESTAMP, elementData.systemTimestamp, HIGHLIGHT_FONT_COLOR, HIGHLIGHT_FONT_COLOR)
+                    -- AddTooltipArguments(GameTooltip, SafeUnpack(elementData.args))
+                    GameTooltip:Show()
+                end
+                local function OnLeave(self)
+                    GameTooltip:Hide()
+                end
+                button:SetScript("OnClick", OnClick)
+                button:SetScript("OnEnter", OnEnter)
+                button:SetScript("OnLeave", OnLeave)
+                button.RightLabel = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                button.RightLabel:SetWordWrap(false)
+                button.RightLabel:SetJustifyH("RIGHT")
+                button.RightLabel:SetHeight(20)
+                button.RightLabel:SetPoint("RIGHT", 0, -5)
+                button.LeftLabel = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                button.LeftLabel:SetWordWrap(false)
+                button.LeftLabel:SetJustifyH("LEFT")
+                button.LeftLabel:SetHeight(20)
+                button.LeftLabel:SetPoint("LEFT", 24 - 20, 0)
+                button.LeftLabel:SetPoint("RIGHT", button.RightLabel, "LEFT", -5, 0)
+            end
+            -- local id = FormatLogID(elementData)
+            local message = GetDisplayText(elementData)
+            elementData.lineWithoutArguments = message -- FormatLine(id, message)
+            elementData.arguments = AddLineArguments(SafeUnpack(elementData.args))
+            elementData.formattedArguments = GREEN_FONT_COLOR:WrapTextInColorCode(elementData.arguments)
+            button.LeftLabel:SetText(elementData.lineWithoutArguments)
+            -- local clock = CreateClock(elementData.relativeTimestamp)
+            -- elementData.formattedTimestamp = format("%s %s", clock, elementData.eventDelta and elementData.eventDelta or "")
+            -- button.RightLabel:SetText(GRAY_FONT_COLOR:WrapTextInColorCode(elementData.formattedTimestamp))
+        end
+
+        function frame:AddLoot(lootEntry)
+            self:Show()
+            local preInsertAtScrollEnd = self.Log.Events.ScrollBox:IsAtEnd()
+            local preInsertScrollable = self.Log.Events.ScrollBox:HasScrollableExtent()
+            local systemTimestamp, relativeTimestamp, eventDelta = self:GenerateTimestampData()
+            local elementData = { text = lootEntry.link, args = SafePack(lootEntry) }
+            elementData.id = self.idCounter()
+            elementData.systemTimestamp = systemTimestamp
+            elementData.relativeTimestamp = relativeTimestamp
+            elementData.frameCounter = self.frameCounter
+            elementData.eventDelta = eventDelta
+            self.logDataProvider:Insert(elementData)
+            self:TrimDataProvider(self.logDataProvider)
+            if not IsAltKeyDown() and (preInsertAtScrollEnd or (not preInsertScrollable and self.Log.Events.ScrollBox:HasScrollableExtent())) then
+                self.Log.Events.ScrollBox:ScrollToEnd(ScrollBoxConstants.NoScrollInterpolation)
+            end
+        end
+
+        local function SetScrollBoxButtonAlternateState(scrollBox)
+            local index = scrollBox:GetDataIndexBegin()
+            scrollBox:ForEachFrame(function(button)
+                -- button:SetAlternateOverlayShown(index % 2 == 1)
+                index = index + 1
+            end)
+        end
+
+        frame.Log.Events.ScrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnDataRangeChanged, function(sortPending) SetScrollBoxButtonAlternateState(frame.Log.Events.ScrollBox) end, frame)
+
+        local view = CreateScrollBoxListLinearView()
+		view:SetElementExtent(20)
+		view:SetElementFactory(function(factory, elementData) frame:CreateButtonAndInit(factory, elementData) end)
+
+        local pad, spacing = 2
+		view:SetPadding(pad, pad, pad, pad, spacing)
+		ScrollUtil.InitScrollBoxListWithScrollBar(frame.Log.Events.ScrollBox, frame.Log.Events.ScrollBar, view)
+		frame.Log.Events.ScrollBox:SetDataProvider(frame.logDataProvider)
+
+        frame:Hide()
+        return frame
+    end
+
+    function rtwf:CheckLocation()
+        if not config:Get("rtwfMode") then
+            return
+        end
+        local name, instanceType, difficultyID, difficultyName, maxPlayers, dynamicDifficulty, isDynamic, instanceID, instanceGroupSize, LfgDungeonID = GetInstanceInfo()
+        -- if config:Get("debugMode") then instanceType, difficultyID = "raid", 14 end -- DEBUG: treat any zone as a loggable zone
+        if instanceType == "raid" and (difficultyID == 14 or difficultyID == 15 or difficultyID == 16) then
+            LOCATION.logging, LOCATION.instanceName, LOCATION.instanceDifficulty, LOCATION.instanceID = true, name, difficultyID, instanceID
+            self:Enable()
+        else
+            LOCATION.logging = false
+            self:Disable()
+        end
+    end
+
+    function rtwf:GetLocation()
+        return LOCATION.logging, LOCATION.instanceName, LOCATION.instanceDifficulty, LOCATION.instanceID
+    end
+
+    function rtwf:CanLoad()
+        return config:IsEnabled() and config:Get("rtwfMode")
+    end
+
+    function rtwf:OnLoad()
+        LOOT_FRAME = CreateLootFrame()
+        self:CheckLocation()
+        callback:RegisterEvent(OnZoneEvent, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
+    end
+
+    function rtwf:OnEnable()
+        LOOT_FRAME:OnShow()
+        callback:RegisterEvent(OnEvent, unpack(TRACKING_EVENTS))
+    end
+
+    function rtwf:OnDisable()
+        LOOT_FRAME:OnShow()
+        callback:UnregisterEvent(OnEvent, unpack(TRACKING_EVENTS))
+    end
+
+    function rtwf:ToggleFrame()
+        LOOT_FRAME:SetShown(not LOOT_FRAME:IsShown())
+    end
+
+    function rtwf:ShowFrame()
+        LOOT_FRAME:Show()
+    end
+
+    function rtwf:HideFrame()
+        LOOT_FRAME:Hide()
+    end
+
+end
+
 -- settings.lua
 -- dependencies: module, callback, json, config, profile, search
 do
@@ -6186,6 +6714,7 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
     local profile = ns:GetModule("Profile") ---@type ProfileModule
     local search = ns:GetModule("Search") ---@type SearchModule
+    local rtwf = ns:GetModule("RaceToWorldFirst") ---@type RaceToWorldFirstModule
 
     local settingsFrame
     local reloadPopup = {
@@ -6217,6 +6746,24 @@ do
         OnHide = nil,
         OnAccept = function ()
             config:Set("debugMode", not config:Get("debugMode"))
+            ReloadUI()
+        end,
+        OnCancel = nil
+    }
+    local rtwfPopup = {
+        id = "RAIDERIO_RTWF_CONFIRM",
+        text = function() return config:Get("rtwfMode") and L.DISABLE_RTWF_MODE_RELOAD or L.ENABLE_RTWF_MODE_RELOAD end,
+        button1 = L.CONFIRM,
+        button2 = L.CANCEL,
+        hasEditBox = false,
+        preferredIndex = 3,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+        OnShow = nil,
+        OnHide = nil,
+        OnAccept = function ()
+            config:Set("rtwfMode", not config:Get("rtwfMode"))
             ReloadUI()
         end,
         OnCancel = nil
@@ -6651,7 +7198,6 @@ do
             configOptions:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
             configOptions:CreateOptionToggle(L.SHOW_SCORE_WITH_MODIFIER, L.SHOW_SCORE_WITH_MODIFIER_DESC, "showScoreModifier")
             configOptions:CreateOptionToggle(L.USE_ENGLISH_ABBREVIATION, L.USE_ENGLISH_ABBREVIATION_DESC, "useEnglishAbbreviations")
-            configOptions:CreateOptionToggle(L.ENABLE_BLIZZARD_SCORE_OVERRIDE, L.ENABLE_BLIZZARD_SCORE_OVERRIDE_DESC, "overrideScores")
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.CONFIG_WHERE_TO_SHOW_TOOLTIPS)
@@ -6825,6 +7371,15 @@ do
                     return
                 end
 
+                if text:find("[Rr][Tt][Ww][Ff]") then
+                    if rtwf:IsLoaded() and config:Get("rtwfMode") then
+                        rtwf:ToggleFrame()
+                    else
+                        StaticPopup_Show(rtwfPopup.id)
+                    end
+                    return
+                end
+
                 if text:find("[Gg][Rr][Oo][Uu][Pp]") then
                     json:OpenCopyDialog()
                     return
@@ -6864,6 +7419,7 @@ do
         settingsFrame = CreateOptions()
         StaticPopupDialogs[reloadPopup.id] = PreparePopup(reloadPopup)
         StaticPopupDialogs[debugPopup.id] = PreparePopup(debugPopup)
+        StaticPopupDialogs[rtwfPopup.id] = PreparePopup(rtwfPopup)
     end
 
     function settings:OnLoad()
@@ -7006,7 +7562,7 @@ do
 
 end
 
--- serverlog.lua
+-- serverlog.lua (requires debug mode)
 -- dependencies: module, callback, config, util
 do
 
@@ -7119,7 +7675,7 @@ do
 
 end
 
--- tests.lua
+-- tests.lua (requires debug mode)
 -- dependencies: module, config, provider
 do
 
@@ -7182,8 +7738,8 @@ do
 
     ---@type TestData[]
     local collection = {
-        { region = "eu", faction = 1, realm = "Ravencrest", name = "Voidzone", success = true },
-        { region = "eu", faction = 1, realm = "rAvEnCrEsT", name = "vOIdZoNe", success = true },
+        { region = "eu", faction = 2, realm = "TarrenMill", name = "Vladinator", success = true },
+        { region = "eu", faction = 2, realm = "tArReNmIlL", name = "vLaDiNaToR", success = true },
         CheckBothTestsAboveForSameProfiles,
         { region = "us", faction = 2, realm = "Skullcrusher", name = "Aspyrox", exists = false },
         { region = "us", faction = 2, realm = "sKuLLcRuSHeR", name = "aSpYrOx", exists = false },

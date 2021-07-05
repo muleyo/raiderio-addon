@@ -2934,12 +2934,11 @@ do
                     local runSeconds = run.bestRunDurationMS / 1000
                     local runNumUpgrades = 0
                     if run.finishedSuccess then
+						runNumUpgrades = 1 -- minimum 1 if timed
                         if runSeconds <= goldTimeLimit then
                             runNumUpgrades = 3
                         elseif runSeconds <= silverTimeLimit then
                             runNumUpgrades = 2
-                        elseif runSeconds <= bronzeTimeLimit then
-                            runNumUpgrades = 1
                         end
                     end
                     local runTimerAsFraction = runSeconds / (dungeonTimeLimit and dungeonTimeLimit > 0 and dungeonTimeLimit or 1) -- convert game timer to a fraction (1 or below is timed, above is depleted)

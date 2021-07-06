@@ -6301,13 +6301,15 @@ do
         if itemQuality and itemQuality == Enum.ItemQuality.Poor then
             return false
         end
+        if itemLink:find("item:.-:1:28:2105:") then
+            return true
+        end
         local _, _, _, itemEquipLoc = GetItemInfoInstant(itemLink) 
         if itemEquipLoc and itemEquipLoc == "" then
             return true
         end
-        -- TODO: instead of relying on GetDetailedItemLevelInfo that requires caching, maybe we just find the string in the link that means it's a Mythic item since we only care for the Mythic Raid items anyway?
-        local effectiveILvl = GetDetailedItemLevelInfo(itemLink) -- TODO: cache could delay this hence why we'd return true if it's nil or 0 in case cacheless query returns those values instead of the real ilvl
-        if not effectiveILvl or effectiveILvl <= 0 or effectiveILvl >= LOG_MIN_ILVL then
+        local effectiveILvl = GetDetailedItemLevelInfo(itemLink)
+        if effectiveILvl and effectiveILvl >= LOG_MIN_ILVL then
             return true
         end
     end
@@ -6539,7 +6541,7 @@ do
 
         local function GetDisplayText(elementData)
             local lootEntry = elementData.args[1] ---@type RWFLootEntry
-            local timeText = lootEntry.timestamp and lootEntry.type ~= LOG_TYPE.News and date("%H:%M:%S", lootEntry.timestamp) or "--:--:--"
+            local timeText = lootEntry.timestamp and date(lootEntry.type == LOG_TYPE.News and "%Y/%m/%d --:--:--" or "%Y/%m/%d %H:%M:%S", lootEntry.timestamp) or "----/--/-- --:--:--"
             local typeText = lootEntry.type and LOG_TYPE_LABEL[lootEntry.type] or "Unknown"
             local linkText = lootEntry.count and lootEntry.count > 1 and format("%sx%d", lootEntry.link, lootEntry.count) or lootEntry.link
             local sourcesText = lootEntry.sources and CountSources(lootEntry.sources) or ""

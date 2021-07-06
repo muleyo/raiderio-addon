@@ -6180,6 +6180,17 @@ do
         "CHAT_MSG_CURRENCY",
     }
 
+    local HEX_COLOR_QUALITY = {
+        ["9d9d9d"] = 0,
+        ["ffffff"] = 1,
+        ["1eff00"] = 2,
+        ["0070dd"] = 3,
+        ["a335ee"] = 4,
+        ["ff8000"] = 5,
+        ["e6cc80"] = 6,
+        ["00ccff"] = 7,
+    }
+
     local function GetItemFromText(text)
         if not text or type(text) ~= "string" then
             return
@@ -6196,7 +6207,7 @@ do
                 linkCount = tonumber(trailingCount)
             end
         end
-        return linkType, link, linkCount
+        return linkType, link, linkCount, HEX_COLOR_QUALITY[linkHexColor]
     end
 
     local LOG_MIN_ILVL = 252 -- Sanctum of Domination (Mythic)
@@ -6283,19 +6294,20 @@ do
         [NEWS_LEGENDARY_LOOTED] = 1,
     }
 
-    local function CanLogItem(itemLink, itemType)
+    local function CanLogItem(itemLink, itemType, itemQuality)
         if itemType == "currency" then
             return false
         end
-        local _, _, itemQuality, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
-        if itemQuality == Enum.ItemQuality.Poor then
+        if itemQuality and itemQuality == Enum.ItemQuality.Poor then
             return false
         end
+        local _, _, _, itemEquipLoc = GetItemInfoInstant(itemLink) 
         if itemEquipLoc and itemEquipLoc == "" then
             return true
         end
-        local effectiveILvl = GetDetailedItemLevelInfo(itemLink)
-        if effectiveILvl and effectiveILvl >= LOG_MIN_ILVL then
+        -- TODO: instead of relying on GetDetailedItemLevelInfo that requires caching, maybe we just find the string in the link that means it's a Mythic item since we only care for the Mythic Raid items anyway?
+        local effectiveILvl = GetDetailedItemLevelInfo(itemLink) -- TODO: cache could delay this hence why we'd return true if it's nil or 0 in case cacheless query returns those values instead of the real ilvl
+        if not effectiveILvl or effectiveILvl <= 0 or effectiveILvl >= LOG_MIN_ILVL then
             return true
         end
     end
@@ -6306,8 +6318,8 @@ do
                 local slotType = GetLootSlotType(i)
                 if slotType == LOOT_SLOT_ITEM or slotType == LOOT_SLOT_CURRENCY then
                     local lootLink = GetLootSlotLink(i)
-                    local itemType, itemLink, itemCount = GetItemFromText(lootLink)
-                    if itemType and CanLogItem(itemLink, itemType) then
+                    local itemType, itemLink, itemCount, itemQuality = GetItemFromText(lootLink)
+                    if itemType and CanLogItem(itemLink, itemType, itemQuality) then
                         local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i)
                         local lootSources = {GetLootSourceInfo(i)}
                         local itemSources = {}
@@ -6325,8 +6337,8 @@ do
         elseif event == "LOOT_HISTORY_FULL_UPDATE" or event == "LOOT_HISTORY_ROLL_COMPLETE" then
             for i = 1, C_LootHistory.GetNumItems() do
                 local rollID, rollLink, numPlayers, isDone, winnerIdx, isMasterLoot, isCurrency = C_LootHistory.GetItem(i)
-                local itemType, itemLink, itemCount = GetItemFromText(rollLink)
-                if itemType and CanLogItem(itemLink, itemType) then
+                local itemType, itemLink, itemCount, itemQuality = GetItemFromText(rollLink)
+                if itemType and CanLogItem(itemLink, itemType, itemQuality) then
                     local lootEntry = LogItemLink(LOG_TYPE.Roll, itemType, rollLink)
                     if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
                         LOOT_FRAME:AddLoot(lootEntry)
@@ -6335,8 +6347,8 @@ do
             end
         elseif event == "CHAT_MSG_LOOT" or event == "CHAT_MSG_CURRENCY" then
             local text = ...
-            local itemType, itemLink, itemCount = GetItemFromText(text)
-            if itemType and CanLogItem(itemLink, itemType) then
+            local itemType, itemLink, itemCount, itemQuality = GetItemFromText(text)
+            if itemType and CanLogItem(itemLink, itemType, itemQuality) then
                 local lootEntry = LogItemLink(LOG_TYPE.Chat, itemType, itemLink, itemCount or 1)
                 if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
                     LOOT_FRAME:AddLoot(lootEntry)
@@ -6346,8 +6358,8 @@ do
             for i = 1, GetNumGuildNews() do
                 local newsInfo = C_GuildInfo.GetGuildNewsInfo(i)
                 if newsInfo and newsInfo.newsType and LOG_GUILD_NEWS_TYPES[newsInfo.newsType] then
-                    local itemType, itemLink, itemCount = GetItemFromText(newsInfo.whatText)
-                    if itemType and CanLogItem(itemLink, itemType) then
+                    local itemType, itemLink, itemCount, itemQuality = GetItemFromText(newsInfo.whatText)
+                    if itemType and CanLogItem(itemLink, itemType, itemQuality) then
                         newsInfo.year = newsInfo.year + 2000
                         local timestamp = time(newsInfo)
                         local lootEntry = LogItemLink(LOG_TYPE.News, itemType, itemLink, nil, nil, timestamp)

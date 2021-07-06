@@ -2893,18 +2893,19 @@ do
         if not mythicKeystoneProfile then
             mythicKeystoneProfile = CreateEmptyMythicKeystoneData()
         end
-        if not mythicKeystoneProfile.hasOverrideScore then
-			-- Avoid reducing the score of a player
-			if overallScore > mythicKeystoneProfile.mplusCurrent.score then
-				mythicKeystoneProfile.hasOverrideScore = true
+
+		-- Avoid reducing the score of a player
+		if overallScore > mythicKeystoneProfile.mplusCurrent.score then
+			mythicKeystoneProfile.hasOverrideScore = true
+			if not mythicKeystoneProfile.hasOverrideScore then
 				mythicKeystoneProfile.originalCurrentScore = mythicKeystoneProfile.currentScore
-				mythicKeystoneProfile.currentScore = overallScore
 				mythicKeystoneProfile.mplusCurrent.originalScore = mythicKeystoneProfile.mplusCurrent.score
-				mythicKeystoneProfile.mplusCurrent.score = overallScore
 			end
-        end
-        if not mythicKeystoneProfile.hasOverrideDungeonRuns and type(keystoneRuns) == "table" then
-            mythicKeystoneProfile.hasOverrideDungeonRuns = true
+			mythicKeystoneProfile.currentScore = overallScore
+			mythicKeystoneProfile.mplusCurrent.score = overallScore
+		end
+
+        if type(keystoneRuns) == "table" then
             local maxDungeonIndex = 0
             local maxDungeonTime = 999
             local maxDungeonLevel = 0
@@ -2926,6 +2927,7 @@ do
                 end
                 local runLevel = run.bestRunLevel
                 if dungeonIndex and mythicKeystoneProfile.dungeons[dungeonIndex] <= runLevel then
+					mythicKeystoneProfile.hasOverrideDungeonRuns = true
                     local _, _, dungeonTimeLimit = C_ChallengeMode.GetMapUIInfo(run.challengeModeID)
                     local goldTimeLimit, silverTimeLimit, bronzeTimeLimit = -1, -1, dungeonTimeLimit
                     if dungeon.timers then

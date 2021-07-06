@@ -2898,15 +2898,16 @@ do
         if not mythicKeystoneProfile then
             mythicKeystoneProfile = CreateEmptyMythicKeystoneData()
         end
-        if not mythicKeystoneProfile.hasOverrideScore and type(overallScore) == "number" and overallScore > 0 and overallScore > mythicKeystoneProfile.currentScore then
-            mythicKeystoneProfile.hasOverrideScore = true
-            mythicKeystoneProfile.originalCurrentScore = mythicKeystoneProfile.currentScore
+        if type(overallScore) == "number" and overallScore > 0 and overallScore > mythicKeystoneProfile.currentScore then
+            if not mythicKeystoneProfile.hasOverrideScore then
+                mythicKeystoneProfile.hasOverrideScore = true
+                mythicKeystoneProfile.originalCurrentScore = mythicKeystoneProfile.currentScore
+                mythicKeystoneProfile.mplusCurrent.originalScore = mythicKeystoneProfile.mplusCurrent.score
+            end
             mythicKeystoneProfile.currentScore = overallScore
-            mythicKeystoneProfile.mplusCurrent.originalScore = mythicKeystoneProfile.mplusCurrent.score
             mythicKeystoneProfile.mplusCurrent.score = overallScore
         end
-        if not mythicKeystoneProfile.hasOverrideDungeonRuns and type(keystoneRuns) == "table" and keystoneRuns[1] then
-            mythicKeystoneProfile.hasOverrideDungeonRuns = true
+        if type(keystoneRuns) == "table" and keystoneRuns[1] then
             local maxDungeonIndex = 0
             local maxDungeonTime = 999
             local maxDungeonLevel = 0
@@ -2928,6 +2929,7 @@ do
                 end
                 local runLevel = run.bestRunLevel
                 if dungeonIndex and mythicKeystoneProfile.dungeons[dungeonIndex] <= runLevel then
+                    mythicKeystoneProfile.hasOverrideDungeonRuns = true
                     local _, _, dungeonTimeLimit = C_ChallengeMode.GetMapUIInfo(run.challengeModeID)
                     local goldTimeLimit, silverTimeLimit, bronzeTimeLimit = -1, -1, dungeonTimeLimit
                     if dungeon.timers then
@@ -6158,12 +6160,12 @@ do
 
 end
 
--- rtwf.lua (requires rtwf mode)
+-- rwf.lua (requires rwf mode)
 -- dependencies: module, callback, config
 do
 
-    ---@class RaceToWorldFirstModule : Module
-    local rtwf = ns:NewModule("RaceToWorldFirst") ---@type RaceToWorldFirstModule
+    ---@class RaceWorldFirstModule : Module
+    local rwf = ns:NewModule("RaceWorldFirst") ---@type RaceWorldFirstModule
     local callback = ns:GetModule("Callback") ---@type CallbackModule
     local config = ns:GetModule("Config") ---@type ConfigModule
 
@@ -6196,6 +6198,8 @@ do
         end
         return linkType, link, linkCount
     end
+
+    local LOG_MIN_ILVL = 252 -- Sanctum of Domination (Mythic)
 
     local LOG_TYPE = {
         Loot = 1,
@@ -6241,9 +6245,9 @@ do
     ---@class RWFLootEntry
 
     local function LogItemLink(logType, linkType, link, count, sources, useTimestamp)
-        local isLogging, instanceName, instanceDifficulty, instanceID = rtwf:GetLocation()
-        if not isLogging then
-            instanceName = GUILD_NEWS or "Guild News"
+        local isLogging, instanceName, instanceDifficulty, instanceID = rwf:GetLocation()
+        if logType == LOG_TYPE.News then
+            instanceName = _G.GUILD_NEWS or _G.GUILD_NEWS_TITLE
             instanceID, instanceDifficulty = 0, 0
         end
         if not instanceID or not instanceDifficulty then
@@ -6281,17 +6285,17 @@ do
 
     local function CanLogItem(itemLink, itemType)
         if itemType == "currency" then
-            return true
+            return false
         end
         local _, _, itemQuality, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+        if itemQuality == Enum.ItemQuality.Poor then
+            return false
+        end
         if itemEquipLoc and itemEquipLoc == "" then
             return true
         end
-        if itemQuality and itemQuality == Enum.ItemQuality.Poor then
-            return false
-        end
         local effectiveILvl = GetDetailedItemLevelInfo(itemLink)
-        if effectiveILvl and effectiveILvl >= 252 then -- Sanctum of Domination (Mythic)
+        if effectiveILvl and effectiveILvl >= LOG_MIN_ILVL then
             return true
         end
     end
@@ -6325,7 +6329,7 @@ do
                 if itemType and CanLogItem(itemLink, itemType) then
                     local lootEntry = LogItemLink(LOG_TYPE.Roll, itemType, rollLink)
                     if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
-                        LOOT_FRAME:AddLoot(lootEntry, true)
+                        LOOT_FRAME:AddLoot(lootEntry)
                     end
                 end
             end
@@ -6335,7 +6339,7 @@ do
             if itemType and CanLogItem(itemLink, itemType) then
                 local lootEntry = LogItemLink(LOG_TYPE.Chat, itemType, itemLink, itemCount or 1)
                 if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
-                    LOOT_FRAME:AddLoot(lootEntry, true)
+                    LOOT_FRAME:AddLoot(lootEntry)
                 end
             end
         elseif event == "GUILD_NEWS_UPDATE" then
@@ -6348,7 +6352,7 @@ do
                         local timestamp = time(newsInfo)
                         local lootEntry = LogItemLink(LOG_TYPE.News, itemType, itemLink, nil, nil, timestamp)
                         if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
-                            LOOT_FRAME:AddLoot(lootEntry, true)
+                            LOOT_FRAME:AddLoot(lootEntry)
                         end
                     end
                 end
@@ -6360,7 +6364,7 @@ do
     end
 
     local function OnZoneEvent()
-        rtwf:CheckLocation()
+        rwf:CheckLocation()
     end
 
     local function CreateLootFrame()
@@ -6461,7 +6465,7 @@ do
 
         function frame:OnShow()
             local isEnabled = config:Get("rwfMode")
-            local isLogging, instanceName = rtwf:GetLocation()
+            local isLogging, instanceName = rwf:GetLocation()
             self.EnableModule:SetShown(not isEnabled)
             self.DisableModule:SetShown(isEnabled)
             self.ReloadUI:SetEnabled(self:GetNumLootItems() > 0)
@@ -6658,8 +6662,8 @@ do
             return self.logDataProvider:GetSize()
         end
 
-        function frame:AddLoot(lootEntry, silent)
-            if not silent then
+        function frame:AddLoot(lootEntry, showFrame)
+            if showFrame then
                 self:Show()
             end
             local preInsertAtScrollEnd = self.Log.Events.ScrollBox:IsAtEnd()
@@ -6701,7 +6705,7 @@ do
         return frame
     end
 
-    function rtwf:CheckLocation()
+    function rwf:CheckLocation()
         if not config:Get("rwfMode") then
             return
         end
@@ -6716,40 +6720,40 @@ do
         end
     end
 
-    function rtwf:GetLocation()
+    function rwf:GetLocation()
         return LOCATION.logging, LOCATION.instanceName, LOCATION.instanceDifficulty, LOCATION.instanceID
     end
 
-    function rtwf:CanLoad()
+    function rwf:CanLoad()
         return config:IsEnabled() and config:Get("rwfMode")
     end
 
-    function rtwf:OnLoad()
+    function rwf:OnLoad()
         LOOT_FRAME = CreateLootFrame()
         self:CheckLocation()
         callback:RegisterEvent(OnZoneEvent, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
         callback:RegisterEvent(OnEvent, "GUILD_NEWS_UPDATE")
     end
 
-    function rtwf:OnEnable()
+    function rwf:OnEnable()
         LOOT_FRAME:OnShow()
         callback:RegisterEvent(OnEvent, unpack(TRACKING_EVENTS))
     end
 
-    function rtwf:OnDisable()
+    function rwf:OnDisable()
         LOOT_FRAME:OnShow()
         callback:UnregisterEvent(OnEvent, unpack(TRACKING_EVENTS))
     end
 
-    function rtwf:ToggleFrame()
+    function rwf:ToggleFrame()
         LOOT_FRAME:SetShown(not LOOT_FRAME:IsShown())
     end
 
-    function rtwf:ShowFrame()
+    function rwf:ShowFrame()
         LOOT_FRAME:Show()
     end
 
-    function rtwf:HideFrame()
+    function rwf:HideFrame()
         LOOT_FRAME:Hide()
     end
 
@@ -6766,7 +6770,7 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
     local profile = ns:GetModule("Profile") ---@type ProfileModule
     local search = ns:GetModule("Search") ---@type SearchModule
-    local rtwf = ns:GetModule("RaceToWorldFirst") ---@type RaceToWorldFirstModule
+    local rwf = ns:GetModule("RaceWorldFirst") ---@type RaceWorldFirstModule
 
     local settingsFrame
     local reloadPopup = {
@@ -7424,8 +7428,8 @@ do
                 end
 
                 if text:find("[Rr][Ww][Ff]") then
-                    if rtwf:IsLoaded() and config:Get("rwfMode") then
-                        rtwf:ToggleFrame()
+                    if rwf:IsLoaded() and config:Get("rwfMode") then
+                        rwf:ToggleFrame()
                     else
                         StaticPopup_Show(rtwfPopup.id)
                     end

@@ -6294,14 +6294,14 @@ do
         [NEWS_LEGENDARY_LOOTED] = 1,
     }
 
-    local function CanLogItem(itemLink, itemType, itemQuality)
+    local function CanLogItem(itemLink, itemType, itemQuality, itemLinkFilter)
         if itemType == "currency" then
             return false
         end
         if itemQuality and itemQuality == Enum.ItemQuality.Poor then
             return false
         end
-        if itemLink:find("item:.-:1:28:2105:") then
+        if itemLinkFilter and itemLink:find(itemLinkFilter) then
             return true
         end
         local _, _, _, itemEquipLoc = GetItemInfoInstant(itemLink) 
@@ -6361,7 +6361,7 @@ do
                 local newsInfo = C_GuildInfo.GetGuildNewsInfo(i)
                 if newsInfo and newsInfo.newsType and LOG_GUILD_NEWS_TYPES[newsInfo.newsType] then
                     local itemType, itemLink, itemCount, itemQuality = GetItemFromText(newsInfo.whatText)
-                    if itemType and CanLogItem(itemLink, itemType, itemQuality) then
+                    if itemType and CanLogItem(itemLink, itemType, itemQuality, "item:.-:1:28:2105:") then
                         newsInfo.year = newsInfo.year + 2000
                         local timestamp = time(newsInfo)
                         local lootEntry = LogItemLink(LOG_TYPE.News, itemType, itemLink, nil, nil, timestamp)

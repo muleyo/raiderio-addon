@@ -6374,7 +6374,7 @@ do
         end
 
         local frame = CreateFrame("Frame", nil, UIParent, "ButtonFrameTemplate")
-        frame:SetSize(400, 225)
+        frame:SetSize(400, 250)
         frame:SetPoint("CENTER")
         frame:SetFrameStrata("HIGH")
         ButtonFrameTemplate_HidePortrait(frame)

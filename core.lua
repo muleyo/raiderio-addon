@@ -6210,10 +6210,14 @@ do
                 linkCount = tonumber(trailingCount)
             end
         end
-        return linkType, link, linkCount, HEX_COLOR_QUALITY[linkHexColor]
+        return linkType, linkArg1, link, linkCount, HEX_COLOR_QUALITY[linkHexColor]
     end
 
-    local LOG_MIN_ILVL = 252 -- Sanctum of Domination (Mythic)
+    -- Sanctum of Domination (Mythic)
+    local LOG_FILTER = {
+        GUILD_NEWS = "item:.-:1:28:2106:",
+        ITEM_LEVEL = 252,
+    }
 
     local LOG_TYPE = {
         Loot = 1,
@@ -6258,7 +6262,7 @@ do
 
     ---@class RWFLootEntry
 
-    local function LogItemLink(logType, linkType, link, count, sources, useTimestamp)
+    local function LogItemLink(logType, linkType, id, link, count, sources, useTimestamp)
         local isLogging, instanceName, instanceDifficulty, instanceID = rwf:GetLocation()
         if logType == LOG_TYPE.News then
             instanceName = _G.GUILD_NEWS or _G.GUILD_NEWS_TITLE
@@ -6277,6 +6281,7 @@ do
         lootEntry.type = logType
         lootEntry.isNew = not lootEntry.timestamp
         lootEntry.timestamp = lootEntry.timestamp or timestamp
+        lootEntry.id = id and tonumber(id)
         lootEntry.link = link
         lootEntry.count = (lootEntry.count or 0) + (logType == LOG_TYPE.Chat and count or 0)
         lootEntry.sources = lootEntry.sources or {}
@@ -6312,7 +6317,7 @@ do
             return true
         end
         local effectiveILvl = GetDetailedItemLevelInfo(itemLink)
-        if effectiveILvl and effectiveILvl >= LOG_MIN_ILVL then
+        if effectiveILvl and effectiveILvl >= LOG_FILTER.ITEM_LEVEL then
             return true
         end
     end
@@ -6323,7 +6328,7 @@ do
                 local slotType = GetLootSlotType(i)
                 if slotType == LOOT_SLOT_ITEM or slotType == LOOT_SLOT_CURRENCY then
                     local lootLink = GetLootSlotLink(i)
-                    local itemType, itemLink, itemCount, itemQuality = GetItemFromText(lootLink)
+                    local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(lootLink)
                     if itemType and CanLogItem(itemLink, itemType, itemQuality) then
                         local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i)
                         local lootSources = {GetLootSourceInfo(i)}
@@ -6332,7 +6337,7 @@ do
                             local guid, quantity = lootSources[j], lootSources[j + 1]
                             itemSources[guid] = quantity
                         end
-                        local lootEntry = LogItemLink(LOG_TYPE.Loot, itemType, lootLink, lootQuantity, itemSources)
+                        local lootEntry = LogItemLink(LOG_TYPE.Loot, itemType, itemID, lootLink, lootQuantity, itemSources)
                         if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
                             LOOT_FRAME:AddLoot(lootEntry)
                         end
@@ -6342,9 +6347,9 @@ do
         elseif event == "LOOT_HISTORY_FULL_UPDATE" or event == "LOOT_HISTORY_ROLL_COMPLETE" then
             for i = 1, C_LootHistory.GetNumItems() do
                 local rollID, rollLink, numPlayers, isDone, winnerIdx, isMasterLoot, isCurrency = C_LootHistory.GetItem(i)
-                local itemType, itemLink, itemCount, itemQuality = GetItemFromText(rollLink)
+                local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(rollLink)
                 if itemType and CanLogItem(itemLink, itemType, itemQuality) then
-                    local lootEntry = LogItemLink(LOG_TYPE.Roll, itemType, rollLink)
+                    local lootEntry = LogItemLink(LOG_TYPE.Roll, itemType, itemID, rollLink)
                     if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
                         LOOT_FRAME:AddLoot(lootEntry)
                     end
@@ -6352,9 +6357,9 @@ do
             end
         elseif event == "CHAT_MSG_LOOT" or event == "CHAT_MSG_CURRENCY" then
             local text = ...
-            local itemType, itemLink, itemCount, itemQuality = GetItemFromText(text)
+            local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(text)
             if itemType and CanLogItem(itemLink, itemType, itemQuality) then
-                local lootEntry = LogItemLink(LOG_TYPE.Chat, itemType, itemLink, itemCount or 1)
+                local lootEntry = LogItemLink(LOG_TYPE.Chat, itemType, itemID, itemLink, itemCount or 1)
                 if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
                     LOOT_FRAME:AddLoot(lootEntry)
                 end
@@ -6363,11 +6368,11 @@ do
             for i = 1, GetNumGuildNews() do
                 local newsInfo = C_GuildInfo.GetGuildNewsInfo(i)
                 if newsInfo and newsInfo.newsType and LOG_GUILD_NEWS_TYPES[newsInfo.newsType] then
-                    local itemType, itemLink, itemCount, itemQuality = GetItemFromText(newsInfo.whatText)
-                    if itemType and CanLogItem(itemLink, itemType, itemQuality, "item:.-:1:28:2105:") then
+                    local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(newsInfo.whatText)
+                    if itemType and CanLogItem(itemLink, itemType, itemQuality, LOG_FILTER.GUILD_NEWS) then
                         newsInfo.year = newsInfo.year + 2000
                         local timestamp = time(newsInfo)
-                        local lootEntry = LogItemLink(LOG_TYPE.News, itemType, itemLink, nil, nil, timestamp)
+                        local lootEntry = LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, nil, nil, timestamp)
                         if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
                             LOOT_FRAME:AddLoot(lootEntry)
                         end
@@ -6483,7 +6488,7 @@ do
         function frame:OnShow()
             local isEnabled = config:Get("rwfMode")
             local isLogging, instanceName = rwf:GetLocation()
-            local isLoggingGuildNews = self:IsEventRegistered("GUILD_NEWS_UPDATE")
+            local isLoggingGuildNews = true -- always logging guild news
             if not isLogging and isLoggingGuildNews then
                 instanceName = _G.GUILD_NEWS or _G.GUILD_NEWS_TITLE
             end
@@ -6523,7 +6528,7 @@ do
 
         local MaxEvents = 1000
 
-        function frame:TrimDataProvider(dataProvider)
+        local function TrimDataProvider(dataProvider)
             local dataProviderSize = dataProvider:GetSize()
             if dataProviderSize > MaxEvents then
                 local extra = 100
@@ -6547,7 +6552,7 @@ do
         end
 
         local function GetDisplayText(elementData)
-            local lootEntry = elementData.args[1] ---@type RWFLootEntry
+            local lootEntry = elementData.lootEntry ---@type RWFLootEntry
             local timeText = lootEntry.timestamp and date(lootEntry.type == LOG_TYPE.News and "%Y/%m/%d --:--:--" or "%Y/%m/%d %H:%M:%S", lootEntry.timestamp) or "----/--/-- --:--:--"
             local typeText = lootEntry.type and LOG_TYPE_LABEL[lootEntry.type] or "Unknown"
             local linkText = lootEntry.count and lootEntry.count > 1 and format("%sx%d", lootEntry.link, lootEntry.count) or lootEntry.link
@@ -6556,71 +6561,23 @@ do
         end
 
         local function GetHyperlink(elementData)
-            local lootEntry = elementData.args[1] ---@type RWFLootEntry
+            local lootEntry = elementData.lootEntry ---@type RWFLootEntry
             return lootEntry.link
         end
 
-        local function FormatLogID(elementData)
-            return GRAY_FONT_COLOR:WrapTextInColorCode(string.format("[%.3d]", (elementData.id % MaxEvents)))
+        local function UpdateLootEntryLink(elementData, event)
+            local lootEntry = elementData.lootEntry ---@type RWFLootEntry
+            if lootEntry.link and not lootEntry.link:find("[]", nil, true) then return end
+            local _, link = GetItemInfo(lootEntry.link)
+            if not link then return end
+            lootEntry.link = link
+            return true
         end
 
-        local function FormatLine(id, message)
-            return format("%s %s", id, message)
-        end
-
-        local function CreateClock(timestamp)
-            local units = ConvertSecondsToUnits(timestamp)
-            local seconds = units.seconds + units.milliseconds
-            return units.hours > 0 and
-                format("%.2d:%.2d:%06.3fs", units.hours, units.minutes, seconds) or
-                format("%.2d:%06.3fs", units.minutes, seconds)
-        end
-
-        local ArgumentColors = {
-            ["string"] = GREEN_FONT_COLOR,
-            ["number"] = ORANGE_FONT_COLOR,
-            ["boolean"] = BRIGHTBLUE_FONT_COLOR,
-            ["table"] = LIGHTYELLOW_FONT_COLOR,
-            ["nil"] = GRAY_FONT_COLOR,
-        }
-
-        local function GetArgumentColor(arg)
-            return ArgumentColors[type(arg)] or HIGHLIGHT_FONT_COLOR
-        end
-
-        local function FormatArgument(arg)
-            local color = GetArgumentColor(arg)
-            local t = type(arg)
-            if t == "string" then
-                return color:WrapTextInColorCode(string.format('"%s"', arg))
-            elseif t == "nil" then
-                return color:WrapTextInColorCode(t)
-            end
-            return color:WrapTextInColorCode(tostring(arg))
-        end
-
-        local function AddLineArguments(...)
-            local words = {}
-            local count = select("#", ...)
-            for index = 1, count do
-                local arg = select(index, ...)
-                table.insert(words, FormatArgument(arg))
-            end
-            local wordCount = #words
-            if wordCount == 0 then
-                return ""
-            elseif wordCount == 1 then
-                return words[1]
-            end
-            return table.concat(words, ", ")
-        end
-
-        local function AddTooltipArguments(tooltip, ...)
-            local count = select("#", ...)
-            for index = 1, count do
-                local arg = select(index, ...)
-                GameTooltip_AddColoredDoubleLine(tooltip, EVENTTRACE_ARG_FMT:format(index), FormatArgument(arg), HIGHLIGHT_FONT_COLOR, GetArgumentColor(arg))
-            end
+        local function UpdateButtonText(button)
+            local elementData = button.elementData
+            elementData.text = GetDisplayText(elementData)
+            button.LeftLabel:SetText(elementData.text)
         end
 
         function frame:CreateButtonAndInit(factory, elementData)
@@ -6629,6 +6586,11 @@ do
             if not button.isInit then
                 button.isInit = true
                 button:SetHeight(20)
+                local function OnEvent(self, event, itemID, success)
+                    if event ~= "GET_ITEM_INFO_RECEIVED" or not success or itemID ~= self.elementData.lootEntry.id then return end
+                    if not UpdateLootEntryLink(self.elementData, event) then return end
+                    UpdateButtonText(self)
+                end
                 local function OnClick(self)
                     local elementData = self.elementData
                     local link = GetHyperlink(elementData)
@@ -6645,14 +6607,13 @@ do
                     end
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                     GameTooltip:SetHyperlink(link)
-                    -- GameTooltip_AddHighlightLine(GameTooltip, GetDisplayText(elementData), HIGHLIGHT_FONT_COLOR)
-                    -- GameTooltip_AddColoredDoubleLine(GameTooltip, EVENTTRACE_TIMESTAMP, elementData.systemTimestamp, HIGHLIGHT_FONT_COLOR, HIGHLIGHT_FONT_COLOR)
-                    -- AddTooltipArguments(GameTooltip, SafeUnpack(elementData.args))
                     GameTooltip:Show()
                 end
                 local function OnLeave(self)
                     GameTooltip:Hide()
                 end
+                button:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+                button:SetScript("OnEvent", OnEvent)
                 button:SetScript("OnClick", OnClick)
                 button:SetScript("OnEnter", OnEnter)
                 button:SetScript("OnLeave", OnLeave)
@@ -6668,15 +6629,8 @@ do
                 button.LeftLabel:SetPoint("LEFT", 24 - 20, 0)
                 button.LeftLabel:SetPoint("RIGHT", button.RightLabel, "LEFT", -5, 0)
             end
-            -- local id = FormatLogID(elementData)
-            local message = GetDisplayText(elementData)
-            elementData.lineWithoutArguments = message -- FormatLine(id, message)
-            elementData.arguments = AddLineArguments(SafeUnpack(elementData.args))
-            elementData.formattedArguments = GREEN_FONT_COLOR:WrapTextInColorCode(elementData.arguments)
-            button.LeftLabel:SetText(elementData.lineWithoutArguments)
-            -- local clock = CreateClock(elementData.relativeTimestamp)
-            -- elementData.formattedTimestamp = format("%s %s", clock, elementData.eventDelta and elementData.eventDelta or "")
-            -- button.RightLabel:SetText(GRAY_FONT_COLOR:WrapTextInColorCode(elementData.formattedTimestamp))
+            UpdateLootEntryLink(elementData, self:IsShown())
+            UpdateButtonText(button)
         end
 
         function frame:GetNumLootItems()
@@ -6690,14 +6644,14 @@ do
             local preInsertAtScrollEnd = self.Log.Events.ScrollBox:IsAtEnd()
             local preInsertScrollable = self.Log.Events.ScrollBox:HasScrollableExtent()
             local systemTimestamp, relativeTimestamp, eventDelta = self:GenerateTimestampData()
-            local elementData = { text = lootEntry.link, args = SafePack(lootEntry) }
+            local elementData = { lootEntry = lootEntry, text = lootEntry.link }
             elementData.id = self.idCounter()
             elementData.systemTimestamp = systemTimestamp
             elementData.relativeTimestamp = relativeTimestamp
             elementData.frameCounter = self.frameCounter
             elementData.eventDelta = eventDelta
             self.logDataProvider:Insert(elementData)
-            self:TrimDataProvider(self.logDataProvider)
+            TrimDataProvider(self.logDataProvider)
             if not IsAltKeyDown() and (preInsertAtScrollEnd or (not preInsertScrollable and self.Log.Events.ScrollBox:HasScrollableExtent())) then
                 self.Log.Events.ScrollBox:ScrollToEnd(ScrollBoxConstants.NoScrollInterpolation)
             end

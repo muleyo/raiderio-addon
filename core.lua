@@ -5656,7 +5656,7 @@ do
         do
             -- look and feel
             frame:SetScale(1.2)
-            frame:SetFrameStrata("HIGH")
+            frame:SetFrameStrata("MEDIUM")
             frame:SetSize(115, 115)
             if frame.SetBackdrop then
                 frame:SetBackdrop(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)

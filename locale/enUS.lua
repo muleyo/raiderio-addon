@@ -194,6 +194,6 @@ L.DISABLE_RWF_MODE_BUTTON = "Click to disable Race World First Mode.\r\nThis wil
 L.RELOAD_RWF_MODE_BUTTON = "Click to save the log to storage file.\r\nThis will cause your Interface to Reload."
 L.RWF_TITLE = "|cffFFFFFFRaider.IO|r Race World First"
 L.RWF_SUBTITLE_LOGGING_LOOT = "(logging loot)"
-L.RWF_SUBTITLE_PAUSED = "(paused)"
+L.RWF_SUBTITLE_LOGGING_FILTERED_LOOT = "(logging relevant items)"
 
 ns.L = L

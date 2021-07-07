@@ -6480,10 +6480,14 @@ do
         function frame:OnShow()
             local isEnabled = config:Get("rwfMode")
             local isLogging, instanceName = rwf:GetLocation()
+            local isLoggingGuildNews = self:IsEventRegistered("GUILD_NEWS_UPDATE")
+            if not isLogging and isLoggingGuildNews then
+                instanceName = _G.GUILD_NEWS or _G.GUILD_NEWS_TITLE
+            end
             self.EnableModule:SetShown(not isEnabled)
             self.DisableModule:SetShown(isEnabled)
             self.ReloadUI:SetEnabled(self:GetNumLootItems() > 0)
-            self.SubTitle:SetText(format("%s |cff%s%s|r", instanceName or "", isLogging and "55ff55" or "ff55ff", isLogging and L.RWF_SUBTITLE_LOGGING_LOOT or L.RWF_SUBTITLE_PAUSED))
+            self.SubTitle:SetText(format("%s |cff%s%s|r", instanceName or "", (isLogging or isLoggingGuildNews) and "55ff55" or "ff55ff", isLogging and L.RWF_SUBTITLE_LOGGING_LOOT or L.RWF_SUBTITLE_LOGGING_FILTERED_LOOT))
         end
 
         frame:HookScript("OnShow", frame.OnShow)

@@ -58,7 +58,7 @@ do
     ns.OUTDATED_BLOCK_CUTOFF = 86400 * 7 -- number of seconds before we hide the data (block showing score as its most likely inaccurate)
     ns.PROVIDER_DATA_TYPE = {MythicKeystone = 1, Raid = 2, PvP = 3}
     ns.LOOKUP_MAX_SIZE = floor(2^18-1)
-    ns.CURRENT_SEASON = 1 -- TODO: dynamic?
+    ns.CURRENT_SEASON = 1
     ns.RAIDERIO_ADDON_DOWNLOAD_URL = "https://rio.gg/addon"
 
     ns.HEADLINE_MODE = {
@@ -1967,6 +1967,9 @@ do
                     end
                 end
             end
+            if not provider.desynced and not provider.blocked and provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
+                ns.CURRENT_SEASON = provider.currentSeasonId
+            end
         end
         if desynced then
             ns.Print(format(L.OUT_OF_SYNC_DATABASE_S, addonName))
@@ -3412,7 +3415,7 @@ do
     local DUNGEONS = ns:GetDungeonData()
 
     local function GetSeasonLabel(label, season)
-        return format(label, format(L["SEASON_LABEL_" .. season], season))
+        return format(label, format(floor(season) == season and L.SEASON_LABEL or L.SEASON_LABEL_POST, season))
     end
 
     ---@param data DataProviderMythicKeystoneScore

@@ -7516,38 +7516,66 @@ do
     local LibCombatLogging = LibStub and LibStub:GetLibrary("LibCombatLogging-1.0", true) ---@type LibCombatLogging
     local LoggingCombat = LibCombatLogging and function(...) return LibCombatLogging.LoggingCombat("Raider.IO", ...) end or _G.LoggingCombat
 
-    local autoLogInstanceMapIDs
-    local autoLogDifficultyIDs do
-        autoLogInstanceMapIDs = {
-            -- [2162] = true, -- Torghast, Tower of the Damned
-            [2296] = true, -- Castle Nathria
-        }
-        autoLogDifficultyIDs = {
-            -- scenario
-            [167] = true, -- Torghast
-            -- party
-            [23] = true, -- Mythic
-            [8] = true, -- Mythic Keystone
-            -- raid
-            [14] = true, -- Normal
-            [15] = true, -- Heroic
-            [16] = true, -- Mythic
-        }
-        local dungeons = ns:GetDungeonData()
-        for _, dungeon in ipairs(dungeons) do
-            autoLogInstanceMapIDs[dungeon.instance_map_id] = true
+    local autoLogFromMapID do
+        local raidMapID = 2296 --[=[ do
+            local currExpTier = GetAccountExpansionLevel() + 1
+            local currTier = EJ_GetCurrentTier()
+            EJ_SelectTier(currExpTier)
+            local index = 0
+            local firstRaidMapID
+            while not firstRaidMapID do
+                index = index + 1
+                local instanceID = EJ_GetInstanceByIndex(index, true)
+                if not instanceID then
+                    break
+                end
+                EJ_SelectInstance(instanceID)
+                local _, _, _, _, _, _, dungeonAreaMapID = EJ_GetInstanceInfo()
+                if dungeonAreaMapID and dungeonAreaMapID > 0 then
+                    _, _, _, _, _, _, _, firstRaidMapID = EJ_GetEncounterInfoByIndex(1, instanceID)
+                end
+            end
+            EJ_SelectTier(currTier)
+        end --]=]
+        local keystoneMapID do
+            local dungeons = ns:GetDungeonData()
+            for _, dungeon in ipairs(dungeons) do
+                if not keystoneMapID or keystoneMapID > dungeon.instance_map_id then
+                    keystoneMapID = dungeon.instance_map_id
+                end
+            end
+        end
+        if raidMapID and keystoneMapID then
+            autoLogFromMapID = keystoneMapID > raidMapID and raidMapID or keystoneMapID
+        elseif raidMapID then
+            autoLogFromMapID = raidMapID
+        elseif keystoneMapID then
+            autoLogFromMapID = keystoneMapID
+        else
+            autoLogFromMapID = 0
         end
     end
 
+    local autoLogDifficultyIDs = {
+        -- scenario
+        [167] = true, -- Torghast
+        -- party
+        [23] = true, -- Mythic
+        [8] = true, -- Mythic Keystone
+        -- raid
+        [14] = true, -- Normal
+        [15] = true, -- Heroic
+        [16] = true, -- Mythic
+    }
+
     local lastActive
     local previouslyEnabledLogging
-
     local function CheckInstance(newModuleState)
         local _, _, difficultyID, _, _, _, _, instanceMapID = GetInstanceInfo()
         if not difficultyID or not instanceMapID then
             return
         end
-        local isActive = not not (autoLogInstanceMapIDs[instanceMapID] and autoLogDifficultyIDs[difficultyID])
+        local isActive = not not (instanceMapID >= autoLogFromMapID and autoLogDifficultyIDs[difficultyID])
         if isActive == lastActive then
             return
         end

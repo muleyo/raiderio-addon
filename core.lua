@@ -6915,6 +6915,7 @@ do
         autoLogInstanceMapIDs = {
             -- [2162] = true, -- Torghast, Tower of the Damned
             [2296] = true, -- Castle Nathria
+            [2450] = true, -- Sanctum of Domination
         }
         autoLogDifficultyIDs = {
             -- scenario

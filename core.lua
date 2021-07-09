@@ -6289,17 +6289,19 @@ do
         if not instanceID or not instanceDifficulty then
             return
         end
-        local timestamp = useTimestamp or GetServerTime()
-        local success, tables = GetNestedTable(_G.RaiderIO_RWF, instanceID, instanceDifficulty, link)
+        local linkAsKey = link:gsub("%[[^%]]*%]", "")
+        local success, tables = GetNestedTable(_G.RaiderIO_RWF, instanceID, instanceDifficulty, linkAsKey)
         if not success then
             return false
         end
         tables[1].name = instanceName
         local lootEntry = tables[3] ---@type RWFLootEntry
+        local timestamp = useTimestamp or GetServerTime()
         lootEntry.type = logType
         lootEntry.isNew = not lootEntry.timestamp
         lootEntry.timestamp = lootEntry.timestamp or timestamp
-        lootEntry.id = id and tonumber(id)
+        lootEntry.isUpdated = timestamp - lootEntry.timestamp > 60
+        lootEntry.id, lootEntry.itemType, lootEntry.itemSubType, lootEntry.itemEquipLoc, lootEntry.itemIcon, lootEntry.itemClassID, lootEntry.itemSubClassID = GetItemInfoInstant(link)
         lootEntry.link = link
         lootEntry.count = (lootEntry.count or 0) + (logType == LOG_TYPE.Chat and count or 0)
         lootEntry.sources = lootEntry.sources or {}
@@ -6312,6 +6314,7 @@ do
                 lootEntry.sources[k] = (lootEntry.sources[k] or 0) + v
             end
         end
+        lootEntry.addLoot = lootEntry.isNew or lootEntry.isUpdated or lootEntry.hasNewSources
         return lootEntry
     end
 
@@ -6340,6 +6343,10 @@ do
         end
     end
 
+    local function PrepareLootEntryForSV(lootEntry)
+        lootEntry.isNew, lootEntry.isUpdated, lootEntry.hasNewSources, lootEntry.addLoot = nil
+    end
+
     local function OnEvent(event, ...)
         if event == "LOOT_READY" then
             for i = 1, GetNumLootItems() do
@@ -6356,8 +6363,12 @@ do
                             itemSources[guid] = quantity
                         end
                         local lootEntry = LogItemLink(LOG_TYPE.Loot, itemType, itemID, lootLink, lootQuantity, itemSources)
-                        if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
-                            LOOT_FRAME:AddLoot(lootEntry)
+                        if lootEntry then
+                            if lootEntry.addLoot then
+                                LOOT_FRAME:AddLoot(lootEntry)
+                            else
+                                PrepareLootEntryForSV(lootEntry)
+                            end
                         end
                     end
                 end
@@ -6368,8 +6379,12 @@ do
                 local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(rollLink)
                 if itemType and CanLogItem(itemLink, itemType, itemQuality) then
                     local lootEntry = LogItemLink(LOG_TYPE.Roll, itemType, itemID, rollLink)
-                    if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
-                        LOOT_FRAME:AddLoot(lootEntry)
+                    if lootEntry then
+                        if lootEntry.addLoot then
+                            LOOT_FRAME:AddLoot(lootEntry)
+                        else
+                            PrepareLootEntryForSV(lootEntry)
+                        end
                     end
                 end
             end
@@ -6378,8 +6393,12 @@ do
             local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(text)
             if itemType and CanLogItem(itemLink, itemType, itemQuality) then
                 local lootEntry = LogItemLink(LOG_TYPE.Chat, itemType, itemID, itemLink, itemCount or 1)
-                if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
-                    LOOT_FRAME:AddLoot(lootEntry)
+                if lootEntry then
+                    if lootEntry.addLoot then
+                        LOOT_FRAME:AddLoot(lootEntry)
+                    else
+                        PrepareLootEntryForSV(lootEntry)
+                    end
                 end
             end
         elseif event == "GUILD_NEWS_UPDATE" then
@@ -6391,8 +6410,12 @@ do
                         newsInfo.year = newsInfo.year + 2000
                         local timestamp = time(newsInfo)
                         local lootEntry = LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, nil, nil, timestamp)
-                        if lootEntry and (lootEntry.isNew or lootEntry.hasNewSources) then
-                            LOOT_FRAME:AddLoot(lootEntry)
+                        if lootEntry then
+                            if lootEntry.addLoot then
+                                LOOT_FRAME:AddLoot(lootEntry)
+                            else
+                                PrepareLootEntryForSV(lootEntry)
+                            end
                         end
                     end
                 end
@@ -6659,6 +6682,7 @@ do
             if showFrame then
                 self:Show()
             end
+            PrepareLootEntryForSV(lootEntry)
             local preInsertAtScrollEnd = self.Log.Events.ScrollBox:IsAtEnd()
             local preInsertScrollable = self.Log.Events.ScrollBox:HasScrollableExtent()
             local systemTimestamp, relativeTimestamp, eventDelta = self:GenerateTimestampData()

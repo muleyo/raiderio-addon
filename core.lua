@@ -2913,7 +2913,7 @@ do
         local guid = region .. " " .. faction .. " " .. realm .. " " .. name
         local cache = provider:GetProfile(name, realm, faction, region) ---@type DataProviderCharacterProfile
         local mythicKeystoneProfile
-        if cache and cache.success and cache.mythicKeystoneProfile then
+        if cache and cache.success and cache.mythicKeystoneProfile and not cache.mythicKeystoneProfile.blocked and cache.mythicKeystoneProfile.hasRenderableData then
             mythicKeystoneProfile = cache.mythicKeystoneProfile
         end
         if not mythicKeystoneProfile then
@@ -6670,7 +6670,7 @@ do
             elementData.eventDelta = eventDelta
             self.logDataProvider:Insert(elementData)
             TrimDataProvider(self.logDataProvider)
-            if not IsAltKeyDown() and (preInsertAtScrollEnd or (not preInsertScrollable and self.Log.Events.ScrollBox:HasScrollableExtent())) then
+            if preInsertAtScrollEnd or (not preInsertScrollable and self.Log.Events.ScrollBox:HasScrollableExtent()) then
                 self.Log.Events.ScrollBox:ScrollToEnd(ScrollBoxConstants.NoScrollInterpolation)
             end
         end

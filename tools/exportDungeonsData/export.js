@@ -37,7 +37,9 @@ const csv = require('fast-csv');
             name: 'map',
             fields: {
                 'ID': 'instance_map_id', // reference
-                'ExpansionID': 'expansion'
+                'ExpansionID': 'expansion',
+                'InstanceType': 'instanceType',
+                'MapName_lang': 'mapName'
             }
         }
     ];
@@ -155,7 +157,7 @@ const csv = require('fast-csv');
         }
     }
 
-    const isDungeonValid = (dungeon) => dungeon !== undefined && dungeon.id !== undefined && dungeon.expansion === expansion && dungeon.keystone_instance !== undefined && dungeon.lfd_activity_ids !== undefined && dungeon.name !== undefined;
+    const isDungeonValid = (dungeon) => dungeon !== undefined && dungeon.id !== undefined && dungeon.expansion === expansion && dungeon.lfd_activity_ids !== undefined; // dungeon.name !== undefined && dungeon.keystone_instance !== undefined
 
     const file_groupfinderactivity_rows = files.filter(file => file.name === 'groupfinderactivity')[0].rows;
     const file_mapchallengemode_rows = files.filter(file => file.name === 'mapchallengemode')[0].rows;
@@ -226,11 +228,13 @@ const csv = require('fast-csv');
         'shortName'
     ];
 
+    const isDungeonKeystoneValid = dungeon => Array.isArray(dungeon.timers) && dungeon.timers.length;
+
     const lua = [];
 
     for (let i = 0; i < dungeons.length; i++) {
         const dungeon = dungeons[i];
-        if (!isDungeonValid(dungeon)) continue;
+        if (!isDungeonValid(dungeon) || !isDungeonKeystoneValid(dungeon)) continue;
         if (Array.isArray(dungeon.keystone_instance)) {
             console.warn(`Dungeon #${dungeon.id} needs to be manually separated into two entries!`);
         }
@@ -249,6 +253,39 @@ const csv = require('fast-csv');
         lua.push(lualine.join('\r\n'));
     }
 
-    console.log('local _, ns = ...\r\n\r\n-- Dungeon listing sorted by id\r\nns.dungeons = {\r\n' + lua.join(',\r\n') + '\r\n}\r\n');
+    const sortedKeys2 = [
+        'id',
+        'instance_map_id',
+        'lfd_activity_ids',
+        'mapName',
+        'shortName'
+    ];
+
+    const isDungeonRaidValid = dungeon => dungeon.instanceType == 2;
+
+    const lua2 = [];
+
+    for (let i = 0; i < dungeons.length; i++) {
+        const dungeon = dungeons[i];
+        if (!isDungeonValid(dungeon) || !isDungeonRaidValid(dungeon)) continue;
+        if (Array.isArray(dungeon.keystone_instance)) {
+            console.warn(`Dungeon #${dungeon.id} needs to be manually separated into two entries!`);
+        }
+        const lualine = ['\t[' + (lua2.length + 1) + '] = {'];
+        for (let j = 0; j < sortedKeys2.length; j++) {
+            const sortedKey = sortedKeys2[j];
+            let val = dungeon[sortedKey];
+            if (typeof val === 'string') {
+                val = '"' + val.replace(/\"/, '\\"') + '"';
+            } else if (Array.isArray(val)) {
+                val = '{ ' + val.join(', ') + ' }';
+            }
+            lualine.push(`\t\t["${sortedKey === 'mapName' ? 'name' : sortedKey}"] = ${val},`);
+        }
+        lualine.push('\t}');
+        lua2.push(lualine.join('\r\n'));
+    }
+
+    console.log('local _, ns = ...\r\n\r\n-- Dungeon listing sorted by id\r\nns.dungeons = {\r\n' + lua.join(',\r\n') + '\r\n}\r\n\r\n-- Raid listing sorted by id\r\nns.raids = {\r\n' + lua2.join(',\r\n') + '\r\n}\r\n');
 
 })();

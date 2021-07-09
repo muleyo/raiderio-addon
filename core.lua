@@ -258,15 +258,20 @@ do
         return ns.CLIENT_CONFIG
     end
 
-    ---@class Dungeon
+    ---@class DungeonInstance
     ---@field public id number
-    ---@field public keystone_instance number
     ---@field public instance_map_id number
     ---@field public lfd_activity_ids number[]
     ---@field public name string
     ---@field public shortName string
+
+    ---@class Dungeon : DungeonInstance
+    ---@field public keystone_instance number
     ---@field public shortNameLocale string @Assigned dynamically based on the user preference regarding the short dungeon names.
     ---@field public index number @Assigned dynamically based on the index of the dungeon in the table.
+
+    ---@class DungeonRaid : DungeonInstance
+    ---@field public index number @Assigned dynamically based on the index of the raid in the table.
 
     ---@type Dungeon[]
     local DUNGEONS = ns.DUNGEONS or ns.dungeons -- DEPRECATED: ns.dungeons
@@ -276,9 +281,22 @@ do
         dungeon.index = i
     end
 
+    ---@type DungeonRaid[]
+    local RAIDS = ns.RAIDS or ns.raids -- DEPRECATED: ns.raids
+
+    for i = 1, #RAIDS do
+        local raid = RAIDS[i] ---@type DungeonRaid
+        raid.index = i
+    end
+
     ---@return Dungeon[]
     function ns:GetDungeonData()
         return DUNGEONS
+    end
+
+    ---@return DungeonRaid[]
+    function ns:GetDungeonRaidData()
+        return RAIDS
     end
 
     ---@class RealmCollection
@@ -7517,34 +7535,18 @@ do
     local LoggingCombat = LibCombatLogging and function(...) return LibCombatLogging.LoggingCombat("Raider.IO", ...) end or _G.LoggingCombat
 
     local autoLogFromMapID do
-        local raidMapID = 2296 --[=[ do
-            local currExpTier = GetAccountExpansionLevel() + 1
-            local currTier = EJ_GetCurrentTier()
-            EJ_SelectTier(currExpTier)
-            local index = 0
-            local firstRaidMapID
-            while not firstRaidMapID do
-                index = index + 1
-                local instanceID = EJ_GetInstanceByIndex(index, true)
-                if not instanceID then
-                    break
-                end
-                EJ_SelectInstance(instanceID)
-                local _, _, _, _, _, _, dungeonAreaMapID = EJ_GetInstanceInfo()
-                if dungeonAreaMapID and dungeonAreaMapID > 0 then
-                    _, _, _, _, _, _, _, firstRaidMapID = EJ_GetEncounterInfoByIndex(1, instanceID)
+        ---@param instances DungeonInstance[]
+        local function getLowestMapIdForInstances(instances)
+            local mapID
+            for _, instance in ipairs(instances) do
+                if not mapID or mapID > instance.instance_map_id then
+                    mapID = instance.instance_map_id
                 end
             end
-            EJ_SelectTier(currTier)
-        end --]=]
-        local keystoneMapID do
-            local dungeons = ns:GetDungeonData()
-            for _, dungeon in ipairs(dungeons) do
-                if not keystoneMapID or keystoneMapID > dungeon.instance_map_id then
-                    keystoneMapID = dungeon.instance_map_id
-                end
-            end
+            return mapID
         end
+        local raidMapID = getLowestMapIdForInstances(ns:GetDungeonRaidData())
+        local keystoneMapID = getLowestMapIdForInstances(ns:GetDungeonData())
         if raidMapID and keystoneMapID then
             autoLogFromMapID = keystoneMapID > raidMapID and raidMapID or keystoneMapID
         elseif raidMapID then

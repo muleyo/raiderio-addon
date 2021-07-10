@@ -4715,7 +4715,7 @@ do
 
     -- DEBUG: force show the end screen for MIST+15 (1800/1440/1080 is the timer)
     -- /run wipe(RaiderIO_CachedRuns)
-    -- /run C_ChallengeMode.GetCompletionInfo=function()return 375, 15, 1800, true, 1, false end
+    -- /run C_ChallengeMode.GetCompletionInfo=function()return 375, 15, 1800, true, 1, false, 123, 234, true, true, 9, nil end
     -- /run for _,f in ipairs({GetFramesRegisteredForEvent("CHALLENGE_MODE_COMPLETED")})do f:GetScript("OnEvent")(f,"CHALLENGE_MODE_COMPLETED")end
 
 end
@@ -6314,7 +6314,7 @@ do
                 lootEntry.sources[k] = (lootEntry.sources[k] or 0) + v
             end
         end
-        lootEntry.addLoot = lootEntry.isNew or lootEntry.isUpdated or lootEntry.hasNewSources
+        lootEntry.addLoot = lootEntry.isNew or lootEntry.hasNewSources -- lootEntry.isUpdated
         return lootEntry
     end
 
@@ -6344,7 +6344,18 @@ do
     end
 
     local function PrepareLootEntryForSV(lootEntry)
-        lootEntry.isNew, lootEntry.isUpdated, lootEntry.hasNewSources, lootEntry.addLoot = nil
+        -- lootEntry.isNew, lootEntry.isUpdated, lootEntry.hasNewSources, lootEntry.addLoot = nil -- TODO: if we uncomment we'll keep adding old processed loot to the frame and we don't want that so let this be in the SV file we can afford that
+    end
+
+    local function HandleLootEntry(lootEntry)
+        if not lootEntry then
+            return
+        end
+        if lootEntry.addLoot then
+            LOOT_FRAME:AddLoot(lootEntry)
+        else
+            PrepareLootEntryForSV(lootEntry)
+        end
     end
 
     local function OnEvent(event, ...)
@@ -6362,14 +6373,7 @@ do
                             local guid, quantity = lootSources[j], lootSources[j + 1]
                             itemSources[guid] = quantity
                         end
-                        local lootEntry = LogItemLink(LOG_TYPE.Loot, itemType, itemID, lootLink, lootQuantity, itemSources)
-                        if lootEntry then
-                            if lootEntry.addLoot then
-                                LOOT_FRAME:AddLoot(lootEntry)
-                            else
-                                PrepareLootEntryForSV(lootEntry)
-                            end
-                        end
+                        HandleLootEntry(LogItemLink(LOG_TYPE.Loot, itemType, itemID, lootLink, lootQuantity, itemSources))
                     end
                 end
             end
@@ -6378,28 +6382,14 @@ do
                 local rollID, rollLink, numPlayers, isDone, winnerIdx, isMasterLoot, isCurrency = C_LootHistory.GetItem(i)
                 local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(rollLink)
                 if itemType and CanLogItem(itemLink, itemType, itemQuality) then
-                    local lootEntry = LogItemLink(LOG_TYPE.Roll, itemType, itemID, rollLink)
-                    if lootEntry then
-                        if lootEntry.addLoot then
-                            LOOT_FRAME:AddLoot(lootEntry)
-                        else
-                            PrepareLootEntryForSV(lootEntry)
-                        end
-                    end
+                    HandleLootEntry(LogItemLink(LOG_TYPE.Roll, itemType, itemID, rollLink))
                 end
             end
         elseif event == "CHAT_MSG_LOOT" or event == "CHAT_MSG_CURRENCY" then
             local text = ...
             local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(text)
             if itemType and CanLogItem(itemLink, itemType, itemQuality) then
-                local lootEntry = LogItemLink(LOG_TYPE.Chat, itemType, itemID, itemLink, itemCount or 1)
-                if lootEntry then
-                    if lootEntry.addLoot then
-                        LOOT_FRAME:AddLoot(lootEntry)
-                    else
-                        PrepareLootEntryForSV(lootEntry)
-                    end
-                end
+                HandleLootEntry(LogItemLink(LOG_TYPE.Chat, itemType, itemID, itemLink, itemCount or 1))
             end
         elseif event == "GUILD_NEWS_UPDATE" then
             for i = 1, GetNumGuildNews() do
@@ -6409,14 +6399,7 @@ do
                     if itemType and CanLogItem(itemLink, itemType, itemQuality, LOG_FILTER.GUILD_NEWS) then
                         newsInfo.year = newsInfo.year + 2000
                         local timestamp = time(newsInfo)
-                        local lootEntry = LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, nil, nil, timestamp)
-                        if lootEntry then
-                            if lootEntry.addLoot then
-                                LOOT_FRAME:AddLoot(lootEntry)
-                            else
-                                PrepareLootEntryForSV(lootEntry)
-                            end
-                        end
+                        HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, nil, nil, timestamp))
                     end
                 end
             end
@@ -6496,35 +6479,45 @@ do
         frame.SubTitle:SetPoint("TOPLEFT", frame.TitleBar, "BOTTOMLEFT", 0, 0)
         frame.SubTitle:SetPoint("BOTTOMRIGHT", frame.Log.Events, "TOPRIGHT", 0, 0)
 
-        frame.EnableModule = CreateFrame("Button", nil, frame, "BigRedRefreshButtonTemplate")
-        frame.EnableModule.atlasName = "128-RedButton-Refresh"
-        frame.EnableModule.tooltip = L.ENABLE_RWF_MODE_BUTTON
-        frame.EnableModule:InitButton()
-        frame.EnableModule:SetSize(24, 24)
+        frame.EnableModule = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        frame.EnableModule:SetSize(80, 22)
         frame.EnableModule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 3)
+        frame.EnableModule:SetScript("OnClick", function() config:Set("rwfMode", true) ReloadUI() end)
+        frame.EnableModule:SetText(L.ENABLE_RWF_MODE_BUTTON)
+        frame.EnableModule.tooltip = L.ENABLE_RWF_MODE_BUTTON_TOOLTIP
+        frame.EnableModule.GetAppropriateTooltip = UIButtonMixin.GetAppropriateTooltip
         frame.EnableModule:SetScript("OnEnter", UIButtonMixin.OnEnter)
         frame.EnableModule:SetScript("OnLeave", UIButtonMixin.OnLeave)
-        frame.EnableModule:SetScript("OnClick", function() config:Set("rwfMode", true) ReloadUI() end)
 
-        frame.DisableModule = CreateFrame("Button", nil, frame, "BigRedRefreshButtonTemplate")
-        frame.DisableModule.atlasName = "128-RedButton-Exit"
-        frame.DisableModule.tooltip = L.DISABLE_RWF_MODE_BUTTON
-        frame.DisableModule:InitButton()
-        frame.DisableModule:SetSize(24, 24)
+        frame.DisableModule = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        frame.DisableModule:SetSize(80, 22)
         frame.DisableModule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 3)
+        frame.DisableModule:SetScript("OnClick", function() config:Set("rwfMode", false) ReloadUI() end)
+        frame.DisableModule:SetText(L.DISABLE_RWF_MODE_BUTTON)
+        frame.DisableModule.tooltip = L.DISABLE_RWF_MODE_BUTTON_TOOLTIP
+        frame.DisableModule.GetAppropriateTooltip = UIButtonMixin.GetAppropriateTooltip
         frame.DisableModule:SetScript("OnEnter", UIButtonMixin.OnEnter)
         frame.DisableModule:SetScript("OnLeave", UIButtonMixin.OnLeave)
-        frame.DisableModule:SetScript("OnClick", function() config:Set("rwfMode", false) ReloadUI() end)
 
-        frame.ReloadUI = CreateFrame("Button", nil, frame, "BigRedRefreshButtonTemplate")
-        frame.ReloadUI.atlasName = "128-RedButton-Refresh"
-        frame.ReloadUI.tooltip = L.RELOAD_RWF_MODE_BUTTON
-        frame.ReloadUI:InitButton()
-        frame.ReloadUI:SetSize(24, 24)
+        frame.ReloadUI = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        frame.ReloadUI:SetSize(80, 22)
         frame.ReloadUI:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 5, 3)
+        frame.ReloadUI:SetScript("OnClick", ReloadUI)
+        frame.ReloadUI:SetText(L.RELOAD_RWF_MODE_BUTTON)
+        frame.ReloadUI.tooltip = L.RELOAD_RWF_MODE_BUTTON_TOOLTIP
+        frame.ReloadUI.GetAppropriateTooltip = UIButtonMixin.GetAppropriateTooltip
         frame.ReloadUI:SetScript("OnEnter", UIButtonMixin.OnEnter)
         frame.ReloadUI:SetScript("OnLeave", UIButtonMixin.OnLeave)
-        frame.ReloadUI:SetScript("OnClick", ReloadUI)
+
+        frame.WipeLog = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        frame.WipeLog:SetSize(80, 22)
+        frame.WipeLog:SetPoint("RIGHT", frame.DisableModule, "LEFT", 2, 0)
+        frame.WipeLog:SetScript("OnClick", function() _G.RaiderIO_RWF = {} ReloadUI() end)
+        frame.WipeLog:SetText(L.WIPE_RWF_MODE_BUTTON)
+        frame.WipeLog.tooltip = L.WIPE_RWF_MODE_BUTTON_TOOLTIP
+        frame.WipeLog.GetAppropriateTooltip = UIButtonMixin.GetAppropriateTooltip
+        frame.WipeLog:SetScript("OnEnter", UIButtonMixin.OnEnter)
+        frame.WipeLog:SetScript("OnLeave", UIButtonMixin.OnLeave)
 
         function frame:OnShow()
             local isEnabled = config:Get("rwfMode")
@@ -6533,10 +6526,12 @@ do
             if not isLogging and isLoggingGuildNews then
                 instanceName = _G.GUILD_NEWS or _G.GUILD_NEWS_TITLE
             end
+            self.SubTitle:SetText(format("%s |cff%s%s|r", instanceName or "", (isLogging or isLoggingGuildNews) and "55ff55" or "ff55ff", isLogging and L.RWF_SUBTITLE_LOGGING_LOOT or L.RWF_SUBTITLE_LOGGING_FILTERED_LOOT))
             self.EnableModule:SetShown(not isEnabled)
             self.DisableModule:SetShown(isEnabled)
-            self.ReloadUI:SetEnabled(self:GetNumLootItems() > 0)
-            self.SubTitle:SetText(format("%s |cff%s%s|r", instanceName or "", (isLogging or isLoggingGuildNews) and "55ff55" or "ff55ff", isLogging and L.RWF_SUBTITLE_LOGGING_LOOT or L.RWF_SUBTITLE_LOGGING_FILTERED_LOOT))
+            local numItems = self:GetNumLootItems()
+            self.ReloadUI:SetEnabled(numItems > 0)
+            self.WipeLog:SetEnabled(numItems == 0)
         end
 
         frame:HookScript("OnShow", frame.OnShow)

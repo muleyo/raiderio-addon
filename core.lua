@@ -6290,12 +6290,12 @@ do
             return
         end
         local linkAsKey = link:gsub("%[[^%]]*%]", "")
-        local success, tables = GetNestedTable(_G.RaiderIO_RWF, instanceID, instanceDifficulty, linkAsKey)
+        local success, tables = GetNestedTable(_G.RaiderIO_RWF, instanceID, instanceDifficulty, logType, linkAsKey)
         if not success then
             return false
         end
         tables[1].name = instanceName
-        local lootEntry = tables[3] ---@type RWFLootEntry
+        local lootEntry = tables[4] ---@type RWFLootEntry
         local timestamp = useTimestamp or GetServerTime()
         lootEntry.type = logType
         lootEntry.isNew = not lootEntry.timestamp
@@ -6303,7 +6303,13 @@ do
         lootEntry.isUpdated = timestamp - lootEntry.timestamp > 60
         lootEntry.id, lootEntry.itemType, lootEntry.itemSubType, lootEntry.itemEquipLoc, lootEntry.itemIcon, lootEntry.itemClassID, lootEntry.itemSubClassID = GetItemInfoInstant(link)
         lootEntry.link = link
-        lootEntry.count = (lootEntry.count or 0) + (logType == LOG_TYPE.Chat and count or 0)
+        if logType == LOG_TYPE.Chat then
+            lootEntry.count = (lootEntry.count or 0) + (count or 0)
+        elseif logType == LOG_TYPE.News then
+            lootEntry.count = count or 0
+        else
+            lootEntry.count = 1
+        end
         lootEntry.sources = lootEntry.sources or {}
         lootEntry.hasNewSources = false
         if logType == LOG_TYPE.Loot then
@@ -6373,7 +6379,7 @@ do
                             local guid, quantity = lootSources[j], lootSources[j + 1]
                             itemSources[guid] = quantity
                         end
-                        HandleLootEntry(LogItemLink(LOG_TYPE.Loot, itemType, itemID, lootLink, lootQuantity, itemSources))
+                        HandleLootEntry(LogItemLink(LOG_TYPE.Loot, itemType, itemID, lootLink, lootQuantity or itemCount or 1, itemSources))
                     end
                 end
             end
@@ -6382,7 +6388,7 @@ do
                 local rollID, rollLink, numPlayers, isDone, winnerIdx, isMasterLoot, isCurrency = C_LootHistory.GetItem(i)
                 local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(rollLink)
                 if itemType and CanLogItem(itemLink, itemType, itemQuality) then
-                    HandleLootEntry(LogItemLink(LOG_TYPE.Roll, itemType, itemID, rollLink))
+                    HandleLootEntry(LogItemLink(LOG_TYPE.Roll, itemType, itemID, rollLink, itemCount or 1))
                 end
             end
         elseif event == "CHAT_MSG_LOOT" or event == "CHAT_MSG_CURRENCY" then
@@ -6399,7 +6405,7 @@ do
                     if itemType and CanLogItem(itemLink, itemType, itemQuality, LOG_FILTER.GUILD_NEWS) then
                         newsInfo.year = newsInfo.year + 2000
                         local timestamp = time(newsInfo)
-                        HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, nil, nil, timestamp))
+                        HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp))
                     end
                 end
             end

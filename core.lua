@@ -6550,7 +6550,33 @@ do
             self.WipeLog:SetEnabled(numItems == 0)
         end
 
-        frame:HookScript("OnShow", frame.OnShow)
+        local NEWS_TICKER = {
+            Timer = 60,
+            Tick = function()
+                GuildNewsSort(0)
+            end,
+            Start = function(self)
+                self:Stop()
+                self:Tick()
+                self.handle = C_Timer.NewTicker(self.Timer, self.Tick)
+            end,
+            Stop = function(self)
+                if not self.handle then
+                    return
+                end
+                self.handle:Cancel()
+                self.handle = nil
+            end,
+        }
+
+        frame:HookScript("OnShow", function()
+            frame:OnShow()
+            NEWS_TICKER:Start()
+        end)
+
+        frame:HookScript("OnHide", function()
+            NEWS_TICKER:Stop()
+        end)
 
         local function OnSettingsChanged()
             if not config:IsEnabled() then

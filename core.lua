@@ -6278,9 +6278,17 @@ do
         return true, path, temp
     end
 
+    local function CountItems(t)
+        local count = 0
+        for _, _ in pairs(t) do
+            count = count + 1
+        end
+        return count
+    end
+
     ---@class RWFLootEntry
 
-    local function LogItemLink(logType, linkType, id, link, count, sources, useTimestamp, useIndex)
+    local function LogItemLink(logType, linkType, id, link, count, sources, useTimestamp)
         local isLogging, instanceName, instanceDifficulty, instanceID = rwf:GetLocation()
         if logType == LOG_TYPE.News then
             instanceName = _G.GUILD_NEWS or _G.GUILD_NEWS_TITLE
@@ -6303,7 +6311,8 @@ do
         lootEntry.isUpdated = timestamp - lootEntry.timestamp > 60
         lootEntry.id, lootEntry.itemType, lootEntry.itemSubType, lootEntry.itemEquipLoc, lootEntry.itemIcon, lootEntry.itemClassID, lootEntry.itemSubClassID = GetItemInfoInstant(link)
         lootEntry.link = link
-        lootEntry.guid = lootEntry.guid or format("%s %s %s", lootEntry.timestamp, useIndex or 0, linkAsKey) -- attempt to create unique loot guid when the item is inserted into the SV
+        lootEntry.index = CountItems(tables[3]) + 1
+        lootEntry.guid = lootEntry.guid or format("%d %d %s", lootEntry.timestamp, lootEntry.index, linkAsKey) -- attempt to create unique loot guid when the item is inserted into the SV
         if logType == LOG_TYPE.Chat then
             lootEntry.count = (lootEntry.count or 0) + (count or 0)
         elseif logType == LOG_TYPE.News then
@@ -6406,7 +6415,7 @@ do
                     if itemType and CanLogItem(itemLink, itemType, itemQuality, LOG_FILTER.GUILD_NEWS) then
                         newsInfo.year = newsInfo.year + 2000
                         local timestamp = time(newsInfo)
-                        HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp, i))
+                        HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp))
                     end
                 end
             end

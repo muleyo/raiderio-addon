@@ -6311,8 +6311,8 @@ do
         lootEntry.isUpdated = timestamp - lootEntry.timestamp > 60
         lootEntry.id, lootEntry.itemType, lootEntry.itemSubType, lootEntry.itemEquipLoc, lootEntry.itemIcon, lootEntry.itemClassID, lootEntry.itemSubClassID = GetItemInfoInstant(link)
         lootEntry.link = link
-        lootEntry.index = CountItems(tables[3]) + 1
-        lootEntry.guid = lootEntry.guid or format("%d %d %s", lootEntry.timestamp, lootEntry.index, linkAsKey) -- attempt to create unique loot guid when the item is inserted into the SV
+        lootEntry.index = lootEntry.index or CountItems(tables[3]) -- keep same index or count (our item is already included in the count)
+        lootEntry.guid = lootEntry.guid or format("%05d %010d %s", lootEntry.index, lootEntry.timestamp, linkAsKey) -- attempt to create unique loot guid when the item is inserted into the SV
         if logType == LOG_TYPE.Chat then
             lootEntry.count = (lootEntry.count or 0) + (count or 0)
         elseif logType == LOG_TYPE.News then

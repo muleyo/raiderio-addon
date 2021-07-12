@@ -6280,7 +6280,7 @@ do
 
     ---@class RWFLootEntry
 
-    local function LogItemLink(logType, linkType, id, link, count, sources, useTimestamp)
+    local function LogItemLink(logType, linkType, id, link, count, sources, useTimestamp, useIndex)
         local isLogging, instanceName, instanceDifficulty, instanceID = rwf:GetLocation()
         if logType == LOG_TYPE.News then
             instanceName = _G.GUILD_NEWS or _G.GUILD_NEWS_TITLE
@@ -6303,6 +6303,7 @@ do
         lootEntry.isUpdated = timestamp - lootEntry.timestamp > 60
         lootEntry.id, lootEntry.itemType, lootEntry.itemSubType, lootEntry.itemEquipLoc, lootEntry.itemIcon, lootEntry.itemClassID, lootEntry.itemSubClassID = GetItemInfoInstant(link)
         lootEntry.link = link
+        lootEntry.guid = lootEntry.guid or format("%s %s %s", lootEntry.timestamp, useIndex or 0, linkAsKey) -- attempt to create unique loot guid when the item is inserted into the SV
         if logType == LOG_TYPE.Chat then
             lootEntry.count = (lootEntry.count or 0) + (count or 0)
         elseif logType == LOG_TYPE.News then
@@ -6405,7 +6406,7 @@ do
                     if itemType and CanLogItem(itemLink, itemType, itemQuality, LOG_FILTER.GUILD_NEWS) then
                         newsInfo.year = newsInfo.year + 2000
                         local timestamp = time(newsInfo)
-                        HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp))
+                        HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp, i))
                     end
                 end
             end

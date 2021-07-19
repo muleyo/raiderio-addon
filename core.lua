@@ -4487,6 +4487,7 @@ do
                 self.model = LEVEL_UP_EFFECT.green
                 self.Texture:SetAtlas("loottoast-arrow-green")
             end
+            --[=[
             if upgrade.levelDiff and upgrade.levelDiff > 0 then
                 self.Text:SetText(upgrade.levelDiff .. (upgrade.levelDiff > 1 and " levels" or " level") .. " higher") -- TODO: locale
             elseif upgrade.fractionalTimeDiff and upgrade.fractionalTimeDiff < 0 then
@@ -4499,9 +4500,11 @@ do
             else
                 self.Text:SetText()
             end
+            --]=]
         else
             self.model = nil
             self.Texture:SetTexture()
+            --[=[
             if upgrade.levelDiff and upgrade.levelDiff < 0 then
                 self.Text:SetText((-upgrade.levelDiff) .. (upgrade.levelDiff > 1 and " levels" or " level") .. " lower") -- TODO: locale
             elseif upgrade.levelDiff == 0 and upgrade.fractionalTimeDiff and upgrade.fractionalTimeDiff > 0 then
@@ -4516,6 +4519,7 @@ do
             else
                 self.Text:SetText()
             end
+            --]=]
         end
     end
 
@@ -7672,7 +7676,7 @@ do
     function combatlog:OnEnable()
         previouslyEnabledLogging = config:Get("previouslyEnabledLogging")
         CheckInstance(true)
-        callback:RegisterEvent(CheckInstance, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")
+        callback:RegisterEvent(CheckInstance, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED_INDOORS")
     end
 
     function combatlog:OnDisable()

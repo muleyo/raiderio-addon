@@ -7676,7 +7676,7 @@ do
     function combatlog:OnEnable()
         previouslyEnabledLogging = config:Get("previouslyEnabledLogging")
         CheckInstance(true)
-        callback:RegisterEvent(CheckInstance, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED_INDOORS")
+        callback:RegisterEvent(CheckInstance, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED_INDOORS", "RAID_INSTANCE_WELCOME")
     end
 
     function combatlog:OnDisable()

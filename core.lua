@@ -2907,10 +2907,9 @@ do
 
         if type(keystoneRuns) == "table" then
             local maxDungeonIndex = 0
-            local maxDungeonTime = 999
             local maxDungeonLevel = 0
-            local maxDungeonScore = 0
             local maxDungeonUpgrades = 0
+			local maxDungeonRunTimer = 2
             local needsMaxDungeonUpgrade
             local needsDungeonSort
             for i = 1, #keystoneRuns do
@@ -2950,12 +2949,11 @@ do
                     mythicKeystoneProfile.dungeons[dungeonIndex] = runLevel
                     mythicKeystoneProfile.dungeonUpgrades[dungeonIndex] = runNumUpgrades
                     mythicKeystoneProfile.dungeonTimes[dungeonIndex] = fractionalTime
-                    if runNumUpgrades > 0 and (runScore > maxDungeonScore or (runScore == maxDungeonScore and fractionalTime < maxDungeonTime)) then
+                    if runNumUpgrades > 0 and (runLevel > maxDungeonLevel or (runLevel == maxDungeonLevel and runTimerAsFraction < maxDungeonRunTimer)) then
                         maxDungeonIndex = dungeonIndex
-                        maxDungeonTime = fractionalTime
                         maxDungeonLevel = runLevel
-                        maxDungeonScore = runScore
                         maxDungeonUpgrades = runNumUpgrades
+						maxDungeonRunTimer = runTimerAsFraction
                     end
                     local sortedDungeon
                     for j = 1, #mythicKeystoneProfile.sortedDungeons do

@@ -2930,10 +2930,11 @@ do
         end
         if type(keystoneRuns) == "table" and keystoneRuns[1] then
             local maxDungeonIndex = 0
-            local maxDungeonTime = 999
+            -- local maxDungeonTime = 999
+            -- local maxDungeonScore = 0
             local maxDungeonLevel = 0
-            local maxDungeonScore = 0
             local maxDungeonUpgrades = 0
+            local maxDungeonRunTimer = 2
             local needsMaxDungeonUpgrade
             local needsDungeonSort
             for i = 1, #keystoneRuns do
@@ -2968,17 +2969,19 @@ do
                     end
                     local runTimerAsFraction = runSeconds / (dungeonTimeLimit and dungeonTimeLimit > 0 and dungeonTimeLimit or 1) -- convert game timer to a fraction (1 or below is timed, above is depleted)
                     local fractionalTime = run.finishedSuccess and (mythicKeystoneProfile.isEnhanced and runTimerAsFraction or (3 - runNumUpgrades)) or 3 -- the data here depends if we are using client enhanced data or not
-                    local runScore = run.mapScore
+                    -- local runScore = run.mapScore
                     needsMaxDungeonUpgrade = true
                     mythicKeystoneProfile.dungeons[dungeonIndex] = runLevel
                     mythicKeystoneProfile.dungeonUpgrades[dungeonIndex] = runNumUpgrades
                     mythicKeystoneProfile.dungeonTimes[dungeonIndex] = fractionalTime
-                    if runNumUpgrades > 0 and (runScore > maxDungeonScore or (runScore == maxDungeonScore and fractionalTime < maxDungeonTime)) then
+                    -- if runNumUpgrades > 0 and (runScore > maxDungeonScore or (runScore == maxDungeonScore and fractionalTime < maxDungeonTime)) then
+                    if runNumUpgrades > 0 and (runLevel > maxDungeonLevel or (runLevel == maxDungeonLevel and runTimerAsFraction < maxDungeonRunTimer)) then
                         maxDungeonIndex = dungeonIndex
-                        maxDungeonTime = fractionalTime
+                        -- maxDungeonTime = fractionalTime
+                        -- maxDungeonScore = runScore
                         maxDungeonLevel = runLevel
-                        maxDungeonScore = runScore
                         maxDungeonUpgrades = runNumUpgrades
+                        maxDungeonRunTimer = runTimerAsFraction
                     end
                     local sortedDungeon
                     for j = 1, #mythicKeystoneProfile.sortedDungeons do

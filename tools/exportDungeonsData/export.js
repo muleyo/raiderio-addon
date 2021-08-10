@@ -149,7 +149,7 @@ const csv = require('fast-csv');
                         if (/^\d+$/.test(val[j])) {
                             val[j] = parseInt(val[j]);
                         } else {
-                            val[j] = '"' + val[j].replace(/\"/, '\\"') + '"';
+                            val[j] = '"' + val[j].replace(/\"/g, '\\"') + '"';
                         }
                     }
                 }
@@ -243,7 +243,7 @@ const csv = require('fast-csv');
             const sortedKey = sortedKeys[j];
             let val = dungeon[sortedKey];
             if (typeof val === 'string') {
-                val = '"' + val.replace(/\"/, '\\"') + '"';
+                val = '"' + val.replace(/\"/g, '\\"') + '"';
             } else if (Array.isArray(val)) {
                 val = '{ ' + val.join(', ') + ' }';
             }
@@ -276,7 +276,7 @@ const csv = require('fast-csv');
             const sortedKey = sortedKeys2[j];
             let val = dungeon[sortedKey];
             if (typeof val === 'string') {
-                val = '"' + val.replace(/\"/, '\\"') + '"';
+                val = '"' + val.replace(/\"/g, '\\"') + '"';
             } else if (Array.isArray(val)) {
                 val = '{ ' + val.join(', ') + ' }';
             }

@@ -6754,13 +6754,13 @@ do
         frame.Log.Events.ScrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnDataRangeChanged, function(sortPending) SetScrollBoxButtonAlternateState(frame.Log.Events.ScrollBox) end, frame)
 
         local view = CreateScrollBoxListLinearView()
-		view:SetElementExtent(20)
-		view:SetElementFactory(function(factory, elementData) frame:CreateButtonAndInit(factory, elementData) end)
+        view:SetElementExtent(20)
+        view:SetElementFactory(function(factory, elementData) frame:CreateButtonAndInit(factory, elementData) end)
 
         local pad, spacing = 2
-		view:SetPadding(pad, pad, pad, pad, spacing)
-		ScrollUtil.InitScrollBoxListWithScrollBar(frame.Log.Events.ScrollBox, frame.Log.Events.ScrollBar, view)
-		frame.Log.Events.ScrollBox:SetDataProvider(frame.logDataProvider)
+        view:SetPadding(pad, pad, pad, pad, spacing)
+        ScrollUtil.InitScrollBoxListWithScrollBar(frame.Log.Events.ScrollBox, frame.Log.Events.ScrollBar, view)
+        frame.Log.Events.ScrollBox:SetDataProvider(frame.logDataProvider)
 
         frame:Hide()
         return frame

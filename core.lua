@@ -3392,7 +3392,7 @@ do
                 ["Voidzone"] = "Raider.IO AddOn Author"
             },
             ["Ysondre"] = {
-                ["Isakem"] = "Raider.IO Contributor"
+                ["Isakem"] = "Raider.IO Developer"
             }
         },
         ["us"] = {
@@ -3400,6 +3400,7 @@ do
                 ["Aspyric"] = "Raider.IO Creator",
                 ["Ulsoga"] = "Raider.IO Creator",
                 ["Mccaffrey"] = "Killing Keys Since 1977!",
+                ["Puffymüffins"] = "Raider.IO Guild Recruiter",
                 ["Oscassey"] = "Master of dis guys"
             },
             ["Thrall"] = {

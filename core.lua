@@ -1986,7 +1986,7 @@ do
                 end
             end
             if not provider.desynced and not provider.blocked and provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
-                ns.CURRENT_SEASON = provider.currentSeasonId
+                ns.CURRENT_SEASON = max(ns.CURRENT_SEASON, provider.currentSeasonId)
             end
         end
         if desynced then
@@ -3433,9 +3433,12 @@ do
         }
     }
 
-    local DUNGEONS = ns:GetDungeonData()
-
     local function GetSeasonLabel(label, season)
+        if not season then
+            season = ns.CURRENT_SEASON
+        else
+            season = max(1, min(ceil(season) + 0.5, ns.CURRENT_SEASON - 0.5))
+        end
         return format(label, format(floor(season) == season and L.SEASON_LABEL or L.SEASON_LABEL_POST, season))
     end
 
@@ -3609,10 +3612,10 @@ do
                             if keystoneProfile.mplusPrevious.score > keystoneProfile.mplusCurrent.score then
                                 tooltip:AddDoubleLine(GetSeasonLabel(L.RAIDERIO_MP_BEST_SCORE, keystoneProfile.mplusPrevious.season), GetScoreText(keystoneProfile.mplusPrevious, true), 1, 0.85, 0, util:GetScoreColor(keystoneProfile.mplusPrevious.score, true))
                                 if keystoneProfile.mplusCurrent.score > 0 then
-                                    tooltip:AddDoubleLine(GetSeasonLabel(L.CURRENT_SCORE, ns.CURRENT_SEASON), GetScoreText(keystoneProfile.mplusCurrent), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
+                                    tooltip:AddDoubleLine(GetSeasonLabel(L.CURRENT_SCORE), GetScoreText(keystoneProfile.mplusCurrent), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
                                 end
                             else
-                                tooltip:AddDoubleLine(GetSeasonLabel(L.RAIDERIO_MP_SCORE, ns.CURRENT_SEASON), GetScoreText(keystoneProfile.mplusCurrent), 1, 0.85, 0, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
+                                tooltip:AddDoubleLine(GetSeasonLabel(L.RAIDERIO_MP_SCORE), GetScoreText(keystoneProfile.mplusCurrent), 1, 0.85, 0, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
                             end
                         elseif headlineMode == ns.HEADLINE_MODE.BEST_RUN then
                             local r, g, b = 1, 0.85, 0
@@ -3620,13 +3623,13 @@ do
                                 r, g, b = 1, 1, 1
                             end
                             if keystoneProfile.mplusCurrent.score > 0 then
-                                tooltip:AddDoubleLine(GetSeasonLabel(L.CURRENT_SCORE, ns.CURRENT_SEASON), GetScoreText(keystoneProfile.mplusCurrent), r, g, b, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
+                                tooltip:AddDoubleLine(GetSeasonLabel(L.CURRENT_SCORE), GetScoreText(keystoneProfile.mplusCurrent), r, g, b, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
                             end
                             if keystoneProfile.mplusPrevious.score > keystoneProfile.mplusCurrent.score then
                                 tooltip:AddDoubleLine(GetSeasonLabel(L.PREVIOUS_SCORE, keystoneProfile.mplusPrevious.season), GetScoreText(keystoneProfile.mplusPrevious, true), r, g, b, util:GetScoreColor(keystoneProfile.mplusPrevious.score, true))
                             end
                         else -- if headlineMode == ns.HEADLINE_MODE.CURRENT_SEASON then
-                            tooltip:AddDoubleLine(GetSeasonLabel(L.RAIDERIO_MP_SCORE, ns.CURRENT_SEASON), GetScoreText(keystoneProfile.mplusCurrent), 1, 0.85, 0, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
+                            tooltip:AddDoubleLine(GetSeasonLabel(L.RAIDERIO_MP_SCORE), GetScoreText(keystoneProfile.mplusCurrent), 1, 0.85, 0, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
                             if keystoneProfile.mplusPrevious.score > keystoneProfile.mplusCurrent.score then
                                 tooltip:AddDoubleLine(GetSeasonLabel(L.PREVIOUS_SCORE, keystoneProfile.mplusPrevious.season), GetScoreText(keystoneProfile.mplusPrevious, true), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusPrevious.score, true))
                             end

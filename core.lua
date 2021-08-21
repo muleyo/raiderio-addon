@@ -4765,6 +4765,22 @@ do
     ---@return table, string @Returns the used frame and strata after logical checks have been performed on the provided frame and strata values.
     local function SetAnchor(anchorFrame, frameStrata)
         anchorFrame = IsFrame(anchorFrame) and anchorFrame or FALLBACK_ANCHOR
+        -- Premade Groups Filter
+        do
+            if anchorFrame == FALLBACK_ANCHOR  then
+                local PGF = _G.PremadeGroupsFilterDialog
+                if IsFrame(PGF) then
+                    local PGFMT = PGF.MoveableToggle
+                    local moved
+                    if IsFrame(PGFMT) then
+                        moved = PGFMT:GetChecked()
+                    end
+                    if not moved and PGF:IsShown() then
+                        anchorFrame = PGF
+                    end
+                end
+            end
+        end
         local frame = anchorFrame or FALLBACK_ANCHOR
         local strata = frameStrata or FALLBACK_ANCHOR_STRATA
         tooltip:SetParent(frame)
@@ -4862,6 +4878,17 @@ do
         PVEFrame:HookScript("OnHide", PVEFrame_OnHide)
         UpdatePosition()
         callback:RegisterEvent(OnSettingsSaved, "RAIDERIO_SETTINGS_SAVED")
+        -- Premade Groups Filter
+        do
+            local PGF = _G.PremadeGroupsFilterDialog
+            if IsFrame(PGF) then
+                PGF:HookScript("OnShow", UpdatePosition)
+                PGF:HookScript("OnHide", UpdatePosition)
+                if IsFrame(PGF.MoveableToggle) then
+                    PGF.MoveableToggle:HookScript("OnClick", UpdatePosition)
+                end
+            end
+        end
     end
 
     ---@return boolean, boolean @arg1 is true if the toggle was successfull, otherwise false if we can't toggle right now. arg2 is set to true if the frame is now draggable, otherwise false for locked.

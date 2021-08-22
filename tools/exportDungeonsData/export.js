@@ -3,7 +3,7 @@ const csv = require('fast-csv');
 
 (async () => {
 
-    const build = '9.1.0.39229', expansion = 8; // 9.X (Shadowlands)
+    const build = '9.1.0.39804', expansion = 8; // 9.X (Shadowlands)
     // const build = '8.3.7.35284', expansion = 7; // 8.X (Battle for Azeroth)
 
     if (!/^\d+\.\d+\.\d+\.\d+$/.test(build) || typeof expansion !== 'number') return console.error('Missing valid build and/or expansion id.');

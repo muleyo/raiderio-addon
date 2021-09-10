@@ -40,10 +40,10 @@ do
     ---@field public KEYSTONE_LEVEL_PATTERN table<number, string> @Table over patterns matching keystone levels in strings
     ---@field public KEYSTONE_LEVEL_TO_SCORE table<number, number> @Table over keystone levels and the base score for that level
     ---@field public RAID_DIFFICULTY table<number, RaidDifficulty> @Table of 1=normal, 2=heroic, 3=mythic difficulties and their names and colors
-	---@field public PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season must surpass from previous season to be considered better and shown as primary in addon
-	---@field public PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season current character must surpass from previous season main to be considered better and shown as primary in addon
+    ---@field public PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season must surpass from previous season to be considered better and shown as primary in addon
+    ---@field public PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season current character must surpass from previous season main to be considered better and shown as primary in addon
 
-	ns.Print = function(text, r, g, b, ...)
+    ns.Print = function(text, r, g, b, ...)
         r, g, b = r or 1, g or 1, b or 0
         DEFAULT_CHAT_FRAME:AddMessage(tostring(text), r, g, b, ...)
     end
@@ -69,10 +69,10 @@ do
         BEST_RUN = 2
     }
 
-	-- threshold for comparing current character's previous season score to current score
-	-- meaning: once current score exceeds this fraction of previous season, then show current season
-	ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = 0.75
-	ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = 0.75
+    -- threshold for comparing current character's previous season score to current score
+    -- meaning: once current score exceeds this fraction of previous season, then show current season
+    ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = 0.75
+    ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = 0.75
 
     ---@class RoleIcon
     ---@field full string @The full icon in "|T|t" syntax
@@ -3441,13 +3441,11 @@ do
         }
     }
 
-    local function GetSeasonLabel(label, season)
-        if not season then
-            season = ns.CURRENT_SEASON
-        else
-            season = max(1, min(ceil(season) + 0.5, ns.CURRENT_SEASON - 0.5))
+    local function GetSeasonLabel(label, seasonId)
+        if not seasonId then
+            seasonId = ns.CURRENT_SEASON
         end
-        return format(label, format(floor(season) == season and L.SEASON_LABEL or L.SEASON_LABEL_POST, season))
+        return L["SEASON_LABEL_FOR_ID_" .. seasonId] or ""
     end
 
     ---@param data DataProviderMythicKeystoneScore

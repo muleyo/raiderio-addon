@@ -2558,7 +2558,7 @@ do
             roles = ORDERED_ROLES[results.currentRoleOrdinalIndex] or ORDERED_ROLES[1]
         }
         results.mplusPrevious = {
-            season = results.previousScoreSeason + 1,
+            season = results.previousScoreSeason,
             score = results.previousScore,
             roles = ORDERED_ROLES[results.previousRoleOrdinalIndex] or ORDERED_ROLES[1]
         }
@@ -2567,7 +2567,7 @@ do
             roles = ORDERED_ROLES[results.mainCurrentRoleOrdinalIndex] or ORDERED_ROLES[1]
         }
         results.mplusMainPrevious = {
-            season = results.mainPreviousScoreSeason + 1,
+            season = results.mainPreviousScoreSeason,
             score = results.mainPreviousScore,
             roles = ORDERED_ROLES[results.mainPreviousRoleOrdinalIndex] or ORDERED_ROLES[1]
         }
@@ -3445,7 +3445,7 @@ do
         if not seasonId then
             seasonId = ns.CURRENT_SEASON
         end
-        return L["SEASON_LABEL_FOR_ID_" .. seasonId] or ""
+        return format(label, L["SEASON_LABEL_" .. seasonId] or "")
     end
 
     ---@param data DataProviderMythicKeystoneScore

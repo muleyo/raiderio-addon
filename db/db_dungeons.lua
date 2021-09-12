@@ -75,21 +75,3 @@ ns.dungeons = {
 		["shortName"] = "MISTS",
 	}
 }
-
--- Raid listing sorted by id
-ns.raids = {
-	[1] = {
-		["id"] = 13224,
-		["instance_map_id"] = 2296,
-		["lfd_activity_ids"] = { 720, 721, 722 },
-		["name"] = "Castle Nathria",
-		["shortName"] = "CN",
-	},
-	[2] = {
-		["id"] = 13561,
-		["instance_map_id"] = 2450,
-		["lfd_activity_ids"] = { 743, 744, 745 },
-		["name"] = "Sanctum of Domination",
-		["shortName"] = "SOD",
-	}
-}

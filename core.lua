@@ -3445,7 +3445,7 @@ do
         if not seasonId then
             seasonId = ns.CURRENT_SEASON
         end
-        return format(label, L["SEASON_LABEL_" .. seasonId] or "")
+        return format(label, L["SEASON_LABEL_" .. (1 + seasonId)] or "")
     end
 
     ---@param data DataProviderMythicKeystoneScore

@@ -4789,11 +4789,15 @@ do
         end
         local frame = anchorFrame or FALLBACK_ANCHOR
         local strata = frameStrata or FALLBACK_ANCHOR_STRATA
-        tooltip:SetParent(frame)
-        tooltip:SetOwner(anchorFrame, "ANCHOR_NONE")
+        if tooltip:GetParent() ~= frame then
+            tooltip:SetParent(frame)
+        end
+        if tooltip:GetOwner() ~= anchorFrame then
+            tooltip:SetOwner(anchorFrame, "ANCHOR_NONE")
+        end
         tooltip:ClearAllPoints()
         tooltip:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, 0)
-        tooltip:SetFrameStrata(frameStrata or FALLBACK_ANCHOR_STRATA)
+        tooltip:SetFrameStrata(strata)
         return frame, strata
     end
 

@@ -25,7 +25,7 @@ ns.dungeons = {
 		["keystone_instance"] = 382,
 		["instance_map_id"] = 2293,
 		["lfd_activity_ids"] = { 716, 717, 718, 719 },
-		["timers"] = { 1332, 1776, 2220 },
+		["timers"] = { 1368, 1824, 2280 },
 		["name"] = "Theater of Pain",
 		["shortName"] = "TOP",
 	},

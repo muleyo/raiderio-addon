@@ -4744,41 +4744,95 @@ do
     local profile = ns:NewModule("Profile") ---@type ProfileModule
     local callback = ns:GetModule("Callback") ---@type CallbackModule
     local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
     local render = ns:GetModule("Render") ---@type RenderModule
 
     local function IsFrame(widget)
-        return type(widget) == "table" and type(widget.GetObjectType) == "function"
+        return type(widget) == "table" and type(widget.GetObjectType) == "function" and widget
     end
 
-    local FALLBACK_ANCHOR = _G.PVEFrame
-    local FALLBACK_ANCHOR_STRATA = "LOW"
-    local FALLBACK_FRAME = _G.UIParent
-    local FALLBACK_FRAME_STRATA = "LOW"
+    local fallbackFrame = _G.UIParent
+    local fallbackStrata = "LOW"
 
+    local tooltipAnchor
     local tooltip
 
-    ---@param isDraggable boolean
-    ---@return boolean @true if frame is draggable, otherwise false.
-    local function SetDraggable(isDraggable)
-        tooltip:EnableMouse(isDraggable)
-        tooltip:SetMovable(isDraggable)
-        return isDraggable
+    local tooltipAnchorPriority = {
+        -- this entry is updated with the latest anchor from previous `profile:ShowProfile(anchor, ...)` call so that we can prioritize this anchor above all others
+        {
+            name = nil,
+            strata = "TOOLTIP",
+        },
+        -- overrides the default PVEFrame anchor behavior when Premade Groups Filter is loaded
+        {
+            name = "PremadeGroupsFilterDialog",
+            hook = function(anchor, frame, updatePosition)
+                if not anchor.toggleHooked and IsFrame(frame.MoveableToggle) then
+                    anchor.toggleHooked = true
+                    frame.MoveableToggle:HookScript("OnClick", updatePosition)
+                end
+            end,
+            usable = function(anchor, frame)
+                return frame:IsShown()
+            end,
+        },
+        -- the default PVEFrame player profile and anchor behavior
+        {
+            name = "PVEFrame",
+            show = function(anchor, frame)
+                if not frame:IsShown() or not config:Get("showRaiderIOProfile") then
+                    return
+                end
+                profile:ShowProfile(false, "player", ns.PLAYER_FACTION)
+            end,
+            hide = function()
+                profile:HideProfile()
+            end,
+        },
+    }
+
+    local hookedFrames = {}
+
+    local function Eval(o, f, ...)
+        if type(o) == "function" then
+            return o(...)
+        end
+        return o or f
     end
 
-    ---@param anchorFrame table @The widget to anchor
-    ---@param frameStrata string @The frame strata "LOW", "HIGH", "DIALOG", etc.
+    local function GetAnchorPoint(anchor, frame)
+        return 
+            Eval(anchor.point, "TOPLEFT", anchor, frame),
+            Eval(anchor.rpoint, "TOPRIGHT", anchor, frame),
+            Eval(anchor.x, 0, anchor, frame),
+            Eval(anchor.y, 0, anchor, frame),
+            Eval(anchor.strata, fallbackStrata, anchor, frame)
+    end
+
     ---@return table, string @Returns the used frame and strata after logical checks have been performed on the provided frame and strata values.
-    local function SetAnchor(anchorFrame, frameStrata)
-        anchorFrame = IsFrame(anchorFrame) and anchorFrame or FALLBACK_ANCHOR
-        local frame = anchorFrame or FALLBACK_ANCHOR
-        local strata = frameStrata or FALLBACK_ANCHOR_STRATA
-        tooltip:SetParent(frame)
-        tooltip:SetOwner(anchorFrame, "ANCHOR_NONE")
-        tooltip:ClearAllPoints()
-        tooltip:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, 0)
-        tooltip:SetFrameStrata(strata)
-        return frame, strata
+    local function SetAnchor()
+        for _, anchor in ipairs(tooltipAnchorPriority) do
+            local frame = anchor.name
+            if frame then
+                frame = IsFrame(frame) or IsFrame(_G[frame])
+                if frame then
+                    local usable = anchor.usable
+                    if usable == nil then
+                        usable = true
+                    elseif type(usable) == "function" then
+                        usable = anchor.usable(anchor, frame)
+                    end
+                    if usable then
+                        local p, rp, x, y, strata = GetAnchorPoint(anchor, frame)
+                        -- tooltipAnchor:SetParent(frame) -- TODO: will hide the child tooltip when parent changes like this
+                        tooltipAnchor:ClearAllPoints()
+                        tooltipAnchor:SetPoint(p, frame, rp, x, y)
+                        tooltipAnchor:SetFrameStrata(strata)
+                        tooltip:SetFrameStrata(strata)
+                        return frame, strata
+                    end
+                end
+            end
+        end
     end
 
     ---@class ConfigProfilePoint
@@ -4789,64 +4843,105 @@ do
     ---@return table, string @Returns the used frame and strata after logical checks have been performed on the provided frame and strata values.
     local function SetUserAnchor()
         local profilePoint = config:Get("profilePoint") ---@type ConfigProfilePoint
-        tooltip:SetParent(FALLBACK_FRAME)
-        tooltip:SetOwner(FALLBACK_FRAME, "ANCHOR_NONE")
-        tooltip:ClearAllPoints()
         local p = profilePoint.point or "CENTER"
         local x = profilePoint.x or 0
         local y = profilePoint.y or 0
-        tooltip:SetPoint(p, FALLBACK_FRAME, p, x, y)
-        tooltip:SetFrameStrata(FALLBACK_FRAME_STRATA)
-        return FALLBACK_FRAME, FALLBACK_FRAME_STRATA
+        -- tooltipAnchor:SetParent(fallbackFrame) -- TODO: will hide the child tooltip when parent changes like this
+        tooltipAnchor:ClearAllPoints()
+        tooltipAnchor:SetPoint(p, fallbackFrame, p, x, y)
+        tooltipAnchor:SetFrameStrata(fallbackStrata)
+        tooltip:SetFrameStrata(fallbackStrata)
+        return fallbackFrame, fallbackStrata
+    end
+
+    ---@param isDraggable boolean
+    ---@return boolean @true if frame is draggable, otherwise false.
+    local function SetDraggable(self, isDraggable)
+        self:EnableMouse(isDraggable)
+        self:SetMovable(isDraggable)
+        self.Indicator:SetShown(isDraggable)
+        self.Icon:SetShown(isDraggable)
+        return isDraggable
     end
 
     ---@return boolean, table, string @arg1 returns true if position is automatic, otherwise false. `arg2+` are the same as returned from `SetAnchor` or `SetUserAnchor`.
-    local function UpdatePosition()
-        SetDraggable(not config:Get("positionProfileAuto") and not config:Get("lockProfile"))
+    local function UpdatePosition(anchor, frame)
+        if anchor and frame then
+            if frame:IsShown() and anchor.show and type(anchor.show) == "function" then
+                anchor.show(anchor, frame)
+            elseif not frame:IsShown() and anchor.hide and type(anchor.hide) == "function" then
+                anchor.hide(anchor, frame)
+            end
+        end
+        SetDraggable(tooltipAnchor, not config:Get("positionProfileAuto") and not config:Get("lockProfile"))
         if config:Get("positionProfileAuto") then
-            return true, SetAnchor(FALLBACK_ANCHOR, FALLBACK_ANCHOR_STRATA)
+            return true, SetAnchor()
         else
             return false, SetUserAnchor()
         end
     end
 
-    local function Tooltip_OnShow()
-        if GameTooltip_SetBackdropStyle then
-            GameTooltip_SetBackdropStyle(tooltip, GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
+    local function UpdateAnchorHooks()
+        for _, anchor in ipairs(tooltipAnchorPriority) do
+            local frame = anchor.name
+            if frame then
+                frame = IsFrame(frame) or IsFrame(_G[frame])
+                if frame then
+                    local function updatePosition()
+                        return UpdatePosition(anchor, frame)
+                    end
+                    if not hookedFrames[frame] then
+                        hookedFrames[frame] = true
+                        frame:HookScript("OnShow", updatePosition)
+                        frame:HookScript("OnHide", updatePosition)
+                    end
+                    if anchor.hook and type(anchor.hook) == "function" then
+                        anchor.hook(anchor, frame, updatePosition)
+                    end
+                end
+            end
         end
     end
 
-    local function Tooltip_OnDragStart()
-        tooltip:StartMoving()
+    local function OnDragStart(self)
+        self:StartMoving()
     end
 
-    local function Tooltip_OnDragStop()
-        tooltip:StopMovingOrSizing()
-        local point, _, _, x, y = tooltip:GetPoint() -- TODO: improve this to store a corner so that when the tip is resized the corner is the anchor point and not the center as that makes it very wobbly and unpleasant to look at
+    local function OnDragStop(self)
+        self:StopMovingOrSizing()
+        local point, _, _, x, y = self:GetPoint() -- TODO: improve this to store a corner so that when the tip is resized the corner is the anchor point and not the center as that makes it very wobbly and unpleasant to look at
         local profilePoint = config:Get("profilePoint") ---@type ConfigProfilePoint
         config:Set("profilePoint", profilePoint)
         profilePoint.point, profilePoint.x, profilePoint.y = point, x, y
     end
 
+    local function CreateTooltipAnchor()
+        local frame = CreateFrame("Frame", nil, fallbackFrame)
+        frame:SetFrameStrata(fallbackStrata)
+        frame:SetFrameLevel(100)
+        frame:SetClampedToScreen(true)
+        frame:RegisterForDrag("LeftButton")
+        frame:SetScript("OnDragStart", OnDragStart)
+        frame:SetScript("OnDragStop", OnDragStop)
+        frame:SetSize(16, 16)
+        frame.Indicator = frame:CreateTexture(nil, "BACKGROUND")
+        frame.Indicator:SetAllPoints()
+        frame.Indicator:SetColorTexture(0.3, 0.3, 0.3)
+        frame.Icon = frame:CreateTexture(nil, "ARTWORK")
+        frame.Icon:SetAllPoints()
+        frame.Icon:SetTexture(386863)
+        return frame
+    end
+
     local function CreateTooltip()
-        local tooltip = CreateFrame("GameTooltip", addonName .. "ProfileTooltip", UIParent, "GameTooltipTemplate")
+        local tooltip = CreateFrame("GameTooltip", addonName .. "_ProfileTooltip", tooltipAnchor, "GameTooltipTemplate")
         tooltip:SetClampedToScreen(true)
-        tooltip:RegisterForDrag("LeftButton")
-        tooltip:SetScript("OnShow", Tooltip_OnShow)
-        tooltip:SetScript("OnDragStart", Tooltip_OnDragStart)
-        tooltip:SetScript("OnDragStop", Tooltip_OnDragStop)
+        tooltip:SetOwner(tooltipAnchor, "ANCHOR_NONE")
+        tooltip:ClearAllPoints()
+        tooltip:SetPoint("TOPLEFT", tooltipAnchor, "TOPRIGHT", 0, 0)
+        tooltip:SetFrameStrata(fallbackStrata)
+        tooltip:SetFrameLevel(100)
         return tooltip
-    end
-
-    local function PVEFrame_OnShow()
-        if not PVEFrame:IsShown() or not config:Get("showRaiderIOProfile") then
-            return
-        end
-        profile:ShowProfile(false, "player", ns.PLAYER_FACTION)
-    end
-
-    local function PVEFrame_OnHide()
-        profile:HideProfile()
     end
 
     local function OnSettingsSaved()
@@ -4854,7 +4949,6 @@ do
             return
         end
         UpdatePosition()
-        profile:HideProfile()
     end
 
     function profile:CanLoad()
@@ -4863,11 +4957,12 @@ do
 
     function profile:OnLoad()
         self:Enable()
+        tooltipAnchor = CreateTooltipAnchor()
         tooltip = CreateTooltip()
-        PVEFrame:HookScript("OnShow", PVEFrame_OnShow)
-        PVEFrame:HookScript("OnHide", PVEFrame_OnHide)
+        UpdateAnchorHooks()
         UpdatePosition()
         callback:RegisterEvent(OnSettingsSaved, "RAIDERIO_SETTINGS_SAVED")
+        callback:RegisterEvent(UpdateAnchorHooks, "ADDON_LOADED")
     end
 
     ---@return boolean, boolean @arg1 is true if the toggle was successfull, otherwise false if we can't toggle right now. arg2 is set to true if the frame is now draggable, otherwise false for locked.
@@ -4886,7 +4981,7 @@ do
         else
             ns.Print(L.UNLOCKING_PROFILE_FRAME)
         end
-        return true, SetDraggable(not isLocking)
+        return true, SetDraggable(tooltipAnchor, not isLocking)
     end
 
     local function IsPlayer(unit, name, realm, region)
@@ -4901,18 +4996,19 @@ do
         if not profile:IsEnabled() or not config:Get("showRaiderIOProfile") then
             return
         end
+        tooltipAnchorPriority[1].name = anchor
+        UpdateAnchorHooks()
+        UpdatePosition()
         local unit, name, realm, faction, options, args, region = render.GetQuery(...)
         options = options or render.Preset.Profile()
-        local positionProfileAuto = UpdatePosition()
-        if positionProfileAuto and IsFrame(anchor) then
-            SetAnchor(anchor, anchor:GetFrameStrata())
-        end
         local isPlayer = IsPlayer(unit, name, realm, region)
         if not isPlayer and config:Get("enableProfileModifier") and band(options, render.Flags.IGNORE_MOD) ~= render.Flags.IGNORE_MOD then
             if config:Get("inverseProfileModifier") == (config:Get("alwaysExtendTooltip") or band(options, render.Flags.MOD) == render.Flags.MOD) then
                 unit, name, realm, faction = "player", nil, nil, ns.PLAYER_FACTION
             end
         end
+        tooltip:SetOwner(tooltipAnchor, "ANCHOR_NONE")
+        tooltip:SetPoint("TOPLEFT", tooltipAnchor, "TOPRIGHT", 0, 0)
         local success
         if not isPlayer or not config:Get("hidePersonalRaiderIOProfile") then
             if unit and UnitExists(unit) then

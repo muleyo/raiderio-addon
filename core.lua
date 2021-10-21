@@ -4772,7 +4772,7 @@ do
                 end
             end,
             usable = function(anchor, frame)
-                return frame:IsShown()
+                return frame:IsShown() and (not frame.MoveableToggle or not frame.MoveableToggle:GetChecked())
             end,
         },
         -- the default PVEFrame player profile and anchor behavior

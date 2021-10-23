@@ -4947,7 +4947,7 @@ do
 
     local function Tooltip_OnShow()
         if GameTooltip_SetBackdropStyle then
-            GameTooltip_SetBackdropStyle(tooltip, GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
+            GameTooltip_SetBackdropStyle(tooltip, BACKDROP_TUTORIAL_16_16 or BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
         end
     end
 
@@ -5828,7 +5828,7 @@ do
             frame:SetFrameStrata("MEDIUM")
             frame:SetSize(115, 115)
             if frame.SetBackdrop then
-                frame:SetBackdrop(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
+                frame:SetBackdrop(BACKDROP_TUTORIAL_16_16 or BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
                 frame:SetBackdropBorderColor(1, 1, 1, 1)
                 frame:SetBackdropColor(0, 0, 0, 0.6)
             end
@@ -6123,7 +6123,7 @@ do
             Frame:SetSize(310, config:Get("debugMode") and 115 or 100)
             Frame:SetPoint("CENTER")
             if Frame.SetBackdrop then
-                Frame:SetBackdrop(BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
+                Frame:SetBackdrop(BACKDROP_TUTORIAL_16_16 or BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
                 Frame:SetBackdropBorderColor(TOOLTIP_DEFAULT_COLOR:GetRGB())
                 Frame:SetBackdropColor(TOOLTIP_DEFAULT_BACKGROUND_COLOR:GetRGB())
                 Frame:SetBackdropColor(0, 0, 0, 1) -- TODO: ?

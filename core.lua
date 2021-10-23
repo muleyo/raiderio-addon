@@ -2558,26 +2558,26 @@ do
                         dungeonTimes[i] = 3 - dungeonUpgrades[i]
                         results.hasRenderableData = results.hasRenderableData or dungeons[i] > 0
                     end
-                    results[prefix + 'Dungeons'] = dungeons
-                    results[prefix + 'DungeonUpgrades'] = dungeonUpgrades
-                    results[prefix + 'DungeonTimes'] = dungeonTimes
+                    results[prefix .. "Dungeons"] = dungeons
+                    results[prefix .. "DungeonUpgrades"] = dungeonUpgrades
+                    results[prefix .. "DungeonTimes"] = dungeonTimes
                 end
                 -- the new format keeps all the fortified data together, followed by an identical struct for the tyrannical data so we need to read this in this order
-                processDungeonsFor('fortified') -- results.fortifiedDungeons, results.fortifiedDungeonUpgrades, results.fortifiedDungeonTimes
-                processDungeonsFor('tyrannical') -- results.tyrannicalDungeons, results.tyrannicalDungeonUpgrades, results.tyrannicalDungeonTimes
+                processDungeonsFor("fortified") -- results.fortifiedDungeons, results.fortifiedDungeonUpgrades, results.fortifiedDungeonTimes
+                processDungeonsFor("tyrannical") -- results.tyrannicalDungeons, results.tyrannicalDungeonUpgrades, results.tyrannicalDungeonTimes
                 -- for convenience we setup a metatable to dynamically lookup the correct weekly affix data (older code referencing `dungeons`, `dungeonUpgrades` or `dungeonTimes`, will have this fallback kick in)
                 local function createWeeklyAffixProxyTableFor(suffix)
                     return setmetatable({}, {
                         __metatable = false,
                         __index = function(_, key)
                             local _, weeklyAffixInternal = util:GetWeeklyAffix()
-                            return results[weeklyAffixInternal + suffix][key]
+                            return results[weeklyAffixInternal .. suffix][key]
                         end
                     })
                 end
-                results.dungeons = createWeeklyAffixProxyTableFor('Dungeons')
-                results.dungeonUpgrades = createWeeklyAffixProxyTableFor('DungeonUpgrades')
-                results.dungeonTimes = createWeeklyAffixProxyTableFor('DungeonTimes')
+                results.dungeons = createWeeklyAffixProxyTableFor("Dungeons")
+                results.dungeonUpgrades = createWeeklyAffixProxyTableFor("DungeonUpgrades")
+                results.dungeonTimes = createWeeklyAffixProxyTableFor("DungeonTimes")
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_BEST_INDEX then
                 local function processDungeonsFor(prefix)
                     value, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
@@ -2585,20 +2585,20 @@ do
                     if maxDungeonIndex > #DUNGEONS then
                         maxDungeonIndex = 1
                     end
-                    results[prefix + 'MaxDungeonIndex'] = maxDungeonIndex
-                    results[prefix + 'MaxDungeonLevel'] = results[prefix + 'Dungeons'][maxDungeonIndex]
-                    results[prefix + 'MaxDungeon'] = DUNGEONS[maxDungeonIndex]
+                    results[prefix .. "MaxDungeonIndex"] = maxDungeonIndex
+                    results[prefix .. "MaxDungeonLevel"] = results[prefix .. "Dungeons"][maxDungeonIndex]
+                    results[prefix .. "MaxDungeon"] = DUNGEONS[maxDungeonIndex]
                 end
                 -- the new format keeps all the fortified data together, followed by an identical struct for the tyrannical data so we need to read this in this order
-                processDungeonsFor('fortified') -- results.fortifiedMaxDungeonIndex, results.fortifiedMaxDungeonLevel, results.fortifiedMaxDungeon
-                processDungeonsFor('tyrannical') -- results.tyrannicalMaxDungeonIndex, results.tyrannicalMaxDungeonLevel, results.tyrannicalMaxDungeon
+                processDungeonsFor("fortified") -- results.fortifiedMaxDungeonIndex, results.fortifiedMaxDungeonLevel, results.fortifiedMaxDungeon
+                processDungeonsFor("tyrannical") -- results.tyrannicalMaxDungeonIndex, results.tyrannicalMaxDungeonLevel, results.tyrannicalMaxDungeon
                 -- for convenience we setup a metatable to dynamically lookup the correct weekly affix data (older code referencing `maxDungeonIndex`, `maxDungeonLevel` or `maxDungeon` will have this fallback kick in)
                 setmetatable(results, {
                     __metatable = false,
                     __index = function(_, key)
                         if key == "maxDungeonIndex" then
                             local _, weeklyAffixInternal = util:GetWeeklyAffix()
-                            return results[weeklyAffixInternal + 'MaxDungeonIndex']
+                            return results[weeklyAffixInternal .. "MaxDungeonIndex"]
                         elseif key == "maxDungeonLevel" then
                             return results.dungeons[results.maxDungeonIndex]
                         elseif key == "maxDungeon" then
@@ -2960,19 +2960,65 @@ do
                 score = 0,
                 roles = {}
             },
-            dungeons = {},
-            dungeonUpgrades = {},
-            dungeonTimes = {},
-            maxDungeon = 0,
-            maxDungeonLevel = 0,
-            maxDungeonUpgrades = 0,
+            fortifiedDungeons = {},
+            fortifiedDungeonUpgrades = {},
+            fortifiedDungeonTimes = {},
+            fortifiedMaxDungeonIndex = 1,
+            fortifiedMaxDungeonLevel = 0,
+            fortifiedMaxDungeon = 0,
+            fortifiedMaxDungeonUpgrades = 0,
+            tyrannicalDungeons = {},
+            tyrannicalDungeonUpgrades = {},
+            tyrannicalDungeonTimes = {},
+            tyrannicalMaxDungeonIndex = 1,
+            tyrannicalMaxDungeonLevel = 0,
+            tyrannicalMaxDungeon = 0,
+            tyrannicalMaxDungeonUpgrades = 0,
+            -- dungeons = {},
+            -- dungeonUpgrades = {},
+            -- dungeonTimes = {},
+            -- maxDungeonIndex = 1,
+            -- maxDungeonLevel = 0,
+            -- maxDungeon = 0,
+            -- maxDungeonUpgrades = 0,
             sortedDungeons = {},
             sortedMilestones = {}
         }
+        local function createWeeklyAffixProxyTableFor(suffix)
+            return setmetatable({}, {
+                __metatable = false,
+                __index = function(_, key)
+                    local _, weeklyAffixInternal = util:GetWeeklyAffix()
+                    return results[weeklyAffixInternal .. suffix][key]
+                end
+            })
+        end
+        results.dungeons = createWeeklyAffixProxyTableFor("Dungeons")
+        results.dungeonUpgrades = createWeeklyAffixProxyTableFor("DungeonUpgrades")
+        results.dungeonTimes = createWeeklyAffixProxyTableFor("DungeonTimes")
+        setmetatable(results, {
+            __metatable = false,
+            __index = function(_, key)
+                if key == "maxDungeonIndex" then
+                    local _, weeklyAffixInternal = util:GetWeeklyAffix()
+                    return results[weeklyAffixInternal .. "MaxDungeonIndex"]
+                elseif key == "maxDungeonLevel" then
+                    return results.dungeons[results.maxDungeonIndex]
+                elseif key == "maxDungeon" then
+                    return DUNGEONS[results.maxDungeonIndex]
+                elseif key == "maxDungeonUpgrades" then
+                    local _, weeklyAffixInternal = util:GetWeeklyAffix()
+                    return results[weeklyAffixInternal .. "MaxDungeonUpgrades"]
+                end
+            end
+        })
         for i = 1, #DUNGEONS do
-            results.dungeons[i] = 0
-            results.dungeonUpgrades[i] = 0
-            results.dungeonTimes[i] = 0
+            results.fortifiedDungeons[i] = 0
+            results.fortifiedDungeonUpgrades[i] = 0
+            results.fortifiedDungeonTimes[i] = 0
+            results.tyrannicalDungeons[i] = 0
+            results.tyrannicalDungeonUpgrades[i] = 0
+            results.tyrannicalDungeonTimes[i] = 0
             results.sortedDungeons[i] = {
                 dungeon = DUNGEONS[i],
                 level = 0,
@@ -3001,6 +3047,7 @@ do
         if type(name) ~= "string" or type(realm) ~= "string" or type(faction) ~= "number" or (type(overallScore) ~= "number" and type(keystoneRuns) ~= "table") then
             return
         end
+        local _, weeklyAffixInternal = util:GetWeeklyAffix()
         local region = ns.PLAYER_REGION
         local guid = region .. " " .. faction .. " " .. realm .. " " .. name
         local cache = provider:GetProfile(name, realm, faction, region) ---@type DataProviderCharacterProfile
@@ -3021,6 +3068,9 @@ do
             mythicKeystoneProfile.mplusCurrent.score = overallScore
         end
         if type(keystoneRuns) == "table" and keystoneRuns[1] then
+            local weekDungeons = mythicKeystoneProfile[weeklyAffixInternal .. "Dungeons"]
+            local weekDungeonUpgrades = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonUpgrades"]
+            local weekDungeonTimes = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonTimes"]
             local maxDungeonIndex = 0
             -- local maxDungeonTime = 999
             -- local maxDungeonScore = 0
@@ -3042,7 +3092,7 @@ do
                     dungeon = nil
                 end
                 local runLevel = run.bestRunLevel
-                if dungeonIndex and mythicKeystoneProfile.dungeons[dungeonIndex] <= runLevel then
+                if dungeonIndex and weekDungeons[dungeonIndex] <= runLevel then
                     mythicKeystoneProfile.hasOverrideDungeonRuns = true
                     local _, _, dungeonTimeLimit = C_ChallengeMode.GetMapUIInfo(run.challengeModeID)
                     local goldTimeLimit, silverTimeLimit, bronzeTimeLimit = -1, -1, dungeonTimeLimit
@@ -3063,9 +3113,9 @@ do
                     local fractionalTime = run.finishedSuccess and (mythicKeystoneProfile.isEnhanced and runTimerAsFraction or (3 - runNumUpgrades)) or 3 -- the data here depends if we are using client enhanced data or not
                     -- local runScore = run.mapScore
                     needsMaxDungeonUpgrade = true
-                    mythicKeystoneProfile.dungeons[dungeonIndex] = runLevel
-                    mythicKeystoneProfile.dungeonUpgrades[dungeonIndex] = runNumUpgrades
-                    mythicKeystoneProfile.dungeonTimes[dungeonIndex] = fractionalTime
+                    weekDungeons[dungeonIndex] = runLevel
+                    weekDungeonUpgrades[dungeonIndex] = runNumUpgrades
+                    weekDungeonTimes[dungeonIndex] = fractionalTime
                     -- if runNumUpgrades > 0 and (runScore > maxDungeonScore or (runScore == maxDungeonScore and fractionalTime < maxDungeonTime)) then
                     if runNumUpgrades > 0 and (runLevel > maxDungeonLevel or (runLevel == maxDungeonLevel and runTimerAsFraction < maxDungeonRunTimer)) then
                         maxDungeonIndex = dungeonIndex
@@ -3092,9 +3142,9 @@ do
                 end
             end
             if needsMaxDungeonUpgrade then
-                mythicKeystoneProfile.maxDungeon = DUNGEONS[maxDungeonIndex]
-                mythicKeystoneProfile.maxDungeonLevel = maxDungeonLevel
-                mythicKeystoneProfile.maxDungeonUpgrades = maxDungeonUpgrades
+                mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeon"] = DUNGEONS[maxDungeonIndex]
+                mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeonLevel"] = maxDungeonLevel
+                mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeonUpgrades"] = maxDungeonUpgrades
             end
             if needsDungeonSort then
                 table.sort(mythicKeystoneProfile.sortedDungeons, SortDungeons)

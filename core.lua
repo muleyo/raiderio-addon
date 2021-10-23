@@ -2422,6 +2422,7 @@ do
     ---@field public maxDungeonIndex number @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedMaxDungeonIndex` and `tyrannicalMaxDungeonIndex` when possible.
     ---@field public maxDungeonLevel number @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedMaxDungeonLevel` and `tyrannicalMaxDungeonLevel` when possible.
     ---@field public maxDungeon Dungeon @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedMaxDungeon` and `tyrannicalMaxDungeon` when possible.
+    ---@field public maxDungeonUpgrades number @Proxy table that looks up the correct weekly affix table if used. Part of the override score functionality, possibly client data as well.
     ---@field public sortedDungeons SortedDungeon[]
     ---@field public sortedMilestones SortedMilestone[]
     ---@field public mplusCurrent DataProviderMythicKeystoneScore
@@ -2442,6 +2443,165 @@ do
 
     local CLIENT_CHARACTERS = ns:GetClientData()
     local DUNGEONS = ns:GetDungeonData()
+
+    ---@param a SortedDungeon
+    ---@param b SortedDungeon
+    local function SortDungeons(a, b)
+        local al, bl = a.level, b.level
+        if al == bl then
+            local at, bt = a.fractionalTime, b.fractionalTime
+            if at == bt then
+                return a.dungeon.shortNameLocale < b.dungeon.shortNameLocale
+            end
+            return at < bt
+        end
+        return al > bl
+    end
+
+    ---@param results DataProviderMythicKeystoneProfile
+    local function ApplyWeeklyAffixForDungeons(results, bucket, bitOffset, weeklyAffixInternal)
+        local dungeons = {}
+        local dungeonUpgrades = {}
+        local dungeonTimes = {}
+        for i = 1, #DUNGEONS do
+            dungeons[i], bitOffset = ReadBitsFromString(bucket, bitOffset, 5)
+            dungeonUpgrades[i], bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+            dungeonTimes[i] = 3 - dungeonUpgrades[i]
+            results.hasRenderableData = results.hasRenderableData or dungeons[i] > 0
+        end
+        results[weeklyAffixInternal .. "Dungeons"] = dungeons
+        results[weeklyAffixInternal .. "DungeonUpgrades"] = dungeonUpgrades
+        results[weeklyAffixInternal .. "DungeonTimes"] = dungeonTimes
+        return bitOffset
+    end
+
+    ---@param results DataProviderMythicKeystoneProfile
+    local function ApplyWeeklyAffixForDungeonBest(results, bucket, bitOffset, weeklyAffixInternal)
+        local value, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
+        local maxDungeonIndex = 1 + value
+        if maxDungeonIndex > #DUNGEONS then
+            maxDungeonIndex = 1
+        end
+        results[weeklyAffixInternal .. "MaxDungeonIndex"] = maxDungeonIndex
+        results[weeklyAffixInternal .. "MaxDungeonLevel"] = results[weeklyAffixInternal .. "Dungeons"][maxDungeonIndex]
+        results[weeklyAffixInternal .. "MaxDungeon"] = DUNGEONS[maxDungeonIndex]
+        return bitOffset
+    end
+
+    ---@param results DataProviderMythicKeystoneProfile
+    local function ApplyWeeklyAffixWrapper(results)
+        local dynamicKeys = {
+            dungeons = true,
+            dungeonUpgrades = true,
+            dungeonTimes = true,
+            maxDungeonIndex = true,
+            maxDungeonLevel = true,
+            maxDungeon = true,
+        }
+        setmetatable(results, {
+            __metatable = false,
+            __index = function(self, key)
+                if not dynamicKeys[key] then
+                    return
+                end
+                local _, weeklyAffixInternal = util:GetWeeklyAffix()
+                local destKey = key:sub(1, 1):upper() .. key:sub(2)
+                return self[weeklyAffixInternal .. destKey]
+            end,
+        })
+    end
+
+    ---@param results DataProviderMythicKeystoneProfile
+    local function ApplySortedDungeonsForAffix(results, weeklyAffixInternal)
+        local dungeonKey = "dungeons"
+        local dungeonUpgradeKey = "dungeonUpgrades"
+        local dungeonTimeKey = "dungeonTimes"
+        if weeklyAffixInternal then
+            dungeonKey = weeklyAffixInternal .. "Dungeons"
+            dungeonUpgradeKey = weeklyAffixInternal .. "DungeonUpgrades"
+            dungeonTimeKey = weeklyAffixInternal .. "DungeonTimes"
+        end
+        local sortedDungeonMetatable = {
+            __metatable = false,
+            __index = function(self, key)
+                local index = self.dungeon.index
+                local _, weeklyAffixInternal = util:GetWeeklyAffix()
+                if key == "level" then
+                    return results[weeklyAffixInternal .. "Dungeons"][index]
+                elseif key == "chests" then
+                    return results[weeklyAffixInternal .. "DungeonUpgrades"][index]
+                elseif key == "fractionalTime" then
+                    return results[weeklyAffixInternal .. "DungeonTimes"][index]
+                end
+            end,
+        }
+        results.sortedDungeons = {}
+        for i = 1, #DUNGEONS do
+            local dungeon = DUNGEONS[i]
+            if weeklyAffixInternal then
+                results.sortedDungeons[i] = {
+                    dungeon = dungeon,
+                    level = results[dungeonKey][i],
+                    chests = results[dungeonUpgradeKey][dungeon.index],
+                    fractionalTime = results[dungeonTimeKey][dungeon.index]
+                }
+            else
+                results.sortedDungeons[i] = setmetatable({ dungeon = dungeon }, sortedDungeonMetatable)
+            end
+        end
+        table.sort(results.sortedDungeons, SortDungeons)
+    end
+
+    ---@param results DataProviderMythicKeystoneProfile
+    local function ApplySortedMilestonesForAffix(results, weeklyAffixInternal)
+        results.sortedMilestones = {}
+        if results.keystoneTwentyPlus > 0 then
+            results.sortedMilestones[#results.sortedMilestones + 1] = {
+                level = 20,
+                label = L.TIMED_20_RUNS,
+                text = results.keystoneTwentyPlus .. (results.keystoneTwentyPlus > 10 and "+" or "")
+            }
+        end
+        if results.keystoneFifteenPlus > 0 then
+            results.sortedMilestones[#results.sortedMilestones + 1] = {
+                level = 15,
+                label = L.TIMED_15_RUNS,
+                text = results.keystoneFifteenPlus .. (results.keystoneFifteenPlus > 10 and "+" or "")
+            }
+        end
+        if results.keystoneTenPlus > 0 then
+            results.sortedMilestones[#results.sortedMilestones + 1] = {
+                level = 10,
+                label = L.TIMED_10_RUNS,
+                text = results.keystoneTenPlus .. (results.keystoneTenPlus > 10 and "+" or "")
+            }
+        end
+        if results.keystoneFivePlus > 0 then
+            results.sortedMilestones[#results.sortedMilestones + 1] = {
+                level = 5,
+                label = L.TIMED_5_RUNS,
+                text = results.keystoneFivePlus .. (results.keystoneFivePlus > 10 and "+" or "")
+            }
+        end
+        results.mplusCurrent = {
+            score = results.currentScore,
+            roles = ORDERED_ROLES[results.currentRoleOrdinalIndex] or ORDERED_ROLES[1]
+        }
+        results.mplusPrevious = {
+            season = results.previousScoreSeason,
+            score = results.previousScore,
+            roles = ORDERED_ROLES[results.previousRoleOrdinalIndex] or ORDERED_ROLES[1]
+        }
+        results.mplusMainCurrent = {
+            score = results.mainCurrentScore,
+            roles = ORDERED_ROLES[results.mainCurrentRoleOrdinalIndex] or ORDERED_ROLES[1]
+        }
+        results.mplusMainPrevious = {
+            season = results.mainPreviousScoreSeason,
+            score = results.mainPreviousScore,
+            roles = ORDERED_ROLES[results.mainPreviousRoleOrdinalIndex] or ORDERED_ROLES[1]
+        }
+    end
 
     ---@param results DataProviderMythicKeystoneProfile
     local function ApplyClientDataToMythicKeystoneData(results, name, realm)
@@ -2479,20 +2639,6 @@ do
             results.maxDungeonLevel = maxDungeonLevel
             results.maxDungeonUpgrades = maxDungeonUpgrades
         end
-    end
-
-    ---@param a SortedDungeon
-    ---@param b SortedDungeon
-    local function SortDungeons(a, b)
-        local al, bl = a.level, b.level
-        if al == bl then
-            local at, bt = a.fractionalTime, b.fractionalTime
-            if at == bt then
-                return a.dungeon.shortNameLocale < b.dungeon.shortNameLocale
-            end
-            return at < bt
-        end
-        return al > bl
     end
 
     local function UnpackMythicKeystoneData(bucket, baseOffset, encodingOrder, providerOutdated, providerBlocked, name, realm, region)
@@ -2548,125 +2694,17 @@ do
                 results.keystoneTwentyPlus = DecodeBits8(value)
                 results.hasRenderableData = results.hasRenderableData or results.keystoneFivePlus > 0 or results.keystoneTenPlus > 0 or results.keystoneFifteenPlus > 0 or results.keystoneTwentyPlus > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_LEVELS then
-                local function processDungeonsFor(prefix)
-                    local dungeons = {}
-                    local dungeonUpgrades = {}
-                    local dungeonTimes = {}
-                    for i = 1, #DUNGEONS do
-                        dungeons[i], bitOffset = ReadBitsFromString(bucket, bitOffset, 5)
-                        dungeonUpgrades[i], bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
-                        dungeonTimes[i] = 3 - dungeonUpgrades[i]
-                        results.hasRenderableData = results.hasRenderableData or dungeons[i] > 0
-                    end
-                    results[prefix .. "Dungeons"] = dungeons
-                    results[prefix .. "DungeonUpgrades"] = dungeonUpgrades
-                    results[prefix .. "DungeonTimes"] = dungeonTimes
-                end
-                -- the new format keeps all the fortified data together, followed by an identical struct for the tyrannical data so we need to read this in this order
-                processDungeonsFor("fortified") -- results.fortifiedDungeons, results.fortifiedDungeonUpgrades, results.fortifiedDungeonTimes
-                processDungeonsFor("tyrannical") -- results.tyrannicalDungeons, results.tyrannicalDungeonUpgrades, results.tyrannicalDungeonTimes
-                -- for convenience we setup a metatable to dynamically lookup the correct weekly affix data (older code referencing `dungeons`, `dungeonUpgrades` or `dungeonTimes`, will have this fallback kick in)
-                local function createWeeklyAffixProxyTableFor(suffix)
-                    return setmetatable({}, {
-                        __metatable = false,
-                        __index = function(_, key)
-                            local _, weeklyAffixInternal = util:GetWeeklyAffix()
-                            return results[weeklyAffixInternal .. suffix][key]
-                        end
-                    })
-                end
-                results.dungeons = createWeeklyAffixProxyTableFor("Dungeons")
-                results.dungeonUpgrades = createWeeklyAffixProxyTableFor("DungeonUpgrades")
-                results.dungeonTimes = createWeeklyAffixProxyTableFor("DungeonTimes")
+                bitOffset = ApplyWeeklyAffixForDungeons(results, bucket, bitOffset, "fortified")
+                bitOffset = ApplyWeeklyAffixForDungeons(results, bucket, bitOffset, "tyrannical")
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_BEST_INDEX then
-                local function processDungeonsFor(prefix)
-                    value, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
-                    local maxDungeonIndex = 1 + value
-                    if maxDungeonIndex > #DUNGEONS then
-                        maxDungeonIndex = 1
-                    end
-                    results[prefix .. "MaxDungeonIndex"] = maxDungeonIndex
-                    results[prefix .. "MaxDungeonLevel"] = results[prefix .. "Dungeons"][maxDungeonIndex]
-                    results[prefix .. "MaxDungeon"] = DUNGEONS[maxDungeonIndex]
-                end
-                -- the new format keeps all the fortified data together, followed by an identical struct for the tyrannical data so we need to read this in this order
-                processDungeonsFor("fortified") -- results.fortifiedMaxDungeonIndex, results.fortifiedMaxDungeonLevel, results.fortifiedMaxDungeon
-                processDungeonsFor("tyrannical") -- results.tyrannicalMaxDungeonIndex, results.tyrannicalMaxDungeonLevel, results.tyrannicalMaxDungeon
-                -- for convenience we setup a metatable to dynamically lookup the correct weekly affix data (older code referencing `maxDungeonIndex`, `maxDungeonLevel` or `maxDungeon` will have this fallback kick in)
-                setmetatable(results, {
-                    __metatable = false,
-                    __index = function(_, key)
-                        if key == "maxDungeonIndex" then
-                            local _, weeklyAffixInternal = util:GetWeeklyAffix()
-                            return results[weeklyAffixInternal .. "MaxDungeonIndex"]
-                        elseif key == "maxDungeonLevel" then
-                            return results.dungeons[results.maxDungeonIndex]
-                        elseif key == "maxDungeon" then
-                            return DUNGEONS[results.maxDungeonIndex]
-                        end
-                    end
-                })
+                bitOffset = ApplyWeeklyAffixForDungeonBest(results, bucket, bitOffset, "fortified")
+                bitOffset = ApplyWeeklyAffixForDungeonBest(results, bucket, bitOffset, "tyrannical")
             end
         end
-        ApplyClientDataToMythicKeystoneData(results, name, realm)
-        results.sortedMilestones = {}
-        if results.keystoneTwentyPlus > 0 then
-            results.sortedMilestones[#results.sortedMilestones + 1] = {
-                level = 20,
-                label = L.TIMED_20_RUNS,
-                text = results.keystoneTwentyPlus .. (results.keystoneTwentyPlus > 10 and "+" or "")
-            }
-        end
-        if results.keystoneFifteenPlus > 0 then
-            results.sortedMilestones[#results.sortedMilestones + 1] = {
-                level = 15,
-                label = L.TIMED_15_RUNS,
-                text = results.keystoneFifteenPlus .. (results.keystoneFifteenPlus > 10 and "+" or "")
-            }
-        end
-        if results.keystoneTenPlus > 0 then
-            results.sortedMilestones[#results.sortedMilestones + 1] = {
-                level = 10,
-                label = L.TIMED_10_RUNS,
-                text = results.keystoneTenPlus .. (results.keystoneTenPlus > 10 and "+" or "")
-            }
-        end
-        if results.keystoneFivePlus > 0 then
-            results.sortedMilestones[#results.sortedMilestones + 1] = {
-                level = 5,
-                label = L.TIMED_5_RUNS,
-                text = results.keystoneFivePlus .. (results.keystoneFivePlus > 10 and "+" or "")
-            }
-        end
-        results.mplusCurrent = {
-            score = results.currentScore,
-            roles = ORDERED_ROLES[results.currentRoleOrdinalIndex] or ORDERED_ROLES[1]
-        }
-        results.mplusPrevious = {
-            season = results.previousScoreSeason,
-            score = results.previousScore,
-            roles = ORDERED_ROLES[results.previousRoleOrdinalIndex] or ORDERED_ROLES[1]
-        }
-        results.mplusMainCurrent = {
-            score = results.mainCurrentScore,
-            roles = ORDERED_ROLES[results.mainCurrentRoleOrdinalIndex] or ORDERED_ROLES[1]
-        }
-        results.mplusMainPrevious = {
-            season = results.mainPreviousScoreSeason,
-            score = results.mainPreviousScore,
-            roles = ORDERED_ROLES[results.mainPreviousRoleOrdinalIndex] or ORDERED_ROLES[1]
-        }
-        results.sortedDungeons = {}
-        for i = 1, #DUNGEONS do
-            local dungeon = DUNGEONS[i]
-            results.sortedDungeons[i] = {
-                dungeon = dungeon,
-                level = results.dungeons[i],
-                chests = results.dungeonUpgrades[dungeon.index],
-                fractionalTime = results.dungeonTimes[dungeon.index]
-            }
-        end
-        table.sort(results.sortedDungeons, SortDungeons)
+        ApplyWeeklyAffixWrapper(results)
+        ApplySortedDungeonsForAffix(results)
+        ApplySortedMilestonesForAffix(results)
+        -- ApplyClientDataToMythicKeystoneData(results, name, realm) -- TODO: weekly affix handling
         return results
     end
 
@@ -2974,59 +3012,18 @@ do
             tyrannicalMaxDungeonLevel = 0,
             tyrannicalMaxDungeon = 0,
             tyrannicalMaxDungeonUpgrades = 0,
-            -- dungeons = {},
-            -- dungeonUpgrades = {},
-            -- dungeonTimes = {},
-            -- maxDungeonIndex = 1,
-            -- maxDungeonLevel = 0,
-            -- maxDungeon = 0,
-            -- maxDungeonUpgrades = 0,
-            sortedDungeons = {},
             sortedMilestones = {}
         }
-        local function createWeeklyAffixProxyTableFor(suffix)
-            return setmetatable({}, {
-                __metatable = false,
-                __index = function(_, key)
-                    local _, weeklyAffixInternal = util:GetWeeklyAffix()
-                    return results[weeklyAffixInternal .. suffix][key]
-                end
-            })
-        end
-        results.dungeons = createWeeklyAffixProxyTableFor("Dungeons")
-        results.dungeonUpgrades = createWeeklyAffixProxyTableFor("DungeonUpgrades")
-        results.dungeonTimes = createWeeklyAffixProxyTableFor("DungeonTimes")
-        setmetatable(results, {
-            __metatable = false,
-            __index = function(_, key)
-                if key == "maxDungeonIndex" then
-                    local _, weeklyAffixInternal = util:GetWeeklyAffix()
-                    return results[weeklyAffixInternal .. "MaxDungeonIndex"]
-                elseif key == "maxDungeonLevel" then
-                    return results.dungeons[results.maxDungeonIndex]
-                elseif key == "maxDungeon" then
-                    return DUNGEONS[results.maxDungeonIndex]
-                elseif key == "maxDungeonUpgrades" then
-                    local _, weeklyAffixInternal = util:GetWeeklyAffix()
-                    return results[weeklyAffixInternal .. "MaxDungeonUpgrades"]
-                end
-            end
-        })
+        ApplyWeeklyAffixWrapper(results)
         for i = 1, #DUNGEONS do
             results.fortifiedDungeons[i] = 0
             results.fortifiedDungeonUpgrades[i] = 0
-            results.fortifiedDungeonTimes[i] = 0
+            results.fortifiedDungeonTimes[i] = 999
             results.tyrannicalDungeons[i] = 0
             results.tyrannicalDungeonUpgrades[i] = 0
-            results.tyrannicalDungeonTimes[i] = 0
-            results.sortedDungeons[i] = {
-                dungeon = DUNGEONS[i],
-                level = 0,
-                chests = 0,
-                fractionalTime = 999
-            }
+            results.tyrannicalDungeonTimes[i] = 999
         end
-        table.sort(results.sortedDungeons, SortDungeons)
+        ApplySortedDungeonsForAffix(results)
         return results
     end
 
@@ -3047,7 +3044,6 @@ do
         if type(name) ~= "string" or type(realm) ~= "string" or type(faction) ~= "number" or (type(overallScore) ~= "number" and type(keystoneRuns) ~= "table") then
             return
         end
-        local _, weeklyAffixInternal = util:GetWeeklyAffix()
         local region = ns.PLAYER_REGION
         local guid = region .. " " .. faction .. " " .. realm .. " " .. name
         local cache = provider:GetProfile(name, realm, faction, region) ---@type DataProviderCharacterProfile
@@ -3068,6 +3064,7 @@ do
             mythicKeystoneProfile.mplusCurrent.score = overallScore
         end
         if type(keystoneRuns) == "table" and keystoneRuns[1] then
+            local _, weeklyAffixInternal = util:GetWeeklyAffix()
             local weekDungeons = mythicKeystoneProfile[weeklyAffixInternal .. "Dungeons"]
             local weekDungeonUpgrades = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonUpgrades"]
             local weekDungeonTimes = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonTimes"]

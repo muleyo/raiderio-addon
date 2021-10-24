@@ -95,6 +95,11 @@ do
         [10] = "tyrannical",
     }
 
+    ns.KEYSTONE_AFFIX_TEXTURE = {
+        [9] = CreateTextureMarkup(236401, 64, 64, 0, 0, 0.1, 0.9, 0.1, 0.9, 0, 0),
+        [10] = CreateTextureMarkup(463829, 64, 64, 0, 0, 0.1, 0.9, 0.1, 0.9, 0, 0),
+    }
+
     ---@class RoleIcon
     ---@field full string @The full icon in "|T|t" syntax
     ---@field partial string @The partial icon in "|T|t" syntax
@@ -1358,8 +1363,8 @@ do
     end
 
     ---@param chests number @the amount of chests/upgrades at the end of the keystone run. returns a string containing stars representing each chest/upgrade.
-    function util:GetNumChests(chests)
-        if config:Get("showMedalsInsteadOfText") then
+    function util:GetNumChests(chests, isInactive)
+        if config:Get("showMedalsInsteadOfText") then -- TODO: isInactive
             if not chests or chests < 1 then
                 return MEDAL_TEXTURE.none
             elseif chests > 3 then
@@ -1375,7 +1380,7 @@ do
             return ""
         end
         local stars = {
-            "|cffffcf40",
+            isInactive and "|cffb28d2e" or "|cffffcf40",
         }
         for i = 1, chests do
             stars[i + 1] = "+"
@@ -1412,6 +1417,31 @@ do
 		local index = floor(diff / 604800) % #ns.KEYSTONE_AFFIX_SCHEDULE + 1
         local affixID = ns.KEYSTONE_AFFIX_SCHEDULE[index]
 		return affixID, affixID and ns.KEYSTONE_AFFIX_INTERNAL[affixID]
+    end
+
+    local TOOLTIP_TEXT_FONTSTRING do
+        TOOLTIP_TEXT_FONTSTRING = UIParent:CreateFontString(nil, nil, "GameTooltipText")
+        local fontObject = GameTooltip.TextRight2:GetFontObject()
+        if fontObject then
+            TOOLTIP_TEXT_FONTSTRING:SetFontObject(fontObject)
+        else
+            TOOLTIP_TEXT_FONTSTRING:SetFont(fontObject:GetFont())
+        end
+    end
+
+    function util:GetTooltipTextWidth(text)
+        TOOLTIP_TEXT_FONTSTRING:SetText(text)
+        TOOLTIP_TEXT_FONTSTRING:Show()
+        local width = TOOLTIP_TEXT_FONTSTRING:GetUnboundedStringWidth()
+        TOOLTIP_TEXT_FONTSTRING:Hide()
+        return width
+    end
+
+    function util:GetTextPaddingTexture(width, height)
+        if not width or width < 1 then
+            return ""
+        end
+        return format("|T982414:%d:%d:0:0:64:64:0:1:0:1|t", height or 1, floor(width + 0.5))
     end
 
 end
@@ -2764,7 +2794,7 @@ do
         ApplyWeeklyAffixWrapper(results)
         ApplySortedDungeonsForAffix(results)
         ApplySortedMilestonesForAffix(results)
-        -- ApplyClientDataToMythicKeystoneData(results, name, realm) -- TODO: weekly affix handling
+        -- ApplyClientDataToMythicKeystoneData(results, name, realm) -- TODO: weekly affix handling so we disable this until we know what kind of data we expect here
         return results
     end
 
@@ -3755,47 +3785,34 @@ do
         end
     end
 
-    ---@param sortedDungeon SortedDungeon
-    local function CountTextCharactersLeftAndRight(sortedDungeon, skipZero)
-        local chestsAsMedals = config:Get("showMedalsInsteadOfText")
-        local charsLeft, charsRight = 0, 0
-        if not skipZero or sortedDungeon.fortifiedLevel > 0 then
-            charsLeft = charsLeft + (sortedDungeon.fortifiedLevel < 10 and 1 or 2) + (chestsAsMedals and 0 or sortedDungeon.fortifiedChests)
-        end
-        if not skipZero or sortedDungeon.tyrannicalLevel > 0 then
-            charsRight = charsRight + (sortedDungeon.tyrannicalLevel < 10 and 1 or 2) + (chestsAsMedals and 0 or sortedDungeon.tyrannicalChests)
-        end
-        return charsLeft, charsRight
-    end
-
     ---@param sortedDungeons SortedDungeon[]
-    local function CountMaxTextCharactersLeftAndRight(sortedDungeons, skipZero)
-        local maxCharsLeft, maxCharsRight = 0, 0
+    local function GetSortedDungeonsTooltipText(sortedDungeons, weeklyAffixInternal, currentWeeklyAffixInternal)
+        local isActive = not currentWeeklyAffixInternal or weeklyAffixInternal == currentWeeklyAffixInternal
+        local lines = {}
+        local lineWidth = {}
+        local maxWidth = 0
         for i = 1, #sortedDungeons do
             local sortedDungeon = sortedDungeons[i]
-            local charsLeft, charsRight = CountTextCharactersLeftAndRight(sortedDungeon, skipZero)
-            if charsLeft > maxCharsLeft then
-                maxCharsLeft = charsLeft
-            end
-            if charsRight > maxCharsRight then
-                maxCharsRight = charsRight
+            local chests = sortedDungeon[weeklyAffixInternal .. "Chests"]
+            local level = sortedDungeon[weeklyAffixInternal .. "Level"]
+            -- local fractionalTime = sortedDungeon[weeklyAffixInternal .. "FractionalTime"]
+            local text = {
+                util:GetNumChests(chests, not isActive),
+                "|cff",
+                isActive and util:GetKeystoneChestColor(chests, true) or "bfbfbf",
+                level > 0 and level or "-",
+                "|r",
+            }
+            text = table.concat(text)
+            lines[i] = text
+            local width = util:GetTooltipTextWidth(text)
+            lineWidth[i] = width
+            if width > maxWidth then
+                maxWidth = width
             end
         end
-        return maxCharsLeft, maxCharsRight
+        return lines, lineWidth, maxWidth
     end
-
-    local RIGHT_TEXT_PADDING = setmetatable({
-        [0] = 0,
-        [1] = 2,
-        [2] = 3,
-        [3] = 5,
-        [4] = 7,
-        [5] = 9,
-    }, {
-        __index = function(self, key)
-            return key < 0 and self[0] or self[#self]
-        end
-    })
 
     ---@param state TooltipState
     function render:UpdateTooltip(tooltip, state)
@@ -3908,14 +3925,16 @@ do
                             end
                         end
                         if hasBestDungeons or true then -- HOTFIX: we prefer to always display this in the expanded profile so even empty profiles can display what dungeons there are for the player to complete
+                            local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
+                            local _, weeklyAffixInternal = util:GetWeeklyAffix()
+                            local fortifiedLines, fortifiedLinesWidth, fortifiedMaxWidth = GetSortedDungeonsTooltipText(keystoneProfile.sortedDungeons, "fortified", weeklyAffixInternal)
+                            local tyrannicalLines, tyrannicalLinesWidth, tyrannicalMaxWidth = GetSortedDungeonsTooltipText(keystoneProfile.sortedDungeons, "tyrannical", weeklyAffixInternal)
                             if showHeader then
                                 if showPadding then
                                     tooltip:AddLine(" ")
                                 end
-                                tooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0)
+                                tooltip:AddDoubleLine(L.PROFILE_BEST_RUNS, table.concat({ ns.KEYSTONE_AFFIX_TEXTURE[10], "  ", util:GetTextPaddingTexture(tyrannicalMaxWidth - util:GetTooltipTextWidth(ns.KEYSTONE_AFFIX_TEXTURE[9])), ns.KEYSTONE_AFFIX_TEXTURE[9] }, ""), 1, 0.85, 0, 1, 0.85, 0)
                             end
-                            local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
-                            local _, maxCharsRight = CountMaxTextCharactersLeftAndRight(keystoneProfile.sortedDungeons)
                             for i = 1, #keystoneProfile.sortedDungeons do
                                 local sortedDungeon = keystoneProfile.sortedDungeons[i]
                                 local r, g, b = 1, 1, 1
@@ -3923,13 +3942,7 @@ do
                                     r, g, b = 0, 1, 0
                                 end
                                 if sortedDungeon.fortifiedLevel > 0 or sortedDungeon.tyrannicalLevel > 0 then
-                                    local _, charsRight = CountTextCharactersLeftAndRight(sortedDungeon)
-                                    local text = {
-                                        util:GetNumChests(sortedDungeon.fortifiedChests), "|cff", util:GetKeystoneChestColor(sortedDungeon.fortifiedChests, true), sortedDungeon.fortifiedLevel > 0 and sortedDungeon.fortifiedLevel or "-", "|r",
-                                        "  ",
-                                        string.rep(" ", RIGHT_TEXT_PADDING[maxCharsRight - charsRight]),
-                                        util:GetNumChests(sortedDungeon.tyrannicalChests), "|cff", util:GetKeystoneChestColor(sortedDungeon.tyrannicalChests, true), sortedDungeon.tyrannicalLevel > 0 and sortedDungeon.tyrannicalLevel or "-", "|r",
-                                    }
+                                    local text = { fortifiedLines[i], "  ", util:GetTextPaddingTexture(tyrannicalMaxWidth - tyrannicalLinesWidth[i]), tyrannicalLines[i] }
                                     tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, table.concat(text, ""), r, g, b, 0.5, 0.5, 0.5)
                                 else
                                     tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, "-", r, g, b, 0.5, 0.5, 0.5)

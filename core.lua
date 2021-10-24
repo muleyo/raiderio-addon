@@ -727,7 +727,8 @@ do
         showRoleIcons = true,
         profilePoint = { point = nil, x = 0, y = 0 },
         debugMode = false,
-        rwfMode = false -- NEW in 9.1
+        rwfMode = false, -- NEW in 9.1
+        showMedalsInsteadOfText = false,-- NEW in 9.1.5
     }
 
     -- fallback metatable looks up missing keys into the fallback config table
@@ -1338,22 +1339,61 @@ do
         return 0.62, 0.62, 0.62
     end
 
+    ---@type table<string, string>
+    local MEDAL_TEXTURE = {
+        none = 982414,
+        none2 = 982414,
+        bronze = 627120,
+        bronze2 = 627121,
+        silver = 627125,
+        silver2 = 607862,
+        gold = 627122,
+        gold2 = 607858,
+        plat = 627123,
+        plat2 = 627124,
+    }
+
+    for k, v in pairs(MEDAL_TEXTURE) do
+        MEDAL_TEXTURE[k] = CreateTextureMarkup(v, 64, 64, 10, 10, 20/64, (20+22)/64, 20/64, (20+22)/64, -2, 0) -- 20 left/top and 22 width/height looks pretty good
+    end
+
     ---@param chests number @the amount of chests/upgrades at the end of the keystone run. returns a string containing stars representing each chest/upgrade.
     function util:GetNumChests(chests)
-        local stars = ""
-        if chests < 1 then
-            return stars
+        if config:Get("showMedalsInsteadOfText") then
+            if not chests or chests < 1 then
+                return MEDAL_TEXTURE.none
+            elseif chests > 3 then
+                return MEDAL_TEXTURE.plat
+            elseif chests > 2 then
+                return MEDAL_TEXTURE.gold
+            elseif chests > 1 then
+                return MEDAL_TEXTURE.silver
+            end
+            return MEDAL_TEXTURE.bronze
         end
+        if not chests or chests < 1 then
+            return ""
+        end
+        local stars = {
+            "|cffffcf40",
+        }
         for i = 1, chests do
-            stars = stars .. "+"
+            stars[i + 1] = "+"
         end
-        return "|cffffcf40" .. stars .. "|r"
+        stars[chests + 2] = "|r"
+        return table.concat(stars, "")
     end
 
     ---@param chests number @the amount of chests/upgrades at the end of the keystone run. returns the color representing the depletion or timed result.
-    function util:GetKeystoneChestColor(chests)
+    function util:GetKeystoneChestColor(chests, asHex)
         if not chests or chests < 1 then
-            return 0.62, 0.62, 0.62
+            if asHex then
+                return "808080"
+            end
+            return 0.5, 0.5, 0.5
+        end
+        if asHex then
+            return "FFFFFF"
         end
         return 1, 1, 1
     end
@@ -2432,9 +2472,15 @@ do
 
     ---@class SortedDungeon
     ---@field public dungeon Dungeon
-    ---@field public level number
-    ---@field public chests number
-    ---@field public fractionalTime number If we have client data `isEnhanced` is set and the values are then `0.0` to `1.0` is within the timer, anything above is depleted over the timer. If `isEnhanced` is false then this value is 0 to 3 where 3 is depleted, and the rest is in time.
+    ---@field public level number @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedLevel` and `tyrannicalLevel` when possible.
+    ---@field public chests number @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedChests` and `tyrannicalChests` when possible.
+    ---@field public fractionalTime number @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedFractionalTime` and `tyrannicalFractionalTime` when possible. If we have client data `isEnhanced` is set and the values are then `0.0` to `1.0` is within the timer, anything above is depleted over the timer. If `isEnhanced` is false then this value is 0 to 3 where 3 is depleted, and the rest is in time.
+    ---@field public fortifiedLevel number @Keystone level
+    ---@field public fortifiedChests number @Number of medals where 1=Bronze, 2=Silver, 3=Gold
+    ---@field public fortifiedFractionalTime number If we have client data `isEnhanced` is set and the values are then `0.0` to `1.0` is within the timer, anything above is depleted over the timer. If `isEnhanced` is false then this value is 0 to 3 where 3 is depleted, and the rest is in time.
+    ---@field public tyrannicalLevel number @Keystone level
+    ---@field public tyrannicalChests number @Number of medals where 1=Bronze, 2=Silver, 3=Gold
+    ---@field public tyrannicalFractionalTime number If we have client data `isEnhanced` is set and the values are then `0.0` to `1.0` is within the timer, anything above is depleted over the timer. If `isEnhanced` is false then this value is 0 to 3 where 3 is depleted, and the rest is in time.
 
     ---@class SortedMilestone
     ---@field public level number
@@ -2532,6 +2578,18 @@ do
                     return results[weeklyAffixInternal .. "DungeonUpgrades"][index]
                 elseif key == "fractionalTime" then
                     return results[weeklyAffixInternal .. "DungeonTimes"][index]
+                elseif key == "fortifiedLevel" then
+                    return results.fortifiedDungeons[index]
+                elseif key == "fortifiedChests" then
+                    return results.fortifiedDungeonUpgrades[index]
+                elseif key == "fortifiedFractionalTime" then
+                    return results.fortifiedDungeonTimes[index]
+                elseif key == "tyrannicalLevel" then
+                    return results.tyrannicalDungeons[index]
+                elseif key == "tyrannicalChests" then
+                    return results.tyrannicalDungeonUpgrades[index]
+                elseif key == "tyrannicalFractionalTime" then
+                    return results.tyrannicalDungeonTimes[index]
                 end
             end,
         }
@@ -2539,14 +2597,16 @@ do
         for i = 1, #DUNGEONS do
             local dungeon = DUNGEONS[i]
             if weeklyAffixInternal then
-                results.sortedDungeons[i] = {
+                results.sortedDungeons[i] = setmetatable({
                     dungeon = dungeon,
                     level = results[dungeonKey][i],
                     chests = results[dungeonUpgradeKey][dungeon.index],
-                    fractionalTime = results[dungeonTimeKey][dungeon.index]
-                }
+                    fractionalTime = results[dungeonTimeKey][dungeon.index],
+                }, sortedDungeonMetatable)
             else
-                results.sortedDungeons[i] = setmetatable({ dungeon = dungeon }, sortedDungeonMetatable)
+                results.sortedDungeons[i] = setmetatable({
+                    dungeon = dungeon,
+                }, sortedDungeonMetatable)
             end
         end
         table.sort(results.sortedDungeons, SortDungeons)
@@ -3695,6 +3755,48 @@ do
         end
     end
 
+    ---@param sortedDungeon SortedDungeon
+    local function CountTextCharactersLeftAndRight(sortedDungeon, skipZero)
+        local chestsAsMedals = config:Get("showMedalsInsteadOfText")
+        local charsLeft, charsRight = 0, 0
+        if not skipZero or sortedDungeon.fortifiedLevel > 0 then
+            charsLeft = charsLeft + (sortedDungeon.fortifiedLevel < 10 and 1 or 2) + (chestsAsMedals and 0 or sortedDungeon.fortifiedChests)
+        end
+        if not skipZero or sortedDungeon.tyrannicalLevel > 0 then
+            charsRight = charsRight + (sortedDungeon.tyrannicalLevel < 10 and 1 or 2) + (chestsAsMedals and 0 or sortedDungeon.tyrannicalChests)
+        end
+        return charsLeft, charsRight
+    end
+
+    ---@param sortedDungeons SortedDungeon[]
+    local function CountMaxTextCharactersLeftAndRight(sortedDungeons, skipZero)
+        local maxCharsLeft, maxCharsRight = 0, 0
+        for i = 1, #sortedDungeons do
+            local sortedDungeon = sortedDungeons[i]
+            local charsLeft, charsRight = CountTextCharactersLeftAndRight(sortedDungeon, skipZero)
+            if charsLeft > maxCharsLeft then
+                maxCharsLeft = charsLeft
+            end
+            if charsRight > maxCharsRight then
+                maxCharsRight = charsRight
+            end
+        end
+        return maxCharsLeft, maxCharsRight
+    end
+
+    local RIGHT_TEXT_PADDING = setmetatable({
+        [0] = 0,
+        [1] = 2,
+        [2] = 3,
+        [3] = 5,
+        [4] = 7,
+        [5] = 9,
+    }, {
+        __index = function(self, key)
+            return key < 0 and self[0] or self[#self]
+        end
+    })
+
     ---@param state TooltipState
     function render:UpdateTooltip(tooltip, state)
         -- we will in most cases always pass the state but if we don't we will retrieve it
@@ -3813,14 +3915,22 @@ do
                                 tooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0)
                             end
                             local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
+                            local _, maxCharsRight = CountMaxTextCharactersLeftAndRight(keystoneProfile.sortedDungeons)
                             for i = 1, #keystoneProfile.sortedDungeons do
                                 local sortedDungeon = keystoneProfile.sortedDungeons[i]
                                 local r, g, b = 1, 1, 1
                                 if sortedDungeon.dungeon == focusDungeon then
                                     r, g, b = 0, 1, 0
                                 end
-                                if sortedDungeon.level > 0 then
-                                    tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, util:GetNumChests(sortedDungeon.chests) .. sortedDungeon.level, r, g, b, util:GetKeystoneChestColor(sortedDungeon.chests))
+                                if sortedDungeon.fortifiedLevel > 0 or sortedDungeon.tyrannicalLevel > 0 then
+                                    local _, charsRight = CountTextCharactersLeftAndRight(sortedDungeon)
+                                    local text = {
+                                        util:GetNumChests(sortedDungeon.fortifiedChests), "|cff", util:GetKeystoneChestColor(sortedDungeon.fortifiedChests, true), sortedDungeon.fortifiedLevel > 0 and sortedDungeon.fortifiedLevel or "-", "|r",
+                                        "  ",
+                                        string.rep(" ", RIGHT_TEXT_PADDING[maxCharsRight - charsRight]),
+                                        util:GetNumChests(sortedDungeon.tyrannicalChests), "|cff", util:GetKeystoneChestColor(sortedDungeon.tyrannicalChests, true), sortedDungeon.tyrannicalLevel > 0 and sortedDungeon.tyrannicalLevel or "-", "|r",
+                                    }
+                                    tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, table.concat(text, ""), r, g, b, 0.5, 0.5, 0.5)
                                 else
                                     tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, "-", r, g, b, 0.5, 0.5, 0.5)
                                 end
@@ -7451,6 +7561,7 @@ do
             configOptions:CreateOptionToggle(L.SHOW_ROLE_ICONS, L.SHOW_ROLE_ICONS_DESC, "showRoleIcons")
             configOptions:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
             configOptions:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
+            configOptions:CreateOptionToggle(L.SHOW_CHESTS_AS_MEDALS, L.SHOW_CHESTS_AS_MEDALS_DESC, "showMedalsInsteadOfText")
             configOptions:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
             configOptions:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
             configOptions:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")

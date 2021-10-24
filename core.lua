@@ -96,8 +96,10 @@ do
     }
 
     ns.KEYSTONE_AFFIX_TEXTURE = {
-        [9] = CreateTextureMarkup(236401, 64, 64, 0, 0, 0.1, 0.9, 0.1, 0.9, 0, 0),
-        [10] = CreateTextureMarkup(463829, 64, 64, 0, 0, 0.1, 0.9, 0.1, 0.9, 0, 0),
+        [-9] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 128, 128, 0, 0, 0.5, 1, 0.5, 1, 0, 0),
+        [-10] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 128, 128, 0, 0, 0.5, 1, 0, 0.5, 0, 0),
+        [9] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 128, 128, 0, 0, 0, 0.5, 0.5, 1, 0, 0),
+        [10] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 128, 128, 0, 0, 0, 0.5, 0, 0.5, 0, 0),
     }
 
     ---@class RoleIcon
@@ -1438,10 +1440,10 @@ do
     end
 
     function util:GetTextPaddingTexture(width, height)
-        if not width or width < 1 then
+        if not width or width <= 0 then
             return ""
         end
-        return format("|T982414:%d:%d:0:0:64:64:0:1:0:1|t", height or 1, floor(width + 0.5))
+        return format("|T982414:%d:%d:0:0:64:64:0:1:0:1|t", height or 1, width)
     end
 
 end
@@ -3926,14 +3928,16 @@ do
                         end
                         if hasBestDungeons or true then -- HOTFIX: we prefer to always display this in the expanded profile so even empty profiles can display what dungeons there are for the player to complete
                             local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
-                            local _, weeklyAffixInternal = util:GetWeeklyAffix()
-                            local fortifiedLines, fortifiedLinesWidth, fortifiedMaxWidth = GetSortedDungeonsTooltipText(keystoneProfile.sortedDungeons, "fortified", weeklyAffixInternal)
-                            local tyrannicalLines, tyrannicalLinesWidth, tyrannicalMaxWidth = GetSortedDungeonsTooltipText(keystoneProfile.sortedDungeons, "tyrannical", weeklyAffixInternal)
+                            local fortifiedLines, fortifiedLinesWidth, fortifiedMaxWidth = GetSortedDungeonsTooltipText(keystoneProfile.sortedDungeons, "fortified")
+                            local tyrannicalLines, tyrannicalLinesWidth, tyrannicalMaxWidth = GetSortedDungeonsTooltipText(keystoneProfile.sortedDungeons, "tyrannical")
                             if showHeader then
                                 if showPadding then
                                     tooltip:AddLine(" ")
                                 end
-                                tooltip:AddDoubleLine(L.PROFILE_BEST_RUNS, table.concat({ ns.KEYSTONE_AFFIX_TEXTURE[10], "  ", util:GetTextPaddingTexture(tyrannicalMaxWidth - util:GetTooltipTextWidth(ns.KEYSTONE_AFFIX_TEXTURE[9])), ns.KEYSTONE_AFFIX_TEXTURE[9] }, ""), 1, 0.85, 0, 1, 0.85, 0)
+                                local weeklyAffixID = util:GetWeeklyAffix()
+                                local leftHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 10 and 10 or -10]
+                                local rightHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 9 and 9 or -9]
+                                tooltip:AddDoubleLine(L.PROFILE_BEST_RUNS, table.concat({ leftHeaderText, "  ", util:GetTextPaddingTexture(tyrannicalMaxWidth - util:GetTooltipTextWidth(rightHeaderText)), rightHeaderText }, ""), 1, 0.85, 0, 1, 0.85, 0)
                             end
                             for i = 1, #keystoneProfile.sortedDungeons do
                                 local sortedDungeon = keystoneProfile.sortedDungeons[i]
@@ -7574,7 +7578,7 @@ do
             configOptions:CreateOptionToggle(L.SHOW_ROLE_ICONS, L.SHOW_ROLE_ICONS_DESC, "showRoleIcons")
             configOptions:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
             configOptions:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
-            configOptions:CreateOptionToggle(L.SHOW_CHESTS_AS_MEDALS, L.SHOW_CHESTS_AS_MEDALS_DESC, "showMedalsInsteadOfText")
+            -- configOptions:CreateOptionToggle(L.SHOW_CHESTS_AS_MEDALS, L.SHOW_CHESTS_AS_MEDALS_DESC, "showMedalsInsteadOfText")
             configOptions:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
             configOptions:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
             configOptions:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")

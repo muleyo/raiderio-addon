@@ -3167,7 +3167,6 @@ do
             local maxDungeonUpgrades = 0
             local maxDungeonRunTimer = 2
             local needsMaxDungeonUpgrade
-            local needsDungeonSort
             for i = 1, #keystoneRuns do
                 local run = keystoneRuns[i]
                 local dungeonIndex
@@ -3214,20 +3213,6 @@ do
                         maxDungeonUpgrades = runNumUpgrades
                         maxDungeonRunTimer = runTimerAsFraction
                     end
-                    local sortedDungeon
-                    for j = 1, #mythicKeystoneProfile.sortedDungeons do
-                        sortedDungeon = mythicKeystoneProfile.sortedDungeons[j]
-                        if sortedDungeon.dungeon == dungeon then
-                            break
-                        end
-                        sortedDungeon = nil
-                    end
-                    if sortedDungeon and sortedDungeon.level <= runLevel then
-                        needsDungeonSort = true
-                        sortedDungeon.level = runLevel
-                        sortedDungeon.chests = runNumUpgrades
-                        sortedDungeon.fractionalTime = fractionalTime
-                    end
                 end
             end
             if needsMaxDungeonUpgrade then
@@ -3235,9 +3220,7 @@ do
                 mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeonLevel"] = maxDungeonLevel
                 mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeonUpgrades"] = maxDungeonUpgrades
             end
-            if needsDungeonSort then
-                table.sort(mythicKeystoneProfile.sortedDungeons, SortDungeons)
-            end
+            table.sort(mythicKeystoneProfile.sortedDungeons, SortDungeons)
         end
         if mythicKeystoneProfile.hasOverrideScore or mythicKeystoneProfile.hasOverrideDungeonRuns then
             mythicKeystoneProfile.blocked = nil

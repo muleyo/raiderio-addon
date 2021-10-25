@@ -3165,9 +3165,10 @@ do
             mythicKeystoneProfile.mplusCurrent.score = overallScore
         end
         if type(keystoneRuns) == "table" and keystoneRuns[1] then
+            local isPlayer = util:IsUnitPlayer(name, realm)
             local _, realWeeklyAffixInternal = util:GetWeeklyAffix()
             local weeklyAffixInternals = { realWeeklyAffixInternal }
-            if util:IsUnitPlayer(name, realm) then
+            if isPlayer then
                 weeklyAffixInternals[1] = "fortified"
                 weeklyAffixInternals[2] = "tyrannical"
             end
@@ -3184,6 +3185,7 @@ do
                 local needsMaxDungeonUpgrade
                 for i = 1, #keystoneRuns do
                     local run = keystoneRuns[i]
+                    local runAffixData = run[weeklyAffixInternal] ---@type BlizzardKeystoneAffixInfo
                     local dungeonIndex
                     local dungeon
                     for j = 1, #DUNGEONS do
@@ -3194,8 +3196,7 @@ do
                         end
                         dungeon = nil
                     end
-                    if dungeonIndex then
-                        local runAffixData = run[weeklyAffixInternal] ---@type BlizzardKeystoneAffixInfo
+                    if dungeonIndex and (not isPlayer or runAffixData) then
                         local runBestRunLevel = run.bestRunLevel
                         local runBestRunDurationMS = run.bestRunDurationMS
                         local runFinishedSuccess = run.finishedSuccess
@@ -3988,11 +3989,13 @@ do
                                 if sortedDungeon.dungeon == focusDungeon then
                                     r, g, b = 0, 1, 0
                                 end
+                                local paddingTexture = util:GetTextPaddingTexture(tyrannicalMaxWidth - tyrannicalLinesWidth[i])
                                 if sortedDungeon.fortifiedLevel > 0 or sortedDungeon.tyrannicalLevel > 0 then
-                                    local text = { fortifiedLines[i], "  ", util:GetTextPaddingTexture(tyrannicalMaxWidth - tyrannicalLinesWidth[i]), tyrannicalLines[i] }
+                                    local text = { fortifiedLines[i], "  ", paddingTexture, tyrannicalLines[i] }
                                     tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, table.concat(text, ""), r, g, b, 0.5, 0.5, 0.5)
                                 else
-                                    tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, "-", r, g, b, 0.5, 0.5, 0.5)
+                                    local text = { "-", "  ", paddingTexture, "-" }
+                                    tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, table.concat(text, ""), r, g, b, 0.5, 0.5, 0.5)
                                 end
                             end
                         end

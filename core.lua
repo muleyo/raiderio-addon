@@ -96,10 +96,10 @@ do
     }
 
     ns.KEYSTONE_AFFIX_TEXTURE = {
-        [-9] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 128, 128, 0, 0, 0.5, 1, 0.5, 1, 0, 0),
-        [-10] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 128, 128, 0, 0, 0.5, 1, 0, 0.5, 0, 0),
-        [9] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 128, 128, 0, 0, 0, 0.5, 0.5, 1, 0, 0),
-        [10] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 128, 128, 0, 0, 0, 0.5, 0, 0.5, 0, 0),
+        [-9] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 32, 32, 0, 0, 0.5, 1, 0.5, 1, 0, 0),
+        [-10] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 32, 32, 0, 0, 0.5, 1, 0, 0.5, 0, 0),
+        [9] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 32, 32, 0, 0, 0, 0.5, 0.5, 1, 0, 0),
+        [10] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 32, 32, 0, 0, 0, 0.5, 0, 0.5, 0, 0),
     }
 
     ---@class RoleIcon
@@ -1423,7 +1423,7 @@ do
 
     local TOOLTIP_TEXT_FONTSTRING do
         TOOLTIP_TEXT_FONTSTRING = UIParent:CreateFontString(nil, nil, "GameTooltipText")
-        local fontObject = GameTooltip.TextRight2:GetFontObject()
+        local fontObject = _G.GameTooltipTextRight2:GetFontObject()
         if fontObject then
             TOOLTIP_TEXT_FONTSTRING:SetFontObject(fontObject)
         else
@@ -3119,12 +3119,21 @@ do
         return results
     end
 
+    ---@class BlizzardKeystoneAffixInfo
+    ---@field public name string @Affix name.
+    ---@field public level number @Run keystone level.
+    ---@field public score number @Score earned from keystone.
+    ---@field public overTime boolean @Is the run depleted?
+    ---@field public durationSec number @Run duration in seconds.
+
     ---@class BlizzardKeystoneRun
     ---@field public bestRunDurationMS number @Timer in milliseconds
     ---@field public bestRunLevel number @Keystone level
     ---@field public challengeModeID number @Keystone instance ID
     ---@field public finishedSuccess boolean @If the run was timed or not
     ---@field public mapScore number @The score worth for the run
+    ---@field public fortified BlizzardKeystoneAffixInfo @Fortified affix data. Only accessible for the players own profile override.
+    ---@field public tyrannical BlizzardKeystoneAffixInfo @Tyrannical affix data. Only accessible for the players own profile override.
 
     -- override or inject cache entry for tooltip rendering for this character with their BIO score and keystune run data
     ---@param name string @Character name
@@ -3156,69 +3165,86 @@ do
             mythicKeystoneProfile.mplusCurrent.score = overallScore
         end
         if type(keystoneRuns) == "table" and keystoneRuns[1] then
-            local _, weeklyAffixInternal = util:GetWeeklyAffix()
-            local weekDungeons = mythicKeystoneProfile[weeklyAffixInternal .. "Dungeons"]
-            local weekDungeonUpgrades = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonUpgrades"]
-            local weekDungeonTimes = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonTimes"]
-            local maxDungeonIndex = 0
-            -- local maxDungeonTime = 999
-            -- local maxDungeonScore = 0
-            local maxDungeonLevel = 0
-            local maxDungeonUpgrades = 0
-            local maxDungeonRunTimer = 2
-            local needsMaxDungeonUpgrade
-            for i = 1, #keystoneRuns do
-                local run = keystoneRuns[i]
-                local dungeonIndex
-                local dungeon
-                for j = 1, #DUNGEONS do
-                    dungeon = DUNGEONS[j]
-                    if dungeon.keystone_instance == run.challengeModeID then
-                        dungeonIndex = j
-                        break
+            local _, realWeeklyAffixInternal = util:GetWeeklyAffix()
+            local weeklyAffixInternals = { realWeeklyAffixInternal }
+            if util:IsUnitPlayer(name, realm) then
+                weeklyAffixInternals[1] = "fortified"
+                weeklyAffixInternals[2] = "tyrannical"
+            end
+            for _, weeklyAffixInternal in pairs(weeklyAffixInternals) do
+                local weekDungeons = mythicKeystoneProfile[weeklyAffixInternal .. "Dungeons"]
+                local weekDungeonUpgrades = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonUpgrades"]
+                local weekDungeonTimes = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonTimes"]
+                local maxDungeonIndex = 0
+                -- local maxDungeonTime = 999
+                -- local maxDungeonScore = 0
+                local maxDungeonLevel = 0
+                local maxDungeonUpgrades = 0
+                local maxDungeonRunTimer = 2
+                local needsMaxDungeonUpgrade
+                for i = 1, #keystoneRuns do
+                    local run = keystoneRuns[i]
+                    local dungeonIndex
+                    local dungeon
+                    for j = 1, #DUNGEONS do
+                        dungeon = DUNGEONS[j]
+                        if dungeon.keystone_instance == run.challengeModeID then
+                            dungeonIndex = j
+                            break
+                        end
+                        dungeon = nil
                     end
-                    dungeon = nil
-                end
-                local runLevel = run.bestRunLevel
-                if dungeonIndex and weekDungeons[dungeonIndex] <= runLevel then
-                    mythicKeystoneProfile.hasOverrideDungeonRuns = true
-                    local _, _, dungeonTimeLimit = C_ChallengeMode.GetMapUIInfo(run.challengeModeID)
-                    local goldTimeLimit, silverTimeLimit, bronzeTimeLimit = -1, -1, dungeonTimeLimit
-                    if dungeon.timers then
-                        goldTimeLimit, silverTimeLimit, bronzeTimeLimit = dungeon.timers[1], dungeon.timers[2], dungeonTimeLimit or dungeon.timers[3] -- TODO: always prefer the game data time limit for bronze or the addons time limit?
-                    end
-                    local runSeconds = run.bestRunDurationMS / 1000
-                    local runNumUpgrades = 0
-                    if run.finishedSuccess then
-                        runNumUpgrades = 1
-                        if runSeconds <= goldTimeLimit then
-                            runNumUpgrades = 3
-                        elseif runSeconds <= silverTimeLimit then
-                            runNumUpgrades = 2
+                    if dungeonIndex then
+                        local runAffixData = run[weeklyAffixInternal] ---@type BlizzardKeystoneAffixInfo
+                        local runBestRunLevel = run.bestRunLevel
+                        local runBestRunDurationMS = run.bestRunDurationMS
+                        local runFinishedSuccess = run.finishedSuccess
+                        -- local runMapScore = run.mapScore
+                        if runAffixData then
+                            runBestRunLevel = runAffixData.level
+                            runBestRunDurationMS = runAffixData.durationSec * 1000
+                            runFinishedSuccess = not runAffixData.overTime
+                        end
+                        if dungeonIndex and weekDungeons[dungeonIndex] <= runBestRunLevel then
+                            mythicKeystoneProfile.hasOverrideDungeonRuns = true
+                            local _, _, dungeonTimeLimit = C_ChallengeMode.GetMapUIInfo(run.challengeModeID)
+                            local goldTimeLimit, silverTimeLimit, bronzeTimeLimit = -1, -1, dungeonTimeLimit
+                            if dungeon.timers then
+                                goldTimeLimit, silverTimeLimit, bronzeTimeLimit = dungeon.timers[1], dungeon.timers[2], dungeonTimeLimit or dungeon.timers[3] -- TODO: always prefer the game data time limit for bronze or the addons time limit?
+                            end
+                            local runSeconds = runBestRunDurationMS / 1000
+                            local runNumUpgrades = 0
+                            if runFinishedSuccess then
+                                runNumUpgrades = 1
+                                if runSeconds <= goldTimeLimit then
+                                    runNumUpgrades = 3
+                                elseif runSeconds <= silverTimeLimit then
+                                    runNumUpgrades = 2
+                                end
+                            end
+                            local runTimerAsFraction = runSeconds / (dungeonTimeLimit and dungeonTimeLimit > 0 and dungeonTimeLimit or 1) -- convert game timer to a fraction (1 or below is timed, above is depleted)
+                            local fractionalTime = runFinishedSuccess and (mythicKeystoneProfile.isEnhanced and runTimerAsFraction or (3 - runNumUpgrades)) or 3 -- the data here depends if we are using client enhanced data or not
+                            needsMaxDungeonUpgrade = true
+                            weekDungeons[dungeonIndex] = runBestRunLevel
+                            weekDungeonUpgrades[dungeonIndex] = runNumUpgrades
+                            weekDungeonTimes[dungeonIndex] = fractionalTime
+                            -- if runNumUpgrades > 0 and (runMapScore > maxDungeonScore or (runMapScore == maxDungeonScore and fractionalTime < maxDungeonTime)) then
+                            if runNumUpgrades > 0 and (runBestRunLevel > maxDungeonLevel or (runBestRunLevel == maxDungeonLevel and runTimerAsFraction < maxDungeonRunTimer)) then
+                                maxDungeonIndex = dungeonIndex
+                                -- maxDungeonTime = fractionalTime
+                                -- maxDungeonScore = runMapScore
+                                maxDungeonLevel = runBestRunLevel
+                                maxDungeonUpgrades = runNumUpgrades
+                                maxDungeonRunTimer = runTimerAsFraction
+                            end
                         end
                     end
-                    local runTimerAsFraction = runSeconds / (dungeonTimeLimit and dungeonTimeLimit > 0 and dungeonTimeLimit or 1) -- convert game timer to a fraction (1 or below is timed, above is depleted)
-                    local fractionalTime = run.finishedSuccess and (mythicKeystoneProfile.isEnhanced and runTimerAsFraction or (3 - runNumUpgrades)) or 3 -- the data here depends if we are using client enhanced data or not
-                    -- local runScore = run.mapScore
-                    needsMaxDungeonUpgrade = true
-                    weekDungeons[dungeonIndex] = runLevel
-                    weekDungeonUpgrades[dungeonIndex] = runNumUpgrades
-                    weekDungeonTimes[dungeonIndex] = fractionalTime
-                    -- if runNumUpgrades > 0 and (runScore > maxDungeonScore or (runScore == maxDungeonScore and fractionalTime < maxDungeonTime)) then
-                    if runNumUpgrades > 0 and (runLevel > maxDungeonLevel or (runLevel == maxDungeonLevel and runTimerAsFraction < maxDungeonRunTimer)) then
-                        maxDungeonIndex = dungeonIndex
-                        -- maxDungeonTime = fractionalTime
-                        -- maxDungeonScore = runScore
-                        maxDungeonLevel = runLevel
-                        maxDungeonUpgrades = runNumUpgrades
-                        maxDungeonRunTimer = runTimerAsFraction
-                    end
                 end
-            end
-            if needsMaxDungeonUpgrade then
-                mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeon"] = DUNGEONS[maxDungeonIndex]
-                mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeonLevel"] = maxDungeonLevel
-                mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeonUpgrades"] = maxDungeonUpgrades
+                if needsMaxDungeonUpgrade then
+                    mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeon"] = DUNGEONS[maxDungeonIndex]
+                    mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeonLevel"] = maxDungeonLevel
+                    mythicKeystoneProfile[weeklyAffixInternal .. "MaxDungeonUpgrades"] = maxDungeonUpgrades
+                end
             end
             table.sort(mythicKeystoneProfile.sortedDungeons, SortDungeons)
         end
@@ -3317,9 +3343,39 @@ do
         return cache
     end
 
+    ---@class BlizzardKeystoneSummary
+    ---@field public currentSeasonScore number @The current season keystone score.
+    ---@field public runs BlizzardKeystoneRun[] @Table over each keystone dungeon.
+
+    ---@param bioSummary BlizzardKeystoneSummary
+    local function ExpandSummaryWithChallengeModeMapData(bioSummary)
+        local mapIDs = C_ChallengeMode.GetMapTable()
+        for _, mapID in ipairs(mapIDs) do
+            local affixScores, bestOverAllScore
+            local mapRun
+            for _, run in ipairs(bioSummary.runs) do
+                if mapID == run.challengeModeID then
+                    affixScores, bestOverAllScore = C_MythicPlus.GetSeasonBestAffixScoreInfoForMap(mapID)
+                    mapRun = run
+                    break
+                end
+            end
+            if affixScores and mapRun then
+                for _, data in pairs(affixScores) do
+                    if data.name == "Fortified" then
+                        mapRun.fortified = data
+                    elseif data.name == "Tyrannical" then
+                        mapRun.tyrannical = data
+                    end
+                end
+            end
+        end
+    end
+
     local function OverridePlayerData()
-        local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player")
+        local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player") ---@type BlizzardKeystoneSummary
         if bioSummary and bioSummary.currentSeasonScore then
+            ExpandSummaryWithChallengeModeMapData(bioSummary)
             provider:OverrideProfile(ns.PLAYER_NAME, ns.PLAYER_REALM, ns.PLAYER_FACTION, bioSummary.currentSeasonScore, bioSummary.runs)
         end
     end
@@ -3917,10 +3973,14 @@ do
                                 if showPadding then
                                     tooltip:AddLine(" ")
                                 end
-                                local weeklyAffixID = util:GetWeeklyAffix()
-                                local leftHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 10 and 10 or -10]
-                                local rightHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 9 and 9 or -9]
-                                tooltip:AddDoubleLine(L.PROFILE_BEST_RUNS, table.concat({ leftHeaderText, "  ", util:GetTextPaddingTexture(tyrannicalMaxWidth - util:GetTooltipTextWidth(rightHeaderText)), rightHeaderText }, ""), 1, 0.85, 0, 1, 0.85, 0)
+                                local weeklyAffixID, _ = util:GetWeeklyAffix()
+                                local leftHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 10 and -10 or 10]
+                                local rightHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 9 and -9 or 9]
+                                local rightHeaderTextWidth = util:GetTooltipTextWidth(rightHeaderText)
+                                if rightHeaderTextWidth > tyrannicalMaxWidth then
+                                    tyrannicalMaxWidth = rightHeaderTextWidth
+                                end
+                                tooltip:AddDoubleLine(L.PROFILE_BEST_RUNS, table.concat({ leftHeaderText, "  ", util:GetTextPaddingTexture(tyrannicalMaxWidth - rightHeaderTextWidth), rightHeaderText }, ""), 1, 0.85, 0, 1, 0.85, 0)
                             end
                             for i = 1, #keystoneProfile.sortedDungeons do
                                 local sortedDungeon = keystoneProfile.sortedDungeons[i]

@@ -86,8 +86,8 @@ do
     }
 
     ns.KEYSTONE_AFFIX_SCHEDULE = {
-        9, -- Fortified
         10, -- Tyrannical
+        9, -- Fortified
     }
 
     ns.KEYSTONE_AFFIX_INTERNAL = {

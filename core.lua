@@ -1431,6 +1431,8 @@ do
         end
     end
 
+    ---@param text string @The text to measure the width in pixels. Assumes standard tooltip font when calculating.
+    ---@return number @Text width of the text in pixels.
     function util:GetTooltipTextWidth(text)
         TOOLTIP_TEXT_FONTSTRING:SetText(text)
         TOOLTIP_TEXT_FONTSTRING:Show()
@@ -1439,6 +1441,9 @@ do
         return width
     end
 
+    ---@param width number @The width of the transparent texture.
+    ---@param height number @Optional height, defaults to 1px if ommited, not required, but available if needed.
+    ---@return string @String containing texture escape sequence. If width provided is 0 or less, the return is an empty string.
     function util:GetTextPaddingTexture(width, height)
         if not width or width <= 0 then
             return ""
@@ -3988,6 +3993,8 @@ do
                             local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
                             local fortifiedLines, fortifiedLinesWidth, fortifiedMaxWidth = GetSortedDungeonsTooltipText(keystoneProfile.sortedDungeons, "fortified")
                             local tyrannicalLines, tyrannicalLinesWidth, tyrannicalMaxWidth = GetSortedDungeonsTooltipText(keystoneProfile.sortedDungeons, "tyrannical")
+                            local paddingBetweenColumns = 15 -- additional column padding in order to avoid the columns appearing glued together
+                            tyrannicalMaxWidth = tyrannicalMaxWidth + paddingBetweenColumns
                             if showHeader then
                                 if showPadding then
                                     tooltip:AddLine(" ")
@@ -3997,9 +4004,11 @@ do
                                 local rightHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 9 and -9 or 9]
                                 local rightHeaderTextWidth = util:GetTooltipTextWidth(rightHeaderText)
                                 if rightHeaderTextWidth > tyrannicalMaxWidth then
-                                    tyrannicalMaxWidth = rightHeaderTextWidth
-                            end
-                                tooltip:AddDoubleLine(L.PROFILE_BEST_RUNS, table.concat({ leftHeaderText, "  ", util:GetTextPaddingTexture(tyrannicalMaxWidth - rightHeaderTextWidth), rightHeaderText }, ""), 1, 0.85, 0, 1, 0.85, 0)
+                                    tyrannicalMaxWidth = rightHeaderTextWidth + paddingBetweenColumns
+                                end
+                                local paddingTexture = util:GetTextPaddingTexture(tyrannicalMaxWidth - rightHeaderTextWidth)
+                                local text = { leftHeaderText, paddingTexture, rightHeaderText }
+                                tooltip:AddDoubleLine(L.PROFILE_BEST_RUNS, table.concat(text, ""), 1, 0.85, 0, 1, 0.85, 0)
                             end
                             for i = 1, #keystoneProfile.sortedDungeons do
                                 local sortedDungeon = keystoneProfile.sortedDungeons[i]
@@ -4009,10 +4018,10 @@ do
                                 end
                                 local paddingTexture = util:GetTextPaddingTexture(tyrannicalMaxWidth - tyrannicalLinesWidth[i])
                                 if sortedDungeon.fortifiedLevel > 0 or sortedDungeon.tyrannicalLevel > 0 then
-                                    local text = { fortifiedLines[i], "  ", paddingTexture, tyrannicalLines[i] }
+                                    local text = { fortifiedLines[i], paddingTexture, tyrannicalLines[i] }
                                     tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, table.concat(text, ""), r, g, b, 0.5, 0.5, 0.5)
                                 else
-                                    local text = { "-", "  ", paddingTexture, "-" }
+                                    local text = { "-", paddingTexture, "-" }
                                     tooltip:AddDoubleLine(sortedDungeon.dungeon.shortNameLocale, table.concat(text, ""), r, g, b, 0.5, 0.5, 0.5)
                                 end
                             end

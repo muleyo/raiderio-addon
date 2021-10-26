@@ -2507,12 +2507,15 @@ do
     ---@field public level number @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedLevel` and `tyrannicalLevel` when possible.
     ---@field public chests number @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedChests` and `tyrannicalChests` when possible.
     ---@field public fractionalTime number @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedFractionalTime` and `tyrannicalFractionalTime` when possible. If we have client data `isEnhanced` is set and the values are then `0.0` to `1.0` is within the timer, anything above is depleted over the timer. If `isEnhanced` is false then this value is 0 to 3 where 3 is depleted, and the rest is in time.
+    ---@field public sortOrder string @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedSortOrder` and `tyrannicalSortOrder` when possible.
     ---@field public fortifiedLevel number @Keystone level
     ---@field public fortifiedChests number @Number of medals where 1=Bronze, 2=Silver, 3=Gold
-    ---@field public fortifiedFractionalTime number If we have client data `isEnhanced` is set and the values are then `0.0` to `1.0` is within the timer, anything above is depleted over the timer. If `isEnhanced` is false then this value is 0 to 3 where 3 is depleted, and the rest is in time.
+    ---@field public fortifiedFractionalTime number @If we have client data `isEnhanced` is set and the values are then `0.0` to `1.0` is within the timer, anything above is depleted over the timer. If `isEnhanced` is false then this value is 0 to 3 where 3 is depleted, and the rest is in time.
+    ---@field public fortifiedSortOrder string @The sorting weight assigned this entry. Combination of level, chests and name of the dungeon.
     ---@field public tyrannicalLevel number @Keystone level
     ---@field public tyrannicalChests number @Number of medals where 1=Bronze, 2=Silver, 3=Gold
-    ---@field public tyrannicalFractionalTime number If we have client data `isEnhanced` is set and the values are then `0.0` to `1.0` is within the timer, anything above is depleted over the timer. If `isEnhanced` is false then this value is 0 to 3 where 3 is depleted, and the rest is in time.
+    ---@field public tyrannicalFractionalTime number @If we have client data `isEnhanced` is set and the values are then `0.0` to `1.0` is within the timer, anything above is depleted over the timer. If `isEnhanced` is false then this value is 0 to 3 where 3 is depleted, and the rest is in time.
+    ---@field public tyrannicalSortOrder string @The sorting weight assigned this entry. Combination of level, chests and name of the dungeon.
 
     ---@class SortedMilestone
     ---@field public level number
@@ -2525,15 +2528,7 @@ do
     ---@param a SortedDungeon
     ---@param b SortedDungeon
     local function SortDungeons(a, b)
-        local al, bl = a.level, b.level
-        if al == bl then
-            local at, bt = a.fractionalTime, b.fractionalTime
-            if at == bt then
-                return a.dungeon.shortNameLocale < b.dungeon.shortNameLocale
-            end
-            return at < bt
-        end
-        return al > bl
+        return a.sortOrder > b.sortOrder
     end
 
     ---@param results DataProviderMythicKeystoneProfile
@@ -2591,13 +2586,22 @@ do
 
     ---@param results DataProviderMythicKeystoneProfile
     local function ApplySortedDungeonsForAffix(results, weeklyAffixInternal)
-        local dungeonKey = "dungeons"
-        local dungeonUpgradeKey = "dungeonUpgrades"
-        local dungeonTimeKey = "dungeonTimes"
-        if weeklyAffixInternal then
-            dungeonKey = weeklyAffixInternal .. "Dungeons"
-            dungeonUpgradeKey = weeklyAffixInternal .. "DungeonUpgrades"
-            dungeonTimeKey = weeklyAffixInternal .. "DungeonTimes"
+        ---@param sortedDungeon SortedDungeon
+        local function getSortOrderForAffix(sortedDungeon, weeklyAffixInternal, prefix)
+            local dungeon = sortedDungeon.dungeon
+            local index = dungeon.index
+            local level = results[weeklyAffixInternal .. "Dungeons"][index]
+            local chests = results[weeklyAffixInternal .. "DungeonUpgrades"][index]
+            -- local fractionalTime = results[weeklyAffixInternal .. "DungeonTimes"][index]
+            return format("%s-%02d-%02d-%s", prefix, level, chests, dungeon.shortNameLocale), level
+        end
+        ---@param sortedDungeon SortedDungeon
+        local function getSortOrder(sortedDungeon, primaryAffixInternal, secondaryAffixInternal)
+            local primaryOrder, primaryLevel = getSortOrderForAffix(sortedDungeon, primaryAffixInternal, "A")
+            if primaryLevel > 0 then
+                return primaryOrder
+            end
+            return getSortOrderForAffix(sortedDungeon, secondaryAffixInternal, "B"), nil
         end
         local sortedDungeonMetatable = {
             __metatable = false,
@@ -2622,10 +2626,24 @@ do
                     return results.tyrannicalDungeonUpgrades[index]
                 elseif key == "tyrannicalFractionalTime" then
                     return results.tyrannicalDungeonTimes[index]
+                elseif key == "sortOrder" then
+                    return getSortOrder(self, weeklyAffixInternal, weeklyAffixInternal == "fortified" and "tyrannical" or "fortified")
+                elseif key == "fortifiedSortOrder" then
+                    return getSortOrder(self, "fortified", "tyrannical")
+                elseif key == "tyrannicalSortOrder" then
+                    return getSortOrder(self, "tyrannical", "fortified")
                 end
             end,
         }
         results.sortedDungeons = {}
+        local dungeonKey = "dungeons"
+        local dungeonUpgradeKey = "dungeonUpgrades"
+        local dungeonTimeKey = "dungeonTimes"
+        if weeklyAffixInternal then
+            dungeonKey = weeklyAffixInternal .. "Dungeons"
+            dungeonUpgradeKey = weeklyAffixInternal .. "DungeonUpgrades"
+            dungeonTimeKey = weeklyAffixInternal .. "DungeonTimes"
+        end
         for i = 1, #DUNGEONS do
             local dungeon = DUNGEONS[i]
             if weeklyAffixInternal then

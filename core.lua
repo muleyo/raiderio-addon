@@ -23,10 +23,10 @@ do
     ---@field public MAX_LEVEL number @The currently accessible expansion max level to the playerbase
     ---@field public REGION_TO_LTD string[] @Region ID to LTD conversion table
     ---@field public FACTION_TO_ID number[] @Faction group string to ID conversion table
-    ---@field public PLAYER_REGION string @"us","kr","eu","tw","cn"
-    ---@field public PLAYER_REGION_ID number @1 (us), 2 (kr), 3 (eu), 4 (tw), 5 (cn)
-    ---@field public PLAYER_FACTION number @1 (alliance), 2 (horde), 3 (neutral)
-    ---@field public PLAYER_FACTION_TEXT string @"Alliance", "Horde", "Neutral"
+    ---@field public PLAYER_REGION string @`us`, `kr`, `eu`, `tw`, `cn`
+    ---@field public PLAYER_REGION_ID number @`1` (us), `2` (kr), `3` (eu), `4` (tw), `5` (cn)
+    ---@field public PLAYER_FACTION number @`1` (alliance), `2` (horde), `3` (neutral)
+    ---@field public PLAYER_FACTION_TEXT string @`Alliance`, `Horde`, `Neutral`
     ---@field public PLAYER_NAME string @The name of the player character
     ---@field public PLAYER_REALM string @The realm of the player character
     ---@field public PLAYER_REALM_SLUG string @The realm slug of the player character
@@ -42,7 +42,7 @@ do
     ---@field public RAID_DIFFICULTY table<number, RaidDifficulty> @Table of 1=normal, 2=heroic, 3=mythic difficulties and their names and colors
     ---@field public PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season must surpass from previous season to be considered better and shown as primary in addon
     ---@field public PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season current character must surpass from previous season main to be considered better and shown as primary in addon
-    ---@field public REGIONS_RESET_TIME number[] @Maps each Region ID to their weekly reset timer
+    ---@field public REGIONS_RESET_TIME table<string, number> @Maps each region string to their weekly reset timer
     ---@field public KEYSTONE_AFFIX_SCHEDULE number[] @Maps each weekly rotation, primarily for Tyrannical (`9`) and Fortified (`10`) tracking
     ---@field public KEYSTONE_AFFIX_INTERNAL table<number, string> @Maps each affix ID to a internal string version like `tyrannical` (`9`) and `fortified` (`10`)
     ---@field public KEYSTONE_AFFIX_TEXTURE table<number, string> @Maps each affix to a texture string Tyrannical (`9`/`-9`) and Fortified (`10`/`-10`)
@@ -79,11 +79,11 @@ do
     ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = 0.75
 
     ns.REGIONS_RESET_TIME = {
-        1135695600, -- us
-        1135810800, -- kr
-        1135753200, -- eu
-        1135810800, -- tw
-        1135810800, -- cn
+        us = 1135695600,
+        eu = 1135753200,
+        tw = 1135810800,
+        kr = 1135810800,
+        cn = 1135810800,
     }
 
     ns.KEYSTONE_AFFIX_SCHEDULE = {

@@ -2533,7 +2533,7 @@ do
     ---@param a SortedDungeon
     ---@param b SortedDungeon
     local function SortDungeons(a, b)
-        return strcmputf8i(a.sortOrder, b.sortOrder) > 0
+        return strcmputf8i(a.sortOrder, b.sortOrder) < 0
     end
 
     ---@param results DataProviderMythicKeystoneProfile
@@ -2592,21 +2592,31 @@ do
     ---@param results DataProviderMythicKeystoneProfile
     local function ApplySortedDungeonsForAffix(results, weeklyAffixInternal)
         ---@param sortedDungeon SortedDungeon
-        local function getSortOrderForAffix(sortedDungeon, weeklyAffixInternal, prefix)
-            local dungeon = sortedDungeon.dungeon
-            local index = dungeon.index
+        local function getSortOrderForAffix(sortedDungeon, weeklyAffixInternal)
+            local index = sortedDungeon.dungeon.index
             local level = results[weeklyAffixInternal .. "Dungeons"][index]
             local chests = results[weeklyAffixInternal .. "DungeonUpgrades"][index]
             -- local fractionalTime = results[weeklyAffixInternal .. "DungeonTimes"][index]
-            return format("%s-%02d-%02d-%s", prefix, 99 - level, 99 - chests, dungeon.shortNameLocale), level
+            return format("%02d-%02d", 99 - level, 99 - chests)
         end
         ---@param sortedDungeon SortedDungeon
-        local function getSortOrder(sortedDungeon, primaryAffixInternal, secondaryAffixInternal)
-            local primaryOrder, primaryLevel = getSortOrderForAffix(sortedDungeon, primaryAffixInternal, "A")
-            if primaryLevel > 0 then
-                return primaryOrder
+        ---@param focusAffix number @`nil` = consider both affixes when making the weights, `1` = focus on primary affix, `2` = focus on secondary affix
+        local function getSortOrder(sortedDungeon, primaryAffixInternal, secondaryAffixInternal, focusAffix)
+            local primaryOrder
+            if focusAffix == nil or focusAffix == 1 then
+                primaryOrder = getSortOrderForAffix(sortedDungeon, primaryAffixInternal)
+                if focusAffix == 1 then
+                    return format("%s-%s", primaryOrder, sortedDungeon.dungeon.shortNameLocale)
+                end
             end
-            return getSortOrderForAffix(sortedDungeon, secondaryAffixInternal, "B"), nil
+            local secondaryOrder
+            if focusAffix == nil or focusAffix == 2 then
+                secondaryOrder = getSortOrderForAffix(sortedDungeon, secondaryAffixInternal)
+                if focusAffix == 2 then
+                    return format("%s-%s", secondaryOrder, sortedDungeon.dungeon.shortNameLocale)
+                end
+            end
+            return format("%s-%s-%s", primaryOrder, secondaryOrder, sortedDungeon.dungeon.shortNameLocale)
         end
         local sortedDungeonMetatable = {
             __metatable = false,
@@ -2633,10 +2643,22 @@ do
                     return results.tyrannicalDungeonTimes[index]
                 elseif key == "sortOrder" then
                     return getSortOrder(self, weeklyAffixInternal, weeklyAffixInternal == "fortified" and "tyrannical" or "fortified")
+                -- elseif key == "sortOrder1" then
+                --     return getSortOrder(self, weeklyAffixInternal, weeklyAffixInternal == "fortified" and "tyrannical" or "fortified", 1)
+                -- elseif key == "sortOrder2" then
+                --     return getSortOrder(self, weeklyAffixInternal == "fortified" and "tyrannical" or "fortified", weeklyAffixInternal, 2)
                 elseif key == "fortifiedSortOrder" then
                     return getSortOrder(self, "fortified", "tyrannical")
+                -- elseif key == "fortifiedSortOrder1" then
+                --     return getSortOrder(self, "fortified", "tyrannical", 1)
+                -- elseif key == "fortifiedSortOrder2" then
+                --     return getSortOrder(self, "fortified", "tyrannical", 2)
                 elseif key == "tyrannicalSortOrder" then
                     return getSortOrder(self, "tyrannical", "fortified")
+                -- elseif key == "tyrannicalSortOrder1" then
+                --     return getSortOrder(self, "tyrannical", "fortified", 1)
+                -- elseif key == "tyrannicalSortOrder2" then
+                --     return getSortOrder(self, "tyrannical", "fortified", 2)
                 end
             end,
         }

@@ -86,13 +86,13 @@ do
     }
 
     ns.KEYSTONE_AFFIX_SCHEDULE = {
-        10, -- Tyrannical
-        9, -- Fortified
+        9,  -- Tyrannical
+        10, -- Fortified
     }
 
     ns.KEYSTONE_AFFIX_INTERNAL = {
-        [9] = "fortified",
-        [10] = "tyrannical",
+        [9] = "tyrannical",
+        [10] = "fortified",
     }
 
     ns.KEYSTONE_AFFIX_TEXTURE = {

@@ -43,8 +43,9 @@ do
     ---@field public PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season must surpass from previous season to be considered better and shown as primary in addon
     ---@field public PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season current character must surpass from previous season main to be considered better and shown as primary in addon
     ---@field public REGIONS_RESET_TIME number[] @Maps each Region ID to their weekly reset timer
-    ---@field public KEYSTONE_AFFIX_SCHEDULE number[] @Maps each weekly rotation, primarily for Fortified and Tyrannical tracking
-    ---@field public KEYSTONE_AFFIX_INTERNAL string[] @Maps each affix ID to a internal string version like `fortified` and `tyrannical`
+    ---@field public KEYSTONE_AFFIX_SCHEDULE number[] @Maps each weekly rotation, primarily for Tyrannical (`9`) and Fortified (`10`) tracking
+    ---@field public KEYSTONE_AFFIX_INTERNAL table<number, string> @Maps each affix ID to a internal string version like `tyrannical` (`9`) and `fortified` (`10`)
+    ---@field public KEYSTONE_AFFIX_TEXTURE table<number, string> @Maps each affix to a texture string Tyrannical (`9`/`-9`) and Fortified (`10`/`-10`)
 
     ns.Print = function(text, r, g, b, ...)
         r, g, b = r or 1, g or 1, b or 0
@@ -4022,8 +4023,8 @@ do
                                     tooltip:AddLine(" ")
                                 end
                                 local weeklyAffixID = util:GetWeeklyAffix()
-                                local leftHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 10 and -10 or 10]
-                                local rightHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 9 and -9 or 9]
+                                local leftHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 10 and 10 or -10]
+                                local rightHeaderText = ns.KEYSTONE_AFFIX_TEXTURE[weeklyAffixID == 9 and 9 or -9]
                                 local rightHeaderTextWidth = util:GetTooltipTextWidth(rightHeaderText)
                                 if rightHeaderTextWidth > tyrannicalMaxWidth then
                                     tyrannicalMaxWidth = rightHeaderTextWidth + paddingBetweenColumns

@@ -2528,7 +2528,7 @@ do
     ---@param a SortedDungeon
     ---@param b SortedDungeon
     local function SortDungeons(a, b)
-        return a.sortOrder > b.sortOrder
+        return strcmputf8i(a.sortOrder, b.sortOrder) > 0
     end
 
     ---@param results DataProviderMythicKeystoneProfile
@@ -2593,7 +2593,7 @@ do
             local level = results[weeklyAffixInternal .. "Dungeons"][index]
             local chests = results[weeklyAffixInternal .. "DungeonUpgrades"][index]
             -- local fractionalTime = results[weeklyAffixInternal .. "DungeonTimes"][index]
-            return format("%s-%02d-%02d-%s", prefix, level, chests, dungeon.shortNameLocale), level
+            return format("%s-%02d-%02d-%s", prefix, 99 - level, 99 - chests, dungeon.shortNameLocale), level
         end
         ---@param sortedDungeon SortedDungeon
         local function getSortOrder(sortedDungeon, primaryAffixInternal, secondaryAffixInternal)

@@ -1694,7 +1694,7 @@ do
 
     local function CreateExportButton()
         local button = CreateFrame("Button", addonName .. "_ExportButton", _G.LFGListFrame)
-        button:SetPoint("BOTTOMRIGHT", button:GetParent(), "BOTTOM", 4, 6)
+        button:SetPoint("BOTTOMRIGHT", button:GetParent(), "BOTTOM", -12, 7)
         button:SetSize(16, 16)
         -- script handlers
         button:SetScript("OnEnter", function() button.Border:SetVertexColor(1, 1, 1) end)
@@ -4182,6 +4182,17 @@ do
         return false
     end
 
+    ---@param frame Frame @The frame to inspect. Its safe if there are no protected APIs called when the handler is executed.
+    ---@param onEnter function @Optional function, the OnEnter handler that we can also compare against for matches.
+    local function IsSafeFrame(frame, onEnter)
+        local parent = frame:GetParent()
+        -- LFGListSearchEntry_OnEnter > LFGListUtil_SetSearchEntryTooltip > C_LFGList.GetPlaystyleString
+        if onEnter == _G.LFGListSearchEntry_OnEnter or (frame.resultID and parent == _G.LFGListSearchPanelScrollFrameScrollChild) then
+            return false
+        end
+        return true
+    end
+
     ---@param state TooltipState
     local function UpdateTooltip(tooltip, state)
         -- if unit simply refresh the unit and the original hook will force update the tooltip with the desired behavior
@@ -4205,8 +4216,10 @@ do
         if o1 then
             local oe = o1:GetScript("OnEnter")
             if oe then
-                tooltip:Hide()
-                pcall(oe, o1)
+                if IsSafeFrame(o1, oe) then
+                    tooltip:Hide()
+                    pcall(oe, o1)
+                end
                 return
             end
         end
@@ -5105,6 +5118,34 @@ do
         return type(widget) == "table" and type(widget.GetObjectType) == "function" and widget
     end
 
+    local STRATA_MAP = {
+        "TOOLTIP",
+        "FULLSCREEN_DIALOG",
+        "FULLSCREEN",
+        "DIALOG",
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "BACKGROUND",
+    }
+
+    for k, v in ipairs(STRATA_MAP) do
+        STRATA_MAP[v] = k
+    end
+
+    local function GetHighestStrata(...)
+        local s, o
+        for _, v in ipairs({...}) do
+            if type(v) == "string" then
+                local c = STRATA_MAP[v]
+                if not o or o > c then
+                    s, o = v, c
+                end
+            end
+        end
+        return s
+    end
+
     local fallbackFrame = _G.UIParent
     local fallbackStrata = "LOW"
 
@@ -5178,7 +5219,8 @@ do
                     end
                     if usable then
                         local p, rp, x, y, strata = GetAnchorPoint(anchor, frame)
-                        -- tooltipAnchor:SetParent(frame) -- TODO: will hide the child tooltip when parent changes like this
+                        strata = GetHighestStrata(strata, frame:GetFrameStrata())
+                        tooltipAnchor:SetParent(frame)
                         tooltipAnchor:ClearAllPoints()
                         tooltipAnchor:SetPoint(p, frame, rp, x, y)
                         tooltipAnchor:SetFrameStrata(strata)
@@ -5201,7 +5243,7 @@ do
         local p = profilePoint.point or "CENTER"
         local x = profilePoint.x or 0
         local y = profilePoint.y or 0
-        -- tooltipAnchor:SetParent(fallbackFrame) -- TODO: will hide the child tooltip when parent changes like this
+        tooltipAnchor:SetParent(fallbackFrame)
         tooltipAnchor:ClearAllPoints()
         tooltipAnchor:SetPoint(p, fallbackFrame, p, x, y)
         tooltipAnchor:SetFrameStrata(fallbackStrata)

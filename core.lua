@@ -4219,8 +4219,9 @@ do
                 if IsSafeFrame(o1, oe) then
                     tooltip:Hide()
                     pcall(oe, o1)
+                    return
                 end
-                return
+                return false
             end
         end
         -- if the owner is the UIParent we must beware as it might be the fading out unit tooltips that linger, we do not wish to update these as we do not have a valid unit anymore for reference so we just don't do anything instead
@@ -5348,6 +5349,15 @@ do
         UpdatePosition()
     end
 
+    local showProfileArgs
+
+    local function OnModifierStateChanged()
+        if not showProfileArgs or not showProfileArgs[1] or not showProfileArgs[2] then
+            return
+        end
+        return profile:ShowProfile(unpack(showProfileArgs))
+    end
+
     function profile:CanLoad()
         return not tooltip and config:IsEnabled() and _G.PVEFrame
     end
@@ -5360,6 +5370,7 @@ do
         UpdatePosition()
         callback:RegisterEvent(OnSettingsSaved, "RAIDERIO_SETTINGS_SAVED")
         callback:RegisterEvent(UpdateAnchorHooks, "ADDON_LOADED")
+        callback:RegisterEvent(OnModifierStateChanged, "MODIFIER_STATE_CHANGED")
     end
 
     ---@return boolean, boolean @arg1 is true if the toggle was successfull, otherwise false if we can't toggle right now. arg2 is set to true if the frame is now draggable, otherwise false for locked.
@@ -5393,6 +5404,7 @@ do
         if not profile:IsEnabled() or not config:Get("showRaiderIOProfile") then
             return
         end
+        showProfileArgs = { anchor, ... }
         tooltipAnchorPriority[1].name = anchor
         UpdateAnchorHooks()
         UpdatePosition()
@@ -5423,6 +5435,9 @@ do
     function profile:HideProfile()
         if not profile:IsEnabled() then
             return
+        end
+        if showProfileArgs then
+            table.wipe(showProfileArgs)
         end
         render:HideTooltip(tooltip)
     end

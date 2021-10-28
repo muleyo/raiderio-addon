@@ -3773,31 +3773,63 @@ do
         return table.concat(icons, "") .. " " .. score
     end
 
-    ---@class BestRun
-    ---@field public dungeon Dungeon|nil
-    ---@field public level number
-    ---@field public text string|nil
+    ---Takes tripples of `Dungeon, Level, Chests` args, returns the best run back.
+    ---@return Dungeon, number, number @`arg1`= the Dungeon, `arg2` = keystone level, `arg3` = chests
+    local function GetBestRunOfDungeons(...)
+        local bestDungeon ---@type Dungeon|nil
+        local bestLevel = 0 ---@type number
+        local bestChests = 0 ---@type number
+        local args = {...}
+        for i = 1, #args, 3 do
+            local dungeon = args[i]
+            local level = args[i + 1]
+            local chests = args[i + 2]
+            if dungeon and (level > bestLevel or chests > bestChests) then
+                bestDungeon, bestLevel, bestChests = dungeon, level, chests
+            end
+        end
+        return bestDungeon, bestLevel, bestChests
+    end
 
+    ---@class BestRun
+    ---@field public dungeon Dungeon|nil @The dungeon.
+    ---@field public level number @The keystone level.
+    ---@field public chests number @The amount of chests/medals earned.
+
+    ---@param tooltip GameTooltip
     ---@param keystoneProfile DataProviderMythicKeystoneProfile
     ---@param state TooltipState
+    ---@param isHeader boolean
     ---@return boolean|nil @Returns true if this is a header and it has added data to the tooltip, otherwise false, or nil if it's not a header request.
     local function AppendBestRunToTooltip(tooltip, keystoneProfile, state, isHeader)
         local options = state.options
         local showLFD = Has(options, render.Flags.SHOW_LFD)
-        local best = { dungeon = nil, level = 0, text = nil } ---@type BestRun @best dungeon
-        local overallBest = { dungeon = keystoneProfile.maxDungeon, level = keystoneProfile.maxDungeonLevel, text = nil } ---@type BestRun @overall best
+        local best = { dungeon = nil, level = 0, chests = 0 } ---@type BestRun
+        local overallBest = { dungeon = nil, level = 0, chests = 0 } ---@type BestRun
+        overallBest.dungeon,
+        overallBest.level,
+        overallBest.chests = GetBestRunOfDungeons(
+            keystoneProfile.fortifiedMaxDungeon,
+            keystoneProfile.fortifiedMaxDungeonLevel,
+            keystoneProfile.fortifiedDungeonUpgrades[keystoneProfile.fortifiedMaxDungeon.index],
+            keystoneProfile.tyrannicalMaxDungeon,
+            keystoneProfile.tyrannicalMaxDungeonLevel,
+            keystoneProfile.tyrannicalDungeonUpgrades[keystoneProfile.tyrannicalMaxDungeon.index]
+        )
         if showLFD then
             local focusDungeon = util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
             if focusDungeon then
-                best.dungeon = focusDungeon
-                best.level = keystoneProfile.dungeons[focusDungeon.index]
+                best.dungeon,
+                best.level,
+                best.chests = GetBestRunOfDungeons(
+                    focusDungeon,
+                    keystoneProfile.fortifiedDungeons[focusDungeon.index],
+                    keystoneProfile.fortifiedDungeonUpgrades[focusDungeon.index],
+                    focusDungeon,
+                    keystoneProfile.tyrannicalDungeons[focusDungeon.index],
+                    keystoneProfile.tyrannicalDungeonUpgrades[focusDungeon.index]
+                )
             end
-        end
-        if best.dungeon and (not best.level or best.level < 1) then
-            best.level = keystoneProfile.dungeons[best.dungeon.index] or 0
-        end
-        if not best.dungeon or (best.level and best.level < 1) then
-            best.dungeon, best.level = nil, 0
         end
         local hasHeaderData = false
         if overallBest.level > 0 and (not best.dungeon or best.dungeon ~= overallBest.dungeon) then
@@ -3808,7 +3840,7 @@ do
             else
                 label, r, g, b = L.BEST_RUN, 1, 1, 1
             end
-            tooltip:AddDoubleLine(label, util:GetNumChests(keystoneProfile.dungeonUpgrades[overallBest.dungeon.index]) .. "|cffffffff" .. overallBest.level .. "|r " .. overallBest.dungeon.shortNameLocale, r, g, b, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
+            tooltip:AddDoubleLine(label, util:GetNumChests(overallBest.chests) .. "|cffffffff" .. overallBest.level .. "|r " .. overallBest.dungeon.shortNameLocale, r, g, b, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
         end
         if best.dungeon and best.level > 0 then
             local label, r, g, b = L.BEST_FOR_DUNGEON, 1, 1, 1
@@ -3820,7 +3852,7 @@ do
                     label, r, g, b = L.BEST_FOR_DUNGEON, 0, 1, 0
                 end
             end
-            tooltip:AddDoubleLine(label, util:GetNumChests(keystoneProfile.dungeonUpgrades[best.dungeon.index]) .. "|cffffffff" .. best.level .. "|r " .. best.dungeon.shortNameLocale, r, g, b, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
+            tooltip:AddDoubleLine(label, util:GetNumChests(best.chests) .. "|cffffffff" .. best.level .. "|r " .. best.dungeon.shortNameLocale, r, g, b, util:GetScoreColor(keystoneProfile.mplusCurrent.score))
         end
         if isHeader then
             return hasHeaderData

@@ -3784,7 +3784,7 @@ do
             local dungeon = args[i]
             local level = args[i + 1]
             local chests = args[i + 2]
-            if dungeon and (level > bestLevel or chests > bestChests) then
+            if dungeon and (level > bestLevel or (level >= bestLevel and chests > bestChests)) then
                 bestDungeon, bestLevel, bestChests = dungeon, level, chests
             end
         end

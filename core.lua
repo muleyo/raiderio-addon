@@ -3811,10 +3811,10 @@ do
         overallBest.chests = GetBestRunOfDungeons(
             keystoneProfile.fortifiedMaxDungeon,
             keystoneProfile.fortifiedMaxDungeonLevel,
-            keystoneProfile.fortifiedDungeonUpgrades[keystoneProfile.fortifiedMaxDungeon.index],
+            keystoneProfile.fortifiedDungeonUpgrades[keystoneProfile.fortifiedMaxDungeonIndex],
             keystoneProfile.tyrannicalMaxDungeon,
             keystoneProfile.tyrannicalMaxDungeonLevel,
-            keystoneProfile.tyrannicalDungeonUpgrades[keystoneProfile.tyrannicalMaxDungeon.index]
+            keystoneProfile.tyrannicalDungeonUpgrades[keystoneProfile.tyrannicalMaxDungeonIndex]
         )
         if showLFD then
             local focusDungeon = util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)

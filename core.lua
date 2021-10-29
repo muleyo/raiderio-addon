@@ -1106,7 +1106,7 @@ do
         if unitExists then
             unit = arg1
             if unitIsPlayer then
-                name, realm = UnitName(arg1)
+                name, realm = UnitNameUnmodified(arg1)
                 realm = realm and realm ~= "" and realm or GetNormalizedRealmName()
             end
             return name, realm, unit
@@ -3892,7 +3892,7 @@ do
                 local level = profile.mythicKeystoneProfile.dungeons[dungeon.index]
                 if level > 0 then
                     index = index + 1
-                    members[index] = { unit = unit, level = level, name = UnitName(unit), chests = profile.mythicKeystoneProfile.dungeonUpgrades[dungeon.index] }
+                    members[index] = { unit = unit, level = level, name = UnitNameUnmodified(unit), chests = profile.mythicKeystoneProfile.dungeonUpgrades[dungeon.index] }
                 end
             end
         end
@@ -3901,7 +3901,7 @@ do
         end
         for i = 1, index do
             local member = members[i]
-            tooltip:AddDoubleLine(UnitName(member.unit), util:GetNumChests(member.chests) .. member.level .. " " .. dungeon.shortNameLocale, 1, 1, 1, util:GetKeystoneChestColor(member.chests))
+            tooltip:AddDoubleLine(UnitNameUnmodified(member.unit), util:GetNumChests(member.chests) .. member.level .. " " .. dungeon.shortNameLocale, 1, 1, 1, util:GetKeystoneChestColor(member.chests))
         end
     end
 

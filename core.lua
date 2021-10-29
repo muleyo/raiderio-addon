@@ -5232,7 +5232,7 @@ do
         return 
             Eval(anchor.point, "TOPLEFT", anchor, frame),
             Eval(anchor.rpoint, "TOPRIGHT", anchor, frame),
-            Eval(anchor.x, 0, anchor, frame),
+            Eval(anchor.x, -16, anchor, frame),
             Eval(anchor.y, 0, anchor, frame),
             Eval(anchor.strata, fallbackStrata, anchor, frame)
     end

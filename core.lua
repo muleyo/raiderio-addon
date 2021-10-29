@@ -1777,199 +1777,6 @@ do
 
 end
 
--- dropdown.lua
--- dependencies: module, config, util + LibDropDownExtension
-do
-
-    ---@class DropDownModule : Module
-    local dropdown = ns:NewModule("DropDown") ---@type DropDownModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-
-    local copyUrlPopup = {
-        id = "RAIDERIO_COPY_URL",
-        text = "%s",
-        button2 = CLOSE,
-        hasEditBox = true,
-        hasWideEditBox = true,
-        editBoxWidth = 350,
-        preferredIndex = 3,
-        timeout = 0,
-        whileDead = true,
-        hideOnEscape = true,
-        OnShow = function(self)
-            self:SetWidth(420)
-            local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"]
-            editBox:SetText(self.text.text_arg2)
-            editBox:SetFocus()
-            editBox:HighlightText(false)
-            local button = _G[self:GetName() .. "Button2"]
-            button:ClearAllPoints()
-            button:SetWidth(200)
-            button:SetPoint("CENTER", editBox, "CENTER", 0, -30)
-        end,
-        EditBoxOnEscapePressed = function(self)
-            self:GetParent():Hide()
-        end,
-        OnHide = nil,
-        OnAccept = nil,
-        OnCancel = nil
-    }
-
-    local validTypes = {
-        ARENAENEMY = true,
-        BN_FRIEND = true,
-        CHAT_ROSTER = true,
-        COMMUNITIES_GUILD_MEMBER = true,
-        COMMUNITIES_WOW_MEMBER = true,
-        FOCUS = true,
-        FRIEND = true,
-        GUILD = true,
-        GUILD_OFFLINE = true,
-        PARTY = true,
-        PLAYER = true,
-        RAID = true,
-        RAID_PLAYER = true,
-        SELF = true,
-        TARGET = true,
-        WORLD_STATE_SCORE = true
-    }
-
-    -- if the dropdown is a valid type of dropdown then we mark it as acceptable to check for a unit on it
-    local function IsValidDropDown(bdropdown)
-        return (bdropdown == LFGListFrameDropDown and config:Get("enableLFGDropdown")) or (type(bdropdown.which) == "string" and validTypes[bdropdown.which])
-    end
-
-    -- get name and realm from dropdown or nil if it's not applicable
-    local function GetNameRealmForDropDown(bdropdown)
-        local unit = bdropdown.unit
-        local bnetIDAccount = bdropdown.bnetIDAccount
-        local menuList = bdropdown.menuList
-        local quickJoinMember = bdropdown.quickJoinMember
-        local quickJoinButton = bdropdown.quickJoinButton
-        local clubMemberInfo = bdropdown.clubMemberInfo
-        local tempName, tempRealm = bdropdown.name, bdropdown.server
-        local name, realm, level
-        -- unit
-        if not name and UnitExists(unit) then
-            if UnitIsPlayer(unit) then
-                name, realm = util:GetNameRealm(unit)
-                level = UnitLevel(unit)
-            end
-            -- if it's not a player it's pointless to check further
-            return name, realm, level
-        end
-        -- bnet friend
-        if not name and bnetIDAccount then
-            local fullName, _, charLevel = util:GetNameRealmForBNetFriend(bnetIDAccount)
-            if fullName then
-                name, realm = util:GetNameRealm(fullName)
-                level = charLevel
-            end
-            -- if it's a bnet friend we assume if eligible the name and realm is set, otherwise we assume it's not eligible for a url
-            return name, realm, level
-        end
-        -- lfd
-        if not name and menuList then
-            for i = 1, #menuList do
-                local whisperButton = menuList[i]
-                if whisperButton and (whisperButton.text == _G.WHISPER_LEADER or whisperButton.text == _G.WHISPER) then
-                    name, realm = util:GetNameRealm(whisperButton.arg1)
-                    break
-                end
-            end
-        end
-        -- quick join
-        if not name and (quickJoinMember or quickJoinButton) then
-            local memberInfo = quickJoinMember or quickJoinButton.Members[1]
-            if memberInfo.playerLink then
-                name, realm, level = util:GetNameRealmFromPlayerLink(memberInfo.playerLink)
-            end
-        end
-        -- dropdown by name and realm
-        if not name and tempName then
-            name, realm = util:GetNameRealm(tempName, tempRealm)
-            if clubMemberInfo and clubMemberInfo.level and (clubMemberInfo.clubType == Enum.ClubType.Guild or clubMemberInfo.clubType == Enum.ClubType.Character) then
-                level = clubMemberInfo.level
-            end
-        end
-        -- if we don't got both we return nothing
-        if not name or not realm then
-            return
-        end
-        return name, realm, level
-    end
-
-    -- converts the name and realm into a copyable link
-    local function ShowCopyDialog(name, realm)
-        local realmSlug = util:GetRealmSlug(realm, true)
-        local url = format("https://raider.io/characters/%s/%s/%s?utm_source=addon", ns.PLAYER_REGION, realmSlug, name)
-        if IsModifiedClick("CHATLINK") then
-            local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
-            editBox:HighlightText()
-        else
-            StaticPopup_Show(copyUrlPopup.id, format("%s (%s)", name, realm), url)
-        end
-    end
-
-    -- tracks the currently active dropdown name and realm for lookup
-    local selectedName, selectedRealm, selectedLevel
-
-    ---@type CustomDropDownOption[]
-    local unitOptions
-
-    ---@param options CustomDropDownOption[]
-    local function OnToggle(bdropdown, event, options, level, data)
-        if event == "OnShow" then
-            if not config:Get("showDropDownCopyURL") then
-                return
-            end
-            if not IsValidDropDown(bdropdown) then
-                return
-            end
-            selectedName, selectedRealm, selectedLevel = GetNameRealmForDropDown(bdropdown)
-            if not selectedName or not util:IsMaxLevel(selectedLevel, true) then
-                return
-            end
-            if not options[1] then
-                for i = 1, #unitOptions do
-                    options[i] = unitOptions[i]
-                end
-                return true
-            end
-        elseif event == "OnHide" then
-            if options[1] then
-                for i = #options, 1, -1 do
-                    options[i] = nil
-                end
-                return true
-            end
-        end
-    end
-
-    ---@type LibDropDownExtension
-    local LibDropDownExtension = LibStub and LibStub:GetLibrary("LibDropDownExtension-1.0", true)
-
-    function dropdown:CanLoad()
-        return LibDropDownExtension
-    end
-
-    function dropdown:OnLoad()
-        self:Enable()
-        unitOptions = {
-            {
-                text = L.COPY_RAIDERIO_PROFILE_URL,
-                func = function()
-                    ShowCopyDialog(selectedName, selectedRealm)
-                end
-            }
-        }
-        LibDropDownExtension:RegisterEvent("OnShow OnHide", OnToggle, 1, dropdown)
-        StaticPopupDialogs[copyUrlPopup.id] = copyUrlPopup
-    end
-
-end
-
 -- provider.lua
 -- dependencies: module, callback, config, util
 do
@@ -6543,6 +6350,9 @@ do
             Frame:SetScript("OnDragStop", function() Frame:StopMovingOrSizing() end)
             Frame:SetScript("OnShow", function() search:ShowProfile(regionBox:GetText(), nil, realmBox:GetText(), nameBox:GetText()) end)
             Frame:SetScript("OnHide", function() search:ShowProfile() end)
+            Frame.close = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts")
+            Frame.close:SetPoint("TOPRIGHT", -5, -3)
+            Frame.close:SetScript("OnClick", function() search:Hide() end)
         end
 
         local activeBoxes = {}
@@ -6681,6 +6491,7 @@ do
         else
             profile:HideProfile()
         end
+        return shown
     end
 
     function search:Search(query)
@@ -6733,6 +6544,215 @@ do
             return
         end
         searchFrame:Hide()
+    end
+
+    function search:IsShown()
+        return searchFrame:IsShown()
+    end
+
+end
+
+-- dropdown.lua
+-- dependencies: module, config, util + LibDropDownExtension, search
+do
+
+    ---@class DropDownModule : Module
+    local dropdown = ns:NewModule("DropDown") ---@type DropDownModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local search = ns:GetModule("Search") ---@type SearchModule
+
+    local copyUrlPopup = {
+        id = "RAIDERIO_COPY_URL",
+        text = "%s",
+        button2 = CLOSE,
+        hasEditBox = true,
+        hasWideEditBox = true,
+        editBoxWidth = 350,
+        preferredIndex = 3,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+        OnShow = function(self)
+            self:SetWidth(420)
+            local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"]
+            editBox:SetText(self.text.text_arg2)
+            editBox:SetFocus()
+            editBox:HighlightText(false)
+            local button = _G[self:GetName() .. "Button2"]
+            button:ClearAllPoints()
+            button:SetWidth(200)
+            button:SetPoint("CENTER", editBox, "CENTER", 0, -30)
+        end,
+        EditBoxOnEscapePressed = function(self)
+            self:GetParent():Hide()
+        end,
+        OnHide = nil,
+        OnAccept = nil,
+        OnCancel = nil
+    }
+
+    local validTypes = {
+        ARENAENEMY = true,
+        BN_FRIEND = true,
+        CHAT_ROSTER = true,
+        COMMUNITIES_GUILD_MEMBER = true,
+        COMMUNITIES_WOW_MEMBER = true,
+        FOCUS = true,
+        FRIEND = true,
+        GUILD = true,
+        GUILD_OFFLINE = true,
+        PARTY = true,
+        PLAYER = true,
+        RAID = true,
+        RAID_PLAYER = true,
+        SELF = true,
+        TARGET = true,
+        WORLD_STATE_SCORE = true
+    }
+
+    -- if the dropdown is a valid type of dropdown then we mark it as acceptable to check for a unit on it
+    local function IsValidDropDown(bdropdown)
+        return (bdropdown == LFGListFrameDropDown and config:Get("enableLFGDropdown")) or (type(bdropdown.which) == "string" and validTypes[bdropdown.which])
+    end
+
+    -- get name and realm from dropdown or nil if it's not applicable
+    local function GetNameRealmForDropDown(bdropdown)
+        local unit = bdropdown.unit
+        local bnetIDAccount = bdropdown.bnetIDAccount
+        local menuList = bdropdown.menuList
+        local quickJoinMember = bdropdown.quickJoinMember
+        local quickJoinButton = bdropdown.quickJoinButton
+        local clubMemberInfo = bdropdown.clubMemberInfo
+        local tempName, tempRealm = bdropdown.name, bdropdown.server
+        local name, realm, level
+        -- unit
+        if not name and UnitExists(unit) then
+            if UnitIsPlayer(unit) then
+                name, realm = util:GetNameRealm(unit)
+                level = UnitLevel(unit)
+            end
+            -- if it's not a player it's pointless to check further
+            return name, realm, level
+        end
+        -- bnet friend
+        if not name and bnetIDAccount then
+            local fullName, _, charLevel = util:GetNameRealmForBNetFriend(bnetIDAccount)
+            if fullName then
+                name, realm = util:GetNameRealm(fullName)
+                level = charLevel
+            end
+            -- if it's a bnet friend we assume if eligible the name and realm is set, otherwise we assume it's not eligible for a url
+            return name, realm, level
+        end
+        -- lfd
+        if not name and menuList then
+            for i = 1, #menuList do
+                local whisperButton = menuList[i]
+                if whisperButton and (whisperButton.text == _G.WHISPER_LEADER or whisperButton.text == _G.WHISPER) then
+                    name, realm = util:GetNameRealm(whisperButton.arg1)
+                    break
+                end
+            end
+        end
+        -- quick join
+        if not name and (quickJoinMember or quickJoinButton) then
+            local memberInfo = quickJoinMember or quickJoinButton.Members[1]
+            if memberInfo.playerLink then
+                name, realm, level = util:GetNameRealmFromPlayerLink(memberInfo.playerLink)
+            end
+        end
+        -- dropdown by name and realm
+        if not name and tempName then
+            name, realm = util:GetNameRealm(tempName, tempRealm)
+            if clubMemberInfo and clubMemberInfo.level and (clubMemberInfo.clubType == Enum.ClubType.Guild or clubMemberInfo.clubType == Enum.ClubType.Character) then
+                level = clubMemberInfo.level
+            end
+        end
+        -- if we don't got both we return nothing
+        if not name or not realm then
+            return
+        end
+        return name, realm, level
+    end
+
+    -- converts the name and realm into a copyable link
+    local function ShowCopyDialog(name, realm)
+        local realmSlug = util:GetRealmSlug(realm, true)
+        local url = format("https://raider.io/characters/%s/%s/%s?utm_source=addon", ns.PLAYER_REGION, realmSlug, name)
+        if IsModifiedClick("CHATLINK") then
+            local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
+            editBox:HighlightText()
+        else
+            StaticPopup_Show(copyUrlPopup.id, format("%s (%s)", name, realm), url)
+        end
+    end
+
+    -- tracks the currently active dropdown name and realm for lookup
+    local selectedName, selectedRealm, selectedLevel
+
+    ---@type CustomDropDownOption[]
+    local unitOptions
+
+    ---@param options CustomDropDownOption[]
+    local function OnToggle(bdropdown, event, options, level, data)
+        if event == "OnShow" then
+            if not config:Get("showDropDownCopyURL") then
+                return
+            end
+            if not IsValidDropDown(bdropdown) then
+                return
+            end
+            selectedName, selectedRealm, selectedLevel = GetNameRealmForDropDown(bdropdown)
+            if not selectedName or not util:IsMaxLevel(selectedLevel, true) then
+                return
+            end
+            if not options[1] then
+                for i = 1, #unitOptions do
+                    options[i] = unitOptions[i]
+                end
+                return true
+            end
+        elseif event == "OnHide" then
+            if options[1] then
+                for i = #options, 1, -1 do
+                    options[i] = nil
+                end
+                return true
+            end
+        end
+    end
+
+    ---@type LibDropDownExtension
+    local LibDropDownExtension = LibStub and LibStub:GetLibrary("LibDropDownExtension-1.0", true)
+
+    function dropdown:CanLoad()
+        return LibDropDownExtension
+    end
+
+    function dropdown:OnLoad()
+        self:Enable()
+        unitOptions = {
+            {
+                text = L.COPY_RAIDERIO_PROFILE_URL,
+                func = function()
+                    if config:Get("debugMode") and (IsControlKeyDown() or IsAltKeyDown()) then
+                        local shown = search:IsShown()
+                        if not shown then
+                            search:Show()
+                        end
+                        if search:Search(format("%s %s", selectedName, selectedRealm)) then
+                            return
+                        elseif not shown then
+                            search:Hide()
+                        end
+                    end
+                    ShowCopyDialog(selectedName, selectedRealm)
+                end
+            }
+        }
+        LibDropDownExtension:RegisterEvent("OnShow OnHide", OnToggle, 1, dropdown)
+        StaticPopupDialogs[copyUrlPopup.id] = copyUrlPopup
     end
 
 end

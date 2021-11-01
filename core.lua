@@ -1452,6 +1452,54 @@ do
         return format("|T982414:%d:%d:0:0:64:64:0:1:0:1|t", height or 1, width)
     end
 
+    function util:GetRaiderIOProfileUrl(...)
+        local name, realm = util:GetNameRealm(...)
+        local realmSlug = util:GetRealmSlug(realm, true)
+        return format("https://raider.io/characters/%s/%s/%s?utm_source=addon", ns.PLAYER_REGION, realmSlug, name), name, realm, realmSlug
+    end
+
+    local COPY_PROFILE_URL_POPUP = {
+        id = "RAIDERIO_COPY_URL",
+        text = "%s",
+        button2 = CLOSE,
+        hasEditBox = true,
+        hasWideEditBox = true,
+        editBoxWidth = 350,
+        preferredIndex = 3,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+        OnShow = function(self)
+            self:SetWidth(420)
+            local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"]
+            editBox:SetText(self.text.text_arg2)
+            editBox:SetFocus()
+            editBox:HighlightText(false)
+            local button = _G[self:GetName() .. "Button2"]
+            button:ClearAllPoints()
+            button:SetWidth(200)
+            button:SetPoint("CENTER", editBox, "CENTER", 0, -30)
+        end,
+        EditBoxOnEscapePressed = function(self)
+            self:GetParent():Hide()
+        end,
+        OnHide = nil,
+        OnAccept = nil,
+        OnCancel = nil
+    }
+
+    StaticPopupDialogs[COPY_PROFILE_URL_POPUP.id] = COPY_PROFILE_URL_POPUP
+
+    function util:ShowCopyRaiderIOProfilePopup(...)
+        local url, name, realm = util:GetRaiderIOProfileUrl(...)
+        if IsModifiedClick("CHATLINK") then
+            local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
+            editBox:HighlightText()
+        else
+            StaticPopup_Show(COPY_PROFILE_URL_POPUP.id, format("%s (%s)", name, realm), url)
+        end
+    end
+
 end
 
 -- json.lua
@@ -6085,12 +6133,13 @@ do
 end
 
 -- search.lua
--- dependencies: module, config, provider, render, profile
+-- dependencies: module, config, util, provider, render, profile
 do
 
     ---@class SearchModule : Module
     local search = ns:NewModule("Search") ---@type SearchModule
     local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
     local provider = ns:GetModule("Provider") ---@type ProviderModule
     local render = ns:GetModule("Render") ---@type RenderModule
     local profile = ns:GetModule("Profile") ---@type ProfileModule
@@ -6306,6 +6355,15 @@ do
         f.texFocusMid:SetSize(0, 32)
         f.texFocusMid:SetPoint("TOPLEFT", f.texFocusLeft, "TOPRIGHT", 0, 0)
         f.texFocusMid:SetPoint("TOPRIGHT", f.texFocusRight, "TOPLEFT", 0, 0)
+        -- placeholder label
+        f.placeholder = f:CreateFontString(nil, "ARTWORK", "GameTooltipText")
+        f.placeholder:SetPoint("LEFT", f.texLeft, "LEFT", 16, 0)
+        f.placeholder:SetTextColor(0.5, 0.5, 0.5)
+        -- make placeholder invisible once field is populated (and highlight the label when in focus for clarity)
+        local function updateAlpha(self) self.placeholder:SetAlpha(self:GetText():len() > 0 and 0 or 1) end
+        f:HookScript("OnTextChanged", updateAlpha)
+        f:HookScript("OnEditFocusLost", function(self) self.placeholder:SetTextColor(0.5, 0.5, 0.5) updateAlpha(self) end)
+        f:HookScript("OnEditFocusGained", function(self) self.placeholder:SetTextColor(0.8, 0.8, 0.8) updateAlpha(self) end)
         return f
     end
 
@@ -6320,6 +6378,10 @@ do
         local realmBox = CreateEditBox()
         local nameBox = CreateEditBox()
         local t = CreateTooltip()
+
+        regionBox.placeholder:SetText(L.SEARCH_REGION_LABEL)
+        realmBox.placeholder:SetText(L.SEARCH_REALM_LABEL)
+        nameBox.placeholder:SetText(L.SEARCH_NAME_LABEL)
 
         regionBox.autoCompleteFunction = GetRegions
         regionBox:SetText(ns.PLAYER_REGION)
@@ -6353,6 +6415,17 @@ do
             Frame.close = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts")
             Frame.close:SetPoint("TOPRIGHT", -5, -3)
             Frame.close:SetScript("OnClick", function() search:Hide() end)
+            Frame.copyUrl = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts")
+            Frame.copyUrl:SetNormalTexture(235503)
+            Frame.copyUrl:SetPushedTexture(235503)
+            Frame.copyUrl:SetDisabledTexture(235503)
+            Frame.copyUrl:SetScale(0.5)
+            Frame.copyUrl:SetPoint("RIGHT", Frame.close, "LEFT", -5, 0)
+            Frame.copyUrl:SetScript("OnClick", function() util:ShowCopyRaiderIOProfilePopup(nameBox:GetText(), realmBox:GetText()) end)
+            Frame.copyUrl:SetScript("OnEnter", function(self) GameTooltip:SetOwner(self, "ANCHOR_RIGHT") GameTooltip:AddLine(L.COPY_RAIDERIO_PROFILE_URL) GameTooltip:Show() end)
+            Frame.copyUrl:SetScript("OnLeave", GameTooltip_Hide)
+            Frame.copyUrl:HookScript("OnEnable", function(self) self:GetDisabledTexture():SetDesaturated(false) end)
+            Frame.copyUrl:HookScript("OnDisable", function(self) self:GetDisabledTexture():SetDesaturated(true) end)
         end
 
         local activeBoxes = {}
@@ -6380,12 +6453,13 @@ do
                 return
             end
             self:ClearFocus()
+            local backwards = IsShiftKeyDown()
             for i = 1, #activeBoxes do
                 local box = activeBoxes[i]
                 if box == self then
-                    local nextBox = activeBoxes[i + 1]
+                    local nextBox = activeBoxes[i + (backwards and -1 or 1)]
                     if not nextBox then
-                        nextBox = activeBoxes[1]
+                        nextBox = activeBoxes[backwards and #activeBoxes or 1]
                     end
                     nextBox:SetFocus()
                     nextBox:HighlightText()
@@ -6421,7 +6495,18 @@ do
             self:ClearFocus()
         end
 
+        local function AreActiveBoxesPopulated()
+            for i = 1, #activeBoxes do
+                local box = activeBoxes[i]
+                if box:GetText():len() < 1 then
+                    return false
+                end
+            end
+            return true
+        end
+
         local function OnTextChanged(self, userInput)
+            Frame.copyUrl:SetEnabled(AreActiveBoxesPopulated())
             if not userInput then return end
             local text = self:GetText()
             if text:len() > 0 then
@@ -6562,36 +6647,6 @@ do
     local util = ns:GetModule("Util") ---@type UtilModule
     local search = ns:GetModule("Search") ---@type SearchModule
 
-    local copyUrlPopup = {
-        id = "RAIDERIO_COPY_URL",
-        text = "%s",
-        button2 = CLOSE,
-        hasEditBox = true,
-        hasWideEditBox = true,
-        editBoxWidth = 350,
-        preferredIndex = 3,
-        timeout = 0,
-        whileDead = true,
-        hideOnEscape = true,
-        OnShow = function(self)
-            self:SetWidth(420)
-            local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"]
-            editBox:SetText(self.text.text_arg2)
-            editBox:SetFocus()
-            editBox:HighlightText(false)
-            local button = _G[self:GetName() .. "Button2"]
-            button:ClearAllPoints()
-            button:SetWidth(200)
-            button:SetPoint("CENTER", editBox, "CENTER", 0, -30)
-        end,
-        EditBoxOnEscapePressed = function(self)
-            self:GetParent():Hide()
-        end,
-        OnHide = nil,
-        OnAccept = nil,
-        OnCancel = nil
-    }
-
     local validTypes = {
         ARENAENEMY = true,
         BN_FRIEND = true,
@@ -6676,18 +6731,6 @@ do
         return name, realm, level
     end
 
-    -- converts the name and realm into a copyable link
-    local function ShowCopyDialog(name, realm)
-        local realmSlug = util:GetRealmSlug(realm, true)
-        local url = format("https://raider.io/characters/%s/%s/%s?utm_source=addon", ns.PLAYER_REGION, realmSlug, name)
-        if IsModifiedClick("CHATLINK") then
-            local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
-            editBox:HighlightText()
-        else
-            StaticPopup_Show(copyUrlPopup.id, format("%s (%s)", name, realm), url)
-        end
-    end
-
     -- tracks the currently active dropdown name and realm for lookup
     local selectedName, selectedRealm, selectedLevel
 
@@ -6736,7 +6779,7 @@ do
             {
                 text = L.COPY_RAIDERIO_PROFILE_URL,
                 func = function()
-                    if config:Get("debugMode") and (IsControlKeyDown() or IsAltKeyDown()) then
+                    if IsControlKeyDown() or IsAltKeyDown() then
                         local shown = search:IsShown()
                         if not shown then
                             search:Show()
@@ -6747,12 +6790,11 @@ do
                             search:Hide()
                         end
                     end
-                    ShowCopyDialog(selectedName, selectedRealm)
+                    util:ShowCopyRaiderIOProfilePopup(selectedName, selectedRealm)
                 end
             }
         }
         LibDropDownExtension:RegisterEvent("OnShow OnHide", OnToggle, 1, dropdown)
-        StaticPopupDialogs[copyUrlPopup.id] = copyUrlPopup
     end
 
 end

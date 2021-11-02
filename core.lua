@@ -4615,8 +4615,14 @@ do
     ---@return SortedDungeon, DungeonDifference
     local function CompareDungeonUpgrades(run1, diff1, run2, diff2)
         if not run2 then
+            if not run1 or not run1.level then
+                return
+            end
             return run1, diff1
         elseif not run1 then
+            if not run2 or not run2.level then
+                return
+            end
             return run2, diff2
         end
         local side = CompareLevelAndFractionalTime(run1.level, run2.level, run1.fractionalTime, run2.fractionalTime)
@@ -4921,7 +4927,7 @@ do
         end
         local fractionalTime = bannerData.time/timeLimit
         local members = GetGroupMembers()
-        local currentRun = GetCurrentRun(dungeon, bannerData.level, fractionalTime, bannerData.keystoneUpgradeLevels or 0)
+        local currentRun = GetCurrentRun(dungeon, bannerData.level, fractionalTime, bannerData.keystoneUpgradeLevels)
         local upgrades, hasAnyUpgrades = GetDungeonUpgrades(members, currentRun)
         if not frameHooks[frame] then
             frameHooks[frame] = true
@@ -4946,7 +4952,7 @@ do
         hooksecurefunc(frame, "PlayBanner", OnChallengeModeCompleteBannerPlay)
         local mapID, level, time, onTime, keystoneUpgradeLevels, practiceRun = C_ChallengeMode.GetCompletionInfo()
         if not practiceRun then
-            local bannerData = { mapID = mapID, level = level, time = time, onTime = onTime, keystoneUpgradeLevels = keystoneUpgradeLevels } ---@type ChallengeModeCompleteBannerData
+            local bannerData = { mapID = mapID, level = level, time = time, onTime = onTime, keystoneUpgradeLevels = keystoneUpgradeLevels or 0 } ---@type ChallengeModeCompleteBannerData
             OnChallengeModeCompleteBannerPlay(frame, bannerData)
         end
     end
@@ -6416,9 +6422,9 @@ do
             Frame.close:SetPoint("TOPRIGHT", -5, -3)
             Frame.close:SetScript("OnClick", function() search:Hide() end)
             Frame.copyUrl = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts")
-            Frame.copyUrl:SetNormalTexture(235503)
-            Frame.copyUrl:SetPushedTexture(235503)
-            Frame.copyUrl:SetDisabledTexture(235503)
+            Frame.copyUrl:SetNormalAtlas("poi-town")
+            Frame.copyUrl:SetPushedAtlas("poi-town")
+            Frame.copyUrl:SetDisabledAtlas("poi-town")
             Frame.copyUrl:SetScale(0.5)
             Frame.copyUrl:SetPoint("RIGHT", Frame.close, "LEFT", -5, 0)
             Frame.copyUrl:SetScript("OnClick", function() util:ShowCopyRaiderIOProfilePopup(nameBox:GetText(), realmBox:GetText()) end)

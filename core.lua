@@ -42,6 +42,7 @@ do
     ---@field public RAID_DIFFICULTY table<number, RaidDifficulty> @Table of 1=normal, 2=heroic, 3=mythic difficulties and their names and colors
     ---@field public PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season must surpass from previous season to be considered better and shown as primary in addon
     ---@field public PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season current character must surpass from previous season main to be considered better and shown as primary in addon
+    ---@field public CUSTOM_ICONS table<string, table<string, CustomIcon>> @Map over custom icons separated by file. Each icon supports a custom metatable for request handling
     ---@field public REGIONS_RESET_TIME table<string, number> @Maps each region string to their weekly reset timer
     ---@field public KEYSTONE_AFFIX_SCHEDULE number[] @Maps each weekly rotation, primarily for Tyrannical (`9`) and Fortified (`10`) tracking
     ---@field public KEYSTONE_AFFIX_INTERNAL table<number, string> @Maps each affix ID to a internal string version like `tyrannical` (`9`) and `fortified` (`10`)
@@ -78,6 +79,122 @@ do
     ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = 0.75
     ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = 0.75
 
+    ---Use `ns.CUSTOM_ICONS.FILENAME.KEY` to get the raw icon table.
+    ---
+    ---Use `ns.CUSTOM_ICONS.FILENAME.KEY("Texture")` to retrieve the `CustomIconTexture` for the icon.
+    ---
+    ---Use `ns.CUSTOM_ICONS.FILENAME.KEY("TextureMarkup")` to retrieve the texture markup `string` for the icon.
+    ns.CUSTOM_ICONS = {
+        affixes = {
+            TYRANNICAL_OFF = { 32, 32, 0, 0, 16/32, 32/32, 16/32, 32/32, 0, 0 },
+            FORTIFIED_OFF = { 32, 32, 0, 0, 16/32, 32/32, 0/32, 16/32, 0, 0 },
+            TYRANNICAL_ON = { 32, 32, 0, 0, 0/32, 16/32, 16/32, 32/32, 0, 0 },
+            FORTIFIED_ON = { 32, 32, 0, 0, 0/32, 16/32, 0/32, 16/32, 0, 0 },
+        },
+        icons = {
+            RAIDERIO_COLOR_CIRCLE = { 256, 256, 0, 0, 0/256, 64/256, 0/256, 64/256, 0, 0 },
+            RAIDERIO_WHITE_CIRCLE = { 256, 256, 0, 0, 64/256, 128/256, 0/256, 64/256, 0, 0 },
+            RAIDERIO_BLACK_CIRCLE = { 256, 256, 0, 0, 128/256, 192/256, 0/256, 64/256, 0, 0 },
+            RAIDERIO_COLOR = { 256, 256, 0, 0, 0/256, 64/256, 64/256, 128/256, 0, 0 },
+            RAIDERIO_WHITE = { 256, 256, 0, 0, 64/256, 128/256, 64/256, 128/256, 0, 0 },
+            RAIDERIO_BLACK = { 256, 256, 0, 0, 128/256, 192/256, 64/256, 128/256, 0, 0 },
+        },
+    }
+
+    -- Finalize the `ns.CUSTOM_ICONS` table
+    do
+
+        ---@class CustomIcon
+        ---@field public filePath string
+
+        ---@class CustomIconTexture
+        ---@field public width number @The requested width that we should use for the texture.
+        ---@field public height number @The requested height that we should use for the texture.
+        ---@field public texture string @The texture filepath for use with `:SetTexture(...)`
+        ---@field public texCoord table @The texture coordinates for use with `:SetTexCoord(unpack(...))`
+        ---@field public textureWidth number @The real texture width.
+        ---@field public textureHeight number @The real texture height.
+
+        local Handlers = {
+            ---@param self CustomIcon
+            ---@param left number
+            ---@param right number
+            ---@param top number
+            ---@param bottom number
+            ---@return CustomIconTexture
+            Texture = function(self, _, _, width, height, left, right, top, bottom)
+                return {
+                    width = width,
+                    height = height,
+                    texture = self.filePath,
+                    texCoord = { left, right, top, bottom },
+                    textureWidth = self[3],
+                    textureHeight = self[4],
+                }
+            end,
+            ---@param self CustomIcon
+            TextureMarkup = function(self, ...)
+                return CreateTextureMarkup(self.filePath, ...)
+            end,
+        }
+
+        local Utils = {
+            GetSize = function(size, fallback)
+                if type(fallback) ~= "number" then
+                    fallback = 0
+                end
+                if type(size) ~= "number" or size <= 0 then
+                    return fallback
+                end
+                return size
+            end,
+            GetKey = function(key, size)
+                if size > 0 then
+                    return format("%s_%d", key, size)
+                end
+                return key
+            end,
+            GetKeySize = function(self, key, size)
+                size = self.GetSize(size, 0)
+                return self.GetKey(key, size), size
+            end,
+        }
+
+        local Metatable = {
+            __metatable = false,
+            __call = function(self, key, ...)
+                local handler = Handlers[key]
+                if not handler then
+                    return
+                end
+                local rawKey, size = Utils:GetKeySize(key, ...)
+                local rawVal = rawget(self, rawKey)
+                if rawVal ~= nil then
+                    return rawVal
+                end
+                local fileWidth, fileHeight, width, height, left, right, top, bottom, xOffset, yOffset = unpack(self)
+                local realWidth = (right * fileWidth) - (left * fileWidth)
+                local realHeight = (bottom * fileHeight) - (top * fileHeight)
+                if realWidth >= size or realHeight >= size then
+                    width, height = size, size
+                else
+                    rawKey = key
+                end
+                rawVal = handler(self, fileWidth, fileHeight, width, height, left, right, top, bottom, xOffset, yOffset)
+                rawset(self, rawKey, rawVal)
+                return rawVal
+            end,
+        }
+
+        for fileName, fileIcons in pairs(ns.CUSTOM_ICONS) do
+            for _, iconInfo in pairs(fileIcons) do
+                iconInfo.filePath = "Interface\\AddOns\\RaiderIO\\icons\\" .. fileName
+                setmetatable(iconInfo, Metatable)
+            end
+        end
+
+    end
+
     ns.REGIONS_RESET_TIME = {
         us = 1135695600,
         eu = 1135753200,
@@ -97,10 +214,10 @@ do
     }
 
     ns.KEYSTONE_AFFIX_TEXTURE = {
-        [-9] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 32, 32, 0, 0, 0.5, 1, 0.5, 1, 0, 0),
-        [-10] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 32, 32, 0, 0, 0.5, 1, 0, 0.5, 0, 0),
-        [9] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 32, 32, 0, 0, 0, 0.5, 0.5, 1, 0, 0),
-        [10] = CreateTextureMarkup("Interface\\AddOns\\RaiderIO\\icons\\affixes", 32, 32, 0, 0, 0, 0.5, 0, 0.5, 0, 0),
+        [-9] = ns.CUSTOM_ICONS.affixes.TYRANNICAL_OFF("TextureMarkup"),
+        [-10] = ns.CUSTOM_ICONS.affixes.FORTIFIED_OFF("TextureMarkup"),
+        [9] = ns.CUSTOM_ICONS.affixes.TYRANNICAL_ON("TextureMarkup"),
+        [10] = ns.CUSTOM_ICONS.affixes.FORTIFIED_ON("TextureMarkup"),
     }
 
     ---@class RoleIcon
@@ -1498,6 +1615,36 @@ do
         else
             StaticPopup_Show(COPY_PROFILE_URL_POPUP.id, format("%s (%s)", name, realm), url)
         end
+    end
+
+    ---@param frame Frame
+    ---@param icon CustomIcon
+    function util:CreateTextureFromIcon(frame, icon)
+        local info = icon("Texture") ---@type CustomIconTexture
+        local texture = frame:CreateTexture()
+        texture:SetTexture(info.texture)
+        texture:SetTexCoord(info.texCoord[1], info.texCoord[2], info.texCoord[3], info.texCoord[4])
+        return texture, info
+    end
+
+    ---@param button Button
+    ---@param icon CustomIcon
+    function util:SetButtonTextureFromIcon(button, icon)
+        local info = icon("Texture") ---@type CustomIconTexture
+        if not button.normalTexture then
+            button.normalTexture = util:CreateTextureFromIcon(button, icon)
+        end
+        if not button.pushedTexture then
+            button.pushedTexture = util:CreateTextureFromIcon(button, icon)
+        end
+        if not button.disabledTexture then
+            button.disabledTexture = util:CreateTextureFromIcon(button, icon)
+            button.disabledTexture:SetDesaturation(true)
+        end
+        button:SetNormalTexture(button.normalTexture)
+        button:SetPushedTexture(button.pushedTexture)
+        button:SetDisabledTexture(button.disabledTexture)
+        return info
     end
 
 end
@@ -6422,10 +6569,8 @@ do
             Frame.close:SetPoint("TOPRIGHT", -5, -3)
             Frame.close:SetScript("OnClick", function() search:Hide() end)
             Frame.copyUrl = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts")
-            Frame.copyUrl:SetNormalAtlas("poi-town")
-            Frame.copyUrl:SetPushedAtlas("poi-town")
-            Frame.copyUrl:SetDisabledAtlas("poi-town")
-            Frame.copyUrl:SetScale(0.5)
+            Frame.copyUrl:SetScale(0.67)
+            util:SetButtonTextureFromIcon(Frame.copyUrl, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE)
             Frame.copyUrl:SetPoint("RIGHT", Frame.close, "LEFT", -5, 0)
             Frame.copyUrl:SetScript("OnClick", function() util:ShowCopyRaiderIOProfilePopup(nameBox:GetText(), realmBox:GetText()) end)
             Frame.copyUrl:SetScript("OnEnter", function(self) GameTooltip:SetOwner(self, "ANCHOR_RIGHT") GameTooltip:AddLine(L.COPY_RAIDERIO_PROFILE_URL) GameTooltip:Show() end)

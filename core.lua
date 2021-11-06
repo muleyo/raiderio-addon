@@ -1284,12 +1284,12 @@ do
         local collectionIndex = 0
         for i = 1, C_BattleNet.GetFriendNumGameAccounts(index), 1 do
             local accountInfo = C_BattleNet.GetFriendGameAccountInfo(index, i)
-            if accountInfo and accountInfo.clientProgram == BNET_CLIENT_WOW and (not accountInfo.wowProjectID or accountInfo.wowProjectID ~= WOW_PROJECT_CLASSIC) then
+            if accountInfo and accountInfo.clientProgram == BNET_CLIENT_WOW and (not accountInfo.wowProjectID or accountInfo.wowProjectID == WOW_PROJECT_MAINLINE) then
                 if accountInfo.realmName then
                     accountInfo.characterName = accountInfo.characterName .. "-" .. accountInfo.realmName:gsub("%s+", "")
                 end
                 collectionIndex = collectionIndex + 1
-                collection[collectionIndex] = {accountInfo.characterName, ns.FACTION_TO_ID[accountInfo.factionName], tonumber(accountInfo.characterLevel)}
+                collection[collectionIndex] = { accountInfo.characterName, ns.FACTION_TO_ID[accountInfo.factionName], tonumber(accountInfo.characterLevel) }
             end
         end
         if not getAllChars then

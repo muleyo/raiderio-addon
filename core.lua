@@ -4224,6 +4224,10 @@ do
         if onEnter == _G.LFGListSearchEntry_OnEnter or (frame.resultID and parent == _G.LFGListSearchPanelScrollFrameScrollChild) then
             return false
         end
+        -- QuickJoinButtonMixin.OnEnter > .entry.ApplyToTooltip(GameTooltip) > LFGListUtil_SetSearchEntryTooltip > C_LFGList.GetPlaystyleString
+        if onEnter == _G.QuickJoinButtonMixin.OnEnter or (frame.entry and parent == _G.QuickJoinScrollFrameScrollChild) then
+            return false
+        end
         return true
     end
 
@@ -4819,7 +4823,7 @@ do
         local cacheUpgrade = GetDungeonUpgrade(cacheRun, currentRun)
         local bestRun, bestUpgrade = CompareDungeonUpgrades(dbRun, dbRunUpgrade, cacheRun, cacheUpgrade)
         local bestIsCurrentRun
-        if not bestRun then
+        if not bestRun or not bestRun.level then
             bestIsCurrentRun = true
             bestRun = CopyTable(currentRun)
             bestUpgrade = {}
@@ -5507,6 +5511,7 @@ do
     local hooked = {}
     local OnEnter
     local OnLeave
+    local cleanupPending
 
     local function SetSearchEntry(tooltip, resultID, autoAcceptOption)
         if not config:Get("enableLFGTooltips") then
@@ -5525,8 +5530,21 @@ do
         currentResult.activityID = entry.activityID
         currentResult.leaderName = entry.leaderName
         currentResult.keystoneLevel = util:GetKeystoneLevelFromText(entry.title) or util:GetKeystoneLevelFromText(entry.description) or 0
-        render:ShowProfile(tooltip, currentResult.leaderName, ns.PLAYER_FACTION, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult)
-        profile:ShowProfile(tooltip, currentResult.leaderName, ns.PLAYER_FACTION, currentResult)
+        local success1 = render:ShowProfile(tooltip, currentResult.leaderName, ns.PLAYER_FACTION, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult)
+        local success2 = profile:ShowProfile(tooltip, currentResult.leaderName, ns.PLAYER_FACTION, currentResult)
+        if success1 or success2 then
+            if not hooked[tooltip] then
+                hooked[tooltip] = true
+                tooltip:HookScript("OnHide", function()
+                    if not cleanupPending then
+                        return
+                    end
+                    cleanupPending = nil
+                    OnLeave()
+                end)
+            end
+            cleanupPending = true
+        end
     end
 
     local function HookApplicantButtons(buttons)
@@ -5570,16 +5588,21 @@ do
             HookApplicantButtons(self.Members)
         elseif self.memberIdx then
             local shown, fullName = ShowApplicantProfile(self, self:GetParent().applicantID, self.memberIdx)
+            local success
             if shown then
-                profile:ShowProfile(GameTooltip, fullName, ns.PLAYER_FACTION, currentResult)
+                success = profile:ShowProfile(GameTooltip, fullName, ns.PLAYER_FACTION, currentResult)
             else
-                profile:ShowProfile(false, "player", ns.PLAYER_FACTION, currentResult)
+                success = profile:ShowProfile(false, "player", ns.PLAYER_FACTION, currentResult)
+            end
+            if not success then
+                profile:HideProfile()
             end
         end
     end
 
     function OnLeave(self)
         GameTooltip:Hide()
+        profile:HideProfile()
         profile:ShowProfile(false, "player", ns.PLAYER_FACTION)
     end
 

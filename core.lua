@@ -76,8 +76,8 @@ do
 
     -- threshold for comparing current character's previous season score to current score
     -- meaning: once current score exceeds this fraction of previous season, then show current season
-    ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = 0.75
-    ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = 0.75
+    ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = 0.9
+    ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = 0.9
 
     ---Use `ns.CUSTOM_ICONS.FILENAME.KEY` to get the raw icon table.
     ---

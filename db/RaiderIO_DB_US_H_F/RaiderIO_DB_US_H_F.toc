@@ -1,11 +1,11 @@
 ## Interface: 90200
-## Title: Raider.IO |cffFFFFFFMythic Plus|r (Europe - Horde)
+## Title: Raider.IO |cffFFFFFFRecruitment|r (Americas - Horde)
 ## Author: Vladinator (Vladinator-TarrenMill), Aspyr (Aspyrox-Skullcrusher) and Isak (Isak-Sargeras)
 ## Dependencies: RaiderIO
 ## DefaultState: enabled
-## X-Type: Mythic Plus
-## X-Region: Europe
+## X-Type: Recruitment
+## X-Region: Americas
 ## X-Faction: Horde
 ## X-Website: https://raider.io
-../RaiderIO/db/db_eu_horde_characters.lua
-../RaiderIO/db/db_eu_horde_lookup.lua
+../RaiderIO/db/db_recruitment_us_horde_characters.lua
+../RaiderIO/db/db_recruitment_us_horde_lookup.lua

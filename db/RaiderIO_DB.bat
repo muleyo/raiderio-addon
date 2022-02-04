@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set toc_interface=90150
+set toc_interface=90200
 set toc_author=Vladinator ^(Vladinator-TarrenMill^), Aspyr ^(Aspyrox-Skullcrusher^) and Isak ^(Isak-Sargeras^)
 set toc_addon=RaiderIO
 
@@ -18,6 +18,7 @@ for %%r in (
 	for %%t in (
 		"R	Raiding"
 		"M	Mythic Plus"
+		"F	Recruitment"
 	) do (
 		set t=%%t
 		set t1=!t:~1,1!
@@ -66,6 +67,9 @@ for %%r in (
 			if !t1! == _R (
 				echo ../!toc_addon!/db/db_raiding_!lr!_!lf!_characters.lua>>"!f!"
 				echo ../!toc_addon!/db/db_raiding_!lr!_!lf!_lookup.lua>>"!f!"
+			) else if !t1! == _F (
+				echo ../!toc_addon!/db/db_recruitment_!lr!_!lf!_characters.lua>>"!f!"
+				echo ../!toc_addon!/db/db_recruitment_!lr!_!lf!_lookup.lua>>"!f!"
 			) else (
 				echo ../!toc_addon!/db/db_!lr!_!lf!!lt!_characters.lua>>"!f!"
 				echo ../!toc_addon!/db/db_!lr!_!lf!!lt!_lookup.lua>>"!f!"

@@ -1,11 +1,11 @@
 ## Interface: 90200
-## Title: Raider.IO |cffFFFFFFRaiding|r (Americas - Horde)
+## Title: Raider.IO |cffFFFFFFRecruitment|r (Americas - Alliance)
 ## Author: Vladinator (Vladinator-TarrenMill), Aspyr (Aspyrox-Skullcrusher) and Isak (Isak-Sargeras)
 ## Dependencies: RaiderIO
 ## DefaultState: enabled
-## X-Type: Raiding
+## X-Type: Recruitment
 ## X-Region: Americas
-## X-Faction: Horde
+## X-Faction: Alliance
 ## X-Website: https://raider.io
-../RaiderIO/db/db_raiding_us_horde_characters.lua
-../RaiderIO/db/db_raiding_us_horde_lookup.lua
+../RaiderIO/db/db_recruitment_us_alliance_characters.lua
+../RaiderIO/db/db_recruitment_us_alliance_lookup.lua

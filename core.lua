@@ -3102,13 +3102,13 @@ do
         for encoderIndex = 1, #encodingOrder do
             local field = encodingOrder[encoderIndex]
             if field == ENCODER_RECRUITMENT_FIELDS.TITLE then
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.titleIndex = value
                 results.title = value and RECRUITMENT_TITLES[value]
             elseif field == ENCODER_RECRUITMENT_FIELDS.ENTITY_TYPE then
                 results.entityType, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
             elseif field == ENCODER_RECRUITMENT_FIELDS.ACTIVITY_TYPE then
-                results.activityType, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
+                results.activityType, bitOffset = ReadBitsFromString(bucket, bitOffset, 3)
             elseif field == ENCODER_RECRUITMENT_FIELDS.CAN_TRANSFER_REALMS then
                 results.canTransferRealms, bitOffset = ReadBitsFromString(bucket, bitOffset, 1)
             elseif field == ENCODER_RECRUITMENT_FIELDS.CAN_TRANSFER_FACTIONS then

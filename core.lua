@@ -312,8 +312,27 @@ do
         }
     }
 
-    ns.RECRUITMENT_ENTITY_TYPES = {character = 0, guild = 1, team = 2}
-    ns.RECRUITMENT_ACTIVITY_TYPES = {guildraids = 0, guildpvp = 1, guildsocial = 2, guildkeystone = 3, teamkeystone = 4}
+    ns.RECRUITMENT_ENTITY_TYPES = {
+        character = 0,
+        guild = 1,
+        team = 2
+    }
+
+    ns.RECRUITMENT_ACTIVITY_TYPES = {
+        guildraids = 0,
+        guildpvp = 1,
+        guildsocial = 2,
+        guildkeystone = 3,
+        teamkeystone = 4
+    }
+
+    ns.RECRUITMENT_ACTIVITY_TYPE_ICONS = {
+        [ns.RECRUITMENT_ACTIVITY_TYPES.guildraids] = 4062765, -- achievement_raid_torghastraid
+        [ns.RECRUITMENT_ACTIVITY_TYPES.guildpvp] = 236329, -- achievement_arena_2v2_7
+        [ns.RECRUITMENT_ACTIVITY_TYPES.guildsocial] = 1495827, -- inv_7xp_inscription_talenttome01
+        [ns.RECRUITMENT_ACTIVITY_TYPES.guildkeystone] = 255346, -- achievement_dungeon_gloryoftheraider
+        [ns.RECRUITMENT_ACTIVITY_TYPES.teamkeystone] = 255345 -- achievement_dungeon_gloryofthehero
+    }
 
 end
 
@@ -3078,13 +3097,14 @@ do
         ---@type DataProviderRecruitmentProfile
         local results = { outdated = provider.outdated, hasRenderableData = false }
         local encodingOrder = provider.encodingOrder
-        local bitOffset = (baseOffset - 1) * 17
+        local bitOffset = (baseOffset - 1) * 8
         local value
         for encoderIndex = 1, #encodingOrder do
             local field = encodingOrder[encoderIndex]
             if field == ENCODER_RECRUITMENT_FIELDS.TITLE then
-                results.titleIndex, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
-                results.title = RECRUITMENT_TITLES[results.titleIndex]
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
+                results.titleIndex = value
+                results.title = value and RECRUITMENT_TITLES[value]
             elseif field == ENCODER_RECRUITMENT_FIELDS.ENTITY_TYPE then
                 results.entityType, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
             elseif field == ENCODER_RECRUITMENT_FIELDS.ACTIVITY_TYPE then
@@ -4259,13 +4279,14 @@ do
                         tooltip:AddLine(" ")
                     end
                     if showHeader then
-                        tooltip:AddLine(L.RECRUITMENT_DATA_HEADER, 1, 0.85, 0) -- TODO: NYI
+                        -- tooltip:AddLine(L.RECRUITMENT_DATA_HEADER, 1, 0.85, 0) -- TODO
                     end
-                    -- TODO: NYI
-                    tooltip:AddDoubleLine("titleIndex", tostring(recruitmentProfile.titleIndex), 1, 1, 1, 1, 1, 1)
-                    tooltip:AddDoubleLine("title", tostring(recruitmentProfile.title), 1, 1, 1, 1, 1, 1)
+                    local titleLocale, titleOptionalArg = recruitmentProfile.title[1], recruitmentProfile.title[2]
+                    local titleText = format(L[titleLocale], titleOptionalArg)
+                    local activityIcon = ns.RECRUITMENT_ACTIVITY_TYPE_ICONS[recruitmentProfile.activityType]
+                    tooltip:AddLine(format("|T%s:0:0|t %s", activityIcon, titleText), 1, 0.85, 0) -- TODO: showHeader?
+                    -- TODO: WIP
                     tooltip:AddDoubleLine("entityType", tostring(recruitmentProfile.entityType), 1, 1, 1, 1, 1, 1)
-                    tooltip:AddDoubleLine("activityType", tostring(recruitmentProfile.activityType), 1, 1, 1, 1, 1, 1)
                     tooltip:AddDoubleLine("canTransferRealms", tostring(recruitmentProfile.canTransferRealms), 1, 1, 1, 1, 1, 1)
                     tooltip:AddDoubleLine("canTransferFaction", tostring(recruitmentProfile.canTransferFaction), 1, 1, 1, 1, 1, 1)
                     tooltip:AddDoubleLine("canPlayCrossRealm", tostring(recruitmentProfile.canPlayCrossRealm), 1, 1, 1, 1, 1, 1)
@@ -5674,8 +5695,8 @@ do
             table.wipe(currentResult)
             return
         end
-        local _, _, _, _, _, _, _, _, _, _, _, _, isMythicPlusActivity = C_LFGList.GetActivityInfo(entry.activityID, nil, entry.isWarMode)
-        if isMythicPlusActivity and entry.leaderOverallDungeonScore then
+        local activityInfo = C_LFGList.GetActivityInfoTable(entry.activityID, nil, entry.isWarMode)
+        if activityInfo and activityInfo.isMythicPlusActivity and entry.leaderOverallDungeonScore then
             local leaderName, leaderRealm = util:GetNameRealm(entry.leaderName)
             provider:OverrideProfile(leaderName, leaderRealm, ns.PLAYER_FACTION, entry.leaderOverallDungeonScore)
         end
@@ -6964,13 +6985,14 @@ do
 end
 
 -- dropdown.lua
--- dependencies: module, config, util + LibDropDownExtension, search
+-- dependencies: module, config, util + LibDropDownExtension, provider, search
 do
 
     ---@class DropDownModule : Module
     local dropdown = ns:NewModule("DropDown") ---@type DropDownModule
     local config = ns:GetModule("Config") ---@type ConfigModule
     local util = ns:GetModule("Util") ---@type UtilModule
+    local provider = ns:GetModule("Provider") ---@type ProviderModule
     local search = ns:GetModule("Search") ---@type SearchModule
 
     local validTypes = {
@@ -7077,8 +7099,13 @@ do
                 return
             end
             if not options[1] then
+                local index = 0
                 for i = 1, #unitOptions do
-                    options[i] = unitOptions[i]
+                    local option = unitOptions[i]
+                    if not option.show or option.show() then
+                        index = index + 1
+                        options[index] = option
+                    end
                 end
                 return true
             end
@@ -7117,6 +7144,16 @@ do
                         end
                     end
                     util:ShowCopyRaiderIOProfilePopup(selectedName, selectedRealm)
+                end
+            },
+            {
+                text = L.COPY_RAIDERIO_RECRUITMENT_URL,
+                func = function()
+                    unitOptions[1].func() -- TODO: until we know the correct url to display
+                end,
+                show = function()
+                    local profile = provider:GetProfile(selectedName, selectedRealm)
+                    return profile and profile.recruitmentProfile
                 end
             }
         }

@@ -4284,12 +4284,19 @@ do
                     local titleLocale, titleOptionalArg = recruitmentProfile.title[1], recruitmentProfile.title[2]
                     local titleText = format(L[titleLocale], titleOptionalArg)
                     local activityIcon = ns.RECRUITMENT_ACTIVITY_TYPE_ICONS[recruitmentProfile.activityType]
-                    tooltip:AddLine(format("|T%s:0:0|t %s", activityIcon, titleText), 1, 0.85, 0) -- TODO: showHeader?
-                    -- TODO: WIP
-                    tooltip:AddDoubleLine("entityType", tostring(recruitmentProfile.entityType), 1, 1, 1, 1, 1, 1)
-                    tooltip:AddDoubleLine("canTransferRealms", tostring(recruitmentProfile.canTransferRealms), 1, 1, 1, 1, 1, 1)
-                    tooltip:AddDoubleLine("canTransferFaction", tostring(recruitmentProfile.canTransferFaction), 1, 1, 1, 1, 1, 1)
-                    tooltip:AddDoubleLine("canPlayCrossRealm", tostring(recruitmentProfile.canPlayCrossRealm), 1, 1, 1, 1, 1, 1)
+                    activityIcon = format("|T%s:0:0:0:0:32:32:2:30:2:30|t", activityIcon)
+                    local icons = {ns.ROLE_ICONS.tank.full, ns.ROLE_ICONS.healer.full, ns.ROLE_ICONS.dps.full}
+                    if recruitmentProfile.canTransferRealms ~= nil then
+                        table.insert(icons, recruitmentProfile.canTransferRealms and "+TR" or "-TR") -- TODO: WIP
+                    end
+                    if recruitmentProfile.canTransferFaction ~= nil then
+                        table.insert(icons, recruitmentProfile.canTransferFaction and "+TF" or "-TF") -- TODO: WIP
+                    end
+                    if recruitmentProfile.canPlayCrossRealm ~= nil then
+                        table.insert(icons, recruitmentProfile.canPlayCrossRealm and "+CR" or "-CR") -- TODO: WIP
+                    end
+                    tooltip:AddDoubleLine(format("%s %s", activityIcon, titleText), table.concat(icons, ""), 1, 0.85, 0, 1, 1, 1) -- TODO: showHeader?
+                    -- tooltip:AddDoubleLine("entityType", tostring(recruitmentProfile.entityType), 1, 1, 1, 1, 1, 1) -- TODO: WIP
                 end
                 if isPvpBlockShown then
                     if showPadding and (isKeystoneBlockShown or isRaidBlockShown or isRecruitmentBlockShown) then

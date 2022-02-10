@@ -2295,9 +2295,12 @@ do
         TITLE                 = 1, -- custom recruitment title index
         ENTITY_TYPE           = 2, -- character, guild, team
         ACTIVITY_TYPE         = 3, -- guildraids, guildpvp, guildsocial, guildkeystones, teamkeystones
-        CAN_TRANSFER_REALMS   = 4, -- relevant when entity type is character
-        CAN_TRANSFER_FACTIONS = 5, -- relevant when entity type is character
-        CAN_PLAY_CROSS_REALM  = 6  -- relevant when entity type is character or guild
+        ROLES                 = 4, -- dps = 1, healer = 2, tank = 4 (see `ENCODER_RECRUITMENT_ROLES`)
+    }
+    local ENCODER_RECRUITMENT_ROLES = {
+        dps = 1,
+        healer = 2,
+        tank = 4,
     }
 
     ---@param provider DataProvider
@@ -3086,9 +3089,9 @@ do
     ---@field public title RecruitmentTitle
     ---@field public entityType number @`0` (character), `1` (guild), `2` (team) - use `ns.RECRUITMENT_ENTITY_TYPES` for lookups
     ---@field public activityType number @`0` (guildraids), `1` (guildpvp), `2` (guildsocial), `3` (guildkeystone), `4` (teamkeystone) - use `ns.RECRUITMENT_ACTIVITY_TYPES` for lookups
-    ---@field public canTransferRealms? boolean @Only usable if `entityType` is `character`. Set to `nil` otherwise.
-    ---@field public canTransferFaction? boolean @Only usable if `entityType` is `character`. Set to `nil` otherwise.
-    ---@field public canPlayCrossRealm? boolean @Only usable if `entityType` is `character` or `guild`. Set to `nil` otherwise.
+    ---@field public tank? boolean
+    ---@field public healer? boolean
+    ---@field public dps? boolean
 
     local RECRUITMENT_TITLES = ns:GetRecruitmentTitles()
 
@@ -3106,30 +3109,19 @@ do
                 results.titleIndex = value
                 results.title = value and RECRUITMENT_TITLES[value]
             elseif field == ENCODER_RECRUITMENT_FIELDS.ENTITY_TYPE then
-                results.entityType, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+                results.entityType = value > 0 and value or nil
             elseif field == ENCODER_RECRUITMENT_FIELDS.ACTIVITY_TYPE then
-                results.activityType, bitOffset = ReadBitsFromString(bucket, bitOffset, 3)
-            elseif field == ENCODER_RECRUITMENT_FIELDS.CAN_TRANSFER_REALMS then
-                results.canTransferRealms, bitOffset = ReadBitsFromString(bucket, bitOffset, 1)
-            elseif field == ENCODER_RECRUITMENT_FIELDS.CAN_TRANSFER_FACTIONS then
-                results.canTransferFaction, bitOffset = ReadBitsFromString(bucket, bitOffset, 1)
-            elseif field == ENCODER_RECRUITMENT_FIELDS.CAN_PLAY_CROSS_REALM then
-                results.canPlayCrossRealm, bitOffset = ReadBitsFromString(bucket, bitOffset, 1)
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 3)
+                results.activityType = value > 0 and value or nil
+            elseif field == ENCODER_RECRUITMENT_FIELDS.ROLES then
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 3)
+                results.dps = band(value, ENCODER_RECRUITMENT_ROLES.dps) == ENCODER_RECRUITMENT_ROLES.dps
+                results.healer = band(value, ENCODER_RECRUITMENT_ROLES.healer) == ENCODER_RECRUITMENT_ROLES.healer
+                results.tank = band(value, ENCODER_RECRUITMENT_ROLES.tank) == ENCODER_RECRUITMENT_ROLES.tank
             end
         end
         results.hasRenderableData = results.title and results.entityType and results.activityType and true or false
-        if results.entityType == ns.RECRUITMENT_ENTITY_TYPES.character then
-            results.canTransferRealms = results.canTransferRealms ~= 0
-            results.canTransferFaction = results.canTransferFaction ~= 0
-        else
-            results.canTransferRealms = nil
-            results.canTransferFaction = nil
-        end
-        if results.entityType == ns.RECRUITMENT_ENTITY_TYPES.character or results.entityType == ns.RECRUITMENT_ENTITY_TYPES.guild then
-            results.canPlayCrossRealm = results.canPlayCrossRealm ~= 0
-        else
-            results.canPlayCrossRealm = nil
-        end
         return results
     end
 
@@ -4283,18 +4275,8 @@ do
                     end
                     local titleLocale, titleOptionalArg = recruitmentProfile.title[1], recruitmentProfile.title[2]
                     local titleText = format(L[titleLocale], titleOptionalArg)
-                    local activityIcon = ns.RECRUITMENT_ACTIVITY_TYPE_ICONS[recruitmentProfile.activityType]
-                    activityIcon = format("|T%s:0:0:0:0:32:32:2:30:2:30|t", activityIcon)
-                    local icons = {ns.ROLE_ICONS.tank.full, ns.ROLE_ICONS.healer.full, ns.ROLE_ICONS.dps.full}
-                    if recruitmentProfile.canTransferRealms ~= nil then
-                        table.insert(icons, recruitmentProfile.canTransferRealms and "+TR" or "-TR") -- TODO: WIP
-                    end
-                    if recruitmentProfile.canTransferFaction ~= nil then
-                        table.insert(icons, recruitmentProfile.canTransferFaction and "+TF" or "-TF") -- TODO: WIP
-                    end
-                    if recruitmentProfile.canPlayCrossRealm ~= nil then
-                        table.insert(icons, recruitmentProfile.canPlayCrossRealm and "+CR" or "-CR") -- TODO: WIP
-                    end
+                    local activityIcon = format("|T%s:0:0:0:0:32:32:2:30:2:30|t", ns.RECRUITMENT_ACTIVITY_TYPE_ICONS[recruitmentProfile.activityType])
+                    local icons = { recruitmentProfile.tank and ns.ROLE_ICONS.tank.full or "", recruitmentProfile.healer and ns.ROLE_ICONS.healer.full or "", recruitmentProfile.dps and ns.ROLE_ICONS.dps.full or "" }
                     tooltip:AddDoubleLine(format("%s %s", activityIcon, titleText), table.concat(icons, ""), 1, 0.85, 0, 1, 1, 1) -- TODO: showHeader?
                     -- tooltip:AddDoubleLine("entityType", tostring(recruitmentProfile.entityType), 1, 1, 1, 1, 1, 1) -- TODO: WIP
                 end

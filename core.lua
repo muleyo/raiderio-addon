@@ -2292,10 +2292,10 @@ do
 
     -- TODO: can this be part of the provider? we can see if we can make a more dynamic system
     local ENCODER_RECRUITMENT_FIELDS = {
-        TITLE                 = 1, -- custom recruitment title index
-        ENTITY_TYPE           = 2, -- character, guild, team
-        ACTIVITY_TYPE         = 3, -- guildraids, guildpvp, guildsocial, guildkeystones, teamkeystones
-        ROLES                 = 4, -- dps = 1, healer = 2, tank = 4 (see `ENCODER_RECRUITMENT_ROLES`)
+        TITLE                 = 0, -- custom recruitment title index
+        ENTITY_TYPE           = 1, -- character, guild, team
+        ACTIVITY_TYPE         = 2, -- guildraids, guildpvp, guildsocial, guildkeystones, teamkeystones
+        ROLES                 = 3, -- dps = 1, healer = 2, tank = 4 (see `ENCODER_RECRUITMENT_ROLES`)
     }
     local ENCODER_RECRUITMENT_ROLES = {
         dps = 1,

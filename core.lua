@@ -47,6 +47,11 @@ do
     ---@field public KEYSTONE_AFFIX_SCHEDULE number[] @Maps each weekly rotation, primarily for Tyrannical (`9`) and Fortified (`10`) tracking
     ---@field public KEYSTONE_AFFIX_INTERNAL table<number, string> @Maps each affix ID to a internal string version like `tyrannical` (`9`) and `fortified` (`10`)
     ---@field public KEYSTONE_AFFIX_TEXTURE table<number, string> @Maps each affix to a texture string Tyrannical (`9`/`-9`) and Fortified (`10`/`-10`)
+    ---@field public RECRUITMENT_ENTITY_TYPES table<string, number> @Table over recruitment entity types.
+    ---@field public RECRUITMENT_ENTITY_TYPE_URL_SUFFIX table<number, string> @Table over recruitment entity type profile url suffixes.
+    ---@field public RECRUITMENT_ACTIVITY_TYPES table<string, number> @Table over recruitment activity types.
+    ---@field public RECRUITMENT_ACTIVITY_TYPE_ICONS table<number, string|number> @Table over recruitment activity type icons.
+    ---@field public RECRUITMENT_ROLE_ICONS table<string, string> @Table over recruitment role icons.
 
     ns.Print = function(text, r, g, b, ...)
         r, g, b = r or 1, g or 1, b or 0
@@ -318,6 +323,12 @@ do
         team = 2
     }
 
+    ns.RECRUITMENT_ENTITY_TYPE_URL_SUFFIX = {
+        [ns.RECRUITMENT_ENTITY_TYPES.guild] = "guild-recruitment",
+        [ns.RECRUITMENT_ENTITY_TYPES.character] = "recruitment",
+        [ns.RECRUITMENT_ENTITY_TYPES.team] = "team-recruitment"
+    }
+
     ns.RECRUITMENT_ACTIVITY_TYPES = {
         guildraids = 0,
         guildpvp = 1,
@@ -332,6 +343,12 @@ do
         [ns.RECRUITMENT_ACTIVITY_TYPES.guildsocial] = 1495827, -- inv_7xp_inscription_talenttome01
         [ns.RECRUITMENT_ACTIVITY_TYPES.guildkeystone] = 255346, -- achievement_dungeon_gloryoftheraider
         [ns.RECRUITMENT_ACTIVITY_TYPES.teamkeystone] = 255345 -- achievement_dungeon_gloryofthehero
+    }
+
+    ns.RECRUITMENT_ROLE_ICONS = {
+        dps = "|T2202478:14:16:0:0:128:32:0:32:2:30|t",
+        healer = "|T2202478:14:16:0:0:128:32:33:65:2:30|t",
+        tank = "|T2202478:14:16:0:0:128:32:67:99:2:30|t"
     }
 
 end
@@ -1610,6 +1627,12 @@ do
         return format("https://raider.io/characters/%s/%s/%s?utm_source=addon", ns.PLAYER_REGION, realmSlug, name), name, realm, realmSlug
     end
 
+    function util:GetRaiderIORecruitmentProfileUrl(urlSuffix, ...)
+        local name, realm = util:GetNameRealm(...)
+        local realmSlug = util:GetRealmSlug(realm, true)
+        return format("https://raider.io/characters/%s/%s/%s/%s?utm_source=addon", ns.PLAYER_REGION, realmSlug, name, urlSuffix), name, realm, realmSlug
+    end
+
     local COPY_PROFILE_URL_POPUP = {
         id = "RAIDERIO_COPY_URL",
         text = "%s",
@@ -1644,6 +1667,17 @@ do
 
     function util:ShowCopyRaiderIOProfilePopup(...)
         local url, name, realm = util:GetRaiderIOProfileUrl(...)
+        if IsModifiedClick("CHATLINK") then
+            local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
+            editBox:HighlightText()
+        else
+            StaticPopup_Show(COPY_PROFILE_URL_POPUP.id, format("%s (%s)", name, realm), url)
+        end
+    end
+
+    function util:ShowCopyRaiderIORecruitmentProfilePopup(recruitmentEntityType, ...)
+        local recruitmentSuffix = ns.RECRUITMENT_ENTITY_TYPE_URL_SUFFIX[recruitmentEntityType]
+        local url, name, realm = util:GetRaiderIORecruitmentProfileUrl(recruitmentSuffix, ...)
         if IsModifiedClick("CHATLINK") then
             local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
             editBox:HighlightText()
@@ -3105,15 +3139,15 @@ do
         for encoderIndex = 1, #encodingOrder do
             local field = encodingOrder[encoderIndex]
             if field == ENCODER_RECRUITMENT_FIELDS.TITLE then
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
                 results.titleIndex = value
                 results.title = value and RECRUITMENT_TITLES[value]
             elseif field == ENCODER_RECRUITMENT_FIELDS.ENTITY_TYPE then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
-                results.entityType = value > 0 and value or nil
+                results.entityType = value
             elseif field == ENCODER_RECRUITMENT_FIELDS.ACTIVITY_TYPE then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 3)
-                results.activityType = value > 0 and value or nil
+                results.activityType = value
             elseif field == ENCODER_RECRUITMENT_FIELDS.ROLES then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 3)
                 results.dps = band(value, ENCODER_RECRUITMENT_ROLES.dps) == ENCODER_RECRUITMENT_ROLES.dps
@@ -4270,15 +4304,11 @@ do
                     if showPadding and (isKeystoneBlockShown or isRaidBlockShown) then
                         tooltip:AddLine(" ")
                     end
-                    if showHeader then
-                        -- tooltip:AddLine(L.RECRUITMENT_DATA_HEADER, 1, 0.85, 0) -- TODO
-                    end
                     local titleLocale, titleOptionalArg = recruitmentProfile.title[1], recruitmentProfile.title[2]
                     local titleText = format(L[titleLocale], titleOptionalArg)
-                    local activityIcon = format("|T%s:0:0:0:0:32:32:2:30:2:30|t", ns.RECRUITMENT_ACTIVITY_TYPE_ICONS[recruitmentProfile.activityType])
-                    local icons = { recruitmentProfile.tank and ns.ROLE_ICONS.tank.full or "", recruitmentProfile.healer and ns.ROLE_ICONS.healer.full or "", recruitmentProfile.dps and ns.ROLE_ICONS.dps.full or "" }
-                    tooltip:AddDoubleLine(format("%s %s", activityIcon, titleText), table.concat(icons, ""), 1, 0.85, 0, 1, 1, 1) -- TODO: showHeader?
-                    -- tooltip:AddDoubleLine("entityType", tostring(recruitmentProfile.entityType), 1, 1, 1, 1, 1, 1) -- TODO: WIP
+                    -- local headerIcon = ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup", 16) -- format("|T%s:0:0:0:0:32:32:2:30:2:30|t", ns.RECRUITMENT_ACTIVITY_TYPE_ICONS[recruitmentProfile.activityType])
+                    local icons = { recruitmentProfile.tank and ns.RECRUITMENT_ROLE_ICONS.tank or "", recruitmentProfile.healer and ns.RECRUITMENT_ROLE_ICONS.healer or "", recruitmentProfile.dps and ns.RECRUITMENT_ROLE_ICONS.dps or "" }
+                    tooltip:AddDoubleLine(titleText, table.concat(icons, ""), 0.9, 0.8, 0.5, 1, 1, 1) -- format("%s %s", headerIcon, titleText)
                 end
                 if isPvpBlockShown then
                     if showPadding and (isKeystoneBlockShown or isRaidBlockShown or isRecruitmentBlockShown) then
@@ -7017,15 +7047,16 @@ do
         local quickJoinButton = bdropdown.quickJoinButton
         local clubMemberInfo = bdropdown.clubMemberInfo
         local tempName, tempRealm = bdropdown.name, bdropdown.server
-        local name, realm, level
+        local name, realm, level, faction
         -- unit
         if not name and UnitExists(unit) then
             if UnitIsPlayer(unit) then
                 name, realm = util:GetNameRealm(unit)
                 level = UnitLevel(unit)
+                faction = util:GetFaction(unit)
             end
             -- if it's not a player it's pointless to check further
-            return name, realm, level
+            return name, realm, level, unit, faction
         end
         -- bnet friend
         if not name and bnetIDAccount then
@@ -7035,7 +7066,7 @@ do
                 level = charLevel
             end
             -- if it's a bnet friend we assume if eligible the name and realm is set, otherwise we assume it's not eligible for a url
-            return name, realm, level
+            return name, realm, level, nil, nil
         end
         -- lfd
         if not name and menuList then
@@ -7052,6 +7083,7 @@ do
             local memberInfo = quickJoinMember or quickJoinButton.Members[1]
             if memberInfo.playerLink then
                 name, realm, level = util:GetNameRealmFromPlayerLink(memberInfo.playerLink)
+                faction = ns.PLAYER_FACTION
             end
         end
         -- dropdown by name and realm
@@ -7065,11 +7097,11 @@ do
         if not name or not realm then
             return
         end
-        return name, realm, level
+        return name, realm, level, nil, faction
     end
 
     -- tracks the currently active dropdown name and realm for lookup
-    local selectedName, selectedRealm, selectedLevel
+    local selectedName, selectedRealm, selectedLevel, selectedUnit, selectedFaction
 
     ---@type CustomDropDownOption[]
     local unitOptions
@@ -7083,7 +7115,7 @@ do
             if not IsValidDropDown(bdropdown) then
                 return
             end
-            selectedName, selectedRealm, selectedLevel = GetNameRealmForDropDown(bdropdown)
+            selectedName, selectedRealm, selectedLevel, selectedUnit, selectedFaction = GetNameRealmForDropDown(bdropdown)
             if not selectedName or not util:IsMaxLevel(selectedLevel, true) then
                 return
             end
@@ -7108,6 +7140,29 @@ do
         end
     end
 
+    local function DropDownOptionModifiedClickHandler()
+        if not IsControlKeyDown() and not IsAltKeyDown() then
+            return
+        end
+        local shown = search:IsShown()
+        if not shown then
+            search:Show()
+        end
+        if search:Search(format("%s %s", selectedName, selectedRealm)) then
+            return true -- indicates we are showing the search dialog and we don't want to show the static popup
+        elseif not shown then
+            search:Hide()
+        end
+    end
+
+    local function GetRecruitmentProfileForDropDown()
+        local profile = provider:GetProfile(selectedUnit or selectedName, selectedRealm, selectedFaction)
+        if not profile or not profile.recruitmentProfile or not profile.recruitmentProfile.hasRenderableData then
+            return
+        end
+        return profile
+    end
+
     ---@type LibDropDownExtension
     local LibDropDownExtension = LibStub and LibStub:GetLibrary("LibDropDownExtension-1.0", true)
 
@@ -7121,16 +7176,8 @@ do
             {
                 text = L.COPY_RAIDERIO_PROFILE_URL,
                 func = function()
-                    if IsControlKeyDown() or IsAltKeyDown() then
-                        local shown = search:IsShown()
-                        if not shown then
-                            search:Show()
-                        end
-                        if search:Search(format("%s %s", selectedName, selectedRealm)) then
-                            return
-                        elseif not shown then
-                            search:Hide()
-                        end
+                    if DropDownOptionModifiedClickHandler() then
+                        return
                     end
                     util:ShowCopyRaiderIOProfilePopup(selectedName, selectedRealm)
                 end
@@ -7138,11 +7185,14 @@ do
             {
                 text = L.COPY_RAIDERIO_RECRUITMENT_URL,
                 func = function()
-                    unitOptions[1].func() -- TODO: until we know the correct url to display
+                    if DropDownOptionModifiedClickHandler() then
+                        return
+                    end
+                    local profile = GetRecruitmentProfileForDropDown()
+                    util:ShowCopyRaiderIORecruitmentProfilePopup(profile.recruitmentProfile.entityType, selectedName, selectedRealm)
                 end,
                 show = function()
-                    local profile = provider:GetProfile(selectedName, selectedRealm)
-                    return profile and profile.recruitmentProfile
+                    return GetRecruitmentProfileForDropDown()
                 end
             }
         }
@@ -8442,17 +8492,17 @@ do
 
             if type(text) == "string" then
 
-                if text:find("[Ll][Oo][Cc][Kk]") then
+                if text:find("^%s*[Ll][Oo][Cc][Kk]") then
                     profile:ToggleDrag()
                     return
                 end
 
-                if text:find("[Dd][Ee][Bb][Uu][Gg]") then
+                if text:find("^%s*[Dd][Ee][Bb][Uu][Gg]") then
                     StaticPopup_Show(debugPopup.id)
                     return
                 end
 
-                if text:find("[Rr][Ww][Ff]") then
+                if text:find("^%s*[Rr][Ww][Ff]") then
                     if rwf:IsLoaded() and config:Get("rwfMode") then
                         rwf:ToggleFrame()
                     else
@@ -8461,12 +8511,12 @@ do
                     return
                 end
 
-                if text:find("[Gg][Rr][Oo][Uu][Pp]") then
+                if text:find("^%s*[Gg][Rr][Oo][Uu][Pp]") then
                     json:OpenCopyDialog()
                     return
                 end
 
-                local searchQuery = text:match("[Ss][Ee][Aa][Rr][Cc][Hh]%s*(.-)$")
+                local searchQuery = text:match("^%s*[Ss][Ee][Aa][Rr][Cc][Hh]%s*(.-)$")
                 if searchQuery then
                     if strlenutf8(searchQuery) > 0 then
                         search:Show()

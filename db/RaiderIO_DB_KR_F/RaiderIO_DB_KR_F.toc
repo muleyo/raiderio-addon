@@ -7,5 +7,7 @@
 ## X-Region: Korea
 ## X-Faction: Alliance and Horde
 ## X-Website: https://raider.io
-../RaiderIO/db/db_recruitment_kr_characters.lua
-../RaiderIO/db/db_recruitment_kr_lookup.lua
+../RaiderIO/db/db_recruitment_kr_alliance_characters.lua
+../RaiderIO/db/db_recruitment_kr_alliance_lookup.lua
+../RaiderIO/db/db_recruitment_kr_horde_characters.lua
+../RaiderIO/db/db_recruitment_kr_horde_lookup.lua

@@ -135,8 +135,10 @@ for %%r in (
 			echo ## X-Region: !r2!>>"!f!"
 			echo ## X-Faction: !f2!>>"!f!"
 			echo ## X-Website: https:^/^/raider.io>>"!f!"
-			echo ../!toc_addon!/db/db_recruitment_!lr!_characters.lua>>"!f!"
-			echo ../!toc_addon!/db/db_recruitment_!lr!_lookup.lua>>"!f!"
+			echo ../!toc_addon!/db/db_recruitment_!lr!_alliance_characters.lua>>"!f!"
+			echo ../!toc_addon!/db/db_recruitment_!lr!_alliance_lookup.lua>>"!f!"
+			echo ../!toc_addon!/db/db_recruitment_!lr!_horde_characters.lua>>"!f!"
+			echo ../!toc_addon!/db/db_recruitment_!lr!_horde_lookup.lua>>"!f!"
 		)
 	)
 )

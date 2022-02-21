@@ -7055,13 +7055,14 @@ do
         end
         -- bnet friend
         if not name and bnetIDAccount then
-            local fullName, _, charLevel = util:GetNameRealmForBNetFriend(bnetIDAccount)
+            local fullName, charFaction, charLevel = util:GetNameRealmForBNetFriend(bnetIDAccount)
             if fullName then
                 name, realm = util:GetNameRealm(fullName)
                 level = charLevel
+                faction = charFaction
             end
             -- if it's a bnet friend we assume if eligible the name and realm is set, otherwise we assume it's not eligible for a url
-            return name, realm, level, nil, nil
+            return name, realm, level, nil, faction
         end
         -- lfd
         if not name and menuList then
@@ -7069,6 +7070,7 @@ do
                 local whisperButton = menuList[i]
                 if whisperButton and (whisperButton.text == _G.WHISPER_LEADER or whisperButton.text == _G.WHISPER) then
                     name, realm = util:GetNameRealm(whisperButton.arg1)
+                    faction = ns.PLAYER_FACTION
                     break
                 end
             end
@@ -7086,12 +7088,18 @@ do
             name, realm = util:GetNameRealm(tempName, tempRealm)
             if clubMemberInfo and clubMemberInfo.level and (clubMemberInfo.clubType == Enum.ClubType.Guild or clubMemberInfo.clubType == Enum.ClubType.Character) then
                 level = clubMemberInfo.level
+                faction = ns.PLAYER_FACTION
             end
         end
         -- if we don't got both we return nothing
         if not name or not realm then
             return
         end
+        -- fallback to our own faction if we're unsure at this point
+        if not faction then
+            faction = ns.PLAYER_FACTION
+        end
+        -- return whatever information we have available
         return name, realm, level, nil, faction
     end
 

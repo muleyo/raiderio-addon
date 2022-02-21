@@ -546,7 +546,7 @@ do
 
     ---@return RecruitmentTitlesCollection<number, RecruitmentTitle>
     function ns:GetRecruitmentTitles()
-        return ns.CUSTOM_TITLES or ns.customTitles -- DEPRECATED: ns.customTitles
+        return ns.CUSTOM_TITLES
     end
 
 end
@@ -2328,7 +2328,7 @@ do
     local ENCODER_RECRUITMENT_FIELDS = {
         TITLE                 = 0, -- custom recruitment title index
         ENTITY_TYPE           = 1, -- character, guild, team
-        ACTIVITY_TYPE         = 2, -- guildraids, guildpvp, guildsocial, guildkeystones, teamkeystones
+        -- ACTIVITY_TYPE         = 2, -- guildraids, guildpvp, guildsocial, guildkeystones, teamkeystones
         ROLES                 = 3, -- dps = 1, healer = 2, tank = 4 (see `ENCODER_RECRUITMENT_ROLES`)
     }
     local ENCODER_RECRUITMENT_ROLES = {
@@ -3122,7 +3122,6 @@ do
     ---@field public titleIndex number
     ---@field public title RecruitmentTitle
     ---@field public entityType number @`0` (character), `1` (guild), `2` (team) - use `ns.RECRUITMENT_ENTITY_TYPES` for lookups
-    ---@field public activityType number @`0` (guildraids), `1` (guildpvp), `2` (guildsocial), `3` (guildkeystone), `4` (teamkeystone) - use `ns.RECRUITMENT_ACTIVITY_TYPES` for lookups
     ---@field public tank? boolean
     ---@field public healer? boolean
     ---@field public dps? boolean
@@ -3145,9 +3144,6 @@ do
             elseif field == ENCODER_RECRUITMENT_FIELDS.ENTITY_TYPE then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
                 results.entityType = value
-            elseif field == ENCODER_RECRUITMENT_FIELDS.ACTIVITY_TYPE then
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 3)
-                results.activityType = value
             elseif field == ENCODER_RECRUITMENT_FIELDS.ROLES then
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 3)
                 results.dps = band(value, ENCODER_RECRUITMENT_ROLES.dps) == ENCODER_RECRUITMENT_ROLES.dps
@@ -3155,7 +3151,7 @@ do
                 results.tank = band(value, ENCODER_RECRUITMENT_ROLES.tank) == ENCODER_RECRUITMENT_ROLES.tank
             end
         end
-        results.hasRenderableData = results.title and results.entityType and results.activityType and true or false
+        results.hasRenderableData = results.title and results.entityType and true or false
         return results
     end
 
@@ -4306,9 +4302,8 @@ do
                     end
                     local titleLocale, titleOptionalArg = recruitmentProfile.title[1], recruitmentProfile.title[2]
                     local titleText = format(L[titleLocale], titleOptionalArg)
-                    -- local headerIcon = ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup", 16) -- format("|T%s:0:0:0:0:32:32:2:30:2:30|t", ns.RECRUITMENT_ACTIVITY_TYPE_ICONS[recruitmentProfile.activityType])
                     local icons = { recruitmentProfile.tank and ns.RECRUITMENT_ROLE_ICONS.tank or "", recruitmentProfile.healer and ns.RECRUITMENT_ROLE_ICONS.healer or "", recruitmentProfile.dps and ns.RECRUITMENT_ROLE_ICONS.dps or "" }
-                    tooltip:AddDoubleLine(titleText, table.concat(icons, ""), 0.9, 0.8, 0.5, 1, 1, 1) -- format("%s %s", headerIcon, titleText)
+                    tooltip:AddDoubleLine(titleText, table.concat(icons, ""), 0.9, 0.8, 0.5, 1, 1, 1)
                 end
                 if isPvpBlockShown then
                     if showPadding and (isKeystoneBlockShown or isRaidBlockShown or isRecruitmentBlockShown) then
@@ -7983,9 +7978,7 @@ do
             for i = 1, #configOptions.modules do
                 local f = configOptions.modules[i]
                 local checked1 = f.checkButton:GetChecked()
-                local checked2 = f.checkButton2:GetChecked()
                 local loaded1 = IsAddOnLoaded(f.addon1)
-                local loaded2 = IsAddOnLoaded(f.addon2)
                 if checked1 then
                     if not loaded1 then
                         reload = 1
@@ -7995,14 +7988,18 @@ do
                     reload = 1
                     DisableAddOn(f.addon1)
                 end
-                if checked2 then
-                    if not loaded2 then
+                if f.addon2 then
+                    local checked2 = f.checkButton2:GetChecked()
+                    local loaded2 = IsAddOnLoaded(f.addon2)
+                    if checked2 then
+                        if not loaded2 then
+                            reload = 1
+                            EnableAddOn(f.addon2)
+                        end
+                    elseif loaded2 then
                         reload = 1
-                        EnableAddOn(f.addon2)
+                        DisableAddOn(f.addon2)
                     end
-                elseif loaded2 then
-                    reload = 1
-                    DisableAddOn(f.addon2)
                 end
             end
             for i = 1, #configOptions.options do
@@ -8088,7 +8085,9 @@ do
             for i = 1, #self.modules do
                 local f = self.modules[i]
                 f.checkButton:SetChecked(IsAddOnLoaded(f.addon1))
-                f.checkButton2:SetChecked(IsAddOnLoaded(f.addon2))
+                if f.addon2 then
+                    f.checkButton2:SetChecked(IsAddOnLoaded(f.addon2))
+                end
             end
             for i = 1, #self.options do
                 local f = self.options[i]
@@ -8193,7 +8192,7 @@ do
             frame.addon2 = addon1
             frame.addon1 = addon2
             frame.checkButton:Show()
-            frame.checkButton2:Show()
+            frame.checkButton2:SetShown(frame.addon2)
             self.modules[#self.modules + 1] = frame
             return frame
         end
@@ -8387,6 +8386,13 @@ do
             configOptions:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A_R", "RaiderIO_DB_KR_H_R")
             configOptions:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A_R", "RaiderIO_DB_TW_H_R")
 
+            configOptions:CreatePadding()
+            configOptions:CreateHeadline(L.RECRUITMENT_DB_MODULES)
+            factionHeaderModules[#factionHeaderModules + 1] = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, nil, "RaiderIO_DB_US_F")
+            configOptions:CreateModuleToggle(L.MODULE_EUROPE, nil, "RaiderIO_DB_EU_F")
+            configOptions:CreateModuleToggle(L.MODULE_KOREA, nil, "RaiderIO_DB_KR_F")
+            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, nil, "RaiderIO_DB_TW_F")
+
             -- add save button and cancel buttons
             local buttons = configOptions:CreateWidget("Frame", 4, configButtonFrame)
             buttons:ClearAllPoints()
@@ -8429,15 +8435,15 @@ do
             configFrame:SetWidth(160 + maxWidth)
             configParentFrame:SetWidth(160 + maxWidth)
 
-            -- add faction headers over the first module
+            -- add faction headers over the database modules
             for i = 1, #factionHeaderModules do
                 local module = factionHeaderModules[i]
-                local af = configOptions:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_02:0:0:0:0:16:16:4:12:4:12|t")
+                local af = configOptions:CreateHeadline("|T132486:0:0:0:0:16:16:4:12:4:12|t") -- 132486 = inv_bannerpvp_02 (alliance)
                 af:ClearAllPoints()
                 af:SetPoint("BOTTOM", module.checkButton2, "TOP", 2, -5)
                 af:SetSize(32, 32)
-
-                local hf = configOptions:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_01:0:0:0:0:16:16:4:12:4:12|t")
+                af:SetShown(module.addon2)
+                local hf = configOptions:CreateHeadline(i == 3 and "|T236396:0:0:0:0:16:16:4:12:4:12|t" or "|T132485:0:0:0:0:16:16:4:12:4:12|t") -- 236396 = achievement_bg_winwsg (neutral) | 132485 = inv_bannerpvp_01 (horde)
                 hf:ClearAllPoints()
                 hf:SetPoint("BOTTOM", module.checkButton, "TOP", 2, -5)
                 hf:SetSize(32, 32)

@@ -4,7 +4,7 @@
 --
 local _, ns = ...
 
-ns.customTitles = {
+ns.CUSTOM_TITLES = {
 	[1] = { "CHARACTER_LF_GUILD_RAID_MYTHIC", nil },
 	[2] = { "CHARACTER_LF_GUILD_RAID_HEROIC", nil },
 	[3] = { "CHARACTER_LF_GUILD_RAID_NORMAL", nil },

@@ -7159,7 +7159,7 @@ do
     end
 
     local function GetRecruitmentProfileForDropDown()
-        local profile = provider:GetProfile(selectedUnit or selectedName, selectedRealm, selectedFaction)
+        local profile = provider:GetProfile(selectedName, selectedRealm, selectedFaction)
         if not profile or not profile.recruitmentProfile or not profile.recruitmentProfile.hasRenderableData then
             return
         end

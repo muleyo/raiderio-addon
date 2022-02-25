@@ -5428,7 +5428,7 @@ do
     end
 
     local function GetAnchorPoint(anchor, frame)
-        return 
+        return
             Eval(anchor.point, "TOPLEFT", anchor, frame),
             Eval(anchor.rpoint, "TOPRIGHT", anchor, frame),
             Eval(anchor.x, -16, anchor, frame),
@@ -7311,7 +7311,7 @@ do
 
     ---@class RWFLootEntry
 
-    local function LogItemLink(logType, linkType, id, link, count, sources, useTimestamp)
+    local function LogItemLink(logType, linkType, id, link, count, sources, useTimestamp, additionalInfo)
         local isLogging, instanceName, instanceDifficulty, instanceID = rwf:GetLocation()
         if logType == LOG_TYPE.News then
             instanceName = _G.GUILD_NEWS or _G.GUILD_NEWS_TITLE
@@ -7325,13 +7325,20 @@ do
         if not success then
             return false
         end
+
+        local guildName, _, _, guildRealmName = GetGuildInfo("player")
+
         tables[1].name = instanceName
         local lootEntry = tables[4] ---@type RWFLootEntry
         local timestamp = useTimestamp or GetServerTime()
+        lootEntry.guildName = guildName
+        lootEntry.guildRealm = guildRealmName or ns.PLAYER_REALM
+        lootEntry.guildRegion = ns.PLAYER_REGION
         lootEntry.type = logType
         lootEntry.isNew = not lootEntry.timestamp
         lootEntry.timestamp = lootEntry.timestamp or timestamp
         lootEntry.isUpdated = timestamp - lootEntry.timestamp > 60
+        lootEntry.itemLevel = GetDetailedItemLevelInfo(link)
         lootEntry.id, lootEntry.itemType, lootEntry.itemSubType, lootEntry.itemEquipLoc, lootEntry.itemIcon, lootEntry.itemClassID, lootEntry.itemSubClassID = GetItemInfoInstant(link)
         lootEntry.link = link
         lootEntry.index = lootEntry.index or CountItems(tables[3]) -- keep same index or count (our item is already included in the count)
@@ -7354,6 +7361,14 @@ do
             end
         end
         lootEntry.addLoot = lootEntry.isNew or lootEntry.hasNewSources -- lootEntry.isUpdated
+
+        -- Additional info for dedup in backend
+        if additionalInfo then
+            for key, value in pairs(additionalInfo) do
+                lootEntry[key] = value
+            end
+        end
+
         return lootEntry
     end
 
@@ -7372,7 +7387,7 @@ do
         if itemLinkFilter and itemLink:find(itemLinkFilter) then
             return true
         end
-        local _, _, _, itemEquipLoc = GetItemInfoInstant(itemLink) 
+        local _, _, _, itemEquipLoc = GetItemInfoInstant(itemLink)
         if itemEquipLoc and itemEquipLoc == "" then
             return true
         end
@@ -7437,8 +7452,12 @@ do
                     local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(newsInfo.whatText)
                     if itemType and CanLogItem(itemLink, itemType, itemQuality, LOG_FILTER.GUILD_NEWS) then
                         newsInfo.year = newsInfo.year + 2000
+                        newsInfo.month = newsInfo.month + 1
+                        newsInfo.day = newsInfo.day + 1
                         local timestamp = time(newsInfo)
-                        HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp))
+                        HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp, {
+                            who = newsInfo.whoText
+                        }))
                     end
                 end
             end

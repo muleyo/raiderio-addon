@@ -7256,7 +7256,7 @@ do
 
     -- Sanctum of Domination (Mythic)
     local LOG_FILTER = {
-        GUILD_NEWS = "item:.-:1:28:2106:",
+        GUILD_NEWS = "item:.-:1:28:216[5678]:",
         ITEM_LEVEL = 252,
     }
 

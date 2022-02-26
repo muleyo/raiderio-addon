@@ -18,6 +18,6 @@ jobs:
       - name: Clone project
         uses: actions/checkout@v1
         with:
-          fetch-depth: 50
+          fetch-depth: 20
       - name: Package and release
         uses: BigWigsMods/packager@v1

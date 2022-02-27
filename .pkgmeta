@@ -27,7 +27,7 @@ ignore:
   - db/RaiderIO_DB.bat
   - build.sh
   - create_merged_package.sh
-  - upload_locale.sh
+  - update_locale.sh
   - tools
   - package
   - package.json

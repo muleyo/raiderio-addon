@@ -20,4 +20,4 @@ jobs:
         with:
           fetch-depth: 20
       - name: Package and release
-        uses: BigWigsMods/packager@v1
+        uses: RaiderIO/packager@master

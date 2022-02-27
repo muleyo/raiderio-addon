@@ -21,13 +21,13 @@ You can right click on any player that is recruiting and hit `Copy Recruitment U
 
 Because recruitment information can change regularly, we encourage people to use the [Raider.IO Desktop Client](https://raider.io/addon) to keep this data in sync.
 
-If you have run into any problems, check out our FAQ at https://raider.io/faq, or join us on Discord at: https://discord.gg/raider #addon-discussions -- we always have people around willing to help.
+If you have run into any problems, check out our FAQ at [https://raider.io/faq](https://raider.io/faq), or join us on Discord at: [https://discord.gg/raider](https://discord.gg/raider) in `#addon-discussions` -- we always have people around willing to help.
 
 [![Become a Patron](https://cdnassets.raider.io/images/patreon/become_a_patron_button.png "Become a Patron")](https://www.patreon.com/bePatron?u=6788452)
 
 ## Getting Started
 
-The easiest way to get started is to use the RaiderIO Desktop App: https://raider.io/addon
+The easiest way to get started is to use the RaiderIO Desktop Client: [https://raider.io/addon](https://raider.io/addon)
 
 Once installed you can load into the game and you will start seeing Mythic+, Raiding, and Recruitment details  on players around you. This AddOn works by storing a snapshot of character data from Raider.IO and then using that to populate information on qualified players.
 
@@ -111,7 +111,7 @@ You can pull up detailed information for all the characters in your group at onc
 
 - Click the magnifying glass icon at the bottom of the Dungeon Finder
 - Copy the text in the window that pops up
-- Go to https://raider.io and hit Ctrl-V or Cmd-V to paste this while the site is in the foreground.
+- Go to [https://raider.io](https://raider.io) and hit Ctrl-V or Cmd-V to paste this while the site is in the foreground.
 
 This will then take you to the Raider.IO Advanced Search page for all the characters in your group.
 
@@ -119,7 +119,7 @@ This will then take you to the Raider.IO Advanced Search page for all the charac
 
 - Click the "Copy Raider.IO URL" button
 - Copy the text in the window that pops up
-- Go to https://raider.io and hit Ctrl-V or Cmd-V to paste this while the site is in the foreground.
+- Go to [https://raider.io](https://raider.io) and hit Ctrl-V or Cmd-V to paste this while the site is in the foreground.
 
 This will take you to that character's profile page.
 

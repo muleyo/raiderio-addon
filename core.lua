@@ -5545,7 +5545,7 @@ do
     end
 
     local function CreateTooltipAnchor()
-        local frame = CreateFrame("Frame", nil, fallbackFrame)
+        local frame = CreateFrame("Frame", addonName .. "_ProfileTooltipAnchor", fallbackFrame)
         frame:SetFrameStrata(fallbackStrata)
         frame:SetFrameLevel(100)
         frame:SetClampedToScreen(true)
@@ -5559,6 +5559,14 @@ do
         frame.Icon = frame:CreateTexture(nil, "ARTWORK")
         frame.Icon:SetAllPoints()
         frame.Icon:SetTexture(386863)
+        frame:SetScript("OnEnter", function()
+            GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+            GameTooltip:SetText(L.PROFILE_TOOLTIP_ANCHOR_TOOLTIP, 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        frame:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
         return frame
     end
 

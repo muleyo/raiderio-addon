@@ -903,6 +903,7 @@ do
         profilePoint = { point = nil, x = 0, y = 0 },
         debugMode = false,
         rwfMode = false, -- NEW in 9.1
+        rwfBackgroundMode = true, -- NEW in 9.2
         showMedalsInsteadOfText = false,-- NEW in 9.1.5
     }
 
@@ -7205,13 +7206,14 @@ do
 end
 
 -- rwf.lua (requires rwf mode)
--- dependencies: module, callback, config
+-- dependencies: module, callback, config, util
 do
 
     ---@class RaceWorldFirstModule : Module
     local rwf = ns:NewModule("RaceWorldFirst") ---@type RaceWorldFirstModule
     local callback = ns:GetModule("Callback") ---@type CallbackModule
     local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
 
     local LOCATION = {}
     local LOOT_FRAME
@@ -7254,7 +7256,7 @@ do
         return linkType, linkArg1, link, linkCount, HEX_COLOR_QUALITY[linkHexColor]
     end
 
-    -- Sanctum of Domination (Mythic)
+    -- Sanctum of Domination
     local LOG_FILTER = {
         GUILD_NEWS = "item:.-:1:28:216[5678]:",
         ITEM_LEVEL = 252,
@@ -7481,9 +7483,9 @@ do
             end
         end
 
-        local frame = CreateFrame("Frame", nil, UIParent, "ButtonFrameTemplate")
+        local frame = CreateFrame("Frame", addonName .. "_RWFFrame", UIParent, "ButtonFrameTemplate")
         frame:SetSize(400, 250)
-        frame:SetPoint("CENTER")
+        frame:SetPoint("RIGHT")
         frame:SetFrameStrata("HIGH")
         ButtonFrameTemplate_HidePortrait(frame)
         frame:SetMovable(true)
@@ -7577,6 +7579,48 @@ do
         frame.WipeLog:SetScript("OnEnter", UIButtonMixin.OnEnter)
         frame.WipeLog:SetScript("OnLeave", UIButtonMixin.OnLeave)
 
+        frame.MiniFrame = CreateFrame("Button", addonName .. "_RWFMiniFrame", UIParent, "UIPanelButtonTemplate")
+        frame.MiniFrame:SetSize(32, 32)
+        frame.MiniFrame:SetPoint("CENTER", frame, "CENTER", 0, 0)
+        frame.MiniFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        frame.MiniFrame:SetText()
+        frame.MiniFrame:SetDisabledFontObject(_G.GameFontHighlightHuge)
+        frame.MiniFrame:SetHighlightFontObject(_G.GameFontHighlightHuge)
+        frame.MiniFrame:SetNormalFontObject(_G.GameFontHighlightHuge)
+        frame.MiniFrame.tooltip = L.RWF_MINIBUTTON_TOOLTIP
+        frame.MiniFrame.GetAppropriateTooltip = UIButtonMixin.GetAppropriateTooltip
+        frame.MiniFrame:SetScript("OnEnter", UIButtonMixin.OnEnter)
+        frame.MiniFrame:SetScript("OnLeave", UIButtonMixin.OnLeave)
+        frame.MiniFrame:SetMotionScriptsWhileDisabled(true)
+        frame.MiniFrame.Left:Hide()
+        frame.MiniFrame.Right:Hide()
+        frame.MiniFrame.Middle:Hide()
+        util:SetButtonTextureFromIcon(frame.MiniFrame, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE)
+        frame.MiniFrame:Hide()
+
+        frame.MiniFrame:HookScript("OnShow", function(self)
+            self:UpdateState()
+        end)
+
+        frame.MiniFrame:SetScript("OnClick", function(self, button)
+            if button == "LeftButton" then
+                local numItems = frame:GetNumLootItems()
+                if numItems > 0 then
+                    ReloadUI()
+                else
+                    -- frame:Show()
+                end
+            else
+                frame:Show()
+            end
+        end)
+
+        function frame.MiniFrame:UpdateState()
+            local numItems = frame:GetNumLootItems()
+            self:SetText(numItems > 0 and numItems)
+            -- self:SetEnabled(numItems > 0)
+        end
+
         function frame:OnShow()
             local isEnabled = config:Get("rwfMode")
             local isLogging, instanceName = rwf:GetLocation()
@@ -7593,13 +7637,19 @@ do
         end
 
         local NEWS_TICKER = {
-            Timer = 60,
+            Timer = 30,
             Tick = function()
+                if InCombatLockdown() then
+                    return
+                end
                 GuildNewsSort(0)
             end,
             Start = function(self)
-                self:Stop()
                 self:Tick()
+                if self.handle then
+                    return
+                end
+                self:Stop()
                 self.handle = C_Timer.NewTicker(self.Timer, self.Tick)
             end,
             Stop = function(self)
@@ -7613,11 +7663,19 @@ do
 
         frame:HookScript("OnShow", function()
             frame:OnShow()
-            NEWS_TICKER:Start()
+            if config:Get("rwfBackgroundMode") then
+                frame.MiniFrame:Hide()
+            else
+                NEWS_TICKER:Start()
+            end
         end)
 
         frame:HookScript("OnHide", function()
-            NEWS_TICKER:Stop()
+            if config:Get("rwfBackgroundMode") then
+                frame.MiniFrame:Show()
+            else
+                NEWS_TICKER:Stop()
+            end
         end)
 
         local function OnSettingsChanged()
@@ -7625,6 +7683,16 @@ do
                 return
             end
             frame:OnShow()
+            if config:Get("rwfBackgroundMode") then
+                NEWS_TICKER:Start()
+                frame.MiniFrame:SetShown(not frame:IsShown())
+            elseif frame:IsShown() then
+                NEWS_TICKER:Start()
+                frame.MiniFrame:Hide()
+            else
+                NEWS_TICKER:Stop()
+                frame.MiniFrame:Hide()
+            end
         end
         callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")
         callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_SAVED")
@@ -7776,6 +7844,7 @@ do
             if preInsertAtScrollEnd or (not preInsertScrollable and self.Log.Events.ScrollBox:HasScrollableExtent()) then
                 self.Log.Events.ScrollBox:ScrollToEnd(ScrollBoxConstants.NoScrollInterpolation)
             end
+            frame.MiniFrame:UpdateState()
         end
 
         local function SetScrollBoxButtonAlternateState(scrollBox)
@@ -7798,6 +7867,7 @@ do
         frame.Log.Events.ScrollBox:SetDataProvider(frame.logDataProvider)
 
         frame:Hide()
+        OnSettingsChanged() -- jumpstart
         return frame
     end
 

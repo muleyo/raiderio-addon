@@ -904,6 +904,7 @@ do
         debugMode = false,
         rwfMode = false, -- NEW in 9.1
         rwfBackgroundMode = true, -- NEW in 9.2
+        rwfBackgroundRemindAt = 10, -- NEW in 9.2
         showMedalsInsteadOfText = false,-- NEW in 9.1.5
     }
 
@@ -7262,6 +7263,8 @@ do
         ITEM_LEVEL = 252,
     }
 
+    -- LOG_FILTER.GUILD_NEWS, LOG_FILTER.ITEM_LEVEL = "item:", 0 -- DEBUG: any kind of loot and ilvl
+
     local LOG_TYPE = {
         Loot = 1,
         Roll = 2,
@@ -7583,7 +7586,7 @@ do
         frame.MiniFrame:SetSize(32, 32)
         frame.MiniFrame:SetPoint("RIGHT", frame, "RIGHT", -10, 0)
         frame.MiniFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        frame.MiniFrame:SetText()
+        frame.MiniFrame.Text:SetPoint("TOP", frame.MiniFrame, "BOTTOM", 0, 10)
         frame.MiniFrame:SetDisabledFontObject(_G.GameFontHighlightHuge)
         frame.MiniFrame:SetHighlightFontObject(_G.GameFontHighlightHuge)
         frame.MiniFrame:SetNormalFontObject(_G.GameFontHighlightHuge)
@@ -7606,7 +7609,9 @@ do
             if button == "LeftButton" then
                 local numItems = frame:GetNumLootItems()
                 if numItems > 0 then
-                    ReloadUI()
+                    if not InCombatLockdown() then
+                        ReloadUI()
+                    end
                 else
                     -- frame:Show()
                 end
@@ -7615,10 +7620,74 @@ do
             end
         end)
 
+        local function CreateArrow(parent, direction, offsetX, offsetY)
+            offsetX = offsetX or 0
+            offsetY = offsetY or 0
+            local arrowAtlas
+            local arrowGlowAtlas
+            local pointDir, pointOffX, pointOffY
+            local transOffX, transOffY
+            if direction == "Left" then
+                arrowAtlas = "NPE_ArrowLeft"
+                arrowGlowAtlas = "NPE_ArrowLeftGlow"
+                pointDir, pointOffX, pointOffY = "RIGHT", 23 + offsetX, 0 + offsetY
+                transOffX, transOffY = -50, 0
+            elseif direction == "Right" then
+                arrowAtlas = "NPE_ArrowRight"
+                arrowGlowAtlas = "NPE_ArrowRightGlow"
+                pointDir, pointOffX, pointOffY = "LEFT", -23 + offsetX, 0 + offsetY
+                transOffX, transOffY = 50, 0
+            end
+            local frame = CreateFrame("Frame", nil, parent)
+            frame:Hide()
+            frame:SetAlpha(0)
+            frame:SetSize(64, 64)
+            frame:SetPoint(pointDir, pointOffX, pointOffY)
+            frame.arrow = frame:CreateTexture(nil, "BACKGROUND")
+            frame.arrow:SetAllPoints()
+            frame.arrow:SetAtlas(arrowAtlas)
+            frame.arrowGlow = frame:CreateTexture(nil, "OVERLAY")
+            frame.arrowGlow:SetAllPoints()
+            frame.arrowGlow:SetAtlas(arrowGlowAtlas)
+            frame.arrowGlow:SetAlpha(0.75)
+            frame.arrowGlow:SetBlendMode("ADD")
+            frame.Anim = frame:CreateAnimationGroup()
+            frame.Anim.Translation = frame.Anim:CreateAnimation("Translation")
+            frame.Anim.Translation:SetOffset(transOffX, transOffY)
+            frame.Anim.Translation:SetDuration(1)
+            frame.Anim.Translation:SetOrder(1)
+            frame.Anim.Translation:SetSmoothing("OUT")
+            frame.Anim.Alpha1 = frame.Anim:CreateAnimation("Alpha")
+            frame.Anim.Alpha1:SetFromAlpha(0)
+            frame.Anim.Alpha1:SetToAlpha(1)
+            frame.Anim.Alpha1:SetDuration(0.1)
+            frame.Anim.Alpha1:SetOrder(1)
+            frame.Anim.Alpha2 = frame.Anim:CreateAnimation("Alpha")
+            frame.Anim.Alpha2:SetFromAlpha(1)
+            frame.Anim.Alpha2:SetToAlpha(0)
+            frame.Anim.Alpha2:SetDuration(0.9)
+            frame.Anim.Alpha2:SetStartDelay(0.1)
+            frame.Anim.Alpha2:SetOrder(1)
+            frame.Anim.Alpha2:SetSmoothing("IN")
+            frame.Anim:SetScript("OnFinished", frame.Anim.Play)
+            return frame
+        end
+
         function frame.MiniFrame:UpdateState()
             local numItems = frame:GetNumLootItems()
             self:SetText(numItems > 0 and numItems)
             -- self:SetEnabled(numItems > 0)
+            if not self.isGlowing and numItems >= config:Get("rwfBackgroundRemindAt") then
+                self.isGlowing = true
+                _G.ActionButton_ShowOverlayGlow(self)
+                if not self.arrow1 then
+                    self.arrow1 = CreateArrow(self, "Right", -64)
+                    self.arrow2 = CreateArrow(self, "Right", -64)
+                end
+                self.arrow1:Show()
+                self.arrow1.Anim:Play()
+                C_Timer.NewTimer(0.5, function() self.arrow2:Show() self.arrow2.Anim:Play() end)
+            end
         end
 
         function frame:OnShow()

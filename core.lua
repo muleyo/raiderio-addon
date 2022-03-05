@@ -7257,13 +7257,11 @@ do
         return linkType, linkArg1, link, linkCount, HEX_COLOR_QUALITY[linkHexColor]
     end
 
-    -- Sanctum of Domination
+    -- Sepulcher of the First Ones
     local LOG_FILTER = {
         GUILD_NEWS = "item:.-:1:28:216[5678]:",
         ITEM_LEVEL = 252,
     }
-
-    -- LOG_FILTER.GUILD_NEWS, LOG_FILTER.ITEM_LEVEL = "item:", 0 -- DEBUG: any kind of loot and ilvl
 
     local LOG_TYPE = {
         Loot = 1,
@@ -7583,6 +7581,7 @@ do
         frame.WipeLog:SetScript("OnLeave", UIButtonMixin.OnLeave)
 
         frame.MiniFrame = CreateFrame("Button", addonName .. "_RWFMiniFrame", UIParent, "UIPanelButtonTemplate")
+        frame.MiniFrame:SetClampedToScreen(true)
         frame.MiniFrame:SetSize(32, 32)
         frame.MiniFrame:SetPoint("RIGHT", frame, "RIGHT", -10, 0)
         frame.MiniFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -7964,6 +7963,7 @@ do
     end
 
     function rwf:OnLoad()
+        -- if config:Get("debugMode") then LOG_FILTER.GUILD_NEWS, LOG_FILTER.ITEM_LEVEL = "item:", 0 end -- DEBUG: any kind of loot and ilvl
         LOOT_FRAME = CreateLootFrame()
         self:CheckLocation()
         callback:RegisterEvent(OnZoneEvent, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA")

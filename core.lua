@@ -7581,7 +7581,7 @@ do
 
         frame.MiniFrame = CreateFrame("Button", addonName .. "_RWFMiniFrame", UIParent, "UIPanelButtonTemplate")
         frame.MiniFrame:SetSize(32, 32)
-        frame.MiniFrame:SetPoint("CENTER", frame, "CENTER", 0, 0)
+        frame.MiniFrame:SetPoint("RIGHT", frame, "RIGHT", -10, 0)
         frame.MiniFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         frame.MiniFrame:SetText()
         frame.MiniFrame:SetDisabledFontObject(_G.GameFontHighlightHuge)

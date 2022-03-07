@@ -7405,7 +7405,7 @@ do
                     for logType, logTypeData in pairs(instanceDifficultyData) do
                         ---@type RWFLootEntry
                         for key, lootEntry in pairs(logTypeData) do
-                            if now - lootEntry.timestamp < 172800 then -- delete anything older than 2 days
+                            if now - lootEntry.timestamp >= 259200 then -- delete anything older 3 days (inclusive)
                                 if not remove then
                                     remove = {}
                                 end
@@ -7510,7 +7510,7 @@ do
                         newsInfo.month = newsInfo.month + 1
                         newsInfo.day = newsInfo.day + 1
                         local timestamp = time(newsInfo)
-                        if now - timestamp < 172800 then -- only scan the past 2 days
+                        if now - timestamp <= 172800 then -- only scan the past 2 days (inclusive)
                             HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp, { who = newsInfo.whoText }))
                         end
                     end

@@ -7696,13 +7696,10 @@ do
                 self:UpdateArrow()
             end
         end)
-        frame.MiniFrame.Count = _G.UIParent:CreateFontString()
-        frame.MiniFrame.Count:SetFontObject(_G.GameFontHighlightHuge)
-        frame.MiniFrame.Count:SetPoint("TOP", frame.MiniFrame, "BOTTOM", 0, -5)
-        -- frame.MiniFrame.Text:SetPoint("TOP", frame.MiniFrame, "BOTTOM", 0, -5)
-        -- frame.MiniFrame:SetDisabledFontObject(_G.GameFontHighlightHuge)
-        -- frame.MiniFrame:SetHighlightFontObject(_G.GameFontHighlightHuge)
-        -- frame.MiniFrame:SetNormalFontObject(_G.GameFontHighlightHuge)
+        frame.MiniFrame.Text:SetPoint("TOP", frame.MiniFrame, "BOTTOM", 0, -5)
+        frame.MiniFrame:SetDisabledFontObject(_G.GameFontHighlightHuge)
+        frame.MiniFrame:SetHighlightFontObject(_G.GameFontHighlightHuge)
+        frame.MiniFrame:SetNormalFontObject(_G.GameFontHighlightHuge)
         frame.MiniFrame.tooltip = L.RWF_MINIBUTTON_TOOLTIP
         frame.MiniFrame.GetAppropriateTooltip = UIButtonMixin.GetAppropriateTooltip
         frame.MiniFrame:SetScript("OnEnter", UIButtonMixin.OnEnter)
@@ -7714,21 +7711,22 @@ do
         util:SetButtonTextureFromIcon(frame.MiniFrame, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE)
         frame.MiniFrame:Hide()
 
-        frame.MiniFrame.Anim = frame.MiniFrame:CreateAnimationGroup()
-        frame.MiniFrame.Anim.Rotation = frame.MiniFrame.Anim:CreateAnimation("Rotation")
-        frame.MiniFrame.Anim.Rotation:SetDuration(1)
-        frame.MiniFrame.Anim.Rotation:SetOrder(1)
-        frame.MiniFrame.Anim.Rotation:SetOrigin("CENTER", 0, 0)
-        frame.MiniFrame.Anim.Rotation:SetRadians(math.pi * 2)
-        frame.MiniFrame.Anim:SetScript("OnFinished", frame.MiniFrame.Anim.Play)
+        frame.MiniFrame.Spinner = CreateFrame("Button", nil, frame.MiniFrame)
+        frame.MiniFrame.Spinner:SetAllPoints()
+        util:SetButtonTextureFromIcon(frame.MiniFrame.Spinner, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE)
+        frame.MiniFrame.Spinner:Hide()
+        frame.MiniFrame.Spinner.Anim = frame.MiniFrame.Spinner:CreateAnimationGroup()
+        frame.MiniFrame.Spinner.Anim.Rotation = frame.MiniFrame.Spinner.Anim:CreateAnimation("Rotation")
+        frame.MiniFrame.Spinner.Anim.Rotation:SetDuration(1)
+        frame.MiniFrame.Spinner.Anim.Rotation:SetOrder(1)
+        frame.MiniFrame.Spinner.Anim.Rotation:SetOrigin("CENTER", 0, 0)
+        frame.MiniFrame.Spinner.Anim.Rotation:SetRadians(math.pi * 2)
+        frame.MiniFrame.Spinner.Anim:SetScript("OnFinished", frame.MiniFrame.Spinner.Anim.Play)
+        frame.MiniFrame.Spinner:SetScript("OnShow", function(self) self.Anim:Play() end)
+        frame.MiniFrame.Spinner:SetScript("OnHide", function(self) self.Anim:Stop() end)
 
         frame.MiniFrame:HookScript("OnShow", function(self)
             self:UpdateState()
-            self.Count:Show()
-        end)
-
-        frame.MiniFrame:HookScript("OnHide", function(self)
-            self.Count:Hide()
         end)
 
         frame.MiniFrame:SetScript("OnClick", function(self, button)
@@ -7840,8 +7838,7 @@ do
                 self:SetShown(not frame:IsShown())
             end
             local numItems = frame:GetNumLootItems(LOG_TYPE.News)
-            self.Count:SetText(numItems > 0 and numItems)
-            -- self:SetText(numItems > 0 and numItems)
+            self:SetText(numItems > 0 and numItems)
             -- self:SetEnabled(numItems > 0)
             if not self.isGlowing and numItems >= config:Get("rwfBackgroundRemindAt") then
                 self.isGlowing = true
@@ -7863,7 +7860,7 @@ do
             if scanningTicker then
                 return
             end
-            scanningTicker = C_Timer.NewTicker(3, function() self.Anim:Play() end, 1)
+            scanningTicker = C_Timer.NewTicker(3, function() self.Spinner:Hide() end, 1)
         end
 
         function frame.MiniFrame:StopScanning()
@@ -7871,7 +7868,7 @@ do
                 scanningTicker:Cancel()
                 scanningTicker = nil
             end
-            self.Anim:Stop()
+            self.Spinner:Show()
         end
 
         function frame:OnShow()
@@ -7926,6 +7923,7 @@ do
         frame:HookScript("OnHide", function()
             if config:Get("rwfBackgroundMode") then
                 frame.MiniFrame:Show()
+                NEWS_TICKER:Start()
             else
                 NEWS_TICKER:Stop()
             end
@@ -7937,14 +7935,14 @@ do
             end
             frame:OnShow()
             if config:Get("rwfBackgroundMode") then
-                NEWS_TICKER:Start()
                 frame.MiniFrame:SetShown(not frame:IsShown())
-            elseif frame:IsShown() then
                 NEWS_TICKER:Start()
+            elseif frame:IsShown() then
                 frame.MiniFrame:Hide()
+                NEWS_TICKER:Start()
             else
-                NEWS_TICKER:Stop()
                 frame.MiniFrame:Hide()
+                NEWS_TICKER:Stop()
             end
         end
         callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")

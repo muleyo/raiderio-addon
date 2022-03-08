@@ -7467,6 +7467,63 @@ do
         end
     end
 
+    local guildNewsTicker ---@type Ticker
+    local lastNumGuildNews ---@type number
+
+    ---@return number, number
+    local function GetNumGuildNewsInfo()
+        local numGuildNews = GetNumGuildNews() or 0
+        return lastNumGuildNews and abs(numGuildNews - lastNumGuildNews) or 0, numGuildNews
+    end
+
+    local function ScanGuildNews()
+        if guildNewsTicker then
+            return
+        end
+        local co = coroutine.create(function()
+            local numGuildNewsDiffs, numGuildNews = GetNumGuildNewsInfo()
+            if lastNumGuildNews == numGuildNews then
+                return
+            end
+            local i = numGuildNewsDiffs ~= 0 and numGuildNewsDiffs or numGuildNews
+            lastNumGuildNews = numGuildNews
+            local now = time()
+            while i > 0 do
+                i = i - 1
+                local newsInfo = C_GuildInfo.GetGuildNewsInfo(i)
+                if newsInfo and newsInfo.newsType and LOG_GUILD_NEWS_TYPES[newsInfo.newsType] then
+                    local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(newsInfo.whatText)
+                    if itemType and CanLogItem(itemLink, itemType, itemQuality, LOG_FILTER.GUILD_NEWS) then
+                        newsInfo.year = newsInfo.year + 2000
+                        newsInfo.month = newsInfo.month + 1
+                        newsInfo.day = newsInfo.day + 1
+                        local timestamp = time(newsInfo)
+                        if now - timestamp <= 172800 then -- only scan the past 2 days (inclusive)
+                            HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp, { who = newsInfo.whoText }))
+                        end
+                    end
+                    if i % 10 == 0 then
+                        coroutine.yield()
+                        numGuildNewsDiffs, numGuildNews = GetNumGuildNewsInfo()
+                        if numGuildNewsDiffs ~= 0 then
+                            lastNumGuildNews = numGuildNews
+                            i = i + numGuildNewsDiffs
+                        end
+                    end
+                end
+            end
+        end)
+        LOOT_FRAME.MiniFrame:StartScanning()
+        guildNewsTicker = C_Timer.NewTicker(0.25, function()
+            if not coroutine.resume(co) then
+                guildNewsTicker:Cancel()
+                guildNewsTicker = nil
+                LOOT_FRAME.MiniFrame:StopScanning()
+                return
+            end
+        end)
+    end
+
     local function OnEvent(event, ...)
         if event == "LOOT_READY" then
             for i = 1, GetNumLootItems() do
@@ -7501,22 +7558,7 @@ do
                 HandleLootEntry(LogItemLink(LOG_TYPE.Chat, itemType, itemID, itemLink, itemCount or 1))
             end
         elseif event == "GUILD_NEWS_UPDATE" then
-            local now = time()
-            for i = 1, GetNumGuildNews() do
-                local newsInfo = C_GuildInfo.GetGuildNewsInfo(i)
-                if newsInfo and newsInfo.newsType and LOG_GUILD_NEWS_TYPES[newsInfo.newsType] then
-                    local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(newsInfo.whatText)
-                    if itemType and CanLogItem(itemLink, itemType, itemQuality, LOG_FILTER.GUILD_NEWS) then
-                        newsInfo.year = newsInfo.year + 2000
-                        newsInfo.month = newsInfo.month + 1
-                        newsInfo.day = newsInfo.day + 1
-                        local timestamp = time(newsInfo)
-                        if now - timestamp <= 172800 then -- only scan the past 2 days (inclusive)
-                            HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp, { who = newsInfo.whoText }))
-                        end
-                    end
-                end
-            end
+            ScanGuildNews()
         end
         if LOOT_FRAME:IsShown() then
             LOOT_FRAME:OnShow()
@@ -7654,10 +7696,13 @@ do
                 self:UpdateArrow()
             end
         end)
-        frame.MiniFrame.Text:SetPoint("TOP", frame.MiniFrame, "BOTTOM", 0, -5)
-        frame.MiniFrame:SetDisabledFontObject(_G.GameFontHighlightHuge)
-        frame.MiniFrame:SetHighlightFontObject(_G.GameFontHighlightHuge)
-        frame.MiniFrame:SetNormalFontObject(_G.GameFontHighlightHuge)
+        frame.MiniFrame.Count = _G.UIParent:CreateFontString()
+        frame.MiniFrame.Count:SetFontObject(_G.GameFontHighlightHuge)
+        frame.MiniFrame.Count:SetPoint("TOP", frame.MiniFrame, "BOTTOM", 0, -5)
+        -- frame.MiniFrame.Text:SetPoint("TOP", frame.MiniFrame, "BOTTOM", 0, -5)
+        -- frame.MiniFrame:SetDisabledFontObject(_G.GameFontHighlightHuge)
+        -- frame.MiniFrame:SetHighlightFontObject(_G.GameFontHighlightHuge)
+        -- frame.MiniFrame:SetNormalFontObject(_G.GameFontHighlightHuge)
         frame.MiniFrame.tooltip = L.RWF_MINIBUTTON_TOOLTIP
         frame.MiniFrame.GetAppropriateTooltip = UIButtonMixin.GetAppropriateTooltip
         frame.MiniFrame:SetScript("OnEnter", UIButtonMixin.OnEnter)
@@ -7669,8 +7714,21 @@ do
         util:SetButtonTextureFromIcon(frame.MiniFrame, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE)
         frame.MiniFrame:Hide()
 
+        frame.MiniFrame.Anim = frame.MiniFrame:CreateAnimationGroup()
+        frame.MiniFrame.Anim.Rotation = frame.MiniFrame.Anim:CreateAnimation("Rotation")
+        frame.MiniFrame.Anim.Rotation:SetDuration(1)
+        frame.MiniFrame.Anim.Rotation:SetOrder(1)
+        frame.MiniFrame.Anim.Rotation:SetOrigin("CENTER", 0, 0)
+        frame.MiniFrame.Anim.Rotation:SetRadians(math.pi * 2)
+        frame.MiniFrame.Anim:SetScript("OnFinished", frame.MiniFrame.Anim.Play)
+
         frame.MiniFrame:HookScript("OnShow", function(self)
             self:UpdateState()
+            self.Count:Show()
+        end)
+
+        frame.MiniFrame:HookScript("OnHide", function(self)
+            self.Count:Hide()
         end)
 
         frame.MiniFrame:SetScript("OnClick", function(self, button)
@@ -7782,7 +7840,8 @@ do
                 self:SetShown(not frame:IsShown())
             end
             local numItems = frame:GetNumLootItems(LOG_TYPE.News)
-            self:SetText(numItems > 0 and numItems)
+            self.Count:SetText(numItems > 0 and numItems)
+            -- self:SetText(numItems > 0 and numItems)
             -- self:SetEnabled(numItems > 0)
             if not self.isGlowing and numItems >= config:Get("rwfBackgroundRemindAt") then
                 self.isGlowing = true
@@ -7796,6 +7855,23 @@ do
                 self.arrow1.Anim:Play()
                 C_Timer.NewTimer(0.5, function() self.arrow2:Show() self.arrow2.Anim:Play() end)
             end
+        end
+
+        local scanningTicker
+
+        function frame.MiniFrame:StartScanning()
+            if scanningTicker then
+                return
+            end
+            scanningTicker = C_Timer.NewTicker(3, function() self.Anim:Play() end, 1)
+        end
+
+        function frame.MiniFrame:StopScanning()
+            if scanningTicker then
+                scanningTicker:Cancel()
+                scanningTicker = nil
+            end
+            self.Anim:Stop()
         end
 
         function frame:OnShow()

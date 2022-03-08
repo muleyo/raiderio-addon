@@ -7860,7 +7860,7 @@ do
             if scanningTicker then
                 return
             end
-            scanningTicker = C_Timer.NewTicker(3, function() self.Spinner:Hide() end, 1)
+            scanningTicker = C_Timer.NewTicker(3, function() self.Spinner:Show() end, 1)
         end
 
         function frame.MiniFrame:StopScanning()
@@ -7868,7 +7868,7 @@ do
                 scanningTicker:Cancel()
                 scanningTicker = nil
             end
-            self.Spinner:Show()
+            self.Spinner:Hide()
         end
 
         function frame:OnShow()

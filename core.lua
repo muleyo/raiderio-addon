@@ -7923,7 +7923,6 @@ do
         frame:HookScript("OnHide", function()
             if config:Get("rwfBackgroundMode") then
                 frame.MiniFrame:Show()
-                NEWS_TICKER:Start()
             else
                 NEWS_TICKER:Stop()
             end
@@ -7937,12 +7936,13 @@ do
             if config:Get("rwfBackgroundMode") then
                 frame.MiniFrame:SetShown(not frame:IsShown())
                 NEWS_TICKER:Start()
-            elseif frame:IsShown() then
-                frame.MiniFrame:Hide()
-                NEWS_TICKER:Start()
             else
                 frame.MiniFrame:Hide()
-                NEWS_TICKER:Stop()
+                if frame:IsShown() then
+                    NEWS_TICKER:Start()
+                else
+                    NEWS_TICKER:Stop()
+                end
             end
         end
         callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")

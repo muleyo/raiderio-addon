@@ -7892,6 +7892,7 @@ do
                 if InCombatLockdown() then
                     return
                 end
+                QueryGuildNews()
                 GuildNewsSort(0)
             end,
             Start = function(self)

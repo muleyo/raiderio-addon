@@ -7470,10 +7470,21 @@ do
     local guildNewsTicker ---@type Ticker
     local lastNumGuildNews ---@type number
 
+    local function GetNumGuildNewsSkip(numGuildNews)
+        for i = 1, numGuildNews do
+            local newsInfo = C_GuildInfo.GetGuildNewsInfo(i)
+            if not newsInfo or LOG_GUILD_NEWS_TYPES[newsInfo.newsType] then
+                return i - 1
+            end
+        end
+    end
+
     ---@return number, number
     local function GetNumGuildNewsInfo()
         local numGuildNews = GetNumGuildNews() or 0
-        return lastNumGuildNews and abs(numGuildNews - lastNumGuildNews) or 0, numGuildNews
+        local numGuildNewsDiffs = lastNumGuildNews and abs(numGuildNews - lastNumGuildNews) or 0
+        local numSkipCount = numGuildNewsDiffs ~= 0 and GetNumGuildNewsSkip(numGuildNews) or 0
+        return numGuildNewsDiffs + numSkipCount, numGuildNews
     end
 
     local function ScanGuildNews()
@@ -7488,9 +7499,9 @@ do
             local i = numGuildNewsDiffs ~= 0 and numGuildNewsDiffs or numGuildNews
             lastNumGuildNews = numGuildNews
             local now = time()
-            while i > 0 do
-                i = i - 1
+            while i > 1 do
                 local newsInfo = C_GuildInfo.GetGuildNewsInfo(i)
+                i = i - 1
                 if newsInfo and newsInfo.newsType and LOG_GUILD_NEWS_TYPES[newsInfo.newsType] then
                     local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(newsInfo.whatText)
                     if itemType and CanLogItem(itemLink, itemType, itemQuality, LOG_FILTER.GUILD_NEWS) then
@@ -7502,7 +7513,7 @@ do
                             HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp, { who = newsInfo.whoText }))
                         end
                     end
-                    if i % 10 == 0 then
+                    if i % 100 == 0 then
                         coroutine.yield()
                         numGuildNewsDiffs, numGuildNews = GetNumGuildNewsInfo()
                         if numGuildNewsDiffs ~= 0 then
@@ -7514,7 +7525,7 @@ do
             end
         end)
         LOOT_FRAME.MiniFrame:StartScanning()
-        guildNewsTicker = C_Timer.NewTicker(0.25, function()
+        guildNewsTicker = C_Timer.NewTicker(0.05, function()
             if not coroutine.resume(co) then
                 guildNewsTicker:Cancel()
                 guildNewsTicker = nil

@@ -3,7 +3,7 @@ const csv = require('fast-csv');
 
 (async () => {
 
-    const build = '9.2.0.42423', expansion = 8; // 9.X (Shadowlands)
+    const build = '9.2.5.43022', expansion = 8; // 9.X (Shadowlands)
     // const build = '8.3.7.35284', expansion = 7; // 8.X (Battle for Azeroth)
 
     if (!/^\d+\.\d+\.\d+\.\d+$/.test(build) || typeof expansion !== 'number') return console.error('Missing valid build and/or expansion id.');
@@ -43,6 +43,15 @@ const csv = require('fast-csv');
             }
         }
     ];
+
+    const keystoneInstanceOverride = {
+        [391]: { // Tazavesh: Streets of Wonder
+            lfd_activity_ids: [ 1016, 1018 ],
+        },
+        [392]: { // Tazavesh: So'leah's Gambit
+            lfd_activity_ids: [ 1017, 1019 ],
+        },
+    };
 
     const parseCsv = async (text) => {
         return new Promise(resolve => {
@@ -214,6 +223,14 @@ const csv = require('fast-csv');
     dungeons.forEach(dungeon => {
         const timerInfo = getTimerInfoForDungeon(dungeon);
         dungeon.timers = timerInfo ? [ timerInfo.goldTimer, timerInfo.silverTimer, timerInfo.bronzeTimer ] : [];
+    });
+
+    dungeons.forEach(dungeon => {
+        const overrideData = keystoneInstanceOverride[dungeon.keystone_instance];
+        if (!overrideData)
+            return;
+        for (const key in overrideData)
+            dungeon[key] = overrideData[key];
     });
 
     dungeons.sort((a, b) => a.id - b.id);

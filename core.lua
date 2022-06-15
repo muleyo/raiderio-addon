@@ -3368,6 +3368,11 @@ do
         local mythicKeystoneProfile
         if cache and cache.success and cache.mythicKeystoneProfile and not cache.mythicKeystoneProfile.blocked and cache.mythicKeystoneProfile.hasRenderableData then
             mythicKeystoneProfile = cache.mythicKeystoneProfile
+        else
+            cache = provider:GetProfile(name, realm, faction == 1 and 2 or 1, region)
+            if cache and cache.success and cache.mythicKeystoneProfile and not cache.mythicKeystoneProfile.blocked and cache.mythicKeystoneProfile.hasRenderableData then
+                mythicKeystoneProfile = cache.mythicKeystoneProfile
+            end
         end
         if not mythicKeystoneProfile then
             mythicKeystoneProfile = CreateEmptyMythicKeystoneData()

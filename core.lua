@@ -2367,7 +2367,7 @@ do
             local bucketID = 1
             bucket = lookup[bucketID]
             baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes
-            guid = provider.data .. ":" .. provider.region .. ":" .. provider.faction .. ":" .. bucketID .. ":" .. baseOffset
+            guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
         elseif provider.data == ns.PROVIDER_DATA_TYPE.Raid then
             local numFieldsPerCharacter = 2
             local lookupMaxSize = floor(ns.LOOKUP_MAX_SIZE / numFieldsPerCharacter) * numFieldsPerCharacter
@@ -2375,12 +2375,12 @@ do
             local bucketID = 1 + floor(bucketOffset / lookupMaxSize)
             bucket = lookup[bucketID]
             baseOffset = 1 + bucketOffset - (bucketID - 1) * lookupMaxSize
-            guid = provider.data .. ":" .. provider.region .. ":" .. provider.faction .. ":" .. bucketID .. ":" .. baseOffset
+            guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
         elseif provider.data == ns.PROVIDER_DATA_TYPE.Recruitment then
             local bucketID = 1
             bucket = lookup[bucketID]
             baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes
-            guid = provider.data .. ":" .. provider.region .. ":" .. provider.faction .. ":" .. bucketID .. ":" .. baseOffset
+            guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
         elseif provider.data == ns.PROVIDER_DATA_TYPE.PvP then
             -- TODO
         end
@@ -3207,7 +3207,7 @@ do
     local function GetMythicKeystoneProfile(provider, ...)
         if provider.blockedPurged then
             local _, _, name, realm = ...
-            local guid = provider.data .. ":" .. provider.region .. ":" .. provider.faction .. ":-1:-1:blockedPurged"
+            local guid = provider.data .. ":" .. provider.region .. ":-1:-1:blockedPurged"
             local cache = mythicKeystoneProfileCache[guid]
             if cache then
                 return cache
@@ -8285,6 +8285,19 @@ do
         OnCancel = nil
     }
 
+    ---@class RaiderIOSettingsModuleColumn
+    ---@field public icon number|string
+    ---@field public text string
+    ---@field public check "checkButton"|"checkButton2"|"checkButton3"
+    ---@field public addon "addon1"|"addon2"|"addon3"
+
+    ---@type RaiderIOSettingsModuleColumn[]
+    local databaseModuleColumns = {
+        { icon = 525134, text = L.DB_MODULES_HEADER_MYTHIC_PLUS, check = "checkButton", addon = "addon1" }, -- 525134 = inv_relics_hourglass
+        { icon = 254652, text = L.DB_MODULES_HEADER_RAIDING, check = "checkButton2", addon = "addon2" }, -- 254652 = achievement_boss_ragnaros
+        { icon = 442272, text = L.DB_MODULES_HEADER_RECRUITMENT, check = "checkButton3", addon = "addon3" }, -- 442272 = achievement_guildperk_everybodysfriend
+    }
+
     local function CreateOptions()
         local configParentFrame = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate")
         configParentFrame:SetSize(400, 600)
@@ -8368,28 +8381,21 @@ do
             local reload
             for i = 1, #configOptions.modules do
                 local f = configOptions.modules[i]
-                local checked1 = f.checkButton:GetChecked()
-                local loaded1 = IsAddOnLoaded(f.addon1)
-                if checked1 then
-                    if not loaded1 then
-                        reload = 1
-                        EnableAddOn(f.addon1)
-                    end
-                elseif loaded1 then
-                    reload = 1
-                    DisableAddOn(f.addon1)
-                end
-                if f.addon2 then
-                    local checked2 = f.checkButton2:GetChecked()
-                    local loaded2 = IsAddOnLoaded(f.addon2)
-                    if checked2 then
-                        if not loaded2 then
+                if f.isModuleToggle then
+                    for _, column in ipairs(databaseModuleColumns) do
+                        local check = f[column.check]
+                        local addon = f[column.addon]
+                        local checked = check:GetChecked()
+                        local loaded = IsAddOnLoaded(addon)
+                        if checked then
+                            if not loaded then
+                                reload = 1
+                                EnableAddOn(addon)
+                            end
+                        elseif loaded then
                             reload = 1
-                            EnableAddOn(f.addon2)
+                            DisableAddOn(addon)
                         end
-                    elseif loaded2 then
-                        reload = 1
-                        DisableAddOn(f.addon2)
                     end
                 end
             end
@@ -8475,9 +8481,14 @@ do
         function configOptions.Update(self)
             for i = 1, #self.modules do
                 local f = self.modules[i]
-                f.checkButton:SetChecked(IsAddOnLoaded(f.addon1))
-                if f.addon2 then
-                    f.checkButton2:SetChecked(IsAddOnLoaded(f.addon2))
+                if f.isModuleToggle then
+                    for _, column in ipairs(databaseModuleColumns) do
+                        local check = f[column.check]
+                        local addon = f[column.addon]
+                        check:SetChecked(IsAddOnLoaded(addon))
+                        local _, addonTitle = GetAddOnInfo(addon)
+                        check:SetShown(addonTitle ~= nil)
+                    end
                 end
             end
             for i = 1, #self.options do
@@ -8493,7 +8504,18 @@ do
             end
         end
 
+        ---@class RaiderIOSettingsBaseWidget
+        ---@field public bg Texture
+        ---@field public text FontString
+        ---@field public checkButton CheckButton
+        ---@field public checkButton2 CheckButton
+        ---@field public checkButton3 CheckButton
+        ---@field public help Frame
+        ---@field public tooltip? string
+
         function configOptions.CreateWidget(self, widgetType, height, parentFrame)
+
+            ---@type RaiderIOSettingsBaseWidget
             local widget = CreateFrame(widgetType, nil, parentFrame or configFrame, BackdropTemplateMixin and "BackdropTemplate")
 
             if self.lastWidget then
@@ -8522,6 +8544,11 @@ do
             widget.checkButton2:Hide()
             widget.checkButton2:SetPoint("RIGHT", widget.checkButton, "LEFT", -4, 0)
             widget.checkButton2:SetScale(0.7)
+
+            widget.checkButton3 = CreateFrame("CheckButton", nil, widget, "UICheckButtonTemplate")
+            widget.checkButton3:Hide()
+            widget.checkButton3:SetPoint("RIGHT", widget.checkButton2, "LEFT", -4, 0)
+            widget.checkButton3:SetScale(0.7)
 
             widget.checkButton.fakeCheck = widget.checkButton:CreateTexture(nil, "OVERLAY")
             widget.checkButton.fakeCheck:Hide()
@@ -8560,6 +8587,7 @@ do
         end
 
         function configOptions.CreatePadding(self)
+            ---@type RaiderIOSettingsBaseWidget
             local frame = self:CreateWidget("Frame")
             local _, lastWidget = frame:GetPoint(1)
             frame:ClearAllPoints()
@@ -8570,25 +8598,50 @@ do
         end
 
         function configOptions.CreateHeadline(self, text, parentFrame)
+            ---@type RaiderIOSettingsBaseWidget
             local frame = self:CreateWidget("Frame", nil, parentFrame)
             frame.bg:Hide()
             frame.text:SetText(text)
             return frame
         end
 
-        function configOptions.CreateModuleToggle(self, name, addon1, addon2)
+        ---@class RaiderIOSettingsModuleToggleWidget : RaiderIOSettingsBaseWidget
+        ---@field public isModuleToggle boolean
+        ---@field public addon1? string
+        ---@field public addon2? string
+        ---@field public addon3? string
+
+        function configOptions.CreateModuleToggle(self, name, ...)
+            ---@type RaiderIOSettingsModuleToggleWidget
             local frame = self:CreateWidget("Frame")
+            frame.isModuleToggle = true
             frame.text:SetTextColor(1, 1, 1)
             frame.text:SetText(name)
-            frame.addon2 = addon1
-            frame.addon1 = addon2
-            frame.checkButton:Show()
-            frame.checkButton2:SetShown(frame.addon2)
+            ---@type string[]
+            local addonNames = {...}
+            for i = #addonNames, 1, -1 do
+                local addonName = addonNames[i]
+                frame["addon" .. i] = addonName
+                local check = "checkButton" .. (i > 1 and i or "")
+                check = frame[check]
+                if check then
+                    check:SetShown(addonName)
+                end
+            end
             self.modules[#self.modules + 1] = frame
             return frame
         end
 
+        ---@class RaiderIOSettingsToggleWidget : RaiderIOSettingsBaseWidget
+        ---@field public tooltip string
+        ---@field public cvar string
+        ---@field public needReload boolean
+        ---@field public isDisabled? boolean
+        ---@field public isFakeChecked? boolean
+        ---@field public callback? function
+
         function configOptions.CreateToggle(self, label, description, cvar, configOptions)
+            ---@type RaiderIOSettingsToggleWidget
             local frame = self:CreateWidget("Frame")
             frame.text:SetTextColor(1, 1, 1)
             frame.text:SetText(label)
@@ -8605,6 +8658,7 @@ do
         end
 
         function configOptions.CreateOptionToggle(self, label, description, cvar, configOptions)
+            ---@type RaiderIOSettingsToggleWidget
             local frame = self:CreateToggle(label, description, cvar, configOptions)
             frame.checkButton:SetScript("OnClick", function ()
                 self:UpdateWidgetStates()
@@ -8613,7 +8667,11 @@ do
             return frame
         end
 
+        ---@class RaiderIOSettingsRadioToggleWidget : RaiderIOSettingsToggleWidget
+        ---@field public valueRadio any
+
         function configOptions.CreateRadioToggle(self, label, description, cvar, value, configOptions)
+            ---@type RaiderIOSettingsRadioToggleWidget
             local frame = self:CreateToggle(label, description, cvar, configOptions)
 
             frame.valueRadio = value
@@ -8637,6 +8695,8 @@ do
                     end
                 end
             end)
+
+            return frame
         end
 
         -- customize the look and feel
@@ -8762,27 +8822,12 @@ do
             configOptions:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
             configOptions:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
 
-            local factionHeaderModules = {}
             configOptions:CreatePadding()
-            configOptions:CreateHeadline(L.MYTHIC_PLUS_DB_MODULES)
-            factionHeaderModules[#factionHeaderModules + 1] = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A", "RaiderIO_DB_US_H")
-            configOptions:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A", "RaiderIO_DB_EU_H")
-            configOptions:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A", "RaiderIO_DB_KR_H")
-            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A", "RaiderIO_DB_TW_H")
-
-            configOptions:CreatePadding()
-            configOptions:CreateHeadline(L.RAIDING_DB_MODULES)
-            factionHeaderModules[#factionHeaderModules + 1] = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A_R", "RaiderIO_DB_US_H_R")
-            configOptions:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A_R", "RaiderIO_DB_EU_H_R")
-            configOptions:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A_R", "RaiderIO_DB_KR_H_R")
-            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A_R", "RaiderIO_DB_TW_H_R")
-
-            configOptions:CreatePadding()
-            configOptions:CreateHeadline(L.RECRUITMENT_DB_MODULES)
-            factionHeaderModules[#factionHeaderModules + 1] = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, nil, "RaiderIO_DB_US_F")
-            configOptions:CreateModuleToggle(L.MODULE_EUROPE, nil, "RaiderIO_DB_EU_F")
-            configOptions:CreateModuleToggle(L.MODULE_KOREA, nil, "RaiderIO_DB_KR_F")
-            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, nil, "RaiderIO_DB_TW_F")
+            configOptions:CreateHeadline(L.DB_MODULES)
+            local modulesHeader = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_M", "RaiderIO_DB_US_R", "RaiderIO_DB_US_F")
+            configOptions:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_M", "RaiderIO_DB_EU_R", "RaiderIO_DB_EU_F")
+            configOptions:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_M", "RaiderIO_DB_KR_R", "RaiderIO_DB_KR_F")
+            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_M", "RaiderIO_DB_TW_R", "RaiderIO_DB_TW_F")
 
             -- add save button and cancel buttons
             local buttons = configOptions:CreateWidget("Frame", 4, configButtonFrame)
@@ -8826,18 +8871,23 @@ do
             configFrame:SetWidth(160 + maxWidth)
             configParentFrame:SetWidth(160 + maxWidth)
 
-            -- add faction headers over the database modules
-            for i = 1, #factionHeaderModules do
-                local module = factionHeaderModules[i]
-                local af = configOptions:CreateHeadline("|T132486:0:0:0:0:16:16:4:12:4:12|t") -- 132486 = inv_bannerpvp_02 (alliance)
-                af:ClearAllPoints()
-                af:SetPoint("BOTTOM", module.checkButton2, "TOP", 2, -5)
-                af:SetSize(32, 32)
-                af:SetShown(module.addon2)
-                local hf = configOptions:CreateHeadline(i == 3 and "|T236396:0:0:0:0:16:16:4:12:4:12|t" or "|T132485:0:0:0:0:16:16:4:12:4:12|t") -- 236396 = achievement_bg_winwsg (neutral) | 132485 = inv_bannerpvp_01 (horde)
-                hf:ClearAllPoints()
-                hf:SetPoint("BOTTOM", module.checkButton, "TOP", 2, -5)
-                hf:SetSize(32, 32)
+            -- add type indicator headers over the database modules
+            for _, column in ipairs(databaseModuleColumns) do
+                local check = modulesHeader[column.check]
+                local addon = modulesHeader[column.addon]
+                local icon = format("|T%s:0:0:0:0:16:16:1:15:1:15|t", column.icon)
+                local headline = configOptions:CreateHeadline(icon)
+                headline:ClearAllPoints()
+                headline:SetPoint("BOTTOM", check, "TOP", 2, -5)
+                headline:SetSize(32, 32)
+                headline:SetShown(addon)
+                if column.text then
+                    headline.tooltip = column.text
+                    headline.help.tooltip = column.text
+                    headline.help:SetAllPoints(headline.text)
+                    headline.help:SetAlpha(0)
+                    headline.help:Show()
+                end
             end
         end
 
@@ -9283,9 +9333,6 @@ do
         { region = "eu", realm = "TarrenMill", name = "Vladinator", success = true },
         { region = "eu", realm = "tArReNmIlL", name = "vLaDiNaToR", success = true },
         CheckBothTestsAboveForSameProfiles,
-        -- { region = "us", realm = "Skullcrusher", name = "Aspyrox", exists = false },
-        -- { region = "us", realm = "sKuLLcRuSHeR", name = "aSpYrOx", exists = false },
-        -- CheckBothTestsAboveForSameProfiles,
         { region = "eu", realm = "Ysondre", name = "Isak", success = true },
         { region = "eu", realm = "ySoNdRe", name = "iSaK", success = true },
         CheckBothTestsAboveForSameProfiles,
@@ -9295,20 +9342,11 @@ do
         { region = "eu", realm = "СвежевательДуш", name = "Хитей", success = true },
         { region = "eu", realm = "СВЕЖЕВАТЕЛЬДУШ", name = "ХИТЕЙ", success = true },
         CheckBothTestsAboveForSameProfiles,
-        -- { region = "eu", realm = "Ravencrest", name = "Mßx", success = true },
-        -- { region = "eu", realm = "RAVENCREST", name = "MßX", success = true },
-        -- CheckBothTestsAboveForSameProfiles,
         { region = "eu", realm = "Kazzak", name = "Donskís", success = true },
         { region = "eu", realm = "KAZZAK", name = "DONSKÍS", success = true },
         CheckBothTestsAboveForSameProfiles,
-        -- { region = "tw", realm = "憤怒使者", name = "凸姿姿凸", success = true },
-        -- { region = "tw", realm = "憤怒使者", name = "凸姿姿凸", success = true },
-        -- CheckBothTestsAboveForSameProfiles,
         { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
         { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "kr", realm = "아즈샤라", name = "벤쉬", success = true },
-        { region = "kr", realm = "아즈샤라", name = "벤쉬", success = true },
         CheckBothTestsAboveForSameProfiles,
     }
 

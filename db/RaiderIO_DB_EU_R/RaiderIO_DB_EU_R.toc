@@ -1,11 +1,11 @@
-## Interface: 90200
-## Title: Raider.IO |cffFFFFFFMythic Plus|r (Europe - Horde)
+## Interface: 90205
+## Title: Raider.IO |cffFFFFFFRaiding|r (Europe)
 ## Author: Vladinator (Vladinator-TarrenMill), Aspyr (Aspyrox-Skullcrusher) and Isak (Isak-Sargeras)
 ## Dependencies: RaiderIO
 ## DefaultState: enabled
-## X-Type: Mythic Plus
+## X-Type: Raiding
 ## X-Region: Europe
-## X-Faction: Horde
+## X-Faction: Both
 ## X-Website: https://raider.io
-../RaiderIO/db/db_eu_horde_characters.lua
-../RaiderIO/db/db_eu_horde_lookup.lua
+../RaiderIO/db/db_raiding_eu_characters.lua
+../RaiderIO/db/db_raiding_eu_lookup.lua

@@ -1,19 +1,6 @@
---
--- Raider.IO Client Config - Auto Generated On 2022-06-18T08:22:01Z
---
--- DO NOT MODIFY
---
-local _, ns = ...
-ns.CLIENT_CONFIG = {
-	["lastModified"] = "2022-06-18T08:22:01Z",
-	["enableCombatLogTracking"] = true,
-	["syncMode"] = "all",
-	["syncAmericasHorde"] = true,
-	["syncEuropeHorde"] = true,
-	["syncKoreaHorde"] = true,
-	["syncTaiwanHorde"] = true,
-	["syncAmericasAlliance"] = true,
-	["syncEuropeAlliance"] = true,
-	["syncKoreaAlliance"] = true,
-	["syncTaiwanAlliance"] = true,
-}
+-- __________        .__    .___           .___________   
+-- \______   \_____  |__| __| _/___________|   \_____  \  
+--  |       _/\__  \ |  |/ __ |/ __ \_  __ \   |/   |   \ 
+--  |    |   \ / __ \|  / /_/ \  ___/|  | \/   /    |    \
+--  |____|_  /(____  /__\____ |\___  >__|  |___\_______  /
+--         \/      \/        \/    \/                  \/ 

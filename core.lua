@@ -3922,7 +3922,6 @@ do
                 ["Aspyrox"] = "Raider.IO Creator",
                 ["Ulsoga"] = "Raider.IO Creator",
                 ["Mccaffrey"] = "Killing Keys Since 1977!",
-                ["Puffymüffins"] = "Raider.IO Guild Recruiter",
                 ["Oscassey"] = "Master of dis guys"
             },
             ["Thrall"] = {

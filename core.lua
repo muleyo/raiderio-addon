@@ -696,7 +696,7 @@ do
     end
 
     ---@param id string @Unique module ID reference.
-    ---@param data Module @Optional table with properties to copy into the newly created module.
+    ---@param data? Module @Optional table with properties to copy into the newly created module.
     function ns:NewModule(id, data)
         assert(type(id) == "string", "Raider.IO Module expects NewModule(id[, data]) where id is a string, data is optional table.")
         assert(not modules[id], "Raider.IO Module expects NewModule(id[, data]) where id is a string, that is unique and not already taken.")
@@ -739,7 +739,7 @@ do
     end
 
     ---@param id string @Unique module ID reference.
-    ---@param silent boolean @Ommit to throw if module doesn't exists.
+    ---@param silent? boolean @Ommit to throw if module doesn't exists.
     function ns:GetModule(id, silent)
         assert(type(id) == "string", "Raider.IO Module expects GetModule(id) where id is a string.")
         for _, module in pairs(modules) do
@@ -1074,8 +1074,8 @@ do
     ---@param object Region @Any interface widget object that supports the methods GetOwner.
     ---@param owner Region @Any interface widget object.
     ---@param anchor string @`ANCHOR_TOPLEFT`, `ANCHOR_NONE`, `ANCHOR_CURSOR`, etc.
-    ---@param offsetX number @Optional offset X for some of the anchors.
-    ---@param offsetY number @Optional offset Y for some of the anchors.
+    ---@param offsetX? number @Optional offset X for some of the anchors.
+    ---@param offsetY? number @Optional offset Y for some of the anchors.
     ---@return boolean, boolean, boolean @If owner was set arg1 is true. If owner was updated arg2 is true. Otherwise both will be set to face to indicate we did not update the Owner of the widget. If the owner is set to the preferred owner arg3 is true.
     function util:SetOwnerSafely(object, owner, anchor, offsetX, offsetY)
         if type(object) ~= "table" or type(object.GetOwner) ~= "function" then
@@ -1117,7 +1117,7 @@ do
         return text
     end
 
-    ---@param ts number @A time() number
+    ---@param ts? number @A time() number
     ---@return number @seconds difference between time and utc
     function util:GetTimeZoneOffset(ts)
         local utc = date("!*t", ts)
@@ -1268,7 +1268,7 @@ do
     end
 
     ---@param arg1 string @"unit", "name", or "name-realm"
-    ---@param arg2 string @"realm" or nil
+    ---@param arg2? string @"realm" or nil
     ---@return string, string, string @name, realm, unit
     function util:GetNameRealm(arg1, arg2)
         local unit, name, realm
@@ -1299,7 +1299,7 @@ do
     end
 
     ---@param level number @The level to test
-    ---@param fallback boolean @If level isn't provided, we'll fallback to this boolean
+    ---@param fallback? boolean @If level isn't provided, we'll fallback to this boolean
     function util:IsMaxLevel(level, fallback)
         if level and type(level) == "number" then
             return level >= ns.MAX_LEVEL
@@ -1308,7 +1308,7 @@ do
     end
 
     ---@param unit string
-    ---@param fallback boolean @If unit isn't valid (doesn't exists or not a player), we'll fallback to this number
+    ---@param fallback? boolean @If unit isn't valid (doesn't exists or not a player), we'll fallback to this number
     function util:IsUnitMaxLevel(unit, fallback)
         if unit and UnitExists(unit) and UnitIsPlayer(unit) then
             return util:IsMaxLevel(UnitLevel(unit), fallback)
@@ -1317,8 +1317,8 @@ do
     end
 
     ---@param arg1 string @"unit", "name", or "name-realm"
-    ---@param arg2 string @"realm" or nil
-    ---@param region string @Optional "us","kr","eu","tw","cn"
+    ---@param arg2? string @"realm" or nil
+    ---@param region? string @Optional "us","kr","eu","tw","cn"
     ---@return boolean
     function util:IsUnitPlayer(arg1, arg2, region)
         local name, realm = util:GetNameRealm(arg1, arg2)
@@ -1326,7 +1326,7 @@ do
     end
 
     ---@param bnetIDAccount number @BNet Account ID
-    ---@param getAllChars boolean @true = table, false = character as varargs
+    ---@param getAllChars? boolean @true = table, false = character as varargs
     ---@return any @Returns either a table with all characters, or the specific character varargs with name, faction and level.
     function util:GetNameRealmForBNetFriend(bnetIDAccount, getAllChars)
         local index = BNGetFriendIndex(bnetIDAccount)
@@ -1378,21 +1378,19 @@ do
         end
     end
 
-    --@param number @The wow factiongroup id
-    --@return number @The RaiderIO Faction Id
+    ---@param factionId number @The wow factiongroup id
+    ---@return number @The RaiderIO Faction Id
     function util:FactionGroupToFactionId(factionId)
         -- We've got alliance as 1, and horde as 2
         -- WoW has alliance as 1, but horde as 0
-
         if factionId == 1 then
             return 1
         end
-
         return 2
     end
 
     ---@param text string @The text that might contain the keystone level
-    ---@param fallback number @The fallback value in case we can't read the keystone level
+    ---@param fallback? number @The fallback value in case we can't read the keystone level
     ---@return number|nil @The keystone level we think is detected or nil if we don't know
     function util:GetKeystoneLevelFromText(text, fallback)
         if type(text) ~= "string" then
@@ -1496,7 +1494,7 @@ do
     local SCORE_STATS = ns:GetScoreStatsData()
 
     ---@param score number @the score amount we wish to get a color for.
-    ---@param isPreviousSeason boolean @true to show colors based on the previous season color scheme, otherwise false to use this seasons color scheme.
+    ---@param isPreviousSeason? boolean @true to show colors based on the previous season color scheme, otherwise false to use this seasons color scheme.
     ---@return number, number, number @r, g, b
     function util:GetScoreColor(score, isPreviousSeason)
         -- if no or empty score or the settings do not let us color scores return white color
@@ -1594,7 +1592,7 @@ do
         return SCORE_STATS[level]
     end
 
-    ---@param weekOffset number @optional weekly offset. set this to 1 for next week affixes.
+    ---@param weekOffset? number @optional weekly offset. set this to 1 for next week affixes.
     ---@return number, string @`affixID`, `affixInternal`
     function util:GetWeeklyAffix(weekOffset)
         local timestamp = (time() - util:GetTimeZoneOffset()) + 604800 * (weekOffset or 0)
@@ -1628,7 +1626,7 @@ do
     end
 
     ---@param width number @The width of the transparent texture.
-    ---@param height number @Optional height, defaults to 1px if ommited, not required, but available if needed.
+    ---@param height? number @Optional height, defaults to 1px if ommited, not required, but available if needed.
     ---@return string @String containing texture escape sequence. If width provided is 0 or less, the return is an empty string.
     function util:GetTextPaddingTexture(width, height)
         if not width or width <= 0 then
@@ -2087,12 +2085,9 @@ do
     ---@field public name string
     ---@field public data number @1 (mythic_keystone), 2 (raid), 3 (recruitment), 4 (pvp)
     ---@field public region string @"eu", "kr", "tw", "us"
-    ---@field public faction number @1 (alliance), 2 (horde)
     ---@field public date string @"2017-06-03T00:41:07Z"
-    ---@field public db1 table
-    ---@field public lookup1 table
-    ---@field public db2 table
-    ---@field public lookup2 table
+    ---@field public db table
+    ---@field public lookup table
     ---@field public queued boolean @Added dynamically in AddProvider - true when added, later set to false once past the queue check
     ---@field public desynced boolean @Added dynamically in AddProvider - nil or true if provider tables are desynced
     ---@field public outdated number @Added dynamically in AddProvider - nil or number of seconds past our time()
@@ -2118,10 +2113,10 @@ do
         ns.PLAYER_REALM_SLUG = ns.PLAYER_REALM_SLUG or format("%s_%s", clientversion, ns.PLAYER_REALM)
         REALMS[ns.PLAYER_REALM] = REALMS[ns.PLAYER_REALM] or ns.PLAYER_REALM_SLUG
         -- first available providers matching our faction and region
-        local firstKeystoneProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.MythicKeystone, ns.PLAYER_FACTION, ns.PLAYER_REGION)
-        local firstRaidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid, ns.PLAYER_FACTION, ns.PLAYER_REGION)
-        local firstRecruitmentProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Recruitment, ns.PLAYER_FACTION, ns.PLAYER_REGION)
-        local firstPvpProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.PvP, ns.PLAYER_FACTION, ns.PLAYER_REGION)
+        local firstKeystoneProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.MythicKeystone, ns.PLAYER_REGION)
+        local firstRaidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid, ns.PLAYER_REGION)
+        local firstRecruitmentProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Recruitment, ns.PLAYER_REGION)
+        local firstPvpProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.PvP, ns.PLAYER_REGION)
         -- create and append proxy providers (fallback to false to avoid nil gaps in the table for the ipairs)
         local aliasRealm
         for _, aliasProvider in ipairs({
@@ -2131,9 +2126,9 @@ do
             firstPvpProvider or false,
         }) do
             if aliasProvider then
-                if not aliasRealm and (aliasProvider.db1 or aliasProvider.db2) then
+                if not aliasRealm and aliasProvider.db then
                     local names = {}
-                    for name, _ in pairs(aliasProvider.db1 or aliasProvider.db2) do
+                    for name, _ in pairs(aliasProvider.db) do
                         names[#names + 1] = name
                     end
                     table.sort(names, function(a, b) return strcmputf8i(a, b) < 0 end)
@@ -2141,14 +2136,9 @@ do
                 end
                 if aliasRealm then
                     aliasProvider.name = format("%s_%s", aliasProvider.name, clientversion)
-                    for _, key in ipairs({
-                        "db1",
-                        "db2",
-                    }) do
-                        local db = aliasProvider[key]
-                        if db then
-                            db[ns.PLAYER_REALM] = db[aliasRealm]
-                        end
+                    local db = aliasProvider.db
+                    if db then
+                        db[ns.PLAYER_REALM] = db[aliasRealm]
                     end
                 end
             end
@@ -2184,10 +2174,8 @@ do
                         table.remove(providers, i)
                     elseif provider.blocked and provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone and false then -- TODO: do not purge the data just keep it labeled as blocked this way we can always lookup the players own data and still show the warning that its expired
                         provider.blockedPurged = true
-                        if provider.db1 then table.wipe(provider.db1) end
-                        if provider.db2 then table.wipe(provider.db2) end
-                        if provider.lookup1 then table.wipe(provider.lookup1) end
-                        if provider.lookup2 then table.wipe(provider.lookup2) end
+                        if provider.db then table.wipe(provider.db) end
+                        if provider.lookup then table.wipe(provider.lookup) end
                     end
                 end
             end
@@ -2220,10 +2208,10 @@ do
         return providers
     end
 
-    function provider:GetProviderByType(dataType, optionalFaction, optionalRegion)
+    function provider:GetProviderByType(dataType, optionalRegion)
         for i = 1, #providers do
             local provider = providers[i]
-            if provider.data == dataType and (not optionalFaction or provider.faction == optionalFaction) and (not optionalRegion or provider.region == optionalRegion) then
+            if provider.data == dataType and (not optionalRegion or provider.region == optionalRegion) then
                 return provider
             end
         end
@@ -2268,10 +2256,10 @@ do
         end
     end
 
-    local function GetExistingProvider(dataType, region, faction)
+    local function GetExistingProvider(dataType, region)
         for i = 1, #providers do
             local provider = providers[i]
-            if provider.data == dataType and provider.region == region and provider.faction == faction then
+            if provider.data == dataType and provider.region == region then
                 return provider
             end
         end
@@ -2285,12 +2273,12 @@ do
         end
         -- sanity check that the data structure is as we expect it to be
         assert(type(data) == "table", "Raider.IO Provider expects Add(data) where data is a table.")
-        assert(type(data.name) == "string" and type(data.data) == "number" and type(data.region) == "string" and type(data.faction) == "number" and type(data.date) == "string", "Raider.IO Provider expects AddProvider(data) where data is a table and has the appropriate structure expected of a data provider.")
+        assert(type(data.name) == "string" and type(data.data) == "number" and type(data.region) == "string" and type(data.date) == "string", "Raider.IO Provider expects AddProvider(data) where data is a table and has the appropriate structure expected of a data provider.")
         -- expand with additional information
         data.outdated, data.blocked = GetOutdatedAndBlockState(data.date)
         data.queued = true
         -- find existing provider table and expand it, otherwise insert new table
-        local provider = GetExistingProvider(data.data, data.region, data.faction)
+        local provider = GetExistingProvider(data.data, data.region)
         if provider then
             if provider.date ~= data.date then
                 provider.desynced = true
@@ -2379,7 +2367,7 @@ do
             local bucketID = 1
             bucket = lookup[bucketID]
             baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes
-            guid = provider.data .. ":" .. provider.region .. ":" .. provider.faction .. ":" .. bucketID .. ":" .. baseOffset
+            guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
         elseif provider.data == ns.PROVIDER_DATA_TYPE.Raid then
             local numFieldsPerCharacter = 2
             local lookupMaxSize = floor(ns.LOOKUP_MAX_SIZE / numFieldsPerCharacter) * numFieldsPerCharacter
@@ -2387,12 +2375,12 @@ do
             local bucketID = 1 + floor(bucketOffset / lookupMaxSize)
             bucket = lookup[bucketID]
             baseOffset = 1 + bucketOffset - (bucketID - 1) * lookupMaxSize
-            guid = provider.data .. ":" .. provider.region .. ":" .. provider.faction .. ":" .. bucketID .. ":" .. baseOffset
+            guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
         elseif provider.data == ns.PROVIDER_DATA_TYPE.Recruitment then
             local bucketID = 1
             bucket = lookup[bucketID]
             baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes
-            guid = provider.data .. ":" .. provider.region .. ":" .. provider.faction .. ":" .. bucketID .. ":" .. baseOffset
+            guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
         elseif provider.data == ns.PROVIDER_DATA_TYPE.PvP then
             -- TODO
         end
@@ -2712,7 +2700,7 @@ do
             return format("%02d-%02d", 99 - level, 99 - chests)
         end
         ---@param sortedDungeon SortedDungeon
-        ---@param focusAffix number @`nil` = consider both affixes when making the weights, `1` = focus on primary affix, `2` = focus on secondary affix
+        ---@param focusAffix? number @`nil` = consider both affixes when making the weights, `1` = focus on primary affix, `2` = focus on secondary affix
         local function getSortOrder(sortedDungeon, primaryAffixInternal, secondaryAffixInternal, focusAffix)
             local primaryOrder
             if focusAffix == nil or focusAffix == 1 then
@@ -3219,7 +3207,7 @@ do
     local function GetMythicKeystoneProfile(provider, ...)
         if provider.blockedPurged then
             local _, _, name, realm = ...
-            local guid = provider.data .. ":" .. provider.region .. ":" .. provider.faction .. ":-1:-1:blockedPurged"
+            local guid = provider.data .. ":" .. provider.region .. ":-1:-1:blockedPurged"
             local cache = mythicKeystoneProfileCache[guid]
             if cache then
                 return cache
@@ -3355,24 +3343,18 @@ do
     -- override or inject cache entry for tooltip rendering for this character with their BIO score and keystune run data
     ---@param name string @Character name
     ---@param realm string @Realm name
-    ---@param faction number @1 = Alliance, 2 = Horde
     ---@param overallScore number @BIO score directly from the game.
-    ---@param keystoneRuns BlizzardKeystoneRun[] @BIO runs directly from the game.
-    function provider:OverrideProfile(name, realm, faction, overallScore, keystoneRuns)
-        if type(name) ~= "string" or type(realm) ~= "string" or type(faction) ~= "number" or (type(overallScore) ~= "number" and type(keystoneRuns) ~= "table") then
+    ---@param keystoneRuns? BlizzardKeystoneRun[] @BIO runs directly from the game.
+    function provider:OverrideProfile(name, realm, overallScore, keystoneRuns)
+        if type(name) ~= "string" or type(realm) ~= "string" or (type(overallScore) ~= "number" and type(keystoneRuns) ~= "table") then
             return
         end
         local region = ns.PLAYER_REGION
-        local guid = region .. " " .. faction .. " " .. realm .. " " .. name
-        local cache = provider:GetProfile(name, realm, faction, region) ---@type DataProviderCharacterProfile
+        local guid = region .. " " .. realm .. " " .. name
+        local cache = provider:GetProfile(name, realm, region) ---@type DataProviderCharacterProfile
         local mythicKeystoneProfile
         if cache and cache.success and cache.mythicKeystoneProfile and not cache.mythicKeystoneProfile.blocked and cache.mythicKeystoneProfile.hasRenderableData then
             mythicKeystoneProfile = cache.mythicKeystoneProfile
-        else
-            cache = provider:GetProfile(name, realm, faction == 1 and 2 or 1, region)
-            if cache and cache.success and cache.mythicKeystoneProfile and not cache.mythicKeystoneProfile.blocked and cache.mythicKeystoneProfile.hasRenderableData then
-                mythicKeystoneProfile = cache.mythicKeystoneProfile
-            end
         end
         if not mythicKeystoneProfile then
             mythicKeystoneProfile = CreateEmptyMythicKeystoneData()
@@ -3484,7 +3466,6 @@ do
                 guid = guid,
                 name = name,
                 realm = realm,
-                faction = faction,
                 region = region
             }
         end
@@ -3496,15 +3477,14 @@ do
 
     ---@param name string
     ---@param realm string
-    ---@param faction number
-    ---@param region string @Optional, will use players own region if ommited. Include to avoid ambiguity during debug mode.
+    ---@param region? string @Optional, will use players own region if ommited. Include to avoid ambiguity during debug mode.
     ---@return DataProviderCharacterProfile @Return value is nil if not found
-    function provider:GetProfile(name, realm, faction, region)
-        if type(name) ~= "string" or type(realm) ~= "string" or type(faction) ~= "number" then
+    function provider:GetProfile(name, realm, region)
+        if type(name) ~= "string" or type(realm) ~= "string" then
             return
         end
         region = region or ns.PLAYER_REGION
-        local guid = region .. " " .. faction .. " " .. realm .. " " .. name
+        local guid = region .. " " .. realm .. " " .. name
         local cache = profileCache[guid]
         if cache then
             if not cache.success then
@@ -3518,9 +3498,9 @@ do
         local pvpProfile ---@type DataProviderPvpProfile
         for i = 1, #providers do
             local provider = providers[i]
-            if provider.faction == faction and provider.region == region then
-                local lookup = provider["lookup" .. faction]
-                local data = provider["db" .. faction]
+            if provider.region == region then
+                local lookup = provider.lookup
+                local data = provider.db
                 if lookup and data then
                     if provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
                         if provider.blockedPurged then
@@ -3558,7 +3538,6 @@ do
             guid = guid,
             name = name,
             realm = realm,
-            faction = faction,
             region = region,
             mythicKeystoneProfile = mythicKeystoneProfile,
             raidProfile = raidProfile,
@@ -3606,7 +3585,7 @@ do
         local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player") ---@type BlizzardKeystoneSummary
         if bioSummary and bioSummary.currentSeasonScore then
             ExpandSummaryWithChallengeModeMapData(bioSummary)
-            provider:OverrideProfile(ns.PLAYER_NAME, ns.PLAYER_REALM, ns.PLAYER_FACTION, bioSummary.currentSeasonScore, bioSummary.runs)
+            provider:OverrideProfile(ns.PLAYER_NAME, ns.PLAYER_REALM, bioSummary.currentSeasonScore, bioSummary.runs)
         end
     end
 
@@ -3981,7 +3960,7 @@ do
     ---@param tooltip GameTooltip
     ---@param keystoneProfile DataProviderMythicKeystoneProfile
     ---@param state TooltipState
-    ---@param isHeader boolean
+    ---@param isHeader? boolean
     ---@return boolean|nil @Returns true if this is a header and it has added data to the tooltip, otherwise false, or nil if it's not a header request.
     local function AppendBestRunToTooltip(tooltip, keystoneProfile, state, isHeader)
         local options = state.options
@@ -4069,7 +4048,7 @@ do
         for i = 0, numMembers do
             local unit = i == 0 and "player" or "party" .. i
             local name, realm = util:GetNameRealm(unit)
-            local profile = provider:GetProfile(name, realm, ns.PLAYER_FACTION)
+            local profile = provider:GetProfile(name, realm)
             if profile and profile.mythicKeystoneProfile and not profile.mythicKeystoneProfile.blocked then
                 local level = profile.mythicKeystoneProfile.dungeons[dungeon.index]
                 if level > 0 then
@@ -4124,7 +4103,7 @@ do
         end
         -- we are looking up a specific player
         if state.type == StateType.Profile then
-            local profile = provider:GetProfile(state.name, state.realm, state.faction, state.region)
+            local profile = provider:GetProfile(state.name, state.realm, state.region)
             if profile then
                 local keystoneProfile = profile.mythicKeystoneProfile
                 local raidProfile = profile.raidProfile
@@ -4282,7 +4261,7 @@ do
                     end
                     if isExtendedProfile then
                         if showRaidEncounters then
-                            local raidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid, state.faction, state.region)
+                            local raidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid, state.region)
                             for i = 1, raidProvider.currentRaid.bossCount do
                                 local progressFound = false
                                 for j = 1, #raidProfile.progress do
@@ -4478,9 +4457,9 @@ do
         -- based on the type, call the appropriate function, and in worst case scenario we hide the tooltip
         if stateType == StateType.Profile then
             if UnitExists(unit) then
-                render:ShowProfile(tooltip, unit, faction, options, args, region)
+                render:ShowProfile(tooltip, unit, options, args, region)
             else
-                render:ShowProfile(tooltip, name, realm, faction, options, args, region)
+                render:ShowProfile(tooltip, name, realm, options, args, region)
             end
         elseif stateType == StateType.Keystone then
             tooltip:SetHyperlink(args.link)
@@ -4537,25 +4516,23 @@ do
         AddProvider = function(...)
             return provider:AddProvider(...)
         end,
-        GetProfile = function(arg1, arg2, arg3, ...)
+        GetProfile = function(arg1, arg2, ...)
             if not IsReady() then
                 return
             end
-            local name, realm, faction = arg1, arg2, arg3
+            local name, realm = arg1, arg2
             local _, _, unitIsPlayer = util:IsUnit(arg1, arg2)
             if unitIsPlayer then
                 name, realm = util:GetNameRealm(arg1)
-                faction = util:GetFaction(arg1)
             elseif type(arg1) == "string" then
                 if arg1:find("-", nil, true) then
                     name, realm = util:GetNameRealm(arg1)
-                    faction = arg2
-                    return provider:GetProfile(name, realm, faction, arg3, ...)
+                    return provider:GetProfile(name, realm, ...)
                 else
                     name, realm = util:GetNameRealm(arg1, arg2)
                 end
             end
-            return provider:GetProfile(name, realm, faction, ...)
+            return provider:GetProfile(name, realm, ...)
         end,
         ShowProfile = function(tooltip, ...)
             if not IsReady() then
@@ -4673,8 +4650,7 @@ do
             local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary(unit)
             if bioSummary and bioSummary.currentSeasonScore then
                 local name, realm = util:GetNameRealm(unit)
-                local faction = util:GetFaction(unit)
-                provider:OverrideProfile(name, realm, faction, bioSummary.currentSeasonScore, bioSummary.runs)
+                provider:OverrideProfile(name, realm, bioSummary.currentSeasonScore, bioSummary.runs)
             end
             render:ShowProfile(self, unit)
         end
@@ -4740,7 +4716,7 @@ do
                 ownerExisted = false
             end
         end
-        if render:ShowProfile(GameTooltip, fullName, faction, render.Preset.UnitSmartPadding(ownerExisted)) then
+        if render:ShowProfile(GameTooltip, fullName, render.Preset.UnitSmartPadding(ownerExisted)) then
             return
         end
         if ownerSet and not ownerExisted and ownerSetSame then
@@ -4782,7 +4758,7 @@ do
             return
         end
         local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_LEFT")
-        if render:ShowProfile(GameTooltip, info.fullName, ns.PLAYER_FACTION, render.Preset.UnitSmartPadding(ownerExisted)) then
+        if render:ShowProfile(GameTooltip, info.fullName, render.Preset.UnitSmartPadding(ownerExisted)) then
             return
         end
         if ownerSet and not ownerExisted and ownerSetSame then
@@ -4865,7 +4841,7 @@ do
             return false
         end
         local name, realm = util:GetNameRealm(nameLink)
-        local profile = provider:GetProfile(name, realm, ns.PLAYER_FACTION)
+        local profile = provider:GetProfile(name, realm)
         if not profile or not profile.mythicKeystoneProfile or profile.mythicKeystoneProfile.blocked then
             return false
         end
@@ -4910,7 +4886,7 @@ do
                 local name, realm = util:GetNameRealm(unit)
                 if name then
                     index = index + 1
-                    profiles[index] = provider:GetProfile(name, realm, ns.PLAYER_FACTION) or false
+                    profiles[index] = provider:GetProfile(name, realm) or false
                 end
             end
         end
@@ -5169,7 +5145,7 @@ do
             frame.Texture = frame:CreateTexture(nil, "ARTWORK")
             frame.Texture:SetPoint("CENTER")
             frame.Texture:SetSize(32, 32)
-            frame.Texture:SetTexture()
+            frame.Texture:SetTexture(nil)
         end
         do
             frame.Text = frame:CreateFontString(nil, "ARTWORK", "ChatFontNormal")
@@ -5441,7 +5417,7 @@ do
                 if not frame:IsShown() or not config:Get("showRaiderIOProfile") then
                     return
                 end
-                profile:ShowProfile(false, "player", ns.PLAYER_FACTION)
+                profile:ShowProfile(false, "player")
             end,
             hide = function()
                 profile:HideProfile()
@@ -5670,12 +5646,12 @@ do
         tooltipAnchorPriority[1].name = anchor
         UpdateAnchorHooks()
         UpdatePosition()
-        local unit, name, realm, faction, options, args, region = render.GetQuery(...)
+        local unit, name, realm, _, options, args, region = render.GetQuery(...)
         options = options or render.Preset.Profile()
         local isPlayer = IsPlayer(unit, name, realm, region)
         if not isPlayer and config:Get("enableProfileModifier") and band(options, render.Flags.IGNORE_MOD) ~= render.Flags.IGNORE_MOD then
             if config:Get("inverseProfileModifier") == (config:Get("alwaysExtendTooltip") or band(options, render.Flags.MOD) == render.Flags.MOD) then
-                unit, name, realm, faction = "player", nil, nil, ns.PLAYER_FACTION
+                unit, name, realm = "player", nil, nil
             end
         end
         tooltip:SetOwner(tooltipAnchor, "ANCHOR_NONE")
@@ -5683,9 +5659,9 @@ do
         local success
         if not isPlayer or not config:Get("hidePersonalRaiderIOProfile") then
             if unit and UnitExists(unit) then
-                success = render:ShowProfile(tooltip, unit, faction, options, args, region)
+                success = render:ShowProfile(tooltip, unit, options, args, region)
             else
-                success = render:ShowProfile(tooltip, name, realm, faction, options, args, region)
+                success = render:ShowProfile(tooltip, name, realm, options, args, region)
             end
         end
         if not success then
@@ -5740,19 +5716,18 @@ do
             table.wipe(currentResult)
             return
         end
-
         local leaderFaction = util:FactionGroupToFactionId(entry.leaderFactionGroup)
         local activityInfo = C_LFGList.GetActivityInfoTable(entry.activityID, nil, entry.isWarMode)
         if activityInfo and activityInfo.isMythicPlusActivity and entry.leaderOverallDungeonScore then
             local leaderName, leaderRealm = util:GetNameRealm(entry.leaderName)
-            provider:OverrideProfile(leaderName, leaderRealm, leaderFaction, entry.leaderOverallDungeonScore)
+            provider:OverrideProfile(leaderName, leaderRealm, entry.leaderOverallDungeonScore)
         end
         currentResult.activityID = entry.activityID
         currentResult.leaderName = entry.leaderName
         currentResult.leaderFaction = leaderFaction
         currentResult.keystoneLevel = util:GetKeystoneLevelFromText(entry.title) or util:GetKeystoneLevelFromText(entry.description) or 0
-        local success1 = render:ShowProfile(tooltip, currentResult.leaderName, currentResult.leaderFaction, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult)
-        local success2 = profile:ShowProfile(tooltip, currentResult.leaderName, currentResult.leaderFaction, currentResult)
+        local success1 = render:ShowProfile(tooltip, currentResult.leaderName, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult)
+        local success2 = profile:ShowProfile(tooltip, currentResult.leaderName, currentResult)
         if success1 or success2 then
             if not hooked[tooltip] then
                 hooked[tooltip] = true
@@ -5783,15 +5758,13 @@ do
         if not fullName then
             return false
         end
-        local faction = util:FactionGroupToFactionId(factionGroup)
-
         if dungeonScore then
             local name, realm = util:GetNameRealm(fullName)
-            provider:OverrideProfile(name, realm, faction, dungeonScore)
+            provider:OverrideProfile(name, realm, dungeonScore)
         end
         local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, parent, "ANCHOR_NONE", 0, 0)
-        if render:ShowProfile(GameTooltip, fullName, faction, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult) then
-            return true, fullName, faction
+        if render:ShowProfile(GameTooltip, fullName, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult) then
+            return true, fullName
         end
         if ownerSet and not ownerExisted and ownerSetSame then
             GameTooltip:Hide()
@@ -5810,12 +5783,12 @@ do
         if self.applicantID and self.Members then
             HookApplicantButtons(self.Members)
         elseif self.memberIdx then
-            local shown, fullName, faction = ShowApplicantProfile(self, self:GetParent().applicantID, self.memberIdx)
+            local shown, fullName = ShowApplicantProfile(self, self:GetParent().applicantID, self.memberIdx)
             local success
             if shown then
-                success = profile:ShowProfile(GameTooltip, fullName, faction, currentResult)
+                success = profile:ShowProfile(GameTooltip, fullName, currentResult)
             else
-                success = profile:ShowProfile(false, "player", faction, currentResult)
+                success = profile:ShowProfile(false, "player", currentResult)
             end
             if not success then
                 profile:HideProfile()
@@ -5826,7 +5799,7 @@ do
     function OnLeave(self)
         GameTooltip:Hide()
         profile:HideProfile()
-        profile:ShowProfile(false, "player", ns.PLAYER_FACTION)
+        profile:ShowProfile(false, "player")
     end
 
     function tooltip:CanLoad()
@@ -5877,7 +5850,7 @@ do
             return
         end
         local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_TOPLEFT", 0, 0)
-        if render:ShowProfile(GameTooltip, fullName, ns.PLAYER_FACTION, render.Preset.UnitSmartPadding(ownerExisted)) then
+        if render:ShowProfile(GameTooltip, fullName, render.Preset.UnitSmartPadding(ownerExisted)) then
             return
         end
         if ownerSet and not ownerExisted and ownerSetSame then
@@ -5965,7 +5938,7 @@ do
             return
         end
         local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_LEFT", 0, 0)
-        if render:ShowProfile(GameTooltip, nameAndRealm, faction, render.Preset.UnitSmartPadding(ownerExisted)) then
+        if render:ShowProfile(GameTooltip, nameAndRealm, render.Preset.UnitSmartPadding(ownerExisted)) then
             return
         end
         if ownerSet and not ownerExisted and ownerSetSame then
@@ -6147,10 +6120,12 @@ do
         DEMONHUNTER = 12
     }
 
+    ---@param runInfo ChallengeModeGuildTopAttempt
     local function ConvertRunData(runInfo)
         local dungeon = util:GetDungeonByKeystoneID(runInfo.mapChallengeModeID)
+        ---@type GuildMythicKeystoneRun
         local runData = {
-            zone_id = dungeon and dungeon.id or 0,
+            zone_id = dungeon and dungeon.id or 0, ---@diagnostic disable-line: need-check-nil
             level = runInfo.keystoneLevel or 0,
             upgrades = 0,
             party = {},
@@ -6165,6 +6140,7 @@ do
         return runData
     end
 
+    ---@return GuildCollection
     local function GetGuildScoreboard()
         local scoreboard = C_ChallengeMode.GetGuildLeaders()
         local data = {}
@@ -6337,7 +6313,7 @@ do
         if not guildData or config:Get("displayWeeklyGuildBest") then
             if not guildData then
                 blizzScoreboard = true
-                guildData = GetGuildScoreboard()
+                guildData = GetGuildScoreboard() ---@type GuildCollection
             end
             keyBest = "weekly_best"
             title = L.GUILD_BEST_WEEKLY
@@ -6630,25 +6606,20 @@ do
                 break
             end
             local dataProvider = providers[x]
-            for i = 1, 2 do
-                if count >= maxResults then
-                    break
-                end
-                data = dataProvider["db" .. i]
-                if data then
-                    for k, _ in pairs(data) do
-                        if count >= maxResults then
-                            break
-                        end
-                        kl = k:lower()
-                        if not unique[kl] and kl:find(text, nil, true) == 1 then
-                            unique[kl] = true
-                            count = count + 1
-                            temp[count] = {
-                                name = k,
-                                priority = 7
-                            }
-                        end
+            data = dataProvider.db
+            if data then
+                for k, _ in pairs(data) do
+                    if count >= maxResults then
+                        break
+                    end
+                    kl = k:lower()
+                    if not unique[kl] and kl:find(text, nil, true) == 1 then
+                        unique[kl] = true
+                        count = count + 1
+                        temp[count] = {
+                            name = k,
+                            priority = 7
+                        }
                     end
                 end
             end
@@ -6678,29 +6649,24 @@ do
                 break
             end
             local dataProvider = providers[x]
-            for i = 1, 2 do
-                if rcount >= maxResults then
-                    break
-                end
-                data = dataProvider["db" .. i]
+            data = dataProvider.db
+            if data then
+                data = data[realm]
                 if data then
-                    data = data[realm]
-                    if data then
-                        count = #data
-                        for j = 2, count do
-                            if rcount >= maxResults then
-                                break
-                            end
-                            name = data[j]
-                            namel = name:lower()
-                            if not unique[namel] and namel:find(text, nil, true) == 1 then
-                                rcount = rcount + 1
-                                unique[namel] = true
-                                temp[rcount] = {
-                                    name = name,
-                                    priority = 7
-                                }
-                            end
+                    count = #data
+                    for j = 2, count do
+                        if rcount >= maxResults then
+                            break
+                        end
+                        name = data[j]
+                        namel = name:lower()
+                        if not unique[namel] and namel:find(text, nil, true) == 1 then
+                            rcount = rcount + 1
+                            unique[namel] = true
+                            temp[rcount] = {
+                                name = name,
+                                priority = 7
+                            }
                         end
                     end
                 end
@@ -6806,7 +6772,7 @@ do
             Frame:SetClampedToScreen(true)
             Frame:SetScript("OnDragStart", function() Frame:StartMoving() end)
             Frame:SetScript("OnDragStop", function() Frame:StopMovingOrSizing() end)
-            Frame:SetScript("OnShow", function() search:ShowProfile(regionBox:GetText(), nil, realmBox:GetText(), nameBox:GetText()) end)
+            Frame:SetScript("OnShow", function() search:ShowProfile(regionBox:GetText(), realmBox:GetText(), nameBox:GetText()) end)
             Frame:SetScript("OnHide", function() search:ShowProfile() end)
             Frame.close = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts")
             Frame.close:SetPoint("TOPRIGHT", -5, -3)
@@ -6882,7 +6848,7 @@ do
                     break
                 end
             end
-            search:ShowProfile(regionBox:GetText(), nil, realmBox:GetText(), nameBox:GetText())
+            search:ShowProfile(regionBox:GetText(), realmBox:GetText(), nameBox:GetText())
         end
 
         local function OnEscapePressed(self)
@@ -6930,7 +6896,7 @@ do
         searchFrame, searchRegionBox, searchRealmBox, searchNameBox, searchTooltip = CreateSearchFrame()
     end
 
-    function search:ShowProfile(region, faction, realm, name)
+    function search:ShowProfile(region, realm, name)
         if not self:IsEnabled() then
             return
         end
@@ -6941,22 +6907,10 @@ do
         end
         searchTooltip:SetParent(searchFrame)
         searchTooltip:SetOwner(searchFrame, "ANCHOR_BOTTOM", 0, -8)
-        local startIndex, stopIndex = 1, 3
-        if faction then
-            startIndex, stopIndex = faction, faction
-        end
-        local playerProfile
+        local playerProfile = provider:GetProfile(name, realm, region)
         local shown
-        for i = startIndex, stopIndex do
-            playerProfile = provider:GetProfile(name, realm, i, region)
-            if playerProfile and playerProfile.success then
-                faction = i
-                shown = render:ShowProfile(searchTooltip, name, realm, faction, bor(render.Preset.UnitNoPadding(), render.Flags.MOD_STICKY), region)
-                if shown then
-                    break
-                end
-            end
-            playerProfile = nil
+        if playerProfile then
+            shown = render:ShowProfile(searchTooltip, name, realm, bor(render.Preset.UnitNoPadding(), render.Flags.MOD_STICKY), region)
         end
         if not shown then
             render:ShowProfile(searchTooltip)
@@ -6966,7 +6920,7 @@ do
             searchTooltip:Show()
         end
         if shown then
-            profile:ShowProfile(searchFrame, name, realm, faction, render.Preset.Profile(render.Flags.IGNORE_MOD), region)
+            profile:ShowProfile(searchFrame, name, realm, render.Preset.Profile(render.Flags.IGNORE_MOD), region)
         else
             profile:HideProfile()
         end
@@ -6997,14 +6951,14 @@ do
             arg1 = arg1q[1].name
         end
         searchNameBox:SetText(arg1)
-        return search:ShowProfile(arg3, nil, arg2, arg1)
+        return search:ShowProfile(arg3, arg2, arg1)
     end
 
-    function search:SearchAndShowProfile(region, faction, realm, name)
+    function search:SearchAndShowProfile(region, realm, name)
         searchRegionBox:SetText(region)
         searchRealmBox:SetText(realm)
         searchNameBox:SetText(name)
-        return search:ShowProfile(region, faction, realm, name)
+        return search:ShowProfile(region, realm, name)
     end
 
     function search:Toggle()
@@ -7191,7 +7145,7 @@ do
         if not shown then
             search:Show()
         end
-        if search:SearchAndShowProfile(ns.PLAYER_REGION, selectedFaction, selectedRealm, selectedName) then
+        if search:SearchAndShowProfile(ns.PLAYER_REGION, selectedRealm, selectedName) then
             return true -- indicates we are showing the search dialog and we don't want to show the static popup
         elseif not shown then
             search:Hide()
@@ -7199,7 +7153,7 @@ do
     end
 
     local function GetRecruitmentProfileForDropDown()
-        local profile = provider:GetProfile(selectedName, selectedRealm, selectedFaction)
+        local profile = provider:GetProfile(selectedName, selectedRealm)
         if not profile or not profile.recruitmentProfile or not profile.recruitmentProfile.hasRenderableData then
             return
         end
@@ -8330,6 +8284,19 @@ do
         OnCancel = nil
     }
 
+    ---@class RaiderIOSettingsModuleColumn
+    ---@field public icon number|string
+    ---@field public text string
+    ---@field public check "checkButton"|"checkButton2"|"checkButton3"
+    ---@field public addon "addon1"|"addon2"|"addon3"
+
+    ---@type RaiderIOSettingsModuleColumn[]
+    local databaseModuleColumns = {
+        { icon = 525134, text = L.DB_MODULES_HEADER_MYTHIC_PLUS, check = "checkButton", addon = "addon1" }, -- 525134 = inv_relics_hourglass
+        { icon = 254652, text = L.DB_MODULES_HEADER_RAIDING, check = "checkButton2", addon = "addon2" }, -- 254652 = achievement_boss_ragnaros
+        { icon = 442272, text = L.DB_MODULES_HEADER_RECRUITMENT, check = "checkButton3", addon = "addon3" }, -- 442272 = achievement_guildperk_everybodysfriend
+    }
+
     local function CreateOptions()
         local configParentFrame = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate")
         configParentFrame:SetSize(400, 600)
@@ -8413,28 +8380,21 @@ do
             local reload
             for i = 1, #configOptions.modules do
                 local f = configOptions.modules[i]
-                local checked1 = f.checkButton:GetChecked()
-                local loaded1 = IsAddOnLoaded(f.addon1)
-                if checked1 then
-                    if not loaded1 then
-                        reload = 1
-                        EnableAddOn(f.addon1)
-                    end
-                elseif loaded1 then
-                    reload = 1
-                    DisableAddOn(f.addon1)
-                end
-                if f.addon2 then
-                    local checked2 = f.checkButton2:GetChecked()
-                    local loaded2 = IsAddOnLoaded(f.addon2)
-                    if checked2 then
-                        if not loaded2 then
+                if f.isModuleToggle then
+                    for _, column in ipairs(databaseModuleColumns) do
+                        local check = f[column.check]
+                        local addon = f[column.addon]
+                        local checked = check:GetChecked()
+                        local loaded = IsAddOnLoaded(addon)
+                        if checked then
+                            if not loaded then
+                                reload = 1
+                                EnableAddOn(addon)
+                            end
+                        elseif loaded then
                             reload = 1
-                            EnableAddOn(f.addon2)
+                            DisableAddOn(addon)
                         end
-                    elseif loaded2 then
-                        reload = 1
-                        DisableAddOn(f.addon2)
                     end
                 end
             end
@@ -8520,9 +8480,14 @@ do
         function configOptions.Update(self)
             for i = 1, #self.modules do
                 local f = self.modules[i]
-                f.checkButton:SetChecked(IsAddOnLoaded(f.addon1))
-                if f.addon2 then
-                    f.checkButton2:SetChecked(IsAddOnLoaded(f.addon2))
+                if f.isModuleToggle then
+                    for _, column in ipairs(databaseModuleColumns) do
+                        local check = f[column.check]
+                        local addon = f[column.addon]
+                        check:SetChecked(IsAddOnLoaded(addon))
+                        local _, addonTitle = GetAddOnInfo(addon)
+                        check:SetShown(addonTitle ~= nil)
+                    end
                 end
             end
             for i = 1, #self.options do
@@ -8538,7 +8503,18 @@ do
             end
         end
 
+        ---@class RaiderIOSettingsBaseWidget
+        ---@field public bg Texture
+        ---@field public text FontString
+        ---@field public checkButton CheckButton
+        ---@field public checkButton2 CheckButton
+        ---@field public checkButton3 CheckButton
+        ---@field public help Frame
+        ---@field public tooltip? string
+
         function configOptions.CreateWidget(self, widgetType, height, parentFrame)
+
+            ---@type RaiderIOSettingsBaseWidget
             local widget = CreateFrame(widgetType, nil, parentFrame or configFrame, BackdropTemplateMixin and "BackdropTemplate")
 
             if self.lastWidget then
@@ -8567,6 +8543,11 @@ do
             widget.checkButton2:Hide()
             widget.checkButton2:SetPoint("RIGHT", widget.checkButton, "LEFT", -4, 0)
             widget.checkButton2:SetScale(0.7)
+
+            widget.checkButton3 = CreateFrame("CheckButton", nil, widget, "UICheckButtonTemplate")
+            widget.checkButton3:Hide()
+            widget.checkButton3:SetPoint("RIGHT", widget.checkButton2, "LEFT", -4, 0)
+            widget.checkButton3:SetScale(0.7)
 
             widget.checkButton.fakeCheck = widget.checkButton:CreateTexture(nil, "OVERLAY")
             widget.checkButton.fakeCheck:Hide()
@@ -8605,6 +8586,7 @@ do
         end
 
         function configOptions.CreatePadding(self)
+            ---@type RaiderIOSettingsBaseWidget
             local frame = self:CreateWidget("Frame")
             local _, lastWidget = frame:GetPoint(1)
             frame:ClearAllPoints()
@@ -8615,25 +8597,50 @@ do
         end
 
         function configOptions.CreateHeadline(self, text, parentFrame)
+            ---@type RaiderIOSettingsBaseWidget
             local frame = self:CreateWidget("Frame", nil, parentFrame)
             frame.bg:Hide()
             frame.text:SetText(text)
             return frame
         end
 
-        function configOptions.CreateModuleToggle(self, name, addon1, addon2)
+        ---@class RaiderIOSettingsModuleToggleWidget : RaiderIOSettingsBaseWidget
+        ---@field public isModuleToggle boolean
+        ---@field public addon1? string
+        ---@field public addon2? string
+        ---@field public addon3? string
+
+        function configOptions.CreateModuleToggle(self, name, ...)
+            ---@type RaiderIOSettingsModuleToggleWidget
             local frame = self:CreateWidget("Frame")
+            frame.isModuleToggle = true
             frame.text:SetTextColor(1, 1, 1)
             frame.text:SetText(name)
-            frame.addon2 = addon1
-            frame.addon1 = addon2
-            frame.checkButton:Show()
-            frame.checkButton2:SetShown(frame.addon2)
+            ---@type string[]
+            local addonNames = {...}
+            for i = #addonNames, 1, -1 do
+                local addonName = addonNames[i]
+                frame["addon" .. i] = addonName
+                local check = "checkButton" .. (i > 1 and i or "")
+                check = frame[check]
+                if check then
+                    check:SetShown(addonName)
+                end
+            end
             self.modules[#self.modules + 1] = frame
             return frame
         end
 
+        ---@class RaiderIOSettingsToggleWidget : RaiderIOSettingsBaseWidget
+        ---@field public tooltip string
+        ---@field public cvar string
+        ---@field public needReload boolean
+        ---@field public isDisabled? boolean
+        ---@field public isFakeChecked? boolean
+        ---@field public callback? function
+
         function configOptions.CreateToggle(self, label, description, cvar, configOptions)
+            ---@type RaiderIOSettingsToggleWidget
             local frame = self:CreateWidget("Frame")
             frame.text:SetTextColor(1, 1, 1)
             frame.text:SetText(label)
@@ -8650,6 +8657,7 @@ do
         end
 
         function configOptions.CreateOptionToggle(self, label, description, cvar, configOptions)
+            ---@type RaiderIOSettingsToggleWidget
             local frame = self:CreateToggle(label, description, cvar, configOptions)
             frame.checkButton:SetScript("OnClick", function ()
                 self:UpdateWidgetStates()
@@ -8658,7 +8666,11 @@ do
             return frame
         end
 
+        ---@class RaiderIOSettingsRadioToggleWidget : RaiderIOSettingsToggleWidget
+        ---@field public valueRadio any
+
         function configOptions.CreateRadioToggle(self, label, description, cvar, value, configOptions)
+            ---@type RaiderIOSettingsRadioToggleWidget
             local frame = self:CreateToggle(label, description, cvar, configOptions)
 
             frame.valueRadio = value
@@ -8682,6 +8694,8 @@ do
                     end
                 end
             end)
+
+            return frame
         end
 
         -- customize the look and feel
@@ -8807,27 +8821,12 @@ do
             configOptions:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
             configOptions:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
 
-            local factionHeaderModules = {}
             configOptions:CreatePadding()
-            configOptions:CreateHeadline(L.MYTHIC_PLUS_DB_MODULES)
-            factionHeaderModules[#factionHeaderModules + 1] = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A", "RaiderIO_DB_US_H")
-            configOptions:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A", "RaiderIO_DB_EU_H")
-            configOptions:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A", "RaiderIO_DB_KR_H")
-            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A", "RaiderIO_DB_TW_H")
-
-            configOptions:CreatePadding()
-            configOptions:CreateHeadline(L.RAIDING_DB_MODULES)
-            factionHeaderModules[#factionHeaderModules + 1] = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A_R", "RaiderIO_DB_US_H_R")
-            configOptions:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A_R", "RaiderIO_DB_EU_H_R")
-            configOptions:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A_R", "RaiderIO_DB_KR_H_R")
-            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A_R", "RaiderIO_DB_TW_H_R")
-
-            configOptions:CreatePadding()
-            configOptions:CreateHeadline(L.RECRUITMENT_DB_MODULES)
-            factionHeaderModules[#factionHeaderModules + 1] = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, nil, "RaiderIO_DB_US_F")
-            configOptions:CreateModuleToggle(L.MODULE_EUROPE, nil, "RaiderIO_DB_EU_F")
-            configOptions:CreateModuleToggle(L.MODULE_KOREA, nil, "RaiderIO_DB_KR_F")
-            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, nil, "RaiderIO_DB_TW_F")
+            configOptions:CreateHeadline(L.DB_MODULES)
+            local modulesHeader = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_M", "RaiderIO_DB_US_R", "RaiderIO_DB_US_F")
+            configOptions:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_M", "RaiderIO_DB_EU_R", "RaiderIO_DB_EU_F")
+            configOptions:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_M", "RaiderIO_DB_KR_R", "RaiderIO_DB_KR_F")
+            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_M", "RaiderIO_DB_TW_R", "RaiderIO_DB_TW_F")
 
             -- add save button and cancel buttons
             local buttons = configOptions:CreateWidget("Frame", 4, configButtonFrame)
@@ -8871,18 +8870,23 @@ do
             configFrame:SetWidth(160 + maxWidth)
             configParentFrame:SetWidth(160 + maxWidth)
 
-            -- add faction headers over the database modules
-            for i = 1, #factionHeaderModules do
-                local module = factionHeaderModules[i]
-                local af = configOptions:CreateHeadline("|T132486:0:0:0:0:16:16:4:12:4:12|t") -- 132486 = inv_bannerpvp_02 (alliance)
-                af:ClearAllPoints()
-                af:SetPoint("BOTTOM", module.checkButton2, "TOP", 2, -5)
-                af:SetSize(32, 32)
-                af:SetShown(module.addon2)
-                local hf = configOptions:CreateHeadline(i == 3 and "|T236396:0:0:0:0:16:16:4:12:4:12|t" or "|T132485:0:0:0:0:16:16:4:12:4:12|t") -- 236396 = achievement_bg_winwsg (neutral) | 132485 = inv_bannerpvp_01 (horde)
-                hf:ClearAllPoints()
-                hf:SetPoint("BOTTOM", module.checkButton, "TOP", 2, -5)
-                hf:SetSize(32, 32)
+            -- add type indicator headers over the database modules
+            for _, column in ipairs(databaseModuleColumns) do
+                local check = modulesHeader[column.check]
+                local addon = modulesHeader[column.addon]
+                local icon = format("|T%s:0:0:0:0:16:16:1:15:1:15|t", column.icon)
+                local headline = configOptions:CreateHeadline(icon)
+                headline:ClearAllPoints()
+                headline:SetPoint("BOTTOM", check, "TOP", 2, -5)
+                headline:SetSize(32, 32)
+                headline:SetShown(addon)
+                if column.text then
+                    headline.tooltip = column.text
+                    headline.help.tooltip = column.text
+                    headline.help:SetAllPoints(headline.text)
+                    headline.help:SetAlpha(0)
+                    headline.help:Show()
+                end
             end
         end
 
@@ -9275,7 +9279,6 @@ do
     ---@class TestData @This can either be a `table` object with the structure as described in the class, or a `function` we call that returns `status` and `explanation` if there is something to report.
     ---@field public skip boolean @Set `true` to skip this test.
     ---@field public region string @`eu`, `us`, etc.
-    ---@field public faction string @`1` for Alliance, `2` for Horde.
     ---@field public realm string @The character realm same format as the whisper friendly `GetNormalizedRealmName()` format.
     ---@field public name string @The character name.
     ---@field public success boolean @Set `true` if the profile exists and contains data, otherwise `false` to ensure it is empty or missing.
@@ -9326,35 +9329,23 @@ do
 
     ---@type TestData[]
     local collection = {
-        { region = "eu", faction = 2, realm = "TarrenMill", name = "Vladinator", success = true },
-        { region = "eu", faction = 2, realm = "tArReNmIlL", name = "vLaDiNaToR", success = true },
+        { region = "eu", realm = "TarrenMill", name = "Vladinator", success = true },
+        { region = "eu", realm = "tArReNmIlL", name = "vLaDiNaToR", success = true },
         CheckBothTestsAboveForSameProfiles,
-        -- { region = "us", faction = 2, realm = "Skullcrusher", name = "Aspyrox", exists = false },
-        -- { region = "us", faction = 2, realm = "sKuLLcRuSHeR", name = "aSpYrOx", exists = false },
-        -- CheckBothTestsAboveForSameProfiles,
-        { region = "eu", faction = 1, realm = "Ysondre", name = "Isak", success = true },
-        { region = "eu", faction = 1, realm = "ySoNdRe", name = "iSaK", success = true },
+        { region = "eu", realm = "Ysondre", name = "Isak", success = true },
+        { region = "eu", realm = "ySoNdRe", name = "iSaK", success = true },
         CheckBothTestsAboveForSameProfiles,
-        { region = "us", faction = 2, realm = "tichondrius", name = "proview", success = true },
-        { region = "us", faction = 2, realm = "TiChOnDrIuS", name = "pRoViEw", success = true },
+        { region = "us", realm = "tichondrius", name = "proview", success = true },
+        { region = "us", realm = "TiChOnDrIuS", name = "pRoViEw", success = true },
         CheckBothTestsAboveForSameProfiles,
-        { region = "eu", faction = 2, realm = "СвежевательДуш", name = "Хитей", success = true },
-        { region = "eu", faction = 2, realm = "СВЕЖЕВАТЕЛЬДУШ", name = "ХИТЕЙ", success = true },
+        { region = "eu", realm = "СвежевательДуш", name = "Хитей", success = true },
+        { region = "eu", realm = "СВЕЖЕВАТЕЛЬДУШ", name = "ХИТЕЙ", success = true },
         CheckBothTestsAboveForSameProfiles,
-        -- { region = "eu", faction = 2, realm = "Ravencrest", name = "Mßx", success = true },
-        -- { region = "eu", faction = 2, realm = "RAVENCREST", name = "MßX", success = true },
-        -- CheckBothTestsAboveForSameProfiles,
-        { region = "eu", faction = 2, realm = "Kazzak", name = "Donskís", success = true },
-        { region = "eu", faction = 2, realm = "KAZZAK", name = "DONSKÍS", success = true },
+        { region = "eu", realm = "Kazzak", name = "Donskís", success = true },
+        { region = "eu", realm = "KAZZAK", name = "DONSKÍS", success = true },
         CheckBothTestsAboveForSameProfiles,
-        -- { region = "tw", faction = 2, realm = "憤怒使者", name = "凸姿姿凸", success = true },
-        -- { region = "tw", faction = 2, realm = "憤怒使者", name = "凸姿姿凸", success = true },
-        -- CheckBothTestsAboveForSameProfiles,
-        { region = "kr", faction = 1, realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
-        { region = "kr", faction = 1, realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "kr", faction = 2, realm = "아즈샤라", name = "벤쉬", success = true },
-        { region = "kr", faction = 2, realm = "아즈샤라", name = "벤쉬", success = true },
+        { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
+        { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
         CheckBothTestsAboveForSameProfiles,
     }
 
@@ -9374,7 +9365,7 @@ do
 
         local index = #collection
 
-        local function CreateTestFromDB(_, region, faction, db)
+        local function CreateTestFromDB(_, region, db)
             if not db then
                 return
             end
@@ -9396,8 +9387,8 @@ do
                         characterNameLC = nil
                     end
                     index = index + 3
-                    collection[index - 2] = { region = region, faction = faction, realm = realmNameLC or realmName, name = characterNameLC or characterName, success = true }
-                    collection[index - 1] = { region = region, faction = faction, realm = realmNameUC or realmName, name = characterNameUC or characterName, success = true }
+                    collection[index - 2] = { region = region, realm = realmNameLC or realmName, name = characterNameLC or characterName, success = true }
+                    collection[index - 1] = { region = region, realm = realmNameUC or realmName, name = characterNameUC or characterName, success = true }
                     collection[index] = CheckBothTestsAboveForSameProfiles
                 end
             end
@@ -9438,7 +9429,7 @@ do
                     if not args then
                         break
                     end
-                    ch(self, args[1], args[2], args[3])
+                    ch(self, args[1], args[2])
                     if cp then
                         cp(self, args)
                     end
@@ -9461,9 +9452,8 @@ do
         end
 
         for _, provider in pairs(providers) do
-            qindex = qindex + 2
-            queue[qindex - 1] = { provider.region, provider.faction, provider.db1 }
-            queue[qindex] = { provider.region, provider.faction, provider.db2 }
+            qindex = qindex + 1
+            queue[qindex] = { provider.region, provider.db }
         end
 
         local function OnCreateSuccess()
@@ -9519,9 +9509,9 @@ do
         end
     end
 
-    local function HasRegionAndFactionData(region, faction)
+    local function HasRegionData(region)
         for _, provider in pairs(providers) do
-            if provider.region == region and provider.faction == faction then
+            if provider.region == region then
                 return true
             end
         end
@@ -9538,8 +9528,8 @@ do
             if type(test) == "function" then
                 status, explanation = test(collection, id)
             elseif type(test) == "table" then
-                if not test.skip and HasRegionAndFactionData(test.region, test.faction) then
-                    test.profile = provider:GetProfile(test.name, test.realm, test.faction, test.region)
+                if not test.skip and HasRegionData(test.region) then
+                    test.profile = provider:GetProfile(test.name, test.realm, test.region)
                     if test.profile and not test.profile.success and test.success == true then
                         test.status = false
                         test.explanation = "Profile exists, no data."

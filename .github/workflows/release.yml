@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - '**'
+  workflow_dispatch:
 
 env:
   CF_API_KEY: ${{ secrets.CF_API_KEY }}
@@ -21,4 +22,4 @@ jobs:
         with:
           fetch-depth: 20
       - name: Package and release
-        uses: RaiderIO/packager@master
+        uses: BigWigsMods/packager@v2

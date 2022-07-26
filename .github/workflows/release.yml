@@ -23,3 +23,5 @@ jobs:
           fetch-depth: 20
       - name: Package and release
         uses: BigWigsMods/packager@v2
+        with:
+          args: -g retail

@@ -2190,7 +2190,9 @@ do
         elseif blocked or outdated then
             ns.Print(format(L.OUTDATED_EXPIRED_ALERT, addonName, ns.RAIDERIO_ADDON_DOWNLOAD_URL))
         elseif not providers[1] then
-            ns.Print(format(L.PROVIDER_NOT_LOADED, addonName, ns.PLAYER_FACTION_TEXT))
+            if not IsOnTournamentRealm() then
+                ns.Print(format(L.PROVIDER_NOT_LOADED, addonName, ns.PLAYER_FACTION_TEXT))
+            end
         end
     end
 

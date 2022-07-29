@@ -1145,7 +1145,9 @@ do
         local regionId = REGION[serverId]
         if not regionId then
             regionId = GetCurrentRegion()
-            ns.Print(format(L.UNKNOWN_SERVER_FOUND, addonName, guid or "N/A", GetNormalizedRealmName() or "N/A"))
+            if not IsOnTournamentRealm() then
+                ns.Print(format(L.UNKNOWN_SERVER_FOUND, addonName, guid or "N/A", GetNormalizedRealmName() or "N/A"))
+            end
         end
         if not regionId then
             return false

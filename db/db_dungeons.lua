@@ -3,15 +3,6 @@ local _, ns = ...
 -- Dungeon listing sorted by id
 ns.dungeons = {
     [1] = {
-        ["id"] = 6984, -- id
-        ["keystone_instance"] = 166, -- map_challenge_mode_id
-        ["instance_map_id"] = 1208, -- wow_instance_id
-        ["lfd_activity_ids"] = { 25, 33, 183, 405 }, -- https://wow.tools/dbc/?dbc=groupfinderactivity
-        ["timers"] = { 1080, 1440, 1800 }, -- keystone_timer_seconds * 0.6 , keystone_timer_seconds * 0.8, keystone_timer_seconds
-        ["name"] = "Grimrail Depot",
-        ["shortName"] = "GD",
-    },
-    [2] = {
         ["id"] = 6951, -- id
         ["keystone_instance"] = 169, -- map_challenge_mode_id
         ["instance_map_id"] = 1195, -- wow_instance_id
@@ -19,6 +10,15 @@ ns.dungeons = {
         ["timers"] = { 1152, 1536, 1920 }, -- keystone_timer_seconds * 0.6 , keystone_timer_seconds * 0.8, keystone_timer_seconds
         ["name"] = "Iron Docks",
         ["shortName"] = "ID",
+    },
+    [2] = {
+        ["id"] = 6984, -- id
+        ["keystone_instance"] = 166, -- map_challenge_mode_id
+        ["instance_map_id"] = 1208, -- wow_instance_id
+        ["lfd_activity_ids"] = { 25, 33, 183, 405 }, -- https://wow.tools/dbc/?dbc=groupfinderactivity
+        ["timers"] = { 1080, 1440, 1800 }, -- keystone_timer_seconds * 0.6 , keystone_timer_seconds * 0.8, keystone_timer_seconds
+        ["name"] = "Grimrail Depot",
+        ["shortName"] = "GD",
     },
     [3] = {
         ["id"] = 800001, -- id
@@ -57,7 +57,7 @@ ns.dungeons = {
         ["shortName"] = "UPPR",
     },
     [7] = {
-        ["id"] = 1013548,
+        ["id"] = 1000000,
         ["keystone_instance"] = 391,
         ["instance_map_id"] = 2441,
         ["lfd_activity_ids"] = { 1016, 1018 },
@@ -66,7 +66,7 @@ ns.dungeons = {
         ["shortName"] = "STRT",
     },
     [8] = {
-        ["id"] = 2013548,
+        ["id"] = 1000001,
         ["keystone_instance"] = 392,
         ["instance_map_id"] = 2441,
         ["lfd_activity_ids"] = { 1017, 1019 },
@@ -82,21 +82,21 @@ ns.raids = {
 		["id"] = 13224,
 		["instance_map_id"] = 2296,
 		["lfd_activity_ids"] = { 720, 721, 722 },
-		["name"] = "Castle Nathria",
-		["shortName"] = "CN",
+		["name"] = "Fated Castle Nathria",
+		["shortName"] = "FCN",
 	},
 	[2] = {
 		["id"] = 13561,
 		["instance_map_id"] = 2450,
 		["lfd_activity_ids"] = { 743, 744, 745 },
-		["name"] = "Sanctum of Domination",
-		["shortName"] = "SOD",
+		["name"] = "Fated Sanctum of Domination",
+		["shortName"] = "FSOD",
 	},
 	[3] = {
 		["id"] = 13742,
 		["instance_map_id"] = 2481,
 		["lfd_activity_ids"] = { 1020, 1021, 1022 },
-		["name"] = "Sepulcher of the First Ones",
-		["shortName"] = "SFO",
+		["name"] = "Fated Sepulcher of the First Ones",
+		["shortName"] = "FSFO",
 	}
 }

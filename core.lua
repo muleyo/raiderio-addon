@@ -2346,6 +2346,14 @@ do
         tank = 4,
     }
 
+    -- TODO: can this be part of the provider? we can see if we can make a more dynamic system
+    local ENCODER_RAIDING_FIELDS = {
+        CURRENT_FULL_PROGRESS = 1,
+        PREVIOUS_FULL_PROGRESS = 2,
+        PREVIOUS_SUMMARY_PROGRESS = 3,
+        MAINS_CURRENT_SUMMARY_PROGRESS = 4
+    }
+
     ---@param provider DataProvider
     ---@return table, number, string
     local function SearchForBucketByName(provider, lookup, data, name, realm)
@@ -2443,25 +2451,6 @@ do
             return value
         end
         return 200 + (value - 200) * 2
-    end
-
-    local function Split64BitNumber(dword)
-        local lo = band(dword, 0xfffffffff)
-        return lo, (dword - lo) / 0x100000000
-    end
-
-    local function ReadBits(lo, hi, offset, bits)
-        if offset < 32 and (offset + bits) > 32 then
-            local mask = lshift(1, (offset + bits) - 32) - 1
-            local p1 = rshift(lo, offset)
-            local p2 = lshift(band(hi, mask), 32 - offset)
-            return p1 + p2, offset + bits
-        end
-        local mask = lshift(1, bits) - 1
-        if offset < 32 then
-            return band(rshift(lo, offset), mask), offset + bits
-        end
-        return band(rshift(hi, offset - 32), mask), offset + bits
     end
 
     local DECODE_BITS_2_TABLE = { 0, 1, 2, 5 }
@@ -2987,10 +2976,54 @@ do
         return not a.isMainProgress and b.isMainProgress
     end
 
-    ---@param provider DataProvider
+    local function UnpackSummaryRaidProgress(bucket, raid, offset, results, field)
+        local bitOffset = offset
+
+        ---@type DataProviderRaidProgress
+        local prog
+        for i = 1, 2 do
+            prog = { raid = raid }
+            prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+            prog.progressCount, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
+            if prog.progressCount > 0 then
+                if not results[field] then
+                    results[field] = {}
+                end
+                results[field][#results[field] + 1] = prog
+            end
+        end
+
+        return bitOffset
+    end
+
+    local function UnpackFullRaidProgress(bucket, raid, offset, results)
+        ---@type DataProviderRaidProgress
+        local prog
+
+        local bitOffset = offset
+
+        prog = { raid = raid, progressCount = 0 }
+        prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+        prog.killsPerBoss = {}
+        for i = 1, raid.bossCount do
+            value, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+            prog.killsPerBoss[i] = DecodeBits2(value)
+            if prog.killsPerBoss[i] > 0 then
+                prog.progressCount = prog.progressCount + 1
+            end
+        end
+        if prog.progressCount > 0 then
+            results.progress[#results.progress + 1] = prog
+        end
+
+        return bitOffset
+    end
+
+
     local function UnpackRaidData(bucket, baseOffset, provider)
-        local data1 = bucket[baseOffset]
-        local data2 = bucket[baseOffset + 1]
+        local encodingOrder = provider.encodingOrder
+        local bitOffset = (baseOffset - 1) * 8
+
         ---@type DataProviderRaidProfile
         local results = {
             outdated = provider.outdated,
@@ -3001,70 +3034,35 @@ do
             hasRenderableData = false
         }
         local value
-        do
-            local lo, hi = Split64BitNumber(data1)
-            local offset = 0
-            ---@type DataProviderRaidProgress
-            local prog
-            for bucketIndex = 1, 2 do
-                prog = { raid = provider.currentRaid, progressCount = 0 }
-                prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
-                prog.killsPerBoss = {}
-                for i = 1, provider.currentRaid.bossCount do
-                    value, offset = ReadBits(lo, hi, offset, 2)
-                    prog.killsPerBoss[i] = DecodeBits2(value)
-                    if prog.killsPerBoss[i] > 0 then
-                        prog.progressCount = prog.progressCount + 1
+
+        local numCurrentRaids = #provider.currentRaids
+        local numPreviousRaids = #provider.previousRaids
+
+        for encoderIndex = 1, #encodingOrder do
+            local field = encodingOrder[encoderIndex]
+            if field == ENCODER_RAIDING_FIELDS.CURRENT_FULL_PROGRESS then
+                for raidIndex = 1, numCurrentRaids do
+                    for bucketIndex = 1, 2 do
+                        bitOffset = UnpackFullRaidProgress(bucket, provider.currentRaids[raidIndex], bitOffset, results)
                     end
                 end
-                if prog.progressCount > 0 then
-                    results.progress[#results.progress + 1] = prog
+            elseif field == ENCODER_RAIDING_FIELDS.PREVIOUS_FULL_PROGRESS then
+                for raidIndex = 1, numPreviousRaids do
+                    bitOffset = UnpackFullRaidProgress(bucket, provider.previousRaids[raidIndex], bitOffset, results)
+                end
+            elseif field == ENCODER_RAIDING_FIELDS.PREVIOUS_SUMMARY_PROGRESS then
+                for raidIndex = 1, numPreviousRaids do
+                    local previousRaid = provider.previousRaids[raidIndex]
+                    bitOffset = UnpackSummaryRaidProgress(bucket, previousRaid, bitOffset, results, "previousProgress")
+                end
+            elseif field == ENCODER_RAIDING_FIELDS.MAINS_CURRENT_SUMMARY_PROGRESS then
+                for raidIndex = 1, numCurrentRaids do
+                    local currentRaid = provider.currentRaids[raidIndex]
+                    bitOffset = UnpackSummaryRaidProgress(bucket, currentRaid, bitOffset, results, "mainProgress")
                 end
             end
         end
-        do
-            local lo, hi = Split64BitNumber(data2)
-            local offset = 0
-            ---@type DataProviderRaidProgress
-            local prog
-            do
-                prog = { raid = provider.currentRaid, progressCount = 0 }
-                prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
-                prog.killsPerBoss = {}
-                for i = 1, provider.currentRaid.bossCount do
-                    value, offset = ReadBits(lo, hi, offset, 2)
-                    prog.killsPerBoss[i] = DecodeBits2(value)
-                    if prog.killsPerBoss[i] > 0 then
-                        prog.progressCount = prog.progressCount + 1
-                    end
-                end
-                if prog.difficulty ~= 0 and prog.progressCount > 0 then
-                    results.progress[#results.progress + 1] = prog
-                end
-            end
-            for i = 1, 2 do
-                prog = { raid = provider.previousRaid }
-                prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
-                prog.progressCount, offset = ReadBits(lo, hi, offset, 4)
-                if prog.progressCount > 0 then
-                    if not results.previousProgress then
-                        results.previousProgress = {}
-                    end
-                    results.previousProgress[#results.previousProgress + 1] = prog
-                end
-            end
-            for i = 1, 2 do
-                prog = { raid = provider.currentRaid }
-                prog.difficulty, offset = ReadBits(lo, hi, offset, 2)
-                prog.progressCount, offset = ReadBits(lo, hi, offset, 4)
-                if prog.progressCount > 0 then
-                    if not results.mainProgress then
-                        results.mainProgress = {}
-                    end
-                    results.mainProgress[#results.mainProgress + 1] = prog
-                end
-            end
-        end
+
         if results.progress then
             for i = 1, #results.progress do
                 local prog = results.progress[i]
@@ -4267,7 +4265,8 @@ do
                     if isExtendedProfile then
                         if showRaidEncounters then
                             local raidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid, state.region)
-                            for i = 1, raidProvider.currentRaid.bossCount do
+                            local currentRaid = raidProvider.currentRaids[1] -- TODO: figure out which raid to look at
+                            for i = 1, currentRaid.bossCount do
                                 local progressFound = false
                                 for j = 1, #raidProfile.progress do
                                     local progress = raidProfile.progress[j]
@@ -4275,14 +4274,14 @@ do
                                     if bossKills > 0 then
                                         progressFound = true
                                         local difficulty = ns.RAID_DIFFICULTY[progress.difficulty]
-                                        tooltip:AddDoubleLine(format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix, L[format("RAID_BOSS_%s_%d", raidProvider.currentRaid.shortName, i)]), bossKills, 1, 1, 1, 1, 1, 1)
+                                        tooltip:AddDoubleLine(format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix, L[format("RAID_BOSS_%s_%d", currentRaid.shortName, i)]), bossKills, 1, 1, 1, 1, 1, 1)
                                     end
                                     if progressFound then
                                         break
                                     end
                                 end
                                 if not progressFound then
-                                    tooltip:AddDoubleLine(L[format("RAID_BOSS_%s_%d", raidProvider.currentRaid.shortName, i)], "-", 0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+                                    tooltip:AddDoubleLine(L[format("RAID_BOSS_%s_%d", currentRaid.shortName, i)], "-", 0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
                                 end
                             end
                         end

@@ -556,7 +556,7 @@ end
 -- dependencies: none
 do
 
-    ---@type Module<string, Module>
+    ---@type table<string, Module>
     local modules = {}
     local moduleIndex = 0
 
@@ -1077,7 +1077,7 @@ do
     ---@param anchor string @`ANCHOR_TOPLEFT`, `ANCHOR_NONE`, `ANCHOR_CURSOR`, etc.
     ---@param offsetX? number @Optional offset X for some of the anchors.
     ---@param offsetY? number @Optional offset Y for some of the anchors.
-    ---@return boolean, boolean, boolean @If owner was set arg1 is true. If owner was updated arg2 is true. Otherwise both will be set to face to indicate we did not update the Owner of the widget. If the owner is set to the preferred owner arg3 is true.
+    ---@return boolean|nil, boolean|nil, boolean|nil @If owner was set arg1 is true. If owner was updated arg2 is true. Otherwise both will be set to face to indicate we did not update the Owner of the widget. If the owner is set to the preferred owner arg3 is true.
     function util:SetOwnerSafely(object, owner, anchor, offsetX, offsetY)
         if type(object) ~= "table" or type(object.GetOwner) ~= "function" then
             return
@@ -1098,7 +1098,7 @@ do
     end
 
     ---@param text string @The format string like "Greetings %s! How are you?"
-    ---@return string @Returns a pattern like "Greetings (.-)%! How are you%?"
+    ---@return string|nil @Returns a pattern like "Greetings (.-)%! How are you%?"
     function util:FormatToPattern(text)
         if type(text) ~= "string" then
             return
@@ -1124,7 +1124,7 @@ do
         local utc = date("!*t", ts)
         local loc = date("*t", ts)
         loc.isdst = false
-        return difftime(time(loc), time(utc))
+        return difftime(time(loc), time(utc)) ---@diagnostic disable-line: param-type-mismatch
     end
 
     ---@param dateString string @A date like "2017-06-03T00:41:07Z"
@@ -1136,7 +1136,7 @@ do
 
     local REGION = ns:GetRegionData()
 
-    ---@return any, number @arg1 can be nil (no data), false (server is unknown), string (the ltd). arg2 can be nil (no data), or region ID.
+    ---@return boolean|string|nil, number|nil @arg1 can be nil (no data), false (server is unknown), string (the ltd). arg2 can be nil (no data), or region ID.
     function util:GetRegion()
         local guid = UnitGUID("player")
         if not guid then
@@ -1160,7 +1160,7 @@ do
         return ltd, regionId
     end
 
-    ---@return any, number @arg1 can be nil (no data), false (server is unknown), string (the ltd). arg2 can be nil (no data), or region ID.
+    ---@return boolean|string|nil, number|nil @arg1 can be nil (no data), false (server is unknown), string (the ltd). arg2 can be nil (no data), or region ID.
     function util:GetRegionForServerId(serverId)
         if not serverId then
             return
@@ -1176,7 +1176,7 @@ do
         return ltd, regionId
     end
 
-    ---@return number, string @arg1 is the faction ID or nil if no faction is appropriate. arg2 is the faction localized text for display purposes.
+    ---@return number|nil, string|nil @arg1 is the faction ID or nil if no faction is appropriate. arg2 is the faction localized text for display purposes.
     function util:GetFaction(unit)
         if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) then
             return
@@ -1202,7 +1202,9 @@ do
         end
     end
 
-    ---@return number, string @arg1 is the faction ID or nil if no faction is appropriate
+    ---@param race string
+    ---@param fallback? any
+    ---@return number|any @arg1 is the faction ID or nil if no faction is appropriate
     function util:GetFactionFromRace(race, fallback)
         return CLIENT_RACE_TO_FACTION_ID[race] or fallback
     end
@@ -1260,7 +1262,7 @@ do
     end
 
     ---@param arg1 string @"unit", "name", or "name-realm"
-    ---@param arg2 string @"realm" or nil
+    ---@param arg2 string|any @"realm" or nil
     ---@return boolean, boolean, boolean @If the args used in the call makes it out to be a proper unit, arg1 is true and only then is arg2 true if unit exists and arg3 is true if unit is a player.
     function util:IsUnit(arg1, arg2)
         if not arg2 and type(arg1) == "string" and arg1:find("-", nil, true) then
@@ -1282,7 +1284,7 @@ do
                 name, realm = UnitNameUnmodified(arg1)
                 realm = realm and realm ~= "" and realm or GetNormalizedRealmName()
             end
-            return name, realm, unit
+            return name, realm, unit ---@diagnostic disable-line: return-type-mismatch
         end
         if type(arg1) == "string" then
             if arg1:find("-", nil, true) then
@@ -1298,7 +1300,7 @@ do
                 end
             end
         end
-        return name, realm, unit
+        return name, realm, unit ---@diagnostic disable-line: return-type-mismatch
     end
 
     ---@param level number @The level to test
@@ -1330,7 +1332,7 @@ do
 
     ---@param bnetIDAccount number @BNet Account ID
     ---@param getAllChars? boolean @true = table, false = character as varargs
-    ---@return any @Returns either a table with all characters, or the specific character varargs with name, faction and level.
+    ---@return table|string|nil, string?, number? @Returns either a table with all characters, or the specific character varargs with name, faction and level.
     function util:GetNameRealmForBNetFriend(bnetIDAccount, getAllChars)
         local index = BNGetFriendIndex(bnetIDAccount)
         if not index then
@@ -1362,20 +1364,21 @@ do
     end
 
     ---@param playerLink string @The player link can be any valid clickable chat link for messaging
-    ---@return string, string @Returns the name and realm, or nil for both if invalid
+    ---@return string?, string?, number? @Returns the name and realm, or nil for both if invalid
     function util:GetNameRealmFromPlayerLink(playerLink)
         local linkString, linkText = LinkUtil.SplitLink(playerLink)
         local linkType, linkData = ExtractLinkData(linkString)
         if linkType == "player" then
-            return util:GetNameRealm(linkData)
+            local name, realm, unit = util:GetNameRealm(linkData) ---@diagnostic disable-line: param-type-mismatch
+            return name, realm
         elseif linkType == "BNplayer" then
-            local _, bnetIDAccount = strsplit(":", linkData)
+            local _, bnetIDAccount = strsplit(":", linkData) ---@diagnostic disable-line: param-type-mismatch
             if bnetIDAccount then
                 bnetIDAccount = tonumber(bnetIDAccount)
             end
             if bnetIDAccount then
                 local fullName, _, level = util:GetNameRealmForBNetFriend(bnetIDAccount)
-                local name, realm = util:GetNameRealm(fullName)
+                local name, realm = util:GetNameRealm(fullName) ---@diagnostic disable-line: param-type-mismatch
                 return name, realm, level
             end
         end
@@ -1421,7 +1424,7 @@ do
     ---@field queued boolean
     ---@field self LFDStatusResult[] @The LFDStatus itself is also a iterable table with the LFDStatusResult entries.
 
-    ---@return LFDStatus
+    ---@return LFDStatus?
     function util:GetLFDStatus()
         ---@type LFDStatus
         local temp = {
@@ -1459,7 +1462,7 @@ do
         end
     end
 
-    ---@return Dungeon
+    ---@return Dungeon?
     function util:GetInstanceStatus()
         local _, instanceType, _, _, _, _, _, instanceMapID = GetInstanceInfo()
         if instanceType ~= "party" then
@@ -1625,7 +1628,7 @@ do
         TOOLTIP_TEXT_FONTSTRING:Show()
         local width = TOOLTIP_TEXT_FONTSTRING:GetUnboundedStringWidth()
         TOOLTIP_TEXT_FONTSTRING:Hide()
-        return width
+        return width or 0
     end
 
     ---@param width number @The width of the transparent texture.
@@ -1774,7 +1777,7 @@ do
         if t == "nil" then
             s = "null"
         elseif t == "number" then
-            s = o
+            s = tostring(o)
         elseif t == "boolean" then
             s = o and "true" or "false"
         elseif t == "table" then
@@ -1924,7 +1927,7 @@ do
         }
         local unitPrefix
         local startIndex = 1
-        local endIndex = GetNumGroupMembers()
+        local endIndex = GetNumGroupMembers() ---@type number
         if IsInRaid() then
             unitPrefix = "raid"
         elseif IsInGroup() then
@@ -1975,7 +1978,7 @@ do
 
     local function CreateExportButton()
         local button = CreateFrame("Button", addonName .. "_ExportButton", _G.LFGListFrame)
-        button:SetPoint("BOTTOMRIGHT", button:GetParent(), "BOTTOM", -12, 7)
+        button:SetPoint("BOTTOMRIGHT", button:GetParent(), "BOTTOM", -12, 7) ---@diagnostic disable-line: param-type-mismatch
         button:SetSize(16, 16)
         -- script handlers
         button:SetScript("OnEnter", function() button.Border:SetVertexColor(1, 1, 1) end)
@@ -2083,6 +2086,8 @@ do
     ---@class DataProviderRaid : DataProviderMythicKeystone
     ---@field public currentRaid Raid
     ---@field public previousRaid Raid
+    ---@field public currentRaids Raid[]
+    ---@field public previousRaids Raid[]
 
     ---@class DataProvider : DataProviderRaid
     ---@field public name string
@@ -2248,7 +2253,7 @@ do
     end
 
     ---@param dateString string @The date string from the provider
-    ---@return number, boolean @arg1 is seconds difference between now and the date in the provider. arg2 is true if we should block from showing data from this provider
+    ---@return number?, boolean? @arg1 is seconds difference between now and the date in the provider. arg2 is true if we should block from showing data from this provider
     local function GetOutdatedAndBlockState(dateString)
         local dateAsTime = util:GetTimeFromDateString(dateString)
         local tzOffset = util:GetTimeZoneOffset(dateAsTime)
@@ -2351,11 +2356,11 @@ do
         CURRENT_FULL_PROGRESS = 1,
         PREVIOUS_FULL_PROGRESS = 2,
         PREVIOUS_SUMMARY_PROGRESS = 3,
-        MAINS_CURRENT_SUMMARY_PROGRESS = 4
+        MAINS_CURRENT_SUMMARY_PROGRESS = 4,
     }
 
     ---@param provider DataProvider
-    ---@return table, number, string
+    ---@return table?, number?, string?, string?, string?
     local function SearchForBucketByName(provider, lookup, data, name, realm)
         local internalRealm = realm
         local realmData = data[realm]
@@ -2869,6 +2874,14 @@ do
         end
     end
 
+    ---@param bucket table
+    ---@param baseOffset number
+    ---@param encodingOrder number[]
+    ---@param providerOutdated number
+    ---@param providerBlocked number
+    ---@param name? string
+    ---@param realm? string
+    ---@param region? string
     local function UnpackMythicKeystoneData(bucket, baseOffset, encodingOrder, providerOutdated, providerBlocked, name, realm, region)
         ---@type DataProviderMythicKeystoneProfile
         local results = { outdated = providerOutdated, hasRenderableData = false }
@@ -2973,30 +2986,35 @@ do
         return not a.isMainProgress and b.isMainProgress
     end
 
+    ---@param bucket table
+    ---@param raid Raid
+    ---@param offset number
+    ---@param results DataProviderRaidProfile
+    ---@param field "mainProgress"|"previousProgress"|"progress"
     local function UnpackSummaryRaidProgress(bucket, raid, offset, results, field)
+        local prog = { raid = raid } ---@type DataProviderRaidProgress
         local bitOffset = offset
-
-        ---@type DataProviderRaidProgress
-        local prog = { raid = raid }
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
         prog.progressCount, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
         if prog.progressCount > 0 then
-            if not results[field] then
-                results[field] = {}
+            local temp = results[field]
+            if not temp then
+                temp = {}
+                results[field] = temp
             end
-            results[field][#results[field] + 1] = prog
+            temp[#temp + 1] = prog
         end
-
         return bitOffset
     end
 
+    ---@param bucket table
+    ---@param raid Raid
+    ---@param offset number
+    ---@param results DataProviderRaidProfile
     local function UnpackFullRaidProgress(bucket, raid, offset, results)
-        ---@type DataProviderRaidProgress
-        local prog
-
+        local prog = { raid = raid, progressCount = 0 } ---@type DataProviderRaidProgress
         local bitOffset = offset
-
-        prog = { raid = raid, progressCount = 0 }
+        local value
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
         prog.killsPerBoss = {}
         for i = 1, raid.bossCount do
@@ -3009,15 +3027,15 @@ do
         if prog.progressCount > 0 then
             results.progress[#results.progress + 1] = prog
         end
-
         return bitOffset
     end
 
-
+    ---@param bucket table
+    ---@param baseOffset number
+    ---@param provider DataProvider
     local function UnpackRaidData(bucket, baseOffset, provider)
         local encodingOrder = provider.encodingOrder
         local bitOffset = (baseOffset - 1) * 8
-
         ---@type DataProviderRaidProfile
         local results = {
             outdated = provider.outdated,
@@ -3028,10 +3046,8 @@ do
             hasRenderableData = false
         }
         local value
-
         local numCurrentRaids = #provider.currentRaids
         local numPreviousRaids = #provider.previousRaids
-
         for encoderIndex = 1, #encodingOrder do
             local field = encodingOrder[encoderIndex]
             if field == ENCODER_RAIDING_FIELDS.CURRENT_FULL_PROGRESS then
@@ -3060,7 +3076,6 @@ do
                 end
             end
         end
-
         if results.progress then
             for i = 1, #results.progress do
                 local prog = results.progress[i]
@@ -3213,13 +3228,13 @@ do
             if cache then
                 return cache
             end
-            local profile = UnpackMythicKeystoneData(nil, nil, nil, true, true, name, realm, provider.region)
+            local profile = UnpackMythicKeystoneData(nil, nil, nil, true, true, name, realm, provider.region) ---@diagnostic disable-line: param-type-mismatch
             profile.blockedPurged = true
             mythicKeystoneProfileCache[guid] = profile
             return profile
         end
         local bucket, baseOffset, guid, name, realm = SearchForBucketByName(provider, ...)
-        if not bucket then
+        if not bucket or not baseOffset or not guid then
             return
         end
         local cache = mythicKeystoneProfileCache[guid]
@@ -3234,7 +3249,7 @@ do
     ---@param provider DataProvider
     local function GetRaidProfile(provider, ...)
         local bucket, baseOffset, guid = SearchForBucketByName(provider, ...)
-        if not bucket then
+        if not bucket or not baseOffset or not guid then
             return
         end
         local cache = raidProfileCache[guid]
@@ -3249,7 +3264,7 @@ do
     ---@param provider DataProvider
     local function GetRecruitmentProfile(provider, ...)
         local bucket, baseOffset, guid = SearchForBucketByName(provider, ...)
-        if not bucket then
+        if not bucket or not baseOffset or not guid then
             return
         end
         local cache = recruitmentProfileCache[guid]
@@ -3264,7 +3279,7 @@ do
     ---@param provider DataProvider
     local function GetPvpProfile(provider, ...)
         local bucket, baseOffset, guid = SearchForBucketByName(provider, ...)
-        if not bucket then
+        if not bucket or not baseOffset or not guid then
             return
         end
         local cache = pvpProfileCache[guid]
@@ -3415,7 +3430,7 @@ do
                             mythicKeystoneProfile.hasOverrideDungeonRuns = true
                             local _, _, dungeonTimeLimit = C_ChallengeMode.GetMapUIInfo(run.challengeModeID)
                             local goldTimeLimit, silverTimeLimit, bronzeTimeLimit = -1, -1, dungeonTimeLimit
-                            if dungeon.timers then
+                            if dungeon and dungeon.timers then
                                 goldTimeLimit, silverTimeLimit, bronzeTimeLimit = dungeon.timers[1], dungeon.timers[2], dungeonTimeLimit or dungeon.timers[3] -- TODO: always prefer the game data time limit for bronze or the addons time limit?
                             end
                             local runSeconds = runBestRunDurationMS / 1000
@@ -3479,7 +3494,7 @@ do
     ---@param name string
     ---@param realm string
     ---@param region? string @Optional, will use players own region if ommited. Include to avoid ambiguity during debug mode.
-    ---@return DataProviderCharacterProfile @Return value is nil if not found
+    ---@return DataProviderCharacterProfile? @Return value is nil if not found
     function provider:GetProfile(name, realm, region)
         if type(name) ~= "string" or type(realm) ~= "string" then
             return
@@ -3493,10 +3508,10 @@ do
             end
             return cache
         end
-        local mythicKeystoneProfile ---@type DataProviderMythicKeystoneProfile
-        local raidProfile ---@type DataProviderRaidProfile
-        local recruitmentProfile ---@type DataProviderRecruitmentProfile
-        local pvpProfile ---@type DataProviderPvpProfile
+        local mythicKeystoneProfile ---@type DataProviderMythicKeystoneProfile|nil
+        local raidProfile ---@type DataProviderRaidProfile|nil
+        local recruitmentProfile ---@type DataProviderRecruitmentProfile|nil
+        local pvpProfile ---@type DataProviderPvpProfile|nil
         for i = 1, #providers do
             local provider = providers[i]
             if provider.region == region then
@@ -3689,7 +3704,7 @@ do
     local util = ns:GetModule("Util") ---@type UtilModule
     local provider = ns:GetModule("Provider") ---@type ProviderModule
 
-    ---@return string, string, string, number, number @Always call as `render.GetQuery(...)`. Returns the following args: unit, name, realm, faction, options, args
+    ---@return string, string, string, number, number, table, string @Always call as `render.GetQuery(...)`. Returns the following args: unit, name, realm, faction, options, args
     function render.GetQuery(...)
         local arg1, arg2, arg3, arg4, arg5, arg6 = ...
         local name, realm, unit = util:GetNameRealm(arg1, arg2)
@@ -3781,7 +3796,7 @@ do
         Keystone = bor(render.Flags.MYTHIC_KEYSTONE, render.Flags.KEYSTONE_TOOLTIP, render.Flags.SHOW_PADDING, render.Flags.SHOW_HEADER, render.Flags.SHOW_LFD),
     }
 
-    render.Preset.UnitNoPadding = bxor(render.Preset.Unit, render.Flags.SHOW_PADDING)
+    render.Preset.UnitNoPadding = bxor(render.Preset.Unit, render.Flags.SHOW_PADDING) ---@diagnostic disable-line: param-type-mismatch
 
     local function IsModifierKeyDownOrAlwaysExtend()
         return IsModifierKeyDown() or config:Get("alwaysExtendTooltip")
@@ -3936,7 +3951,7 @@ do
     end
 
     ---Takes tripples of `Dungeon, Level, Chests` args, returns the best run back.
-    ---@return Dungeon, number, number @`arg1`= the Dungeon, `arg2` = keystone level, `arg3` = chests
+    ---@return Dungeon?, number, number @`arg1`= the Dungeon, `arg2` = keystone level, `arg3` = chests
     local function GetBestRunOfDungeons(...)
         local bestDungeon ---@type Dungeon|nil
         local bestLevel = 0 ---@type number
@@ -4006,7 +4021,7 @@ do
         end
         if best.dungeon and best.level > 0 then
             local label, r, g, b = L.BEST_FOR_DUNGEON, 1, 1, 1
-            hasHeaderData = isHeader
+            hasHeaderData = isHeader ---@diagnostic disable-line: cast-local-type
             if best.dungeon == keystoneProfile.maxDungeon then
                 if isHeader then
                     label, r, g, b = L.RAIDERIO_BEST_RUN, 1, 0.85, 0
@@ -4085,7 +4100,7 @@ do
                 level > 0 and level or "-",
                 "|r",
             }
-            text = table.concat(text)
+            text = table.concat(text) ---@diagnostic disable-line: cast-local-type
             lines[i] = text
             local width = util:GetTooltipTextWidth(text)
             lineWidth[i] = width
@@ -4321,7 +4336,7 @@ do
                     if easterEgg then
                         easterEgg = easterEgg[profile.realm]
                         if easterEgg then
-                            easterEgg = easterEgg[profile.name]
+                            easterEgg = easterEgg[profile.name] ---@diagnostic disable-line: cast-local-type
                         end
                     end
                     if showPadding and (not showTopLinePadding or isAnyBlockShown) and (isBlocked or isOutdated or easterEgg) then
@@ -4707,7 +4722,7 @@ do
                 faction = ns.PLAYER_FACTION
             end
         end
-        if not fullName or not util:IsMaxLevel(level) then
+        if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
             return
         end
         local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
@@ -4839,7 +4854,7 @@ do
             guild = nil
             nameLink, name, level, race, class, zone = text:match(FORMAT)
         end
-        if not nameLink or not level or not util:IsMaxLevel(tonumber(level)) then
+        if not nameLink or not level or not util:IsMaxLevel(tonumber(level)) then ---@diagnostic disable-line: param-type-mismatch
             return false
         end
         local name, realm = util:GetNameRealm(nameLink)
@@ -4918,8 +4933,8 @@ do
         return 2, level2, fractionalTime2, level1 == level2 and 1 or 2
     end
 
-    ---@param run SortedDungeon
-    ---@param currentRun SortedDungeon
+    ---@param run? SortedDungeon
+    ---@param currentRun? SortedDungeon
     local function GetDungeonUpgrade(run, currentRun)
         if not run or not currentRun then
             return
@@ -4938,11 +4953,11 @@ do
         return diff
     end
 
-    ---@param run1 SortedDungeon
-    ---@param diff1 DungeonDifference
-    ---@param run2 SortedDungeon
-    ---@param diff2 DungeonDifference
-    ---@return SortedDungeon, DungeonDifference
+    ---@param run1? SortedDungeon
+    ---@param diff1? DungeonDifference
+    ---@param run2? SortedDungeon
+    ---@param diff2? DungeonDifference
+    ---@return SortedDungeon?, DungeonDifference?
     local function CompareDungeonUpgrades(run1, diff1, run2, diff2)
         if not run2 then
             if not run1 or not run1.level then
@@ -5017,7 +5032,7 @@ do
             bestRun = CopyRun(currentRun)
             bestUpgrade = {}
         elseif bestRun == dbRun then
-            bestRun = CopyRun(dbRun)
+            bestRun = CopyRun(dbRun) ---@diagnostic disable-line: param-type-mismatch
         end
         memberCachedRuns[currentRun.dungeon.index] = bestRun
         local side = CompareLevelAndFractionalTime(bestRun.level, currentRun.level, bestRun.fractionalTime, currentRun.fractionalTime)
@@ -5030,12 +5045,12 @@ do
                 bestUpgrade.levelDiff = currentRun.level - bestRun.level
                 bestUpgrade.fractionalTimeDiff = currentRun.fractionalTime - bestRun.fractionalTime
             end
-            bestUpgrade.isUpgrade = bestIsCurrentRun or bestUpgrade.levelDiff > 0 or (bestUpgrade.levelDiff == 0 and bestUpgrade.fractionalTimeDiff < 0)
+            bestUpgrade.isUpgrade = bestIsCurrentRun or bestUpgrade.levelDiff > 0 or (bestUpgrade.levelDiff == 0 and bestUpgrade.fractionalTimeDiff < 0) ---@diagnostic disable-line: need-check-nil
             bestRun.chests = currentRun.chests
             bestRun.level = currentRun.level
             bestRun.fractionalTime = currentRun.fractionalTime
         end
-        return bestRun, bestUpgrade
+        return bestRun, bestUpgrade ---@diagnostic disable-line: return-type-mismatch
     end
 
     ---@param members DataProviderCharacterProfile[] @Table of group member profiles
@@ -5147,7 +5162,7 @@ do
             frame.Texture = frame:CreateTexture(nil, "ARTWORK")
             frame.Texture:SetPoint("CENTER")
             frame.Texture:SetSize(32, 32)
-            frame.Texture:SetTexture(nil)
+            frame.Texture:SetTexture(nil) ---@diagnostic disable-line: param-type-mismatch
         end
         do
             frame.Text = frame:CreateFontString(nil, "ARTWORK", "ChatFontNormal")
@@ -5471,6 +5486,7 @@ do
                 end
             end
         end
+        return ---@diagnostic disable-line: missing-return-value
     end
 
     ---@class ConfigProfilePoint
@@ -5613,7 +5629,7 @@ do
         callback:RegisterEvent(OnModifierStateChanged, "MODIFIER_STATE_CHANGED")
     end
 
-    ---@return boolean, boolean @arg1 is true if the toggle was successfull, otherwise false if we can't toggle right now. arg2 is set to true if the frame is now draggable, otherwise false for locked.
+    ---@return boolean, boolean? @arg1 is true if the toggle was successfull, otherwise false if we can't toggle right now. arg2 is set to true if the frame is now draggable, otherwise false for locked.
     function profile:ToggleDrag()
         if not profile:IsEnabled() then
             return false
@@ -5642,7 +5658,7 @@ do
     ---@return boolean
     function profile:ShowProfile(anchor, ...)
         if not profile:IsEnabled() or not config:Get("showRaiderIOProfile") then
-            return
+            return ---@diagnostic disable-line: missing-return-value
         end
         showProfileArgs = { anchor, ... }
         tooltipAnchorPriority[1].name = anchor
@@ -5653,7 +5669,7 @@ do
         local isPlayer = IsPlayer(unit, name, realm, region)
         if not isPlayer and config:Get("enableProfileModifier") and band(options, render.Flags.IGNORE_MOD) ~= render.Flags.IGNORE_MOD then
             if config:Get("inverseProfileModifier") == (config:Get("alwaysExtendTooltip") or band(options, render.Flags.MOD) == render.Flags.MOD) then
-                unit, name, realm = "player", nil, nil
+                unit, name, realm = "player", nil, nil ---@diagnostic disable-line: cast-local-type
             end
         end
         tooltip:SetOwner(tooltipAnchor, "ANCHOR_NONE")
@@ -5848,7 +5864,7 @@ do
             return
         end
         local fullName, _, _, level = GetGuildRosterInfo(self.guildIndex)
-        if not fullName or not util:IsMaxLevel(level) then
+        if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
             return
         end
         local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_TOPLEFT", 0, 0)
@@ -6196,7 +6212,7 @@ do
     local GuildWeeklyRunMixin = {}
 
     ---@param runInfo GuildMythicKeystoneRun
-    ---@return boolean @true if successfull, otherwise false if we can't display this run
+    ---@return boolean? @true if successfull, otherwise false if we can't display this run
     function GuildWeeklyRunMixin:SetUp(runInfo)
         self.runInfo = runInfo
         if not runInfo then
@@ -6418,7 +6434,7 @@ do
         end
         -- no runs available overlay
         do
-            frame.GuildBestNoRun = CreateFrame("Frame", nil, frame)
+            frame.GuildBestNoRun = CreateFrame("Frame", nil, frame) ---@diagnostic disable-line: param-type-mismatch
             frame.GuildBestNoRun:SetSize(95, 13)
             frame.GuildBestNoRun:SetPoint("TOPLEFT", frame.Title, "BOTTOMLEFT", 0, -14)
             frame.GuildBestNoRun.Text = frame.GuildBestNoRun:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
@@ -6429,9 +6445,9 @@ do
         end
         -- toggle between weekly and season best
         do
-            frame.SwitchGuildBest = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+            frame.SwitchGuildBest = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate") ---@diagnostic disable-line: param-type-mismatch
             frame.SwitchGuildBest:SetSize(15, 15)
-            frame.SwitchGuildBest:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 8, 5)
+            frame.SwitchGuildBest:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 8, 5) ---@diagnostic disable-line: param-type-mismatch
             frame.SwitchGuildBest:SetScript("OnShow", GuildWeeklyFrameSwitch_OnShow)
             frame.SwitchGuildBest:SetScript("OnClick", GuildWeeklyFrameSwitch_OnClick)
             frame.SwitchGuildBest.text:SetFontObject("GameFontNormalTiny2")
@@ -6776,13 +6792,13 @@ do
             Frame:SetScript("OnDragStop", function() Frame:StopMovingOrSizing() end)
             Frame:SetScript("OnShow", function() search:ShowProfile(regionBox:GetText(), realmBox:GetText(), nameBox:GetText()) end)
             Frame:SetScript("OnHide", function() search:ShowProfile() end)
-            Frame.close = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts")
+            Frame.close = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts") ---@diagnostic disable-line: param-type-mismatch
             Frame.close:SetPoint("TOPRIGHT", -5, -3)
             Frame.close:SetScript("OnClick", function() search:Hide() end)
-            Frame.copyUrl = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts")
+            Frame.copyUrl = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts") ---@diagnostic disable-line: param-type-mismatch
             Frame.copyUrl:SetScale(0.67)
-            util:SetButtonTextureFromIcon(Frame.copyUrl, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE)
-            Frame.copyUrl:SetPoint("RIGHT", Frame.close, "LEFT", -5, 0)
+            util:SetButtonTextureFromIcon(Frame.copyUrl, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE) ---@diagnostic disable-line: param-type-mismatch
+            Frame.copyUrl:SetPoint("RIGHT", Frame.close, "LEFT", -5, 0) ---@diagnostic disable-line: param-type-mismatch
             Frame.copyUrl:SetScript("OnClick", function() util:ShowCopyRaiderIOProfilePopup(nameBox:GetText(), realmBox:GetText()) end)
             Frame.copyUrl:SetScript("OnEnter", function(self) GameTooltip:SetOwner(self, "ANCHOR_RIGHT") GameTooltip:AddLine(L.COPY_RAIDERIO_PROFILE_URL) GameTooltip:Show() end)
             Frame.copyUrl:SetScript("OnLeave", GameTooltip_Hide)
@@ -6792,11 +6808,11 @@ do
 
         local activeBoxes = {}
         if config:Get("debugMode") then
-            regionBox:SetParent(Frame)
+            regionBox:SetParent(Frame) ---@diagnostic disable-line: param-type-mismatch
             table.insert(activeBoxes, regionBox)
         end
-        realmBox:SetParent(Frame)
-        nameBox:SetParent(Frame)
+        realmBox:SetParent(Frame) ---@diagnostic disable-line: param-type-mismatch
+        nameBox:SetParent(Frame) ---@diagnostic disable-line: param-type-mismatch
         table.insert(activeBoxes, realmBox)
         table.insert(activeBoxes, nameBox)
 
@@ -7053,7 +7069,7 @@ do
         if not name and bnetIDAccount then
             local fullName, charFaction, charLevel = util:GetNameRealmForBNetFriend(bnetIDAccount)
             if fullName then
-                name, realm = util:GetNameRealm(fullName)
+                name, realm = util:GetNameRealm(fullName) ---@diagnostic disable-line: param-type-mismatch
                 level = charLevel
                 faction = charFaction
             end
@@ -7115,7 +7131,7 @@ do
                 return
             end
             selectedName, selectedRealm, selectedLevel, selectedUnit, selectedFaction = GetNameRealmForDropDown(bdropdown)
-            if not selectedName or not util:IsMaxLevel(selectedLevel, true) then
+            if not selectedName or not util:IsMaxLevel(selectedLevel, true) then ---@diagnostic disable-line: param-type-mismatch
                 return
             end
             if not options[1] then
@@ -7188,7 +7204,9 @@ do
                         return
                     end
                     local profile = GetRecruitmentProfileForDropDown()
-                    util:ShowCopyRaiderIORecruitmentProfilePopup(profile.recruitmentProfile.entityType, selectedName, selectedRealm)
+                    if profile then
+                        util:ShowCopyRaiderIORecruitmentProfilePopup(profile.recruitmentProfile.entityType, selectedName, selectedRealm)
+                    end
                 end,
                 show = function()
                     return GetRecruitmentProfileForDropDown()
@@ -7332,7 +7350,7 @@ do
     ---@field public hasNewSources boolean
     ---@field public addLoot boolean
 
-    ---@return RWFLootEntry
+    ---@return RWFLootEntry|boolean|nil
     local function LogItemLink(logType, linkType, id, link, count, sources, useTimestamp, additionalInfo)
         local isLogging, instanceName, instanceDifficulty, instanceID = rwf:GetLocation()
         if logType == LOG_TYPE.News then
@@ -7344,7 +7362,7 @@ do
         end
         local linkAsKey = link:gsub("%[[^%]]*%]", "")
         local success, tables = GetNestedTable(_G.RaiderIO_RWF, instanceID, instanceDifficulty, logType, linkAsKey)
-        if not success then
+        if not success or not tables then
             return false
         end
         local guildName, _, _, guildRealmName = GetGuildInfo("player")
@@ -7451,7 +7469,7 @@ do
         -- lootEntry.isNew, lootEntry.isUpdated, lootEntry.hasNewSources, lootEntry.addLoot = nil -- TODO: if we uncomment we'll keep adding old processed loot to the frame and we don't want that so let this be in the SV file we can afford that
     end
 
-    ---@param lootEntry RWFLootEntry
+    ---@param lootEntry RWFLootEntry|false|nil
     local function HandleLootEntry(lootEntry)
         if not lootEntry then
             return
@@ -7481,9 +7499,7 @@ do
         return t, n
     end
 
-    ---@class GuildNewsTicker : Ticker
-
-    local guildNewsTicker ---@type GuildNewsTicker
+    local guildNewsTicker ---@type Ticker?
     local guildNewsCount ---@type number
 
     local function GetGuildNews()
@@ -7499,7 +7515,7 @@ do
             newsInfo.year = newsInfo.year + 2000
             newsInfo.month = newsInfo.month + 1
             newsInfo.day = newsInfo.day + 1
-            local timestamp = time(newsInfo)
+            local timestamp = time(newsInfo) ---@diagnostic disable-line: param-type-mismatch
             if now - timestamp <= LOG_ITEM_LOG_IF_NEWER then
                 HandleLootEntry(LogItemLink(LOG_TYPE.News, itemType, itemID, itemLink, itemCount or 1, nil, timestamp, { who = newsInfo.whoText }))
                 return true
@@ -7528,7 +7544,7 @@ do
                     coroutine.yield()
                 end
             end
-            if not guildNewsTicker.CalledDuringScan then
+            if not guildNewsTicker or not guildNewsTicker.CalledDuringScan then
                 return
             end
             items, count, diff = GetGuildNews()
@@ -7546,7 +7562,9 @@ do
         LOOT_FRAME.MiniFrame:StartScanning()
         guildNewsTicker = C_Timer.NewTicker(SCAN_INTERVAL_BETWEEN_CYCLES, function()
             if not coroutine.resume(co) then
-                guildNewsTicker:Cancel()
+                if guildNewsTicker then
+                    guildNewsTicker:Cancel()
+                end
                 guildNewsTicker = nil
                 LOOT_FRAME.MiniFrame:StopScanning()
                 return
@@ -7626,15 +7644,15 @@ do
         frame.frameCounter = 0
         frame.TitleText:SetText(L.RWF_TITLE)
 
-        frame.TitleBar = CreateFrame("Frame", nil, frame, "PanelDragBarTemplate")
+        frame.TitleBar = CreateFrame("Frame", nil, frame, "PanelDragBarTemplate") ---@diagnostic disable-line: param-type-mismatch
         frame.TitleBar:OnLoad()
         frame.TitleBar:SetHeight(24)
         frame.TitleBar:SetPoint("TOPLEFT", 0, 0)
         frame.TitleBar:SetPoint("TOPRIGHT", 0, 0)
         frame.TitleBar:Init(frame)
 
-        frame.Log = CreateFrame("Frame", nil, frame)
-        frame.Log:SetPoint("TOPLEFT", frame.TitleBar, "BOTTOMLEFT", 8, -32 + 24)
+        frame.Log = CreateFrame("Frame", nil, frame) ---@diagnostic disable-line: param-type-mismatch
+        frame.Log:SetPoint("TOPLEFT", frame.TitleBar, "BOTTOMLEFT", 8, -32 + 24) ---@diagnostic disable-line: param-type-mismatch
         frame.Log:SetPoint("BOTTOMRIGHT", -9, 28)
 
         frame.Log.Bar = CreateFrame("Frame", nil, frame.Log)
@@ -7662,12 +7680,12 @@ do
         frame.SubTitle:SetWordWrap(false)
         frame.SubTitle:SetJustifyH("CENTER")
         frame.SubTitle:SetJustifyV("MIDDLE")
-        frame.SubTitle:SetPoint("TOPLEFT", frame.TitleBar, "BOTTOMLEFT", 0, 0)
+        frame.SubTitle:SetPoint("TOPLEFT", frame.TitleBar, "BOTTOMLEFT", 0, 0) ---@diagnostic disable-line: param-type-mismatch
         frame.SubTitle:SetPoint("BOTTOMRIGHT", frame.Log.Events, "TOPRIGHT", 0, 0)
 
-        frame.EnableModule = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        frame.EnableModule = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate") ---@diagnostic disable-line: param-type-mismatch
         frame.EnableModule:SetSize(80, 22)
-        frame.EnableModule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 3)
+        frame.EnableModule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 3) ---@diagnostic disable-line: param-type-mismatch
         frame.EnableModule:SetScript("OnClick", function() config:Set("rwfMode", true) ReloadUI() end)
         frame.EnableModule:SetText(L.ENABLE_RWF_MODE_BUTTON)
         frame.EnableModule.tooltip = L.ENABLE_RWF_MODE_BUTTON_TOOLTIP
@@ -7675,9 +7693,9 @@ do
         frame.EnableModule:SetScript("OnEnter", UIButtonMixin.OnEnter)
         frame.EnableModule:SetScript("OnLeave", UIButtonMixin.OnLeave)
 
-        frame.DisableModule = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        frame.DisableModule = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate") ---@diagnostic disable-line: param-type-mismatch
         frame.DisableModule:SetSize(80, 22)
-        frame.DisableModule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 3)
+        frame.DisableModule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 3) ---@diagnostic disable-line: param-type-mismatch
         frame.DisableModule:SetScript("OnClick", function() config:Set("rwfMode", false) _G.RaiderIO_RWF = {} ReloadUI() end)
         frame.DisableModule:SetText(L.DISABLE_RWF_MODE_BUTTON)
         frame.DisableModule.tooltip = L.DISABLE_RWF_MODE_BUTTON_TOOLTIP
@@ -7685,9 +7703,9 @@ do
         frame.DisableModule:SetScript("OnEnter", UIButtonMixin.OnEnter)
         frame.DisableModule:SetScript("OnLeave", UIButtonMixin.OnLeave)
 
-        frame.ReloadUI = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        frame.ReloadUI = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate") ---@diagnostic disable-line: param-type-mismatch
         frame.ReloadUI:SetSize(80, 22)
-        frame.ReloadUI:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 5, 3)
+        frame.ReloadUI:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 5, 3) ---@diagnostic disable-line: param-type-mismatch
         frame.ReloadUI:SetScript("OnClick", ReloadUI)
         frame.ReloadUI:SetText(L.RELOAD_RWF_MODE_BUTTON)
         frame.ReloadUI.tooltip = L.RELOAD_RWF_MODE_BUTTON_TOOLTIP
@@ -7695,9 +7713,9 @@ do
         frame.ReloadUI:SetScript("OnEnter", UIButtonMixin.OnEnter)
         frame.ReloadUI:SetScript("OnLeave", UIButtonMixin.OnLeave)
 
-        frame.WipeLog = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        frame.WipeLog = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate") ---@diagnostic disable-line: param-type-mismatch
         frame.WipeLog:SetSize(80, 22)
-        frame.WipeLog:SetPoint("RIGHT", frame.DisableModule, "LEFT", 2, 0)
+        frame.WipeLog:SetPoint("RIGHT", frame.DisableModule, "LEFT", 2, 0) ---@diagnostic disable-line: param-type-mismatch
         frame.WipeLog:SetScript("OnClick", function() _G.RaiderIO_RWF = {} ReloadUI() end)
         frame.WipeLog:SetText(L.WIPE_RWF_MODE_BUTTON)
         frame.WipeLog.tooltip = L.WIPE_RWF_MODE_BUTTON_TOOLTIP
@@ -7711,7 +7729,7 @@ do
         frame.MiniFrame:SetSize(32, 32)
         frame.MiniFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         local miniPoint = config:Get("rwfMiniPoint") ---@type ConfigProfilePoint
-        frame.MiniFrame:SetPoint(miniPoint.point or "CENTER", miniPoint.point and _G.UIParent or frame, miniPoint.point or "CENTER", miniPoint.point and miniPoint.x or -10, miniPoint.point and miniPoint.y or 0)
+        frame.MiniFrame:SetPoint(miniPoint.point or "CENTER", miniPoint.point and _G.UIParent or frame, miniPoint.point or "CENTER", miniPoint.point and miniPoint.x or -10, miniPoint.point and miniPoint.y or 0) ---@diagnostic disable-line: param-type-mismatch
         frame.MiniFrame:EnableMouse(true)
         frame.MiniFrame:SetMovable(true)
         frame.MiniFrame:RegisterForDrag("LeftButton")
@@ -7738,10 +7756,10 @@ do
         frame.MiniFrame.Left:Hide()
         frame.MiniFrame.Right:Hide()
         frame.MiniFrame.Middle:Hide()
-        util:SetButtonTextureFromIcon(frame.MiniFrame, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE)
+        util:SetButtonTextureFromIcon(frame.MiniFrame, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE) ---@diagnostic disable-line: param-type-mismatch
         frame.MiniFrame:Hide()
 
-        frame.MiniFrame.Spinner = CreateFrame("Button", nil, frame.MiniFrame)
+        frame.MiniFrame.Spinner = CreateFrame("Button", nil, frame.MiniFrame) ---@diagnostic disable-line: param-type-mismatch
         frame.MiniFrame.Spinner:SetAllPoints()
         util:SetButtonTextureFromIcon(frame.MiniFrame.Spinner, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE)
         frame.MiniFrame.Spinner:Hide()
@@ -8304,12 +8322,12 @@ do
         configParentFrame:SetSize(400, 600)
         configParentFrame:SetPoint("CENTER")
 
-        local configHeaderFrame = CreateFrame("Frame", nil, configParentFrame)
+        local configHeaderFrame = CreateFrame("Frame", nil, configParentFrame) ---@diagnostic disable-line: param-type-mismatch
         configHeaderFrame:SetPoint("TOPLEFT", 00, -30)
         configHeaderFrame:SetPoint("TOPRIGHT", 00, 30)
         configHeaderFrame:SetHeight(40)
 
-        local configScrollFrame = CreateFrame("ScrollFrame", nil, configParentFrame)
+        local configScrollFrame = CreateFrame("ScrollFrame", nil, configParentFrame) ---@diagnostic disable-line: param-type-mismatch
         configScrollFrame:SetPoint("TOPLEFT", configHeaderFrame, "BOTTOMLEFT")
         configScrollFrame:SetPoint("TOPRIGHT", configHeaderFrame, "BOTTOMRIGHT")
         configScrollFrame:SetHeight(475)
@@ -8317,7 +8335,7 @@ do
         configScrollFrame:SetClampedToScreen(true)
         configScrollFrame:SetClipsChildren(true)
 
-        local configButtonFrame = CreateFrame("Frame", nil, configParentFrame)
+        local configButtonFrame = CreateFrame("Frame", nil, configParentFrame) ---@diagnostic disable-line: param-type-mismatch
         configButtonFrame:SetPoint("TOPLEFT", configScrollFrame, "BOTTOMLEFT", 0, -10)
         configButtonFrame:SetPoint("TOPRIGHT", configScrollFrame, "BOTTOMRIGHT")
         configButtonFrame:SetHeight(50)
@@ -8536,17 +8554,17 @@ do
             widget.text:SetPoint("RIGHT", -8, 0)
             widget.text:SetJustifyH("LEFT")
 
-            widget.checkButton = CreateFrame("CheckButton", nil, widget, "UICheckButtonTemplate")
+            widget.checkButton = CreateFrame("CheckButton", nil, widget, "UICheckButtonTemplate") ---@diagnostic disable-line: param-type-mismatch
             widget.checkButton:Hide()
             widget.checkButton:SetPoint("RIGHT", -4, 0)
             widget.checkButton:SetScale(0.7)
 
-            widget.checkButton2 = CreateFrame("CheckButton", nil, widget, "UICheckButtonTemplate")
+            widget.checkButton2 = CreateFrame("CheckButton", nil, widget, "UICheckButtonTemplate") ---@diagnostic disable-line: param-type-mismatch
             widget.checkButton2:Hide()
             widget.checkButton2:SetPoint("RIGHT", widget.checkButton, "LEFT", -4, 0)
             widget.checkButton2:SetScale(0.7)
 
-            widget.checkButton3 = CreateFrame("CheckButton", nil, widget, "UICheckButtonTemplate")
+            widget.checkButton3 = CreateFrame("CheckButton", nil, widget, "UICheckButtonTemplate") ---@diagnostic disable-line: param-type-mismatch
             widget.checkButton3:Hide()
             widget.checkButton3:SetPoint("RIGHT", widget.checkButton2, "LEFT", -4, 0)
             widget.checkButton3:SetScale(0.7)
@@ -8556,7 +8574,7 @@ do
             widget.checkButton.fakeCheck:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
             widget.checkButton.fakeCheck:SetAllPoints()
 
-            widget.help = CreateFrame("Frame", nil, widget)
+            widget.help = CreateFrame("Frame", nil, widget) ---@diagnostic disable-line: param-type-mismatch
             widget.help:Hide()
             widget.help:SetPoint("LEFT", widget.checkButton, "LEFT", -20, 0)
             widget.help:SetSize(16, 16)
@@ -9045,7 +9063,7 @@ do
             enableCombatLogTracking = config:Get("enableCombatLogTracking")
         end
         if enableCombatLogTracking then
-            C_CVar.SetCVar("advancedCombatLogging", 1)
+            C_CVar.SetCVar("advancedCombatLogging", "1")
             combatlog:Enable()
         else
             combatlog:Disable()
@@ -9289,7 +9307,9 @@ do
     ---@field private status boolean @Set internally to `true` if the test passed, otherwise `false` if something went wrong.
     ---@field private explanation string @Set internally to describe what went wrong, or what went right depending on the test.
 
-    ---@return boolean @If the GUID strings match (strcmputf8i) we return `true` otherwise `false`, if `nil` it means one GUID is missing from the call.
+    ---@param guid1 any
+    ---@param guid2 any
+    ---@return boolean? @If the GUID strings match (strcmputf8i) we return `true` otherwise `false`, if `nil` it means one GUID is missing from the call.
     local function CompareProfileGUIDs(guid1, guid2)
         if type(guid1) ~= "string" or type(guid2) ~= "string" then
             return
@@ -9297,9 +9317,9 @@ do
         return guid1 == guid2 or strcmputf8i(guid1, guid2) == 0
     end
 
-    ---@param profile1 DataProviderCharacterProfile
-    ---@param profile2 DataProviderCharacterProfile
-    ---@return boolean @If the profiles reference the same person we return `true` otherwise `false` for different people, `nil` if one profile is missing from the call.
+    ---@param profile1 DataProviderCharacterProfile?
+    ---@param profile2 DataProviderCharacterProfile?
+    ---@return boolean? @If the profiles reference the same person we return `true` otherwise `false` for different people, `nil` if one profile is missing from the call.
     local function CompareProfiles(profile1, profile2)
         if type(profile1) ~= "table" or type(profile2) ~= "table" then
             return

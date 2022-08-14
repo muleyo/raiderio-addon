@@ -2382,12 +2382,9 @@ do
             baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes
             guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
         elseif provider.data == ns.PROVIDER_DATA_TYPE.Raid then
-            local numFieldsPerCharacter = 2
-            local lookupMaxSize = floor(ns.LOOKUP_MAX_SIZE / numFieldsPerCharacter) * numFieldsPerCharacter
-            local bucketOffset = realmData[1] + (nameIndex - 2) * numFieldsPerCharacter
-            local bucketID = 1 + floor(bucketOffset / lookupMaxSize)
+            local bucketID = 1
             bucket = lookup[bucketID]
-            baseOffset = 1 + bucketOffset - (bucketID - 1) * lookupMaxSize
+            baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes
             guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
         elseif provider.data == ns.PROVIDER_DATA_TYPE.Recruitment then
             local bucketID = 1
@@ -2980,17 +2977,14 @@ do
         local bitOffset = offset
 
         ---@type DataProviderRaidProgress
-        local prog
-        for i = 1, 2 do
-            prog = { raid = raid }
-            prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
-            prog.progressCount, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
-            if prog.progressCount > 0 then
-                if not results[field] then
-                    results[field] = {}
-                end
-                results[field][#results[field] + 1] = prog
+        local prog = { raid = raid }
+        prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+        prog.progressCount, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
+        if prog.progressCount > 0 then
+            if not results[field] then
+                results[field] = {}
             end
+            results[field][#results[field] + 1] = prog
         end
 
         return bitOffset
@@ -3042,7 +3036,7 @@ do
             local field = encodingOrder[encoderIndex]
             if field == ENCODER_RAIDING_FIELDS.CURRENT_FULL_PROGRESS then
                 for raidIndex = 1, numCurrentRaids do
-                    for bucketIndex = 1, 2 do
+                    for i = 1, 2 do
                         bitOffset = UnpackFullRaidProgress(bucket, provider.currentRaids[raidIndex], bitOffset, results)
                     end
                 end
@@ -3053,12 +3047,16 @@ do
             elseif field == ENCODER_RAIDING_FIELDS.PREVIOUS_SUMMARY_PROGRESS then
                 for raidIndex = 1, numPreviousRaids do
                     local previousRaid = provider.previousRaids[raidIndex]
-                    bitOffset = UnpackSummaryRaidProgress(bucket, previousRaid, bitOffset, results, "previousProgress")
+                    for i = 1, 2 do
+                        bitOffset = UnpackSummaryRaidProgress(bucket, previousRaid, bitOffset, results, "previousProgress")
+                    end
                 end
             elseif field == ENCODER_RAIDING_FIELDS.MAINS_CURRENT_SUMMARY_PROGRESS then
                 for raidIndex = 1, numCurrentRaids do
                     local currentRaid = provider.currentRaids[raidIndex]
-                    bitOffset = UnpackSummaryRaidProgress(bucket, currentRaid, bitOffset, results, "mainProgress")
+                    for i = 1, 2 do
+                        bitOffset = UnpackSummaryRaidProgress(bucket, currentRaid, bitOffset, results, "mainProgress")
+                    end
                 end
             end
         end

@@ -1419,7 +1419,7 @@ do
     ---@field resultID number
 
     ---@class LFDStatus
-    ---@field dungeon Dungeon
+    ---@field dungeon? Dungeon
     ---@field hosting boolean
     ---@field queued boolean
     ---@field self LFDStatusResult[] @The LFDStatus itself is also a iterable table with the LFDStatusResult entries.
@@ -1534,7 +1534,7 @@ do
         return 0.62, 0.62, 0.62
     end
 
-    ---@type table<string, string>
+    ---@type table<string, string|number>
     local MEDAL_TEXTURE = {
         none = 982414,
         none2 = 982414,
@@ -2072,6 +2072,7 @@ do
     local util = ns:GetModule("Util") ---@type UtilModule
 
     ---@class Raid
+    ---@field public ordinal number
     ---@field public name string
     ---@field public shortName string
     ---@field public bossCount number
@@ -2297,6 +2298,15 @@ do
                 provider[k] = provider[k] or v
             end
             table.wipe(data)
+            -- DEBUG: test different ordinal values
+            if provider.data == ns.PROVIDER_DATA_TYPE.Raid then
+                provider.currentRaids[1].ordinal = 3
+                provider.currentRaids[2].ordinal = 2
+                provider.currentRaids[3].ordinal = 1
+                provider.previousRaids[1].ordinal = 4
+                provider.previousRaids[2].ordinal = 5
+                provider.previousRaids[3].ordinal = 6
+            end
         else
             table.insert(providers, data)
         end
@@ -2588,10 +2598,10 @@ do
     ---@field public dungeonTimes number[] @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedDungeonTimes` and `tyrannicalDungeonTimes` when possible.
     ---@field public fortifiedMaxDungeonIndex number
     ---@field public fortifiedMaxDungeonLevel number
-    ---@field public fortifiedMaxDungeon Dungeon
+    ---@field public fortifiedMaxDungeon? Dungeon
     ---@field public tyrannicalMaxDungeonIndex number
     ---@field public tyrannicalMaxDungeonLevel number
-    ---@field public tyrannicalMaxDungeon Dungeon
+    ---@field public tyrannicalMaxDungeon? Dungeon
     ---@field public maxDungeonIndex number @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedMaxDungeonIndex` and `tyrannicalMaxDungeonIndex` when possible.
     ---@field public maxDungeonLevel number @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedMaxDungeonLevel` and `tyrannicalMaxDungeonLevel` when possible.
     ---@field public maxDungeon Dungeon @Proxy table that looks up the correct weekly affix table if used. Use `fortifiedMaxDungeon` and `tyrannicalMaxDungeon` when possible.
@@ -2959,9 +2969,10 @@ do
     ---@field public outdated number|nil @number or nil
     ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
     ---@field public progress DataProviderRaidProgress[]
-    ---@field public mainProgress DataProviderRaidProgress[]
-    ---@field public previousProgress DataProviderRaidProgress[]
+    ---@field public mainProgress? DataProviderRaidProgress[]
+    ---@field public previousProgress? DataProviderRaidProgress[]
     ---@field public sortedProgress SortedRaidProgress[]
+    ---@field public raidProgress RaidProgress[]
 
     ---@class SortedRaidProgress
     ---@field public obsolete boolean If this evaluates truthy we hide it unless tooltip is expanded on purpose.
@@ -2970,6 +2981,16 @@ do
     ---@field public isProgressPrev boolean
     ---@field public isMainProgress boolean
     ---@field public progress DataProviderRaidProgress
+
+    ---@class RaidProgress
+    ---@field public raid Raid
+    ---@field public progress RaidProgressBossInfo[]
+    ---@field public progressCount number
+
+    ---@class RaidProgressBossInfo
+    ---@field public killed boolean
+    ---@field public count number
+    ---@field public difficulty number
 
     ---@param a SortedRaidProgress
     ---@param b SortedRaidProgress
@@ -2984,6 +3005,61 @@ do
             return a.tier < b.tier
         end
         return not a.isMainProgress and b.isMainProgress
+    end
+
+    ---@param a RaidProgress
+    ---@param b RaidProgress
+    local function SortRaidProgressByOrdinal(a, b)
+        return a.raid.ordinal < b.raid.ordinal
+    end
+
+    ---@param results DataProviderRaidProfile
+    ---@param provider DataProvider
+    local function SummarizeRaidProgress(results, provider)
+        local sortedProgress = results.sortedProgress
+        local raidProgress = results.raidProgress
+        for _, raids in ipairs({ provider.currentRaids, provider.previousRaids }) do
+            for i = 1, #raids do
+                local raid = raids[i]
+                local killsPerBoss = {}
+                local killsPerBossDiff = {}
+                for j = 1, #sortedProgress do
+                    local prog = sortedProgress[j]
+                    if prog.progress.raid == raid and prog.progress.killsPerBoss then
+                        for k = 1, #prog.progress.killsPerBoss do
+                            local bossKills = prog.progress.killsPerBoss[k]
+                            if bossKills > 0 and (not killsPerBossDiff[k] or killsPerBossDiff[k] < prog.progress.difficulty) then
+                                killsPerBoss[k] = bossKills
+                                killsPerBossDiff[k] = prog.progress.difficulty
+                            end
+                        end
+                    end
+                end
+                ---@type RaidProgress
+                local currentProg = {
+                    raid = raid,
+                    progress = {},
+                    progressCount = 0,
+                }
+                for j = 1, raid.bossCount do
+                    local bossKills = killsPerBoss[j]
+                    ---@type RaidProgressBossInfo
+                    local bossInfo = {
+                        killed = bossKills and bossKills > 0,
+                        count = bossKills or 0,
+                        difficulty = killsPerBossDiff[j] or 0,
+                    }
+                    if bossInfo.killed then
+                        currentProg.progressCount = currentProg.progressCount + 1
+                    end
+                    currentProg.progress[j] = bossInfo
+                end
+                raidProgress[#raidProgress + 1] = currentProg
+            end
+        end
+        if raidProgress[2] then
+            table.sort(raidProgress, SortRaidProgressByOrdinal)
+        end
     end
 
     ---@param bucket table
@@ -3043,6 +3119,7 @@ do
             previousProgress = nil,
             mainProgress = nil,
             sortedProgress = {},
+            raidProgress = {},
             hasRenderableData = false
         }
         local value
@@ -3080,7 +3157,7 @@ do
             for i = 1, #results.progress do
                 local prog = results.progress[i]
                 results.sortedProgress[#results.sortedProgress + 1] = {
-                    tier = 1000 +  (3 - prog.difficulty) * 100 + (99 - prog.progressCount),
+                    tier = 1000000 + prog.raid.ordinal * 10000 + (3 - prog.difficulty) * 100 + (99 - prog.progressCount),
                     progress = prog,
                     isProgress = true
                 }
@@ -3090,7 +3167,7 @@ do
             for i = 1, #results.mainProgress do
                 local prog = results.mainProgress[i]
                 results.sortedProgress[#results.sortedProgress + 1] = {
-                    tier = 1000 + (3 - prog.difficulty) * 100 + (99 - prog.progressCount),
+                    tier = 1000000 + prog.raid.ordinal * 10000 + (3 - prog.difficulty) * 100 + (99 - prog.progressCount),
                     progress = prog,
                     isMainProgress = true
                 }
@@ -3100,7 +3177,7 @@ do
             for i = 1, #results.previousProgress do
                 local prog = results.previousProgress[i]
                 results.sortedProgress[#results.sortedProgress + 1] = {
-                    tier = 2000 + (3 - prog.difficulty) * 100 + (99 - prog.progressCount),
+                    tier = 2000000 + prog.raid.ordinal * 10000 + (3 - prog.difficulty) * 100 + (99 - prog.progressCount),
                     progress = prog,
                     isProgressPrev = true
                 }
@@ -3133,6 +3210,7 @@ do
                 break
             end
         end
+        SummarizeRaidProgress(results, provider)
         return results
     end
 
@@ -3316,14 +3394,14 @@ do
             fortifiedDungeonTimes = {},
             fortifiedMaxDungeonIndex = 1,
             fortifiedMaxDungeonLevel = 0,
-            fortifiedMaxDungeon = 0,
+            fortifiedMaxDungeon = nil,
             fortifiedMaxDungeonUpgrades = 0,
             tyrannicalDungeons = {},
             tyrannicalDungeonUpgrades = {},
             tyrannicalDungeonTimes = {},
             tyrannicalMaxDungeonIndex = 1,
             tyrannicalMaxDungeonLevel = 0,
-            tyrannicalMaxDungeon = 0,
+            tyrannicalMaxDungeon = nil,
             tyrannicalMaxDungeonUpgrades = 0,
             sortedMilestones = {}
         }
@@ -3367,7 +3445,7 @@ do
         end
         local region = ns.PLAYER_REGION
         local guid = region .. " " .. realm .. " " .. name
-        local cache = provider:GetProfile(name, realm, region) ---@type DataProviderCharacterProfile
+        local cache = provider:GetProfile(name, realm, region)
         local mythicKeystoneProfile
         if cache and cache.success and cache.mythicKeystoneProfile and not cache.mythicKeystoneProfile.blocked and cache.mythicKeystoneProfile.hasRenderableData then
             mythicKeystoneProfile = cache.mythicKeystoneProfile
@@ -3568,11 +3646,7 @@ do
         return cache
     end
 
-    ---@class BlizzardKeystoneSummary
-    ---@field public currentSeasonScore number @The current season keystone score.
-    ---@field public runs BlizzardKeystoneRun[] @Table over each keystone dungeon.
-
-    ---@param bioSummary BlizzardKeystoneSummary
+    ---@param bioSummary MythicPlusRatingSummary
     local function ExpandSummaryWithChallengeModeMapData(bioSummary)
         local mapIDs = C_ChallengeMode.GetMapTable()
         for _, mapID in ipairs(mapIDs) do
@@ -3598,7 +3672,7 @@ do
     end
 
     local function OverridePlayerData()
-        local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player") ---@type BlizzardKeystoneSummary
+        local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player") ---@type MythicPlusRatingSummary
         if bioSummary and bioSummary.currentSeasonScore then
             ExpandSummaryWithChallengeModeMapData(bioSummary)
             provider:OverrideProfile(ns.PLAYER_NAME, ns.PLAYER_REALM, bioSummary.currentSeasonScore, bioSummary.runs)
@@ -3656,8 +3730,8 @@ do
     end
 
     local function OnPlayerLogin()
-        ns.PLAYER_REGION, ns.PLAYER_REGION_ID = util:GetRegion()
-        ns.PLAYER_FACTION, ns.PLAYER_FACTION_TEXT = util:GetFaction("player")
+        ns.PLAYER_REGION, ns.PLAYER_REGION_ID = util:GetRegion() ---@diagnostic disable-line: assign-type-mismatch
+        ns.PLAYER_FACTION, ns.PLAYER_FACTION_TEXT = util:GetFaction("player") ---@diagnostic disable-line: assign-type-mismatch
         ns.PLAYER_NAME, ns.PLAYER_REALM = util:GetNameRealm("player")
         ns.PLAYER_REALM_SLUG = util:GetRealmSlug(ns.PLAYER_REALM)
         _G.RaiderIO_LastCharacter = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_NAME, ns.PLAYER_REALM_SLUG or ns.PLAYER_REALM)
@@ -3828,7 +3902,7 @@ do
     }
 
     ---@class TooltipState
-    ---@field public type table<string, number>
+    ---@field public type number
     ---@field public unit string
     ---@field public name string
     ---@field public realm string
@@ -3841,6 +3915,7 @@ do
     ---@type TooltipStates<table, TooltipState>
     local tooltipStates = {}
 
+    ---@param tooltip GameTooltip
     function render:GetTooltipState(tooltip)
         ---@type TooltipState
         local state = tooltipStates[tooltip]
@@ -3851,6 +3926,7 @@ do
         return state
     end
 
+    ---@param tooltip GameTooltip
     ---@return boolean @Returns true if the tooltip was successfully updated with data, otherwise false if we couldn't.
     function render:ShowProfile(tooltip, ...)
         local state = render:GetTooltipState(tooltip)
@@ -3876,6 +3952,7 @@ do
     ---@field public affix3 number @optional affix ID
     ---@field public affix4 number @optional affix ID
 
+    ---@param tooltip GameTooltip
     ---@param keystone KeystoneInfo
     ---@return boolean @Returns true if the tooltip was successfully updated with data, otherwise false if we couldn't.
     function render:ShowKeystone(tooltip, keystone)
@@ -3889,11 +3966,13 @@ do
         return state.success
     end
 
+    ---@param tooltip GameTooltip
     function render:ClearTooltip(tooltip)
         local state = render:GetTooltipState(tooltip)
         table.wipe(state)
     end
 
+    ---@param tooltip GameTooltip
     function render:HideTooltip(tooltip)
         render:ClearTooltip(tooltip)
         tooltip:Hide()
@@ -4069,7 +4148,12 @@ do
                 local level = profile.mythicKeystoneProfile.dungeons[dungeon.index]
                 if level > 0 then
                     index = index + 1
-                    members[index] = { unit = unit, level = level, name = UnitNameUnmodified(unit), chests = profile.mythicKeystoneProfile.dungeonUpgrades[dungeon.index] }
+                    members[index] = {
+                        unit = unit,
+                        level = level,
+                        name = UnitNameUnmodified(unit), ---@diagnostic disable-line: assign-type-mismatch
+                        chests = profile.mythicKeystoneProfile.dungeonUpgrades[dungeon.index]
+                    }
                 end
             end
         end
@@ -4111,6 +4195,7 @@ do
         return lines, lineWidth, maxWidth
     end
 
+    ---@param tooltip GameTooltip
     ---@param state TooltipState
     function render:UpdateTooltip(tooltip, state)
         -- we will in most cases always pass the state but if we don't we will retrieve it
@@ -4278,37 +4363,61 @@ do
                     if isExtendedProfile then
                         if showRaidEncounters then
                             local raidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid, state.region)
-                            local currentRaid = raidProvider.currentRaids[1] -- TODO: figure out which raid to look at
-                            for i = 1, currentRaid.bossCount do
-                                local progressFound = false
-                                for j = 1, #raidProfile.progress do
-                                    local progress = raidProfile.progress[j]
-                                    local bossKills = progress.killsPerBoss[i]
-                                    if bossKills > 0 then
-                                        progressFound = true
-                                        local difficulty = ns.RAID_DIFFICULTY[progress.difficulty]
-                                        tooltip:AddDoubleLine(format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix, L[format("RAID_BOSS_%s_%d", currentRaid.shortName, i)]), bossKills, 1, 1, 1, 1, 1, 1)
+                            if raidProvider then
+                                for i = 1, #raidProvider.currentRaids do
+                                    local currentRaid = raidProvider.currentRaids[i]
+                                    for j = 1, currentRaid.bossCount do
+                                        local progressFound = false
+                                        for k = 1, #raidProfile.progress do
+                                            local progress = raidProfile.progress[k]
+                                            if currentRaid == progress.raid then
+                                                local bossKills = progress.killsPerBoss[j]
+                                                if bossKills > 0 then
+                                                    progressFound = true
+                                                    local difficulty = ns.RAID_DIFFICULTY[progress.difficulty]
+                                                    tooltip:AddDoubleLine(format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix, L[format("RAID_BOSS_%s_%d", currentRaid.shortName, j)]), bossKills, 1, 1, 1, 1, 1, 1)
+                                                end
+                                                if progressFound then
+                                                    break
+                                                end
+                                            end
+                                        end
+                                        if not progressFound then
+                                            tooltip:AddDoubleLine(L[format("RAID_BOSS_%s_%d", currentRaid.shortName, j)], "-", 0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+                                        end
                                     end
-                                    if progressFound then
-                                        break
-                                    end
-                                end
-                                if not progressFound then
-                                    tooltip:AddDoubleLine(L[format("RAID_BOSS_%s_%d", currentRaid.shortName, i)], "-", 0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
                                 end
                             end
                         end
                     else
-                        for i = 1, #raidProfile.sortedProgress do
-                            local sortedProgress = raidProfile.sortedProgress[i]
-                            local prog = sortedProgress.progress
-                            if ((showRaidEncounters and (hasMod or hasModSticky)) or not sortedProgress.obsolete) and (not sortedProgress.isMainProgress or config:Get("showMainsScore")) then
-                                local raidDiff = ns.RAID_DIFFICULTY[prog.difficulty]
-                                if sortedProgress.isMainProgress then
-                                    tooltip:AddDoubleLine(L.MAINS_RAID_PROGRESS, format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, prog.progressCount, prog.raid.bossCount), 1, 1, 1, 1, 1, 1)
-                                else
-                                    tooltip:AddDoubleLine(format("%s %s", prog.raid.shortName, raidDiff.name), format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, prog.progressCount, prog.raid.bossCount), 1, 1, 1, 1, 1, 1)
+                        -- for i = 1, #raidProfile.sortedProgress do
+                        --     local sortedProgress = raidProfile.sortedProgress[i]
+                        --     local progress = sortedProgress.progress
+                        --     if ((showRaidEncounters and (hasMod or hasModSticky)) or not sortedProgress.obsolete) and (not sortedProgress.isMainProgress or config:Get("showMainsScore")) then
+                        --         local raidDiff = ns.RAID_DIFFICULTY[progress.difficulty]
+                        --         if sortedProgress.isMainProgress then
+                        --             tooltip:AddDoubleLine(L.MAINS_RAID_PROGRESS, format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, progress.progressCount, progress.raid.bossCount), 1, 1, 1, 1, 1, 1)
+                        --         else
+                        --             tooltip:AddDoubleLine(format("%s %s", progress.raid.shortName, raidDiff.name), format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, progress.progressCount, progress.raid.bossCount), 1, 1, 1, 1, 1, 1)
+                        --         end
+                        --     end
+                        -- end
+                        local raidsShown = 0
+                        for i = 1, #raidProfile.raidProgress do
+                            local progress = raidProfile.raidProgress[i]
+                            if progress.progressCount > 0 and ((showRaidEncounters and (hasMod or hasModSticky)) or raidsShown < 1) then
+                                raidsShown = raidsShown + 1
+                                local temp = {}
+                                for j = 1, #progress.progress do
+                                    local bossProgress = progress.progress[j]
+                                    if bossProgress.killed then
+                                        local bossDiff = ns.RAID_DIFFICULTY[bossProgress.difficulty]
+                                        temp[j] = format("|cff%s%d|r", bossDiff.color.hex, bossProgress.count)
+                                    else
+                                        temp[j] = "|cff8080800|r"
+                                    end
                                 end
+                                tooltip:AddDoubleLine(progress.raid.name, table.concat(temp, " "), 1, 1, 1, 1, 1, 1)
                             end
                         end
                     end
@@ -4418,6 +4527,7 @@ do
         return true
     end
 
+    ---@param tooltip GameTooltip
     ---@param state TooltipState
     local function UpdateTooltip(tooltip, state)
         -- if unit simply refresh the unit and the original hook will force update the tooltip with the desired behavior
@@ -4458,12 +4568,12 @@ do
         if o1 then
             o2 = a1
             if p4 then
-                o3 = p4
+                o3 = p4 ---@diagnostic disable-line: cast-local-type
             end
             if p5 then
-                o4 = p5
+                o4 = p5 ---@diagnostic disable-line: cast-local-type
             end
-            tooltip:SetOwner(o1, o2, o3, o4)
+            tooltip:SetOwner(o1, o2, o3, o4) ---@diagnostic disable-line: param-type-mismatch
         end
         if p1 then
             tooltip:SetPoint(p1, p2, p3, p4, p5)
@@ -4903,7 +5013,7 @@ do
                 local name, realm = util:GetNameRealm(unit)
                 if name then
                     index = index + 1
-                    profiles[index] = provider:GetProfile(name, realm) or false
+                    profiles[index] = provider:GetProfile(name, realm) or false ---@diagnostic disable-line: assign-type-mismatch
                 end
             end
         end
@@ -7376,7 +7486,7 @@ do
         lootEntry.isNew = not lootEntry.timestamp
         lootEntry.timestamp = lootEntry.timestamp or timestamp
         lootEntry.isUpdated = timestamp - lootEntry.timestamp > 60
-        lootEntry.itemLevel = GetDetailedItemLevelInfo(link)
+        lootEntry.itemLevel = GetDetailedItemLevelInfo(link) ---@diagnostic disable-line: assign-type-mismatch
         lootEntry.id, lootEntry.itemType, lootEntry.itemSubType, lootEntry.itemEquipLoc, lootEntry.itemIcon, lootEntry.itemClassID, lootEntry.itemSubClassID = GetItemInfoInstant(link)
         lootEntry.link = link
         lootEntry.index = lootEntry.index or CountItems(tables[3]) -- keep same index or count (our item is already included in the count)

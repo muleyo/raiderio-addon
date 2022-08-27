@@ -457,14 +457,13 @@ do
     ---@field public lfd_activity_ids number[]
     ---@field public name string
     ---@field public shortName string
+    ---@field public shortNameLocale string @Assigned dynamically based on the user preference regarding the short dungeon names.
+    ---@field public index number @Assigned dynamically based on the index of the dungeon/raid in the table.
 
     ---@class Dungeon : DungeonInstance
     ---@field public keystone_instance number
-    ---@field public shortNameLocale string @Assigned dynamically based on the user preference regarding the short dungeon names.
-    ---@field public index number @Assigned dynamically based on the index of the dungeon in the table.
 
     ---@class DungeonRaid : DungeonInstance
-    ---@field public index number @Assigned dynamically based on the index of the raid in the table.
 
     ---@type Dungeon[]
     local DUNGEONS = ns.DUNGEONS or ns.dungeons -- DEPRECATED: ns.dungeons
@@ -969,10 +968,19 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
 
     local DUNGEONS = ns:GetDungeonData()
+    local RAIDS = ns:GetDungeonRaidData()
+
     local SORTED_DUNGEONS = {} ---@type Dungeon[]
     do
         for i = 1, #DUNGEONS do
             SORTED_DUNGEONS[i] = DUNGEONS[i]
+        end
+    end
+
+    local SORTED_RAIDS = {} ---@type DungeonRaid[]
+    do
+        for i = 1, #RAIDS do
+            SORTED_RAIDS[i] = RAIDS[i]
         end
     end
 
@@ -990,9 +998,21 @@ do
                 dungeon.shortNameLocale = L["DUNGEON_SHORT_NAME_" .. dungeon.shortName] or dungeon.shortName
             end
         end
-        table.sort(SORTED_DUNGEONS, function(a, b)
+        for i = 1, #RAIDS do
+            local raid = RAIDS[i]
+            if useEnglishAbbreviations then
+                raid.shortNameLocale = raid.shortName
+            else
+                raid.shortNameLocale = raid.shortName -- TODO: L["RAID_SHORT_NAME_" .. raid.shortName]
+            end
+        end
+        ---@param a Dungeon|DungeonRaid
+        ---@param b Dungeon|DungeonRaid
+        local function SortByLocaleName(a, b)
             return a.shortNameLocale < b.shortNameLocale
-        end)
+        end
+        table.sort(SORTED_DUNGEONS, SortByLocaleName)
+        table.sort(SORTED_RAIDS, SortByLocaleName)
     end
     callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")
     callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_SAVED")
@@ -1053,6 +1073,59 @@ do
     ---@return Dungeon|nil
     function util:GetDungeonByShortName(name)
         return util:GetDungeonByKeyValue("shortName", name) or util:GetDungeonByKeyValue("shortNameLocale", name)
+    end
+
+    ---@return DungeonRaid[]
+    function util:GetSortedRaids()
+        return SORTED_RAIDS
+    end
+
+    ---@return DungeonRaid|nil
+    function util:GetRaidByIndex(index)
+        return RAIDS[index]
+    end
+
+    ---@return DungeonRaid|nil
+    function util:GetRaidByLFDActivityID(id)
+        for i = 1, #RAIDS do
+            local raid = RAIDS[i]
+            for j = 1, #raid.lfd_activity_ids do
+                local activityID = raid.lfd_activity_ids[j]
+                if activityID == id then
+                    return raid
+                end
+            end
+        end
+    end
+
+    ---@return DungeonRaid|nil
+    function util:GetRaidByKeyValue(key, value)
+        for i = 1, #RAIDS do
+            local raid = RAIDS[i]
+            if raid[key] == value then
+                return raid
+            end
+        end
+    end
+
+    ---@return DungeonRaid|nil
+    function util:GetRaidByID(id)
+        return util:GetRaidByKeyValue("id", id)
+    end
+
+    ---@return DungeonRaid|nil
+    function util:GetRaidByInstanceMapID(id)
+        return util:GetRaidByKeyValue("instance_map_id", id)
+    end
+
+    ---@return DungeonRaid|nil
+    function util:GetRaidByName(name)
+        return util:GetRaidByKeyValue("name", name)
+    end
+
+    ---@return DungeonRaid|nil
+    function util:GetRaidByShortName(name)
+        return util:GetRaidByKeyValue("shortName", name) or util:GetRaidByKeyValue("shortNameLocale", name)
     end
 
     ---@param object Region @Any interface widget object that supports the methods GetScript.
@@ -1419,7 +1492,7 @@ do
     ---@field resultID number
 
     ---@class LFDStatus
-    ---@field dungeon? Dungeon
+    ---@field dungeon? Dungeon|DungeonRaid
     ---@field hosting boolean
     ---@field queued boolean
     ---@field self LFDStatusResult[] @The LFDStatus itself is also a iterable table with the LFDStatusResult entries.
@@ -1435,14 +1508,14 @@ do
         local index = 0
         local activityInfo = C_LFGList.GetActiveEntryInfo()
         if activityInfo and activityInfo.activityID then
-            temp.dungeon = util:GetDungeonByLFDActivityID(activityInfo.activityID)
+            temp.dungeon = util:GetDungeonByLFDActivityID(activityInfo.activityID) or util:GetRaidByLFDActivityID(activityInfo.activityID)
             temp.hosting = true
         end
         local applications = C_LFGList.GetApplications()
         for _, resultID in ipairs(applications) do
             local searchResultInfo = C_LFGList.GetSearchResultInfo(resultID)
             if searchResultInfo and searchResultInfo.activityID and not searchResultInfo.isDelisted then
-                local dungeon = util:GetDungeonByLFDActivityID(searchResultInfo.activityID)
+                local dungeon = util:GetDungeonByLFDActivityID(searchResultInfo.activityID) or util:GetRaidByLFDActivityID(searchResultInfo.activityID)
                 if dungeon then
                     local _, appStatus, pendingStatus = C_LFGList.GetApplicationInfo(resultID)
                     if not pendingStatus and (appStatus == "applied" or appStatus == "invited") then
@@ -1462,21 +1535,20 @@ do
         end
     end
 
-    ---@return Dungeon?
+    ---@return Dungeon|DungeonRaid|nil
     function util:GetInstanceStatus()
         local _, instanceType, _, _, _, _, _, instanceMapID = GetInstanceInfo()
         if instanceType ~= "party" then
             return
         end
-        return util:GetDungeonByInstanceMapID(instanceMapID)
+        return util:GetDungeonByInstanceMapID(instanceMapID) or util:GetRaidByInstanceMapID(instanceMapID)
     end
 
     function util:GetLFDStatusForCurrentActivity(activityID)
-        ---@type Dungeon
+        ---@type Dungeon|DungeonRaid|nil
         local focusDungeon
-        local activityDungeon = activityID and util:GetDungeonByLFDActivityID(activityID)
-        if activityDungeon then
-            focusDungeon = activityDungeon
+        if activityID then
+            focusDungeon = util:GetDungeonByLFDActivityID(activityID) or util:GetRaidByLFDActivityID(activityID)
         end
         if not focusDungeon then
             local lfd = util:GetLFDStatus()
@@ -1491,6 +1563,45 @@ do
             end
         end
         return focusDungeon
+    end
+
+    ---@param raid DungeonRaid
+    local function IsRaidFated(raid)
+        if not raid then
+            return
+        end
+        local modInfo = C_ModifiedInstance.GetModifiedInstanceInfoFromMapID(raid.instance_map_id)
+        if not modInfo then
+            return
+        end
+        if modInfo.uiTextureKit ~= "ui-ej-icon-empoweredraid" then
+            return
+        end
+        return modInfo.uiTextureKit
+    end
+
+    ---@param raid DungeonRaid
+    function util:IsRaidFated(raid)
+        return IsRaidFated(raid)
+    end
+
+    ---@param asMap? boolean
+    function util:GetFatedRaids(asMap)
+        local raids = {} ---@type DungeonRaid[]
+        local index = 0
+        for i = 1, #RAIDS do
+            local raid = RAIDS[i]
+            local fated = IsRaidFated(raid)
+            if fated then
+                if asMap then
+                    raids[raid] = fated or ""
+                else
+                    index = index + 1
+                    raids[index] = raid
+                end
+            end
+        end
+        return raids
     end
 
     local SCORE_TIER = ns:GetScoreTiersData()
@@ -2071,11 +2182,13 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
     local util = ns:GetModule("Util") ---@type UtilModule
 
-    ---@class Raid
+    ---@class DatabaseRaid
+    ---@field public id number
     ---@field public ordinal number
     ---@field public name string
     ---@field public shortName string
     ---@field public bossCount number
+    ---@field public dungeon? DungeonRaid
 
     ---@class DataProviderMythicKeystone
     ---@field public currentSeasonId number
@@ -2085,10 +2198,10 @@ do
 
     -- hack to implement both keystone and raid classes on the dataprovider below so we do this weird inheritance
     ---@class DataProviderRaid : DataProviderMythicKeystone
-    ---@field public currentRaid Raid
-    ---@field public previousRaid Raid
-    ---@field public currentRaids Raid[]
-    ---@field public previousRaids Raid[]
+    ---@field public currentRaid DatabaseRaid
+    ---@field public previousRaid DatabaseRaid
+    ---@field public currentRaids DatabaseRaid[]
+    ---@field public previousRaids DatabaseRaid[]
 
     ---@class DataProvider : DataProviderRaid
     ---@field public name string
@@ -2298,14 +2411,31 @@ do
                 provider[k] = provider[k] or v
             end
             table.wipe(data)
-            -- DEBUG: test different ordinal values
             if provider.data == ns.PROVIDER_DATA_TYPE.Raid then
+                ---@param raid DatabaseRaid
+                local function PopulateRaidWithDungeon(raid)
+                    if not raid or not raid.id or raid.dungeon then
+                        return
+                    end
+                    local id = raid.id
+                    -- TODO: fated raids should still use the original raid id (but we can have a flag to indicate this is fated and handle it differently when needed)
+                    if id == 100013224 then id = 13224 elseif id == 100013561 then id = 13561 elseif id == 100013742 then id = 13742 end
+                    raid.dungeon = util:GetRaidByID(id)
+                end
+                for _, raid in ipairs({ provider.currentRaid, provider.previousRaid }) do
+                    PopulateRaidWithDungeon(raid)
+                end
+                for _, raids in ipairs({ provider.currentRaids, provider.previousRaids }) do
+                    if raids then
+                        for _, raid in ipairs(raids) do
+                            PopulateRaidWithDungeon(raid)
+                        end
+                    end
+                end
+                -- DEBUG: test with adjusted ordinals for the current raids
                 provider.currentRaids[1].ordinal = 3
                 provider.currentRaids[2].ordinal = 2
                 provider.currentRaids[3].ordinal = 1
-                provider.previousRaids[1].ordinal = 4
-                provider.previousRaids[2].ordinal = 5
-                provider.previousRaids[3].ordinal = 6
             end
         else
             table.insert(providers, data)
@@ -2963,7 +3093,7 @@ do
     ---@field public progressCount number
     ---@field public difficulty number
     ---@field public killsPerBoss number[]
-    ---@field public raid Raid
+    ---@field public raid DatabaseRaid
 
     ---@class DataProviderRaidProfile
     ---@field public outdated number|nil @number or nil
@@ -2983,7 +3113,8 @@ do
     ---@field public progress DataProviderRaidProgress
 
     ---@class RaidProgress
-    ---@field public raid Raid
+    ---@field public current boolean
+    ---@field public raid DatabaseRaid
     ---@field public progress RaidProgressBossInfo[]
     ---@field public progressCount number
 
@@ -2991,6 +3122,15 @@ do
     ---@field public killed boolean
     ---@field public count number
     ---@field public difficulty number
+
+    ---@class RaidProgressGroupProgress : RaidProgress
+    ---@field public focused boolean @`true` if the raid is focused due to LFD status or instance location, otherwise `false`.
+    ---@field public fated? string @The fated `texture` if the raid is fated, otherwise `nil` if it's not. Requires to append `-small` or `-large` at the end of the atlas string for it to resolve into a proper texture.
+    ---@field public show boolean @Dynamically assigned based on the situation. It's set to `true` to display the line in the tooltip, otherwise `false` to hide.
+
+    ---@class RaidProgressGroup
+    ---@field public raid DatabaseRaid
+    ---@field public current RaidProgressGroupProgress[]
 
     ---@param a SortedRaidProgress
     ---@param b SortedRaidProgress
@@ -3018,7 +3158,8 @@ do
     local function SummarizeRaidProgress(results, provider)
         local sortedProgress = results.sortedProgress
         local raidProgress = results.raidProgress
-        for _, raids in ipairs({ provider.currentRaids, provider.previousRaids }) do
+        for raidsIndex, raids in ipairs({ provider.currentRaids, provider.previousRaids }) do
+            local isCurrentRaid = raidsIndex == 1
             for i = 1, #raids do
                 local raid = raids[i]
                 local killsPerBoss = {}
@@ -3037,6 +3178,7 @@ do
                 end
                 ---@type RaidProgress
                 local currentProg = {
+                    current = isCurrentRaid,
                     raid = raid,
                     progress = {},
                     progressCount = 0,
@@ -3063,7 +3205,7 @@ do
     end
 
     ---@param bucket table
-    ---@param raid Raid
+    ---@param raid DatabaseRaid
     ---@param offset number
     ---@param results DataProviderRaidProfile
     ---@param field "mainProgress"|"previousProgress"|"progress"
@@ -3084,7 +3226,7 @@ do
     end
 
     ---@param bucket table
-    ---@param raid Raid
+    ---@param raid DatabaseRaid
     ---@param offset number
     ---@param results DataProviderRaidProfile
     local function UnpackFullRaidProgress(bucket, raid, offset, results)
@@ -4037,10 +4179,10 @@ do
         local bestChests = 0 ---@type number
         local args = {...}
         for i = 1, #args, 3 do
-            local dungeon = args[i]
-            local level = args[i + 1]
-            local chests = args[i + 2]
-            if dungeon and (level > bestLevel or (level >= bestLevel and chests > bestChests)) then
+            local dungeon = args[i] ---@type Dungeon|nil
+            local level = args[i + 1] ---@type number
+            local chests = args[i + 2] ---@type number
+            if dungeon and dungeon.keystone_instance and (level > bestLevel or (level >= bestLevel and chests > bestChests)) then
                 bestDungeon, bestLevel, bestChests = dungeon, level, chests
             end
         end
@@ -4193,6 +4335,125 @@ do
             end
         end
         return lines, lineWidth, maxWidth
+    end
+
+    ---@param tooltip GameTooltip
+    ---@param raids DatabaseRaid[]
+    ---@param raidProfile DataProviderRaidProfile
+    local function AppendRaidProfileToTooltip(tooltip, raids, raidProfile)
+        for i = 1, #raids do
+            local raid = raids[i]
+            for j = 1, raid.bossCount do
+                local progressFound = false
+                for k = 1, #raidProfile.progress do
+                    local progress = raidProfile.progress[k]
+                    if raid == progress.raid then
+                        local bossKills = progress.killsPerBoss[j]
+                        if bossKills > 0 then
+                            progressFound = true
+                            local difficulty = ns.RAID_DIFFICULTY[progress.difficulty]
+                            tooltip:AddDoubleLine(format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix, L[format("RAID_BOSS_%s_%d", raid.shortName, j)]), bossKills, 1, 1, 1, 1, 1, 1)
+                        end
+                        if progressFound then
+                            break
+                        end
+                    end
+                end
+                if not progressFound then
+                    tooltip:AddDoubleLine(L[format("RAID_BOSS_%s_%d", raid.shortName, j)], "-", 0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+                end
+            end
+        end
+    end
+
+    ---@type table<DungeonRaid, string>|nil
+    local CACHED_FATED_RAIDS_MAP
+
+    ---@param raidProgress RaidProgress[]
+    local function ProcessFatedRaids(raidProgress)
+        if not CACHED_FATED_RAIDS_MAP then
+            CACHED_FATED_RAIDS_MAP = util:GetFatedRaids(true)
+            if not next(CACHED_FATED_RAIDS_MAP) then
+                CACHED_FATED_RAIDS_MAP = nil
+                return
+            end
+        end
+        table.sort(raidProgress, function(a, b)
+            local r1 = a.raid
+            local r2 = b.raid
+            local f1 = a.current and CACHED_FATED_RAIDS_MAP[r1.dungeon] and 1 or 0
+            local f2 = b.current and CACHED_FATED_RAIDS_MAP[r2.dungeon] and 1 or 0
+            if f1 == f2 then
+                return r1.ordinal < r2.ordinal
+            end
+            return f1 > f2
+        end)
+    end
+
+    ---@param tooltip GameTooltip
+    ---@param raidProfile DataProviderRaidProfile
+    ---@param state TooltipState
+    ---@param showRaidEncounters boolean
+    ---@param hasModOrSticky boolean
+    ---@param showLFD boolean
+    local function AppendRaidProgressToTooltip(tooltip, raidProfile, state, showRaidEncounters, hasModOrSticky, showLFD)
+        local raidProgress = raidProfile.raidProgress
+        ProcessFatedRaids(raidProgress)
+        local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
+        local raidsGrouped = {} ---@type RaidProgressGroup
+        for i = 1, #raidProgress do
+            local progress = raidProgress[i]
+            if progress.progressCount > 0 then
+                if raidsGrouped.raid ~= progress.raid then
+                    raidsGrouped.raid = progress.raid
+                    raidsGrouped.current = {}
+                    raidsGrouped[#raidsGrouped + 1] = raidsGrouped.current
+                end
+                local progressGroup = progress ---@type RaidProgressGroupProgress
+                progressGroup.focused = focusDungeon and focusDungeon == progressGroup.raid.dungeon
+                if progressGroup.current then
+                    progressGroup.fated = util:IsRaidFated(progressGroup.raid.dungeon)
+                else
+                    progressGroup.fated = nil
+                end
+                progressGroup.show = showRaidEncounters or hasModOrSticky or progressGroup.focused or progressGroup.fated
+                raidsGrouped.current[#raidsGrouped.current + 1] = progressGroup
+            end
+        end
+        for i = 1, #raidsGrouped do
+            local groups = raidsGrouped[i] ---@type RaidProgressGroupProgress[]
+            local tempIndex = 0
+            local temp = {}
+            for j = 1, #groups do
+                local prog = groups[j]
+                if prog.show then
+                    local diffsKills = {}
+                    for k = 1, #prog.progress do
+                        local bossInfo = prog.progress[k]
+                        if bossInfo.killed then
+                            diffsKills[bossInfo.difficulty] = (diffsKills[bossInfo.difficulty] or 0) + 1
+                        end
+                    end
+                    for k = 0, #ns.RAID_DIFFICULTY do
+                        local diffKill = diffsKills[k]
+                        if diffKill then
+                            local raidDiff = ns.RAID_DIFFICULTY[k]
+                            tempIndex = tempIndex + 1
+                            temp[tempIndex] = format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, diffKill, prog.raid.bossCount)
+                        end
+                    end
+                end
+            end
+            if tempIndex > 0 then
+                local firstGroup = groups[1]
+                local r, g, b = 1, 1, 1
+                if firstGroup.focused then
+                    r, g, b = 0, 1, 0
+                end
+                local fatedTexture = firstGroup.fated and format("|A:%s-small:0:0|a ", firstGroup.fated) or ""
+                tooltip:AddDoubleLine(format("%s%s", fatedTexture, firstGroup.raid.shortName), table.concat(temp, " "), r, g, b, 1, 1, 1) -- TODO: firstGroup.raid.dungeon?.shortNameLocale
+            end
+        end
     end
 
     ---@param tooltip GameTooltip
@@ -4364,62 +4625,11 @@ do
                         if showRaidEncounters then
                             local raidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid, state.region)
                             if raidProvider then
-                                for i = 1, #raidProvider.currentRaids do
-                                    local currentRaid = raidProvider.currentRaids[i]
-                                    for j = 1, currentRaid.bossCount do
-                                        local progressFound = false
-                                        for k = 1, #raidProfile.progress do
-                                            local progress = raidProfile.progress[k]
-                                            if currentRaid == progress.raid then
-                                                local bossKills = progress.killsPerBoss[j]
-                                                if bossKills > 0 then
-                                                    progressFound = true
-                                                    local difficulty = ns.RAID_DIFFICULTY[progress.difficulty]
-                                                    tooltip:AddDoubleLine(format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix, L[format("RAID_BOSS_%s_%d", currentRaid.shortName, j)]), bossKills, 1, 1, 1, 1, 1, 1)
-                                                end
-                                                if progressFound then
-                                                    break
-                                                end
-                                            end
-                                        end
-                                        if not progressFound then
-                                            tooltip:AddDoubleLine(L[format("RAID_BOSS_%s_%d", currentRaid.shortName, j)], "-", 0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
-                                        end
-                                    end
-                                end
+                                AppendRaidProfileToTooltip(tooltip, raidProvider.currentRaids, raidProfile)
                             end
                         end
                     else
-                        -- for i = 1, #raidProfile.sortedProgress do
-                        --     local sortedProgress = raidProfile.sortedProgress[i]
-                        --     local progress = sortedProgress.progress
-                        --     if ((showRaidEncounters and (hasMod or hasModSticky)) or not sortedProgress.obsolete) and (not sortedProgress.isMainProgress or config:Get("showMainsScore")) then
-                        --         local raidDiff = ns.RAID_DIFFICULTY[progress.difficulty]
-                        --         if sortedProgress.isMainProgress then
-                        --             tooltip:AddDoubleLine(L.MAINS_RAID_PROGRESS, format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, progress.progressCount, progress.raid.bossCount), 1, 1, 1, 1, 1, 1)
-                        --         else
-                        --             tooltip:AddDoubleLine(format("%s %s", progress.raid.shortName, raidDiff.name), format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, progress.progressCount, progress.raid.bossCount), 1, 1, 1, 1, 1, 1)
-                        --         end
-                        --     end
-                        -- end
-                        local raidsShown = 0
-                        for i = 1, #raidProfile.raidProgress do
-                            local progress = raidProfile.raidProgress[i]
-                            if progress.progressCount > 0 and ((showRaidEncounters and (hasMod or hasModSticky)) or raidsShown < 1) then
-                                raidsShown = raidsShown + 1
-                                local temp = {}
-                                for j = 1, #progress.progress do
-                                    local bossProgress = progress.progress[j]
-                                    if bossProgress.killed then
-                                        local bossDiff = ns.RAID_DIFFICULTY[bossProgress.difficulty]
-                                        temp[j] = format("|cff%s%d|r", bossDiff.color.hex, bossProgress.count)
-                                    else
-                                        temp[j] = "|cff8080800|r"
-                                    end
-                                end
-                                tooltip:AddDoubleLine(progress.raid.name, table.concat(temp, " "), 1, 1, 1, 1, 1, 1)
-                            end
-                        end
+                        AppendRaidProgressToTooltip(tooltip, raidProfile, state, showRaidEncounters, hasMod or hasModSticky, showLFD)
                     end
                 end
                 if isRecruitmentBlockShown then

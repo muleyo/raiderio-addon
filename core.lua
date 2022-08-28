@@ -4415,10 +4415,9 @@ do
     ---@param tooltip GameTooltip
     ---@param raidProfile DataProviderRaidProfile
     ---@param state TooltipState
-    ---@param showRaidEncounters boolean
     ---@param hasModOrSticky boolean
     ---@param showLFD boolean
-    local function AppendRaidProgressToTooltip(tooltip, raidProfile, state, showRaidEncounters, hasModOrSticky, showLFD)
+    local function AppendRaidProgressToTooltip(tooltip, raidProfile, state, hasModOrSticky, showLFD)
         local raidProgress = raidProfile.raidProgress
         ProcessFatedRaids(raidProgress)
         local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
@@ -4438,7 +4437,7 @@ do
                 else
                     progressGroup.fated = nil
                 end
-                progressGroup.show = showRaidEncounters or hasModOrSticky or progressGroup.focused or progressGroup.fated
+                progressGroup.show = hasModOrSticky or progressGroup.focused or progressGroup.fated
                 raidsGrouped.current[#raidsGrouped.current + 1] = progressGroup
             end
         end
@@ -4651,7 +4650,7 @@ do
                             end
                         end
                     else
-                        AppendRaidProgressToTooltip(tooltip, raidProfile, state, showRaidEncounters, hasMod or hasModSticky, showLFD)
+                        AppendRaidProgressToTooltip(tooltip, raidProfile, state, hasMod or hasModSticky, showLFD)
                     end
                 end
                 if isRecruitmentBlockShown then

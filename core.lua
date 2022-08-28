@@ -2184,6 +2184,7 @@ do
 
     ---@class DatabaseRaid
     ---@field public id number
+    ---@field public mapId number
     ---@field public ordinal number
     ---@field public name string
     ---@field public shortName string
@@ -2417,10 +2418,7 @@ do
                     if not raid or not raid.id or raid.dungeon then
                         return
                     end
-                    local id = raid.id
-                    -- TODO: fated raids should still use the original raid id (but we can have a flag to indicate this is fated and handle it differently when needed)
-                    if id == 100013224 then id = 13224 elseif id == 100013561 then id = 13561 elseif id == 100013742 then id = 13742 end
-                    raid.dungeon = util:GetRaidByID(id)
+                    raid.dungeon = util:GetRaidByID(raid.id)
                 end
                 for _, raid in ipairs({ provider.currentRaid, provider.previousRaid }) do
                     PopulateRaidWithDungeon(raid)
@@ -4340,9 +4338,33 @@ do
     ---@param tooltip GameTooltip
     ---@param raids DatabaseRaid[]
     ---@param raidProfile DataProviderRaidProfile
-    local function AppendRaidProfileToTooltip(tooltip, raids, raidProfile)
-        for i = 1, #raids do
-            local raid = raids[i]
+    ---@param state TooltipState
+    ---@param showLFD boolean
+    local function AppendRaidProfileToTooltip(tooltip, raids, raidProfile, state, showLFD)
+        local focusDungeon = false ---@type Dungeon|DungeonRaid|nil|false
+        local numRaids = #raids
+        local sortedLatestFirst = {} ---@type DatabaseRaid[]
+        for i = 1, numRaids do
+            sortedLatestFirst[i] = raids[i]
+        end
+        table.sort(sortedLatestFirst, function(a, b)
+            return a.ordinal < b.ordinal
+        end)
+        for i = 1, numRaids do
+            local raid = sortedLatestFirst[i]
+            if numRaids > 1 then
+                if showLFD and focusDungeon == false then
+                    focusDungeon = util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
+                end
+                local focused = focusDungeon and focusDungeon == raid.dungeon
+                local fated = raid.id and raid.id ~= raid.mapId and util:IsRaidFated(raid.dungeon)
+                local r, g, b = 1, 0.85, 0
+                if focused then
+                    r, g, b = 0, 1, 0
+                end
+                local fatedTexture = fated and format("|A:%s-small:0:0|a ", fated) or ""
+                tooltip:AddLine(format("%s%s", fatedTexture, raid.name), r, g, b) -- TODO: raid.dungeon?.nameLocale
+            end
             for j = 1, raid.bossCount do
                 local progressFound = false
                 for k = 1, #raidProfile.progress do
@@ -4625,7 +4647,7 @@ do
                         if showRaidEncounters then
                             local raidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid, state.region)
                             if raidProvider then
-                                AppendRaidProfileToTooltip(tooltip, raidProvider.currentRaids, raidProfile)
+                                AppendRaidProfileToTooltip(tooltip, raidProvider.currentRaids, raidProfile, state, showLFD)
                             end
                         end
                     else

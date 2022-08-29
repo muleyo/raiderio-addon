@@ -4335,6 +4335,50 @@ do
         return lines, lineWidth, maxWidth
     end
 
+    ---@type table<DungeonRaid, string>|nil
+    local CACHED_FATED_RAIDS_MAP
+
+    ---@return table<DungeonRaid, string>|nil
+    local function InitCachedFatedRaidsMap()
+        local cache = CACHED_FATED_RAIDS_MAP
+        if cache then
+            return cache
+        end
+        CACHED_FATED_RAIDS_MAP = util:GetFatedRaids(true)
+        cache = CACHED_FATED_RAIDS_MAP
+        if not next(cache) then
+            return
+        end
+        return cache
+    end
+
+    ---@param raids any[]
+    local function CanSortRaids(raids)
+        if not raids or type(raids) ~= "table" then
+            return false
+        end
+        return #raids > 1
+    end
+
+    ---@param raids DatabaseRaid[]
+    local function ProcessFatedRaidsProfile(raids)
+        if not CanSortRaids(raids) then
+            return
+        end
+        local cache = InitCachedFatedRaidsMap()
+        if not cache then
+            return
+        end
+        table.sort(raids, function(a, b)
+            local f1 = a.id ~= a.mapId and cache[a.dungeon] and 1 or 0
+            local f2 = b.id ~= b.mapId and cache[a.dungeon] and 1 or 0
+            if f1 == f2 then
+                return a.ordinal < b.ordinal
+            end
+            return f1 > f2
+        end)
+    end
+
     ---@param tooltip GameTooltip
     ---@param raids DatabaseRaid[]
     ---@param raidProfile DataProviderRaidProfile
@@ -4353,11 +4397,7 @@ do
         for i = 1, numRaids do
             sortedRaids[i] = raids[i]
         end
-        if numRaids > 1 then
-            table.sort(sortedRaids, function(a, b)
-                return a.ordinal > b.ordinal
-            end)
-        end
+        ProcessFatedRaidsProfile(sortedRaids)
         if showHeader and numRaids == 1 then
             tooltip:AddLine(L.RAID_ENCOUNTERS_DEFEATED_TITLE, 1, 0.85, 0)
         end
@@ -4400,23 +4440,20 @@ do
         end
     end
 
-    ---@type table<DungeonRaid, string>|nil
-    local CACHED_FATED_RAIDS_MAP
-
     ---@param raidProgress RaidProgress[]
     local function ProcessFatedRaids(raidProgress)
-        if not CACHED_FATED_RAIDS_MAP then
-            CACHED_FATED_RAIDS_MAP = util:GetFatedRaids(true)
-            if not next(CACHED_FATED_RAIDS_MAP) then
-                CACHED_FATED_RAIDS_MAP = nil
-                return
-            end
+        if not CanSortRaids(raidProgress) then
+            return
+        end
+        local cache = InitCachedFatedRaidsMap()
+        if not cache then
+            return
         end
         table.sort(raidProgress, function(a, b)
             local r1 = a.raid
             local r2 = b.raid
-            local f1 = a.current and CACHED_FATED_RAIDS_MAP[r1.dungeon] and 1 or 0
-            local f2 = b.current and CACHED_FATED_RAIDS_MAP[r2.dungeon] and 1 or 0
+            local f1 = a.current and cache[r1.dungeon] and 1 or 0
+            local f2 = b.current and cache[r2.dungeon] and 1 or 0
             if f1 == f2 then
                 return r1.ordinal < r2.ordinal
             end

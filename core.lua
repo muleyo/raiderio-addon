@@ -4355,7 +4355,7 @@ do
         end
         if numRaids > 1 then
             table.sort(sortedRaids, function(a, b)
-                return a.ordinal < b.ordinal
+                return a.ordinal > b.ordinal
             end)
         end
         if showHeader and numRaids == 1 then
@@ -4374,7 +4374,7 @@ do
                 if focused then
                     r, g, b = 0, 1, 0
                 end
-                local fatedTexture = fated and format("|A:%s-small:0:0:0:0|a", fated) or ""
+                local fatedTexture = fated and format("|A:%s-small:0:0:0:1|a", fated) or ""
                 tooltip:AddLine(format("%s %s", raid.name, fatedTexture), r, g, b) -- TODO: raid.dungeon?.nameLocale
             end
             for j = 1, raid.bossCount do
@@ -4434,6 +4434,7 @@ do
         ProcessFatedRaids(raidProgress)
         local focusDungeon = showLFD and util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
         local raidsGrouped = {} ---@type RaidProgressGroup
+        local hasShown = false ---@type boolean|nil
         for i = 1, #raidProgress do
             local progress = raidProgress[i]
             if progress.progressCount > 0 then
@@ -4449,8 +4450,9 @@ do
                 else
                     progressGroup.fated = nil
                 end
-                progressGroup.show = hasModOrSticky or progressGroup.focused or progressGroup.fated
+                progressGroup.show = not not (hasModOrSticky or progressGroup.focused or progressGroup.fated)
                 raidsGrouped.current[#raidsGrouped.current + 1] = progressGroup
+                hasShown = hasShown or progressGroup.show
             end
         end
         for i = 1, #raidsGrouped do
@@ -4459,7 +4461,8 @@ do
             local temp = {}
             for j = 1, #groups do
                 local prog = groups[j]
-                if prog.show then
+                if prog.show or hasShown == false then
+                    hasShown = nil
                     local diffsKills = {}
                     for k = 1, #prog.progress do
                         local bossInfo = prog.progress[k]
@@ -4483,7 +4486,7 @@ do
                 if firstGroup.focused then
                     r, g, b = 0, 1, 0
                 end
-                local fatedTexture = firstGroup.fated and format("|A:%s-small:0:0:0:0|a", firstGroup.fated) or ""
+                local fatedTexture = firstGroup.fated and format("|A:%s-small:0:0:0:1|a", firstGroup.fated) or ""
                 tooltip:AddDoubleLine(format("%s %s", firstGroup.raid.shortName, fatedTexture), table.concat(temp, " "), r, g, b, 1, 1, 1) -- TODO: firstGroup.raid.dungeon?.shortNameLocale
             end
         end

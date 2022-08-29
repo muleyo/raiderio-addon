@@ -4339,20 +4339,32 @@ do
     ---@param raids DatabaseRaid[]
     ---@param raidProfile DataProviderRaidProfile
     ---@param state TooltipState
+    ---@param showHeader boolean
     ---@param showLFD boolean
-    local function AppendRaidProfileToTooltip(tooltip, raids, raidProfile, state, showLFD)
-        local focusDungeon = false ---@type Dungeon|DungeonRaid|nil|false
-        local numRaids = #raids
-        local sortedLatestFirst = {} ---@type DatabaseRaid[]
-        for i = 1, numRaids do
-            sortedLatestFirst[i] = raids[i]
+    local function AppendRaidProfileToTooltip(tooltip, raids, raidProfile, state, showHeader, showLFD)
+        if not raids then
+            return
         end
-        table.sort(sortedLatestFirst, function(a, b)
-            return a.ordinal < b.ordinal
-        end)
+        local numRaids = #raids
+        if numRaids < 1 then
+            return
+        end
+        local sortedRaids = {} ---@type DatabaseRaid[]
         for i = 1, numRaids do
-            local raid = sortedLatestFirst[i]
-            if numRaids > 1 then
+            sortedRaids[i] = raids[i]
+        end
+        if numRaids > 1 then
+            table.sort(sortedRaids, function(a, b)
+                return a.ordinal < b.ordinal
+            end)
+        end
+        if showHeader and numRaids == 1 then
+            tooltip:AddLine(L.RAID_ENCOUNTERS_DEFEATED_TITLE, 1, 0.85, 0)
+        end
+        local focusDungeon = false ---@type Dungeon|DungeonRaid|nil|false
+        for i = 1, numRaids do
+            local raid = sortedRaids[i]
+            if showHeader and numRaids > 1 then
                 if showLFD and focusDungeon == false then
                     focusDungeon = util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
                 end
@@ -4362,8 +4374,8 @@ do
                 if focused then
                     r, g, b = 0, 1, 0
                 end
-                local fatedTexture = fated and format("|A:%s-small:0:0|a ", fated) or ""
-                tooltip:AddLine(format("%s%s", fatedTexture, raid.name), r, g, b) -- TODO: raid.dungeon?.nameLocale
+                local fatedTexture = fated and format("|A:%s-small:0:0:0:0|a", fated) or ""
+                tooltip:AddLine(format("%s %s", raid.name, fatedTexture), r, g, b) -- TODO: raid.dungeon?.nameLocale
             end
             for j = 1, raid.bossCount do
                 local progressFound = false
@@ -4471,8 +4483,8 @@ do
                 if firstGroup.focused then
                     r, g, b = 0, 1, 0
                 end
-                local fatedTexture = firstGroup.fated and format("|A:%s-small:0:0|a ", firstGroup.fated) or ""
-                tooltip:AddDoubleLine(format("%s%s", fatedTexture, firstGroup.raid.shortName), table.concat(temp, " "), r, g, b, 1, 1, 1) -- TODO: firstGroup.raid.dungeon?.shortNameLocale
+                local fatedTexture = firstGroup.fated and format("|A:%s-small:0:0:0:0|a", firstGroup.fated) or ""
+                tooltip:AddDoubleLine(format("%s %s", firstGroup.raid.shortName, fatedTexture), table.concat(temp, " "), r, g, b, 1, 1, 1) -- TODO: firstGroup.raid.dungeon?.shortNameLocale
             end
         end
     end
@@ -4633,20 +4645,14 @@ do
                     if showPadding and isKeystoneBlockShown then
                         tooltip:AddLine(" ")
                     end
-                    if showHeader then
-                        if isExtendedProfile then
-                            if showRaidEncounters then
-                                tooltip:AddLine(L.RAID_ENCOUNTERS_DEFEATED_TITLE, 1, 0.85, 0)
-                            end
-                        else
-                            tooltip:AddLine(L.RAIDING_DATA_HEADER, 1, 0.85, 0)
-                        end
+                    if showHeader and not isExtendedProfile then
+                        tooltip:AddLine(L.RAIDING_DATA_HEADER, 1, 0.85, 0)
                     end
                     if isExtendedProfile then
                         if showRaidEncounters then
                             local raidProvider = provider:GetProviderByType(ns.PROVIDER_DATA_TYPE.Raid, state.region)
                             if raidProvider then
-                                AppendRaidProfileToTooltip(tooltip, raidProvider.currentRaids, raidProfile, state, showLFD)
+                                AppendRaidProfileToTooltip(tooltip, raidProvider.currentRaids, raidProfile, state, showHeader, showLFD)
                             end
                         end
                     else

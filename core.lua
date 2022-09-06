@@ -3180,35 +3180,48 @@ do
                 }
                 local diffToIndexMap = {} ---@type number[]
                 local diffNextIndex = 1
+                ---@param difficulty number
+                ---@param index number
+                ---@param count number
+                local function appendBossInfo(difficulty, index, count)
+                    ---@type RaidProgressBossInfo
+                    local bossInfo = {
+                        difficulty = difficulty,
+                        index = index,
+                        count = count,
+                        killed = count > 0,
+                    }
+                    local diffIndex = diffToIndexMap[bossInfo.difficulty]
+                    if not diffIndex then
+                        diffIndex = diffNextIndex
+                        diffNextIndex = diffNextIndex + 1
+                        diffToIndexMap[bossInfo.difficulty] = diffIndex
+                    end
+                    local diffGroup = raidProg.progress[diffIndex]
+                    if not diffGroup then
+                        ---@type RaidProgressGroup
+                        diffGroup = {
+                            difficulty = difficulty,
+                            progress = {},
+                        }
+                        raidProg.progress[diffIndex] = diffGroup
+                    end
+                    diffGroup.progress[#diffGroup.progress + 1] = bossInfo
+                end
                 for j = 1, #sortedProgress do
                     local prog = sortedProgress[j]
                     local progProgress = prog.progress
-                    if progProgress.raid == raid and progProgress.killsPerBoss and (not prog.isMainProgress) then
-                        for k = 1, #progProgress.killsPerBoss do
-                            local killsPerBoss = progProgress.killsPerBoss[k]
-                            ---@type RaidProgressBossInfo
-                            local bossInfo = {
-                                difficulty = progProgress.difficulty,
-                                index = k,
-                                count = killsPerBoss,
-                                killed = killsPerBoss > 0,
-                            }
-                            local diffIndex = diffToIndexMap[bossInfo.difficulty]
-                            if not diffIndex then
-                                diffIndex = diffNextIndex
-                                diffNextIndex = diffNextIndex + 1
-                                diffToIndexMap[bossInfo.difficulty] = diffIndex
+                    if progProgress.raid == raid and (not prog.isMainProgress) and ((isCurrentRaid and prog.isProgress) or (not isCurrentRaid and prog.isProgressPrev)) then
+                        if progProgress.killsPerBoss then
+                            for k = 1, #progProgress.killsPerBoss do
+                                local killsPerBoss = progProgress.killsPerBoss[k]
+                                appendBossInfo(progProgress.difficulty, k, killsPerBoss)
                             end
-                            local diffGroup = raidProg.progress[diffIndex]
-                            if not diffGroup then
-                                ---@type RaidProgressGroup
-                                diffGroup = {
-                                    difficulty = progProgress.difficulty,
-                                    progress = {},
-                                }
-                                raidProg.progress[diffIndex] = diffGroup
+                        else
+                            for k = 1, progProgress.raid.bossCount do
+                                local killsPerBoss = progProgress.progressCount >= k and 1 or 0
+                                appendBossInfo(progProgress.difficulty, k, killsPerBoss)
                             end
-                            diffGroup.progress[#diffGroup.progress + 1] = bossInfo
                         end
                     end
                 end

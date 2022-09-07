@@ -3116,6 +3116,7 @@ do
     ---@field public current boolean
     ---@field public raid DatabaseRaid
     ---@field public progress RaidProgressGroup[]
+    ---@field public isMainProgress boolean
 
     ---@class RaidProgressGroup
     ---@field public difficulty number
@@ -3168,82 +3169,93 @@ do
     local function SummarizeRaidProgress(results, provider)
         local sortedProgress = results.sortedProgress
         local raidProgress = results.raidProgress
-        for raidsIndex, raids in ipairs({ provider.currentRaids, provider.previousRaids }) do
-            local isCurrentRaid = raidsIndex == 1
-            for i = 1, #raids do
-                local raid = raids[i]
-                ---@type RaidProgress
-                local raidProg = {
-                    current = isCurrentRaid,
-                    raid = raid,
-                    progress = {},
-                }
-                local diffToIndexMap = {} ---@type number[]
-                local diffNextIndex = 1
-                ---@param difficulty number
-                ---@param index number
-                ---@param count number
-                local function appendBossInfo(difficulty, index, count)
-                    ---@type RaidProgressBossInfo
-                    local bossInfo = {
-                        difficulty = difficulty,
-                        index = index,
-                        count = count,
-                        killed = count > 0,
+        ---@param isMainProgress boolean
+        local function populateRaidProgress(isMainProgress)
+            for raidsIndex, raids in ipairs({ provider.currentRaids, provider.previousRaids }) do
+                local isCurrentRaid = raidsIndex == 1
+                for i = 1, #raids do
+                    local raid = raids[i]
+                    ---@type RaidProgress
+                    local raidProg = {
+                        current = isCurrentRaid,
+                        raid = raid,
+                        progress = {},
+                        isMainProgress = false,
                     }
-                    local diffIndex = diffToIndexMap[bossInfo.difficulty]
-                    if not diffIndex then
-                        diffIndex = diffNextIndex
-                        diffNextIndex = diffNextIndex + 1
-                        diffToIndexMap[bossInfo.difficulty] = diffIndex
-                    end
-                    local diffGroup = raidProg.progress[diffIndex]
-                    if not diffGroup then
-                        ---@type RaidProgressGroup
-                        diffGroup = {
+                    local diffToIndexMap = {} ---@type number[]
+                    local diffNextIndex = 1
+                    ---@param difficulty number
+                    ---@param index number
+                    ---@param count number
+                    local function appendBossInfo(difficulty, index, count)
+                        ---@type RaidProgressBossInfo
+                        local bossInfo = {
                             difficulty = difficulty,
-                            progress = {},
+                            index = index,
+                            count = count,
+                            killed = count > 0,
                         }
-                        raidProg.progress[diffIndex] = diffGroup
+                        local diffIndex = diffToIndexMap[bossInfo.difficulty]
+                        if not diffIndex then
+                            diffIndex = diffNextIndex
+                            diffNextIndex = diffNextIndex + 1
+                            diffToIndexMap[bossInfo.difficulty] = diffIndex
+                        end
+                        local diffGroup = raidProg.progress[diffIndex]
+                        if not diffGroup then
+                            ---@type RaidProgressGroup
+                            diffGroup = {
+                                difficulty = difficulty,
+                                progress = {},
+                            }
+                            raidProg.progress[diffIndex] = diffGroup
+                        end
+                        diffGroup.progress[#diffGroup.progress + 1] = bossInfo
                     end
-                    diffGroup.progress[#diffGroup.progress + 1] = bossInfo
-                end
-                for j = 1, #sortedProgress do
-                    local prog = sortedProgress[j]
-                    local progProgress = prog.progress
-                    if progProgress.raid == raid and (not prog.isMainProgress) and ((isCurrentRaid and prog.isProgress) or (not isCurrentRaid and prog.isProgressPrev)) then
-                        if progProgress.killsPerBoss then
-                            for k = 1, #progProgress.killsPerBoss do
-                                local killsPerBoss = progProgress.killsPerBoss[k]
-                                appendBossInfo(progProgress.difficulty, k, killsPerBoss)
+                    for j = 1, #sortedProgress do
+                        local prog = sortedProgress[j]
+                        local progProgress = prog.progress
+                        if progProgress.raid == raid and (not not isMainProgress == not not prog.isMainProgress) and (isMainProgress or ((isCurrentRaid and prog.isProgress) or (not isCurrentRaid and prog.isProgressPrev))) then
+                            if prog.isMainProgress then
+                                raidProg.isMainProgress = true
                             end
-                        else
-                            for k = 1, progProgress.raid.bossCount do
-                                local killsPerBoss = progProgress.progressCount >= k and 1 or 0
-                                appendBossInfo(progProgress.difficulty, k, killsPerBoss)
+                            if progProgress.killsPerBoss then
+                                for k = 1, #progProgress.killsPerBoss do
+                                    local killsPerBoss = progProgress.killsPerBoss[k]
+                                    appendBossInfo(progProgress.difficulty, k, killsPerBoss)
+                                end
+                            else
+                                for k = 1, progProgress.raid.bossCount do
+                                    local killsPerBoss = progProgress.progressCount >= k and 1 or 0
+                                    appendBossInfo(progProgress.difficulty, k, killsPerBoss)
+                                end
                             end
                         end
                     end
-                end
-                if raidProg.progress[2] then
-                    table.sort(raidProg.progress, SortRaidProgressGroupByDifficulty)
-                end
-                for j = #raidProg.progress, 1, -1 do
-                    local group = raidProg.progress[j]
-                    local bossKills = 0
-                    for _, bossInfo in ipairs(group.progress) do
-                        if bossInfo.killed then
-                            bossKills = bossKills + 1
-                        end
+                    if raidProg.progress[2] then
+                        table.sort(raidProg.progress, SortRaidProgressGroupByDifficulty)
                     end
-                    group.kills = bossKills
-                    group.cleared = bossKills == raidProg.raid.bossCount
-                    local nextGroup = raidProg.progress[j + 1]
-                    group.obsolete = not not (nextGroup and (nextGroup.obsolete or nextGroup.cleared))
+                    for j = #raidProg.progress, 1, -1 do
+                        local group = raidProg.progress[j]
+                        local bossKills = 0
+                        for _, bossInfo in ipairs(group.progress) do
+                            if bossInfo.killed then
+                                bossKills = bossKills + 1
+                            end
+                        end
+                        group.kills = bossKills
+                        group.cleared = bossKills == raidProg.raid.bossCount
+                        local nextGroup = raidProg.progress[j + 1]
+                        group.obsolete = not not (nextGroup and (nextGroup.obsolete or nextGroup.cleared))
+                    end
+                    if raidProg.progress[1] then
+                        raidProgress[#raidProgress + 1] = raidProg
+                    end
                 end
-                raidProgress[#raidProgress + 1] = raidProg
             end
         end
+        populateRaidProgress(false)
+        populateRaidProgress(true)
         if raidProgress[2] then
             table.sort(raidProgress, SortRaidProgressByOrdinal)
         end
@@ -4497,6 +4509,9 @@ do
             return
         end
         table.sort(raidProgress, function(a, b)
+            if not a.isMainProgress ~= not b.isMainProgress then
+                return not a.isMainProgress and b.isMainProgress
+            end
             local r1 = a.raid
             local r2 = b.raid
             local f1 = a.current and cache[r1.dungeon] and 1 or 0
@@ -4548,7 +4563,7 @@ do
                         hasShown = nil
                         local raidDiff = ns.RAID_DIFFICULTY[group.difficulty]
                         tempIndex = tempIndex + 1
-                        temp[tempIndex] = format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, group.kills, raidGroup.progress.raid.bossCount)
+                        temp[tempIndex] = format("|cff%s%s|r %d/%d", raidDiff.color.hex, raidDiff.suffix, group.kills, groupProgress.raid.bossCount)
                     end
                 end
                 if tempIndex > 0 then
@@ -4556,8 +4571,9 @@ do
                     if raidGroup.focused then
                         r, g, b = 0, 1, 0
                     end
+                    local prefixText = groupProgress.isMainProgress and format("%s ", L.MAINS_RAID_PROGRESS) or ""
                     local fatedTexture = raidGroup.fated and format("|A:%s-small:0:0:0:1|a", raidGroup.fated) or ""
-                    tooltip:AddDoubleLine(format("%s %s", raidGroup.progress.raid.shortName, fatedTexture), table.concat(temp, " "), r, g, b, 1, 1, 1) -- TODO: raidGroup.progress.raid.dungeon?.shortNameLocale
+                    tooltip:AddDoubleLine(format("%s%s %s", prefixText, groupProgress.raid.shortName, fatedTexture), table.concat(temp, " "), r, g, b, 1, 1, 1) -- TODO: groupProgress.raid.dungeon?.shortNameLocale
                 end
             end
         end

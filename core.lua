@@ -4418,7 +4418,7 @@ do
         end
         table.sort(raids, function(a, b)
             local f1 = a.id ~= a.mapId and cache[a.dungeon] and 1 or 0
-            local f2 = b.id ~= b.mapId and cache[a.dungeon] and 1 or 0
+            local f2 = b.id ~= b.mapId and cache[b.dungeon] and 1 or 0
             if f1 == f2 then
                 return a.ordinal < b.ordinal
             end

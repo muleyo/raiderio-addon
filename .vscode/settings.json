@@ -3,6 +3,11 @@
         "undefined-global",
         "undefined-field",
         "unbalanced-assignments",
-        "redundant-parameter"
+        "redundant-parameter",
+        "assign-type-mismatch"
+    ],
+    "Lua.workspace.ignoreDir": [
+        ".vscode",
+        "db"
     ]
 }

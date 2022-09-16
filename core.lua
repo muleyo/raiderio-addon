@@ -2319,11 +2319,17 @@ do
         end
     end
 
+    local function RequestMythicPlusData()
+        C_MythicPlus.RequestCurrentAffixes()
+        C_MythicPlus.RequestMapInfo()
+    end
+
     local function OnPlayerLogin()
         if IsTestBuild() and config:Get("debugMode") then
             InjectTestBuildData()
         end
         CheckQueuedProviders()
+        RequestMythicPlusData()
         provider:Enable()
     end
 
@@ -3887,6 +3893,7 @@ do
     end
 
     callback:RegisterEvent(OnPlayerEnteringWorld, "PLAYER_ENTERING_WORLD")
+    callback:RegisterEvent(OverridePlayerData, "CHALLENGE_MODE_MAPS_UPDATE", "MYTHIC_PLUS_CURRENT_AFFIX_UPDATE")
 
     function provider:WipeCache()
         OnPlayerEnteringWorld()

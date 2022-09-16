@@ -13,6 +13,116 @@ local lshift = bit.lshift
 local mod = bit.mod
 local rshift = bit.rshift
 
+local ScrollBoxUtil do
+
+    ScrollBoxUtil = {}
+
+    ---@class LegacyFakeDocsForScrollBox
+    ---@field public GetObjectType fun(): string
+    ---@field public buttons Frame[]|nil
+    ---@field public update fun()|nil
+
+    ---@class CallbackRegistryMixin
+    ---@field public RegisterCallback fun(event: string, callback: fun())
+
+    ---@class ScrollBoxBaseMixin : CallbackRegistryMixin, LegacyFakeDocsForScrollBox
+    ---@field public GetFrames fun(): Frame[]
+    ---@field public Update fun()
+
+    ---@param scrollBox ScrollBoxBaseMixin
+    ---@param callback fun(frames: Button[])
+    function ScrollBoxUtil:OnViewFramesChanged(scrollBox, callback)
+        if not scrollBox then
+            return
+        end
+        if scrollBox.buttons then -- TODO: DF + legacy
+            callback(scrollBox.buttons)
+            return 1
+        end
+        if scrollBox.RegisterCallback then
+            local frames = scrollBox:GetFrames()
+            if frames and frames[1] then
+                callback(frames)
+            end
+            scrollBox:RegisterCallback(BaseScrollBoxEvents.OnLayout, function()
+                frames = scrollBox:GetFrames()
+                callback(frames)
+            end)
+            return true
+        end
+        return false
+    end
+
+    ---@param scrollBox ScrollBoxBaseMixin
+    ---@param callback fun(frames: Button[])
+    function ScrollBoxUtil:OnViewScrollChanged(scrollBox, callback)
+        if not scrollBox then
+            return
+        end
+        local key = scrollBox.update and "update" or "Update" -- TODO: DF support
+        hooksecurefunc(scrollBox, key, callback)
+        return true
+    end
+
+end
+
+local HookUtil do
+
+    HookUtil = {}
+
+    local hooked = {}
+
+    ---@param frame Frame
+    ---@param callback fun(self: Frame, ...)
+    ---@param ... string
+    function HookUtil:On(frame, callback, ...)
+        local hook = hooked[frame]
+        if not hook then
+            hook = {}
+            hooked[frame] = hook
+        end
+        for _, key in ipairs({...}) do
+            local keyHook = hook[key]
+            if not keyHook then
+                keyHook = {}
+                hook[key] = keyHook
+            end
+            if not keyHook[callback] then
+                keyHook[callback] = true
+                frame:HookScript(key, callback)
+            end
+        end
+    end
+
+    ---@param frames Frame[]
+    ---@param callback fun(self: Frame, ...)
+    ---@param ... string
+    function HookUtil:OnAll(frames, callback, ...)
+        for _, frame in ipairs(frames) do
+            HookUtil:On(frame, callback, ...)
+        end
+    end
+
+    ---@param object Frame[]|Frame
+    ---@param map table<string, fun()>
+    function HookUtil:MapOn(object, map)
+        if type(object) ~= "table" then
+            return
+        end
+        if type(object.GetObjectType) == "function" then
+            for key, callback in pairs(map) do
+                HookUtil:On(object, callback, key)
+            end
+            return 1
+        end
+        for key, callback in pairs(map) do
+            HookUtil:OnAll(object, callback, key)
+        end
+        return true
+    end
+
+end
+
 -- constants.lua (ns)
 -- dependencies: none
 do
@@ -5246,17 +5356,10 @@ do
         util:ExecuteWidgetHandler(GetMouseFocus(), "OnEnter")
     end
 
-    local _WhoListScrollFrameButtons = WhoListScrollFrame and WhoListScrollFrame.buttons or WhoFrame.ScrollBox:GetFrames() -- TODO: DF support
-    local _WhoListScrollFrame = WhoListScrollFrame and WhoListScrollFrame or WhoFrame.ScrollBox -- TODO: DF support
-    local _WhoListScrollFrameUpdate = _WhoListScrollFrame.update and "update" or "Update" -- TODO: DF support
-
     function tooltip:OnLoad()
         self:Enable()
-        for _, button in pairs(_WhoListScrollFrameButtons) do
-            button:HookScript("OnEnter", OnEnter)
-            button:HookScript("OnLeave", OnLeave)
-        end
-        hooksecurefunc(_WhoListScrollFrame, _WhoListScrollFrameUpdate, OnScroll)
+        ScrollBoxUtil:OnViewFramesChanged(WhoListScrollFrame or WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, { OnEnter = OnEnter, OnLeave = OnLeave }) end)
+        ScrollBoxUtil:OnViewScrollChanged(WhoListScrollFrame or WhoFrame.ScrollBox, OnScroll)
     end
 
 end

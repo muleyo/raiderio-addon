@@ -17,36 +17,31 @@ local ScrollBoxUtil do
 
     ScrollBoxUtil = {}
 
-    ---@class LegacyFakeDocsForScrollBox
-    ---@field public GetObjectType fun(): string
-    ---@field public buttons Frame[]|nil
-    ---@field public update fun()|nil
-
     ---@class CallbackRegistryMixin
     ---@field public RegisterCallback fun(event: string, callback: fun())
 
-    ---@class ScrollBoxBaseMixin : CallbackRegistryMixin, LegacyFakeDocsForScrollBox
+    ---@class ScrollBoxBaseMixin : CallbackRegistryMixin
     ---@field public GetFrames fun(): Frame[]
     ---@field public Update fun()
 
     ---@param scrollBox ScrollBoxBaseMixin
-    ---@param callback fun(frames: Button[])
+    ---@param callback fun(frames: Button[], scrollBox: ScrollBoxBaseMixin)
     function ScrollBoxUtil:OnViewFramesChanged(scrollBox, callback)
         if not scrollBox then
             return
         end
-        if scrollBox.buttons then -- TODO: DF + legacy
-            callback(scrollBox.buttons)
+        if scrollBox.buttons then -- TODO: legacy 9.X support
+            callback(scrollBox.buttons, scrollBox)
             return 1
         end
         if scrollBox.RegisterCallback then
             local frames = scrollBox:GetFrames()
             if frames and frames[1] then
-                callback(frames)
+                callback(frames, scrollBox)
             end
-            scrollBox:RegisterCallback(BaseScrollBoxEvents.OnLayout, function()
+            scrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnUpdate, function()
                 frames = scrollBox:GetFrames()
-                callback(frames)
+                callback(frames, scrollBox)
             end)
             return true
         end
@@ -54,14 +49,23 @@ local ScrollBoxUtil do
     end
 
     ---@param scrollBox ScrollBoxBaseMixin
-    ---@param callback fun(frames: Button[])
+    ---@param callback fun(self: ScrollBoxBaseMixin)
     function ScrollBoxUtil:OnViewScrollChanged(scrollBox, callback)
         if not scrollBox then
             return
         end
-        local key = scrollBox.update and "update" or "Update" -- TODO: DF support
-        hooksecurefunc(scrollBox, key, callback)
-        return true
+        local function wrappedCallback()
+            callback(scrollBox)
+        end
+        if scrollBox.update then -- TODO: legacy 9.X support
+            hooksecurefunc(scrollBox, "update", wrappedCallback)
+            return 1
+        end
+        if scrollBox.RegisterCallback then
+            scrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnScroll, wrappedCallback)
+            return true
+        end
+        return false
     end
 
 end
@@ -5354,7 +5358,8 @@ do
 
     function tooltip:OnLoad()
         self:Enable()
-        ScrollBoxUtil:OnViewFramesChanged(WhoListScrollFrame or WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, { OnEnter = OnEnter, OnLeave = OnLeave }) end)
+        local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
+        ScrollBoxUtil:OnViewFramesChanged(WhoListScrollFrame or WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
         ScrollBoxUtil:OnViewScrollChanged(WhoListScrollFrame or WhoFrame.ScrollBox, OnScroll)
     end
 
@@ -6456,7 +6461,8 @@ do
 
     function tooltip:OnLoad()
         self:Enable()
-        ScrollBoxUtil:OnViewFramesChanged(_G.GuildRosterContainer, function(buttons) HookUtil:MapOn(buttons, { OnEnter = OnEnter, OnLeave = OnLeave }) end)
+        local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
+        ScrollBoxUtil:OnViewFramesChanged(_G.GuildRosterContainer, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
         ScrollBoxUtil:OnViewScrollChanged(_G.GuildRosterContainer, OnScroll)
     end
 

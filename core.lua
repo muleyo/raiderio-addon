@@ -2548,10 +2548,6 @@ do
                         end
                     end
                 end
-                -- DEBUG: test with adjusted ordinals for the current raids
-                provider.currentRaids[1].ordinal = 3
-                provider.currentRaids[2].ordinal = 2
-                provider.currentRaids[3].ordinal = 1
             end
         else
             table.insert(providers, data)

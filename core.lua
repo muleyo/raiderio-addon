@@ -1782,7 +1782,7 @@ do
             local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"]
             editBox:SetText(self.text.text_arg2)
             editBox:SetFocus()
-            editBox:HighlightText(false)
+            editBox:HighlightText()
             local button = _G[self:GetName() .. "Button2"]
             button:ClearAllPoints()
             button:SetWidth(200)
@@ -1841,7 +1841,7 @@ do
         end
         if not button.disabledTexture then
             button.disabledTexture = util:CreateTextureFromIcon(button, icon)
-            button.disabledTexture:SetDesaturation(true)
+            button.disabledTexture:SetDesaturation(1)
         end
         button:SetNormalTexture(button.normalTexture)
         button:SetPushedTexture(button.pushedTexture)
@@ -2081,7 +2081,7 @@ do
         frame:SetWidth(420)
         editBox:SetText(canShow and GetJSON() or "")
         editBox:SetFocus()
-        editBox:HighlightText(false)
+        editBox:HighlightText()
         local button = _G[frameName .. "Button2"]
         button:ClearAllPoints()
         button:SetWidth(200)
@@ -3670,9 +3670,9 @@ do
                 weeklyAffixInternals[2] = "tyrannical"
             end
             for _, weeklyAffixInternal in pairs(weeklyAffixInternals) do
-                local weekDungeons = mythicKeystoneProfile[weeklyAffixInternal .. "Dungeons"]
-                local weekDungeonUpgrades = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonUpgrades"]
-                local weekDungeonTimes = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonTimes"]
+                local weekDungeons = mythicKeystoneProfile[weeklyAffixInternal .. "Dungeons"] ---@type number[]
+                local weekDungeonUpgrades = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonUpgrades"] ---@type number[]
+                local weekDungeonTimes = mythicKeystoneProfile[weeklyAffixInternal .. "DungeonTimes"] ---@type number[]
                 local maxDungeonIndex = 0
                 -- local maxDungeonTime = 999
                 -- local maxDungeonScore = 0
@@ -3683,8 +3683,8 @@ do
                 for i = 1, #keystoneRuns do
                     local run = keystoneRuns[i]
                     local runAffixData = run[weeklyAffixInternal] ---@type BlizzardKeystoneAffixInfo
-                    local dungeonIndex
-                    local dungeon
+                    local dungeonIndex ---@type number|nil
+                    local dungeon ---@type Dungeon|nil
                     for j = 1, #DUNGEONS do
                         dungeon = DUNGEONS[j]
                         if dungeon.keystone_instance == run.challengeModeID then
@@ -3850,7 +3850,7 @@ do
         local mapIDs = C_ChallengeMode.GetMapTable()
         for _, mapID in ipairs(mapIDs) do
             local affixScores, bestOverAllScore
-            local mapRun
+            local mapRun ---@type MythicPlusRatingMapSummary
             for _, run in ipairs(bioSummary.runs) do
                 if mapID == run.challengeModeID then
                     affixScores, bestOverAllScore = C_MythicPlus.GetSeasonBestAffixScoreInfoForMap(mapID)
@@ -5239,13 +5239,17 @@ do
         util:ExecuteWidgetHandler(GetMouseFocus(), "OnEnter")
     end
 
+    local _WhoListScrollFrameButtons = WhoListScrollFrame and WhoListScrollFrame.buttons or WhoFrame.ScrollBox:GetFrames() -- TODO: DF support
+    local _WhoListScrollFrame = WhoListScrollFrame and WhoListScrollFrame or WhoFrame.ScrollBox -- TODO: DF support
+    local _WhoListScrollFrameUpdate = _WhoListScrollFrame.update and "update" or "Update" -- TODO: DF support
+
     function tooltip:OnLoad()
         self:Enable()
-        for _, button in pairs(WhoListScrollFrame.buttons) do
+        for _, button in pairs(_WhoListScrollFrameButtons) do
             button:HookScript("OnEnter", OnEnter)
             button:HookScript("OnLeave", OnLeave)
         end
-        hooksecurefunc(WhoListScrollFrame, "update", OnScroll)
+        hooksecurefunc(_WhoListScrollFrame, _WhoListScrollFrameUpdate, OnScroll)
     end
 
 end
@@ -9167,12 +9171,15 @@ do
             return frame
         end
 
+        local _InterfaceOptionsFrame = InterfaceOptionsFrame or SettingsPanel -- TODO: DF support
+        local _InterfaceOptionsFrame_Show = InterfaceOptionsFrame_Show or function() SettingsPanel:Open() end -- TODO: DF support
+
         -- customize the look and feel
         do
             local function ConfigFrame_OnShow(self)
                 if not InCombatLockdown() then
-                    if InterfaceOptionsFrame:IsShown() then
-                        InterfaceOptionsFrame_Show()
+                    if _InterfaceOptionsFrame:IsShown() then
+                        _InterfaceOptionsFrame_Show()
                     end
                     HideUIPanel(GameMenuFrame)
                 end

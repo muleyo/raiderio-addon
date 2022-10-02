@@ -2213,16 +2213,16 @@ do
         button:SetScript("OnClick", function() json:ToggleCopyDialog() end)
         -- icon
         do
-            button.Icon = button:CreateTexture(nil, "ARTWORK")
+            button.Icon = button:CreateTexture(nil, "BACKGROUND")
             button.Icon:SetAllPoints()
             button.Icon:SetMask("Interface\\Minimap\\UI-Minimap-Background")
             button.Icon:SetTexture("Interface\\Minimap\\Tracking\\None")
         end
         -- border
         do
-            button.Border = button:CreateTexture(nil, "BACKGROUND")
+            button.Border = button:CreateTexture(nil, "BORDER")
             button.Border:SetPoint("TOPLEFT", -2, 2)
-            button.Border:SetSize(36, 36)
+            button.Border:SetSize(32, 32)
             button.Border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
             button.Border:SetVertexColor(.8, .8, .8)
         end

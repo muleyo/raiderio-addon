@@ -5211,7 +5211,7 @@ do
     local render = ns:GetModule("Render") ---@type RenderModule
 
     local function OnTooltipSetUnit(self)
-        if not tooltip:IsEnabled() or not config:Get("enableUnitTooltips") then
+        if self ~= GameTooltip or not tooltip:IsEnabled() or not config:Get("enableUnitTooltips") then
             return
         end
         if (config:Get("showScoreModifier") and not IsModifierKeyDown()) or (not config:Get("showScoreModifier") and not config:Get("showScoreInCombat") and InCombatLockdown()) then
@@ -5245,7 +5245,11 @@ do
 
     function tooltip:OnLoad()
         self:Enable()
-        GameTooltip:HookScript("OnTooltipSetUnit", OnTooltipSetUnit)
+        if TooltipDataProcessor then -- TODO: DF
+            TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnTooltipSetUnit)
+        else
+            GameTooltip:HookScript("OnTooltipSetUnit", OnTooltipSetUnit)
+        end
         GameTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
         GameTooltip:HookScript("OnHide", OnHide)
     end
@@ -6634,6 +6638,9 @@ do
     end
 
     local function OnTooltipSetItem(self)
+        if self ~= GameTooltip and self ~= ItemRefTooltip then
+            return
+        end
         if not config:Get("enableKeystoneTooltips") then
             return
         end
@@ -6662,10 +6669,14 @@ do
 
     function tooltip:OnLoad()
         self:Enable()
-        GameTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
+        if TooltipDataProcessor then -- TODO: DF
+            TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltipSetItem)
+        else
+            GameTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
+            ItemRefTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
+        end
         GameTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
         GameTooltip:HookScript("OnHide", OnHide)
-        ItemRefTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
         ItemRefTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
         ItemRefTooltip:HookScript("OnHide", OnHide)
     end

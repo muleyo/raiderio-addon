@@ -5754,14 +5754,14 @@ do
             scale:SetOrder(1)
             scale:SetStartDelay(0.2)
             scale:SetDuration(0.25)
-            scale:SetFromScale(5, 5)
-            scale:SetToScale(1, 1)
+            scale:SetScaleFrom(5, 5)
+            scale:SetScaleTo(1, 1)
             local sparks = frame.AnimIn:CreateAnimation("Scale")
             sparks:SetOrder(1)
             sparks:SetStartDelay(0)
             sparks:SetDuration(LEVEL_UP_EFFECT.duration)
-            sparks:SetFromScale(1, 1)
-            sparks:SetToScale(1, 1)
+            sparks:SetScaleFrom(1, 1)
+            sparks:SetScaleTo(1, 1)
             sparks.frame = frame
             sparks:SetScript("OnFinished", DecorationFrame_AnimIn_Sparks_OnFinished)
         end

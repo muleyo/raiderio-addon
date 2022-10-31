@@ -565,6 +565,32 @@ do
         return ns.CLIENT_CONFIG
     end
 
+    ---@class Trace
+    ---@field public traceId string `season-sl-4-100183-2022-10-24T18:22:32.000Z`
+    ---@field public title string `Maegisniec, Isakladin, Rövpiraten, Milio, Kasios`
+    ---@field public date string `2022-10-24T18:22:32.000Z`
+    ---@field public dungeon Dungeon This is a hard copy of the dungeon object. It's for historical consistency as it's just how it was at the recording date.
+    ---@field public time number The keystone timer in milliseconds.
+    ---@field public mythic_level number The keystone level.
+    ---@field public affixes number[] The affixes applied to the keystone run.
+    ---@field public affixIcons string[] The affix icons for each affix in `affixes`.
+    ---@field public season string `season-sl-4`
+    ---@field public runId number `100183`
+    ---@field public bosses number[] Table over encounter IDs for each boss in the dungeon.
+    ---@field public trash number The number of forces in the keystone run.
+    ---@field public logs TraceLog[]
+
+    ---@class TraceLog
+    ---@field public timer number The keystone timer in milliseconds.
+    ---@field public deaths? number The delta number of deaths.
+    ---@field public trash? number The delta number of forces progress.
+    ---@field public kills? boolean[] The updated boss delta state.
+
+    ---@return Trace[]?
+    function ns:GetTraces()
+        return ns.TRACES
+    end
+
     ---@class DungeonInstance
     ---@field public id number
     ---@field public instance_map_id number

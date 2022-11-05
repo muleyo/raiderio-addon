@@ -1284,6 +1284,8 @@ do
         if type(frame) ~= "table" or type(frame.GetScript) ~= "function" or type(onEnter) ~= "function" then
             return
         end
+        -- the tooltip anchor frame has a helping tooltip that we don't wish to display in any circumstance in this context
+        if frame == _G.RaiderIO_ProfileTooltipAnchor then return end
         -- LFGListSearchEntry_OnEnter > LFGListUtil_SetSearchEntryTooltip > C_LFGList.GetPlaystyleString
         if onEnter == _G.LFGListSearchEntry_OnEnter or (frame.resultID and IsParentedBy(frame, _G.LFGListFrame.SearchPanel.ScrollBox)) then return false end
         -- QuickJoinButtonMixin.OnEnter > .entry.ApplyToTooltip(GameTooltip) > LFGListUtil_SetSearchEntryTooltip > C_LFGList.GetPlaystyleString

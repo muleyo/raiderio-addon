@@ -565,11 +565,16 @@ do
         return ns.CLIENT_CONFIG
     end
 
+    ---@class TraceDungeon : Dungeon
+    ---@field public timers number[]
+    ---@field public shortNameLocale nil
+    ---@field public index nil
+
     ---@class Trace
     ---@field public traceId string `season-sl-4-100183-2022-10-24T18:22:32.000Z`
     ---@field public title string `Maegisniec, Isakladin, Rövpiraten, Milio, Kasios`
     ---@field public date string `2022-10-24T18:22:32.000Z`
-    ---@field public dungeon Dungeon This is a hard copy of the dungeon object. It's for historical consistency as it's just how it was at the recording date.
+    ---@field public dungeon TraceDungeon This is a hard copy of the dungeon object. It's for historical consistency as it's just how it was at the recording date.
     ---@field public time number The keystone timer in milliseconds.
     ---@field public mythic_level number The keystone level.
     ---@field public affixes number[] The affixes applied to the keystone run.
@@ -7114,6 +7119,288 @@ do
 
 end
 
+-- traces.lua
+-- dependencies: module, callback, config, util
+do
+
+    ---@class TracesModule : Module
+    local traces = ns:NewModule("Traces") ---@type TracesModule
+    local callback = ns:GetModule("Callback") ---@type CallbackModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+
+    ---@type Trace[]?
+    local traceItems
+
+    ---@class TracesFrame : Frame, BackdropTemplate
+    local frame
+
+    ---@class TraceSummary
+    ---@field public timer number
+    ---@field public deaths number
+    ---@field public kills boolean[]
+    ---@field public trash number
+
+    ---@param summary TraceSummary
+    ---@param items TraceLog[]
+    ---@param endAt number
+    ---@param startFrom? number
+    local function ReplayTraceUntil(summary, items, endAt, startFrom)
+        startFrom = startFrom or 1
+        local item ---@type TraceLog?
+        for i = startFrom, endAt do
+            item = items[i]
+            if not item then
+                break
+            end
+            if item.deaths then
+                summary.deaths = summary.deaths + item.deaths
+            end
+            if item.trash then
+                summary.trash = summary.trash + item.trash 
+            end
+            if item.kills then
+                for k, v in ipairs(item.kills) do
+                    if type(v) == "table" then v = v[2] end -- DEBUG: HOTFIX: unpack the table wrapper
+                    summary.kills[k] = v
+                end
+            end
+        end
+        if not item then
+            return
+        end
+        summary.timer = item.timer
+    end
+
+    ---@param summary TraceSummary
+    ---@param items TraceLog[]
+    ---@param index number
+    ---@param elapsedTimeMS number
+    ---@return number index, TraceLog current, TraceLog? future
+    local function ReplayTraceTick(summary, items, index, elapsedTimeMS)
+        local count = #items
+        local current = items[index]
+        local future ---@type TraceLog?
+        if index >= count then
+            return index, current, future
+        end
+        local futureStartAt = index + 2
+        for i = futureStartAt, count do
+            future = items[i]
+            if future.timer > elapsedTimeMS then
+                future = items[i - 1]
+                break
+            end
+        end
+        if futureStartAt > count then
+            future = items[count]
+        end
+        if future and future.timer < elapsedTimeMS then
+            index = index + 1
+            current = future
+            future = items[index + 1]
+            ReplayTraceUntil(summary, items, index, index)
+        end
+        return index, current, future
+    end
+
+    ---@param elapse number
+    local function FrameOnUpdate(_, elapse)
+        frame.elapsed = frame.elapsed + elapse
+        if frame.elapsed < 0.25 then return end
+        if not frame.timerRunning then frame.elapsed = 0 return end
+        frame.elapsedTime = frame.elapsedTime + frame.elapsed
+        frame.elapsed = 0
+        local elapsedTime = frame.elapsedTime ---@type number
+        local elapsedTimeMS = elapsedTime * 1000
+        local trace = frame.trace ---@type Trace
+        local traceSummary = frame.traceSummary
+        local traceIndex, current, future = ReplayTraceTick(traceSummary, trace.logs, frame.traceIndex, elapsedTimeMS)
+        frame.traceIndex = traceIndex
+        local logCount = #trace.logs
+        local traceTimeMS = trace.logs[logCount].timer -- DEBUG: HOTFIX: trace.time?
+        local traceTime = traceTimeMS / 1000
+        local safeElapsedTime = min(traceTime, elapsedTime)
+        local bossText = {}
+        for k, v in ipairs(traceSummary.kills) do
+            bossText[k] = v and "X" or "-"
+        end
+        frame.Text:SetFormattedText(
+            "Log Index = %d / %d\nTimer = %s / %s (%.1f%%)\nDeaths = %d\nTrash = %d / %d (%.1f%%)\nBosses = %s",
+            traceIndex, logCount,
+            SecondsToClock(safeElapsedTime, true), SecondsToClock(traceTime, true), safeElapsedTime/traceTime*100,
+            traceSummary.deaths,
+            traceSummary.trash, trace.trash, traceSummary.trash/trace.trash*100,
+            table.concat(bossText, "")
+        )
+        if current and not future then
+            frame.timerRunning = false
+        end
+    end
+
+    local function CreateTracesFrame()
+        local tracesFrame = CreateFrame("Frame", addonName .. "_TracesFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate") ---@class TracesFrame
+        tracesFrame.elapsed = nil ---@type number?
+        tracesFrame.timerID = nil ---@type number?
+        tracesFrame.timerRunning = nil ---@type boolean?
+        tracesFrame.elapsedTime = nil ---@type number?
+        tracesFrame.mapID = nil ---@type number?
+        tracesFrame.timeLimit = nil ---@type number?
+        tracesFrame.trace = nil ---@type Trace?
+        tracesFrame.traceIndex = nil ---@type number?
+        tracesFrame.traceItem = nil ---@type TraceLog?
+        tracesFrame.traceSummary = nil ---@type TraceSummary?
+        tracesFrame:SetPoint("CENTER", 0, 0)
+        tracesFrame:SetSize(300, 120)
+        tracesFrame:SetBackdrop(BACKDROP_DARK_DIALOG_32_32)
+        tracesFrame.Text = tracesFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+        tracesFrame.Text:SetPoint("TOPLEFT", tracesFrame, "TOPLEFT", 16, -16)
+        tracesFrame.Text:SetPoint("BOTTOMRIGHT", tracesFrame, "BOTTOMRIGHT", -16, 16)
+        tracesFrame.Text:SetJustifyH("LEFT")
+        tracesFrame.Text:SetJustifyV("TOP")
+        tracesFrame:EnableMouse(true)
+        tracesFrame:SetMovable(true)
+        tracesFrame:RegisterForDrag("LeftButton")
+        tracesFrame:SetScript("OnDragStart", tracesFrame.StartMoving)
+        tracesFrame:SetScript("OnDragStop", tracesFrame.StopMovingOrSizing)
+        tracesFrame:Hide()
+        tracesFrame:SetScript("OnUpdate", FrameOnUpdate)
+        return tracesFrame
+    end
+
+    local UpdateEvents = {
+        "PLAYER_ENTERING_WORLD",
+        "CHALLENGE_MODE_START",
+        "CHALLENGE_MODE_RESET",
+        "CHALLENGE_MODE_COMPLETED",
+        "WORLD_STATE_TIMER_START",
+        "WORLD_STATE_TIMER_STOP",
+    }
+
+    ---@param timerID number
+    ---@return number? elapsedTime
+    local function GetChallengeTimer(timerID)
+        ---@type number, number, number
+        local _, elapsedTime, type = GetWorldElapsedTime(timerID)
+        if type ~= LE_WORLD_ELAPSED_TIMER_TYPE_CHALLENGE_MODE then
+            return
+        end
+        return elapsedTime
+    end
+
+    ---@param items TraceLog[]
+    ---@param elapsedTimeMS number
+    ---@return number index, TraceLog? item
+    local function GetTraceLogItemForTimer(items, elapsedTimeMS)
+        local first = items[1]
+        if first.timer > elapsedTimeMS then
+            return 0, nil
+        end
+        for index, current in ipairs(items) do
+            if current.timer > elapsedTimeMS then
+                index = index - 1
+                if index < 1 then index = 1 end
+                return index, current
+            end
+        end
+        local count = #items
+        return count, items[count]
+    end
+
+    ---@param trace? Trace
+    local function UpdateFrameState(trace)
+        frame.elapsed = 0
+        frame.trace = trace
+        if not trace then
+            return
+        end
+        local elapsedTimeMS = frame.elapsedTime * 1000
+        local logs = trace.logs
+        local traceIndex, traceItem = GetTraceLogItemForTimer(logs, elapsedTimeMS)
+        ---@type TraceSummary
+        local traceSummary = {
+            timer = 0,
+            deaths = 0,
+            kills = {},
+            trash = 0,
+        }
+        for i = 1, #trace.bosses do
+            traceSummary.kills[i] = false
+        end
+        frame.traceIndex = traceIndex
+        frame.traceItem = traceItem
+        frame.traceSummary = traceSummary
+        ReplayTraceUntil(traceSummary, logs, traceIndex)
+    end
+
+    local function UpdateState(event, ...)
+        local timerIDs = {GetWorldElapsedTimers()} ---@type number[]
+        local found ---@type boolean?
+        for _, timerID in ipairs(timerIDs) do
+            local elapsedTime = GetChallengeTimer(timerID)
+            if GetChallengeTimer(timerID) then
+                found = true
+                frame.timerID = timerID
+                frame.timerRunning = true
+                frame.elapsedTime = elapsedTime
+                break
+            end
+        end
+        if event == "WORLD_STATE_TIMER_STOP" then
+            local timerID = ... ---@type number
+            if timerID == frame.timerID then
+                found = false
+                frame.timerRunning = false
+            end
+        end
+        found, frame.timerID, frame.timerRunning, frame.elapsedTime = true, 1, true, 2160 - 60*4+20 -- DEBUG: fake running timer
+        if found == nil then
+            frame.timerID, frame.timerRunning = nil, nil
+        else
+            local mapID = C_ChallengeMode.GetActiveChallengeMapID()
+            local _, timeLimit
+            if mapID then
+                _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapID)
+            end
+            mapID, timeLimit = 369, 2160 -- DEBUG: Mechagon Junkyard
+            frame.mapID = mapID
+            frame.timeLimit = timeLimit
+        end
+        -- DEBUG: select first available trace in the database
+        if frame.timerID and traceItems then
+            UpdateFrameState()
+            for _, trace in ipairs(traceItems) do
+                if trace.dungeon.keystone_instance == frame.mapID then
+                    UpdateFrameState(trace)
+                    break
+                end
+            end
+        end
+        frame:SetShown(not not (frame.timerID and frame.trace))
+    end
+
+    function traces:CanLoad()
+        return not frame and config:IsEnabled() and ns:GetTraces()
+    end
+
+    function traces:OnLoad()
+        traceItems = ns:GetTraces()
+        frame = CreateTracesFrame()
+        self:Enable()
+    end
+
+    function traces:OnEnable()
+        UpdateState()
+        callback:RegisterEvent(UpdateState, unpack(UpdateEvents))
+    end
+
+    function traces:OnDisable()
+        UpdateState()
+        callback:UnregisterEvent(UpdateState, unpack(UpdateEvents))
+    end
+
+end
+
 -- search.lua
 -- dependencies: module, config, util, provider, render, profile
 do
@@ -9952,24 +10239,24 @@ do
 
     ---@type TestData[]
     local collection = {
-        { region = "eu", realm = "TarrenMill", name = "Vladinator", success = true },
-        { region = "eu", realm = "tArReNmIlL", name = "vLaDiNaToR", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "eu", realm = "Ysondre", name = "Isak", success = true },
-        { region = "eu", realm = "ySoNdRe", name = "iSaK", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "us", realm = "tichondrius", name = "proview", success = true },
-        { region = "us", realm = "TiChOnDrIuS", name = "pRoViEw", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "eu", realm = "СвежевательДуш", name = "Хитей", success = true },
-        { region = "eu", realm = "СВЕЖЕВАТЕЛЬДУШ", name = "ХИТЕЙ", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "eu", realm = "Kazzak", name = "Donskís", success = true },
-        { region = "eu", realm = "KAZZAK", name = "DONSKÍS", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
-        { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
-        CheckBothTestsAboveForSameProfiles,
+        -- { region = "eu", realm = "TarrenMill", name = "Vladinator", success = true },
+        -- { region = "eu", realm = "tArReNmIlL", name = "vLaDiNaToR", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
+        -- { region = "eu", realm = "Ysondre", name = "Isak", success = true },
+        -- { region = "eu", realm = "ySoNdRe", name = "iSaK", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
+        -- { region = "us", realm = "tichondrius", name = "proview", success = true },
+        -- { region = "us", realm = "TiChOnDrIuS", name = "pRoViEw", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
+        -- { region = "eu", realm = "СвежевательДуш", name = "Хитей", success = true },
+        -- { region = "eu", realm = "СВЕЖЕВАТЕЛЬДУШ", name = "ХИТЕЙ", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
+        -- { region = "eu", realm = "Kazzak", name = "Donskís", success = true },
+        -- { region = "eu", realm = "KAZZAK", name = "DONSKÍS", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
+        -- { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
+        -- { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
     }
 
     local providers = provider:GetProviders()

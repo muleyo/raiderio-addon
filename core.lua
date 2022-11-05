@@ -1288,8 +1288,8 @@ do
         if frame == _G.RaiderIO_ProfileTooltipAnchor then return end
         -- LFGListSearchEntry_OnEnter > LFGListUtil_SetSearchEntryTooltip > C_LFGList.GetPlaystyleString
         if onEnter == _G.LFGListSearchEntry_OnEnter or (frame.resultID and IsParentedBy(frame, _G.LFGListFrame.SearchPanel.ScrollBox)) then return false end
-        -- QuickJoinButtonMixin.OnEnter > .entry.ApplyToTooltip(GameTooltip) > LFGListUtil_SetSearchEntryTooltip > C_LFGList.GetPlaystyleString
-        if onEnter == _G.QuickJoinButtonMixin.OnEnter or (frame.entry and IsParentedBy(frame, _G.QuickJoinFrame.ScrollBox)) then return false end
+        -- QuickJoinButtonMixin.OnEnter > .entry.ApplyToTooltip(GameTooltip) > SocialQueueUtil_SetTooltip > LFGListUtil_SetSearchEntryTooltip > C_LFGList.GetPlaystyleString
+        if onEnter == _G.QuickJoinButtonMixin.OnEnter or onEnter == _G.SocialQueueUtil_SetTooltip or (frame.entry and IsParentedBy(frame, _G.QuickJoinFrame.ScrollBox)) then return false end
         -- anything else is assumed safe (otherwise if not, then we need to expand/adjust the above checklist)
         return true
     end

@@ -4143,8 +4143,10 @@ do
         ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
     end
 
-    callback:RegisterEvent(OnExpansionChanged, "PLAYER_LOGIN")
     callback:RegisterEvent(OnExpansionChanged, "UPDATE_EXPANSION_LEVEL")
+
+    -- HOTFIX: at the time of writing there was no event associated with GetServerExpansionLevel() so this delays the update at login to happen when data is loaded after a cold-boot
+    C_Timer.After(1, OnExpansionChanged)
 
 end
 

@@ -171,8 +171,7 @@ do
         r, g, b = r or 1, g or 1, b or 0
         DEFAULT_CHAT_FRAME:AddMessage(tostring(text), r, g, b, ...)
     end
-
-    ns.EXPANSION = GetServerExpansionLevel() - 1
+    ns.EXPANSION = max(GetServerExpansionLevel(), GetMinimumExpansionLevel(), GetExpansionLevel()) - 1
     ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
     ns.REGION_TO_LTD = {"us", "kr", "eu", "tw", "cn"}
     ns.FACTION_TO_ID = {Alliance = 1, Horde = 2, Neutral = 3}
@@ -4140,10 +4139,11 @@ do
     callback:RegisterEvent(OnAddOnLoaded, "ADDON_LOADED")
 
     local function OnExpansionChanged()
-        ns.EXPANSION = GetServerExpansionLevel() - 1
+        ns.EXPANSION = max(GetServerExpansionLevel(), GetMinimumExpansionLevel(), GetExpansionLevel()) - 1
         ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
     end
 
+    callback:RegisterEvent(OnExpansionChanged, "PLAYER_LOGIN")
     callback:RegisterEvent(OnExpansionChanged, "UPDATE_EXPANSION_LEVEL")
 
 end

@@ -172,7 +172,7 @@ do
         DEFAULT_CHAT_FRAME:AddMessage(tostring(text), r, g, b, ...)
     end
 
-    ns.EXPANSION = max(LE_EXPANSION_BATTLE_FOR_AZEROTH, GetExpansionLevel() - 1)
+    ns.EXPANSION = GetServerExpansionLevel() - 1
     ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
     ns.REGION_TO_LTD = {"us", "kr", "eu", "tw", "cn"}
     ns.FACTION_TO_ID = {Alliance = 1, Horde = 2, Neutral = 3}
@@ -196,6 +196,7 @@ do
     -- threshold for comparing current character's previous season score to current score
     -- meaning: once current score exceeds this fraction of previous season, then show current season
     local PREVIOUS_SEASON_NUM_DUNGEONS = 10
+    local DUNGEONS = ns.DUNGEONS or ns.dungeons -- DEPRECATED: ns.dungeons
     ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9)
     ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9)
 
@@ -4139,7 +4140,7 @@ do
     callback:RegisterEvent(OnAddOnLoaded, "ADDON_LOADED")
 
     local function OnExpansionChanged()
-        ns.EXPANSION = max(LE_EXPANSION_BATTLE_FOR_AZEROTH, GetExpansionLevel() - 1)
+        ns.EXPANSION = GetServerExpansionLevel() - 1
         ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
     end
 
@@ -5405,8 +5406,8 @@ do
     function tooltip:OnLoad()
         self:Enable()
         local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
-        ScrollBoxUtil:OnViewFramesChanged(WhoListScrollFrame or WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(WhoListScrollFrame or WhoFrame.ScrollBox, OnScroll)
+        ScrollBoxUtil:OnViewFramesChanged(WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+        ScrollBoxUtil:OnViewScrollChanged(WhoFrame.ScrollBox, OnScroll)
     end
 
 end
@@ -7086,7 +7087,7 @@ do
             frame:SetFrameStrata("MEDIUM")
             frame:SetSize(115, 115)
             if frame.SetBackdrop then
-                frame:SetBackdrop(BACKDROP_TUTORIAL_16_16 or BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
+                frame:SetBackdrop(BACKDROP_TUTORIAL_16_16)
                 frame:SetBackdropBorderColor(1, 1, 1, 1)
                 frame:SetBackdropColor(0, 0, 0, 0.6)
             end
@@ -7385,7 +7386,7 @@ do
             Frame:SetSize(310, config:Get("debugMode") and 115 or 100)
             Frame:SetPoint("CENTER")
             if Frame.SetBackdrop then
-                Frame:SetBackdrop(BACKDROP_TUTORIAL_16_16 or BACKDROP_TOOLTIP_16_16_5555 or GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
+                Frame:SetBackdrop(BACKDROP_TUTORIAL_16_16)
                 Frame:SetBackdropBorderColor(TOOLTIP_DEFAULT_COLOR:GetRGB())
                 Frame:SetBackdropColor(TOOLTIP_DEFAULT_BACKGROUND_COLOR:GetRGB())
                 Frame:SetBackdropColor(0, 0, 0, 1) -- TODO: ?
@@ -9332,15 +9333,12 @@ do
             return frame
         end
 
-        local _InterfaceOptionsFrame = InterfaceOptionsFrame or SettingsPanel -- TODO: DF support
-        local _InterfaceOptionsFrame_Show = InterfaceOptionsFrame_Show or function() SettingsPanel:Open() end -- TODO: DF support
-
         -- customize the look and feel
         do
             local function ConfigFrame_OnShow(self)
                 if not InCombatLockdown() then
-                    if _InterfaceOptionsFrame:IsShown() then
-                        _InterfaceOptionsFrame_Show()
+                    if SettingsPanel:IsShown() then
+                        SettingsPanel:Open()
                     end
                     HideUIPanel(GameMenuFrame)
                 end
@@ -9551,11 +9549,11 @@ do
             end
         end
 
-        local panel = CreateFrame("Frame", nil, InterfaceOptionsFramePanelContainer)
+        local panel = CreateFrame("Frame", addonName .. "_SettingsPanel")
         panel.name = addonName
         panel:Hide()
 
-        local button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        local button = CreateFrame("Button", "$parentButton", panel, "UIPanelButtonTemplate")
         button:SetText(L.OPEN_CONFIG)
         button:SetWidth(button:GetTextWidth() + 18)
         button:SetPoint("TOPLEFT", 16, -16)

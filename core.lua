@@ -1954,6 +1954,38 @@ do
         return format("https://raider.io/characters/%s/%s/%s/%s?utm_source=addon", ns.PLAYER_REGION, realmSlug, name, urlSuffix), name, realm, realmSlug
     end
 
+    ---@class InternalStaticPopupDialog
+    ---@field public id string
+    ---@field public text string|fun(): string
+    ---@field public button1? string
+    ---@field public button2? string
+    ---@field public EditBoxOnEscapePressed? fun(self: InternalStaticPopupDialog)
+    ---@field public editBoxWidth? number
+    ---@field public hasEditBox? boolean
+    ---@field public hasWideEditBox? boolean
+    ---@field public hideOnEscape? boolean
+    ---@field public OnAccept? fun(self: InternalStaticPopupDialog)
+    ---@field public OnCancel? fun(self: InternalStaticPopupDialog)
+    ---@field public OnShow? fun(self: InternalStaticPopupDialog)
+    ---@field public OnHide? fun(self: InternalStaticPopupDialog)
+    ---@field public preferredIndex? number
+    ---@field public timeout? number
+    ---@field public whileDead? boolean
+
+    ---@param popup InternalStaticPopupDialog
+    ---@param ... any
+    function util:ShowStaticPopupDialog(popup, ...)
+        local id = popup.id
+        if not StaticPopupDialogs[id] then
+            if type(popup.text) == "function" then
+                popup.text = popup.text()
+            end
+            StaticPopupDialogs[id] = popup
+        end
+        return StaticPopup_Show(id, ...)
+    end
+
+    ---@type InternalStaticPopupDialog
     local COPY_PROFILE_URL_POPUP = {
         id = "RAIDERIO_COPY_URL",
         text = "%s",
@@ -1984,15 +2016,13 @@ do
         OnCancel = nil
     }
 
-    StaticPopupDialogs[COPY_PROFILE_URL_POPUP.id] = COPY_PROFILE_URL_POPUP
-
     function util:ShowCopyRaiderIOProfilePopup(...)
         local url, name, realm = util:GetRaiderIOProfileUrl(...)
         if IsModifiedClick("CHATLINK") then
             local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
             editBox:HighlightText()
         else
-            StaticPopup_Show(COPY_PROFILE_URL_POPUP.id, format("%s (%s)", name, realm), url)
+            util:ShowStaticPopupDialog(COPY_PROFILE_URL_POPUP, format("%s (%s)", name, realm), url)
         end
     end
 
@@ -2003,7 +2033,7 @@ do
             local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
             editBox:HighlightText()
         else
-            StaticPopup_Show(COPY_PROFILE_URL_POPUP.id, format("%s (%s)", name, realm), url)
+            util:ShowStaticPopupDialog(COPY_PROFILE_URL_POPUP, format("%s (%s)", name, realm), url)
         end
     end
 
@@ -2117,8 +2147,8 @@ do
         return o
     end
 
-    local exportButton
-    local exportPopup = {
+    ---@type InternalStaticPopupDialog
+    local EXPORT_GROUP_JSON_POPUP = {
         id = "RAIDERIO_EXPORTJSON_DIALOG",
         text = L.EXPORTJSON_COPY_TEXT,
         button2 = CLOSE,
@@ -2135,6 +2165,8 @@ do
         OnCancel = nil,
         EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end
     }
+
+    local exportButton
 
     local RoleNameToBit = {
         TANK = 4,
@@ -2261,7 +2293,7 @@ do
             json:CloseCopyDialog()
             return false
         end
-        local frameName, frame = StaticPopup_Visible(exportPopup.id)
+        local frameName, frame = StaticPopup_Visible(EXPORT_GROUP_JSON_POPUP.id)
         if not frame then
             return false
         end
@@ -2304,13 +2336,6 @@ do
         return button
     end
 
-    local function PreparePopup(popup)
-        if type(popup.text) == "function" then
-            popup.text = popup.text()
-        end
-        return popup
-    end
-
     function json:CanLoad()
         return not exportButton and _G.LFGListFrame
     end
@@ -2318,7 +2343,6 @@ do
     function json:OnLoad()
         self:Enable()
         exportButton = CreateExportButton()
-        StaticPopupDialogs[exportPopup.id] = PreparePopup(exportPopup)
         callback:RegisterEvent(UpdateCopyDialog, "GROUP_ROSTER_UPDATE", "LFG_LIST_ACTIVE_ENTRY_UPDATE", "LFG_LIST_APPLICANT_LIST_UPDATED", "LFG_LIST_APPLICANT_UPDATED", "PLAYER_ENTERING_WORLD", "PLAYER_ROLES_ASSIGNED", "PLAYER_SPECIALIZATION_CHANGED")
     end
 
@@ -2330,7 +2354,7 @@ do
         if not self:IsEnabled() then
             return
         end
-        if not StaticPopup_Visible(exportPopup.id) then
+        if not StaticPopup_Visible(EXPORT_GROUP_JSON_POPUP.id) then
             json:OpenCopyDialog()
         else
             json:CloseCopyDialog()
@@ -2341,23 +2365,23 @@ do
         if not self:IsEnabled() then
             return
         end
-        local _, frame = StaticPopup_Visible(exportPopup.id)
+        local _, frame = StaticPopup_Visible(EXPORT_GROUP_JSON_POPUP.id)
         if frame then
             UpdateCopyDialog()
             return
         end
-        frame = StaticPopup_Show(exportPopup.id)
+        frame = util:ShowStaticPopupDialog(EXPORT_GROUP_JSON_POPUP)
     end
 
     function json:CloseCopyDialog()
         if not self:IsEnabled() then
             return
         end
-        local _, frame = StaticPopup_Visible(exportPopup.id)
+        local _, frame = StaticPopup_Visible(EXPORT_GROUP_JSON_POPUP.id)
         if not frame then
             return
         end
-        StaticPopup_Hide(exportPopup.id)
+        StaticPopup_Hide(EXPORT_GROUP_JSON_POPUP.id)
     end
 
 end
@@ -8866,7 +8890,7 @@ do
 end
 
 -- settings.lua
--- dependencies: module, callback, json, config, profile, search
+-- dependencies: module, callback, json, config, util, profile, search
 do
 
     ---@class SettingsModule : Module
@@ -8874,12 +8898,13 @@ do
     local callback = ns:GetModule("Callback") ---@type CallbackModule
     local json = ns:GetModule("JSON") ---@type JSONModule
     local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
     local profile = ns:GetModule("Profile") ---@type ProfileModule
     local search = ns:GetModule("Search") ---@type SearchModule
     local rwf = ns:GetModule("RaceWorldFirst") ---@type RaceWorldFirstModule
 
-    local settingsFrame
-    local reloadPopup = {
+    ---@type InternalStaticPopupDialog
+    local RELOAD_POPUP = {
         id = "RAIDERIO_RELOADUI_CONFIRM",
         text = L.CHANGES_REQUIRES_UI_RELOAD,
         button1 = L.RELOAD_NOW,
@@ -8894,7 +8919,9 @@ do
         OnAccept = ReloadUI,
         OnCancel = nil
     }
-    local debugPopup = {
+
+    ---@type InternalStaticPopupDialog
+    local DEBUG_POPUP = {
         id = "RAIDERIO_DEBUG_CONFIRM",
         text = function() return config:Get("debugMode") and L.DISABLE_DEBUG_MODE_RELOAD or L.ENABLE_DEBUG_MODE_RELOAD end,
         button1 = L.CONFIRM,
@@ -8912,7 +8939,9 @@ do
         end,
         OnCancel = nil
     }
-    local rtwfPopup = {
+
+    ---@type InternalStaticPopupDialog
+    local RTWF_POPUP = {
         id = "RAIDERIO_RWF_CONFIRM",
         text = function() return config:Get("rwfMode") and L.DISABLE_RWF_MODE_RELOAD or L.ENABLE_RWF_MODE_RELOAD end,
         button1 = L.CONFIRM,
@@ -8930,6 +8959,8 @@ do
         end,
         OnCancel = nil
     }
+
+    local settingsFrame
 
     ---@class RaiderIOSettingsModuleColumn
     ---@field public icon number|string
@@ -9076,7 +9107,7 @@ do
                 end
             end
             if reload then
-                StaticPopup_Show(reloadPopup.id)
+                util:ShowStaticPopupDialog(RELOAD_POPUP)
             end
             callback:SendEvent("RAIDERIO_SETTINGS_SAVED")
         end
@@ -9591,7 +9622,7 @@ do
                 end
 
                 if text:find("^%s*[Dd][Ee][Bb][Uu][Gg]") then
-                    StaticPopup_Show(debugPopup.id)
+                    util:ShowStaticPopupDialog(DEBUG_POPUP)
                     return
                 end
 
@@ -9599,7 +9630,7 @@ do
                     if rwf:IsLoaded() and config:Get("rwfMode") then
                         rwf:ToggleFrame()
                     else
-                        StaticPopup_Show(rtwfPopup.id)
+                        util:ShowStaticPopupDialog(RTWF_POPUP)
                     end
                     return
                 end
@@ -9641,9 +9672,6 @@ do
     local function OnConfigReady()
         settings:Enable()
         settingsFrame = CreateOptions()
-        StaticPopupDialogs[reloadPopup.id] = PreparePopup(reloadPopup)
-        StaticPopupDialogs[debugPopup.id] = PreparePopup(debugPopup)
-        StaticPopupDialogs[rtwfPopup.id] = PreparePopup(rtwfPopup)
     end
 
     function settings:OnLoad()

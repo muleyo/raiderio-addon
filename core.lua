@@ -9662,13 +9662,6 @@ do
         SlashCmdList[addonName] = handler
     end
 
-    local function PreparePopup(popup)
-        if type(popup.text) == "function" then
-            popup.text = popup.text()
-        end
-        return popup
-    end
-
     local function OnConfigReady()
         settings:Enable()
         settingsFrame = CreateOptions()
@@ -10006,24 +9999,24 @@ do
 
     ---@type TestData[]
     local collection = {
-        { region = "eu", realm = "TarrenMill", name = "Vladinator", success = true },
-        { region = "eu", realm = "tArReNmIlL", name = "vLaDiNaToR", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "eu", realm = "Ysondre", name = "Isak", success = true },
-        { region = "eu", realm = "ySoNdRe", name = "iSaK", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "us", realm = "tichondrius", name = "proview", success = true },
-        { region = "us", realm = "TiChOnDrIuS", name = "pRoViEw", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "eu", realm = "СвежевательДуш", name = "Хитей", success = true },
-        { region = "eu", realm = "СВЕЖЕВАТЕЛЬДУШ", name = "ХИТЕЙ", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "eu", realm = "Kazzak", name = "Donskís", success = true },
-        { region = "eu", realm = "KAZZAK", name = "DONSKÍS", success = true },
-        CheckBothTestsAboveForSameProfiles,
-        { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
-        { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
-        CheckBothTestsAboveForSameProfiles,
+        -- { region = "eu", realm = "TarrenMill", name = "Vladinator", success = true },
+        -- { region = "eu", realm = "tArReNmIlL", name = "vLaDiNaToR", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
+        -- { region = "eu", realm = "Ysondre", name = "Isak", success = true },
+        -- { region = "eu", realm = "ySoNdRe", name = "iSaK", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
+        -- { region = "us", realm = "tichondrius", name = "proview", success = true },
+        -- { region = "us", realm = "TiChOnDrIuS", name = "pRoViEw", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
+        -- { region = "eu", realm = "СвежевательДуш", name = "Хитей", success = true },
+        -- { region = "eu", realm = "СВЕЖЕВАТЕЛЬДУШ", name = "ХИТЕЙ", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
+        -- { region = "eu", realm = "Kazzak", name = "Donskís", success = true },
+        -- { region = "eu", realm = "KAZZAK", name = "DONSKÍS", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
+        -- { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
+        -- { region = "kr", realm = "윈드러너", name = "갊깖읾옮짊맒", success = true },
+        -- CheckBothTestsAboveForSameProfiles,
     }
 
     local providers = provider:GetProviders()

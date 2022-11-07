@@ -1284,14 +1284,24 @@ do
         if type(frame) ~= "table" or type(frame.GetScript) ~= "function" or type(onEnter) ~= "function" then
             return
         end
-        -- the tooltip anchor frame has a helping tooltip that we don't wish to display in any circumstance in this context
-        if frame == _G.RaiderIO_ProfileTooltipAnchor then return end
-        -- LFGListSearchEntry_OnEnter > LFGListUtil_SetSearchEntryTooltip > C_LFGList.GetPlaystyleString
-        if onEnter == _G.LFGListSearchEntry_OnEnter or (frame.resultID and IsParentedBy(frame, _G.LFGListFrame.SearchPanel.ScrollBox)) then return false end
-        -- QuickJoinButtonMixin.OnEnter > .entry.ApplyToTooltip(GameTooltip) > SocialQueueUtil_SetTooltip > LFGListUtil_SetSearchEntryTooltip > C_LFGList.GetPlaystyleString
-        if onEnter == _G.QuickJoinButtonMixin.OnEnter or onEnter == _G.SocialQueueUtil_SetTooltip or (frame.entry and IsParentedBy(frame, _G.QuickJoinFrame.ScrollBox)) then return false end
-        -- anything else is assumed safe (otherwise if not, then we need to expand/adjust the above checklist)
-        return true
+        -- profile.lua
+        if frame == _G[addonName .. "_ProfileTooltipAnchor"] then return end
+        -- guildweekly.lua
+        if frame == _G[addonName .. "_GuildWeeklyFrame"] then return true end
+        -- whotooltip.lua
+        if IsParentedBy(frame, WhoFrame.ScrollBox) then return true end
+        -- guildtooltip.lua
+        if IsParentedBy(frame, GuildRosterContainer) then return true end
+        -- communitytooltip.lua
+        if CommunitiesFrame and ClubFinderGuildFinderFrame and ClubFinderCommunityAndGuildFinderFrame then
+            if IsParentedBy(frame, CommunitiesFrame.MemberList.ScrollBox) then return true end
+            if IsParentedBy(frame, ClubFinderGuildFinderFrame.CommunityCards.ScrollBox) then return true end
+            if IsParentedBy(frame, ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox) then return true end
+            if IsParentedBy(frame, ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox) then return true end
+            if IsParentedBy(frame, ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox) then return true end
+        end
+        -- anything else is assumed unsafe (we want to minimize the taint risks)
+        return false
     end
 
     ---@alias ExecuteWidgetOnEnterSafelyStatus
@@ -6434,7 +6444,7 @@ do
     end
 
     function tooltip:CanLoad()
-        return profile:IsEnabled() and _G.LFGListFrame and _G.LFGListFrame.SearchPanel and _G.LFGListFrame.ApplicationViewer
+        return profile:IsEnabled() and LFGListFrame and LFGListFrame.SearchPanel and LFGListFrame.ApplicationViewer
     end
 
     function tooltip:OnLoad()
@@ -6442,11 +6452,11 @@ do
         -- the player looking at groups
         hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntry)
         local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
-        ScrollBoxUtil:OnViewFramesChanged(_G.LFGListFrame.SearchPanel.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(_G.LFGListFrame.SearchPanel.ScrollBox, OnScroll)
+        ScrollBoxUtil:OnViewFramesChanged(LFGListFrame.SearchPanel.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+        ScrollBoxUtil:OnViewScrollChanged(LFGListFrame.SearchPanel.ScrollBox, OnScroll)
         -- the player hosting a group looking at applicants
-        ScrollBoxUtil:OnViewFramesChanged(_G.LFGListFrame.ApplicationViewer.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(_G.LFGListFrame.ApplicationViewer.ScrollBox, OnScroll)
+        ScrollBoxUtil:OnViewFramesChanged(LFGListFrame.ApplicationViewer.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+        ScrollBoxUtil:OnViewScrollChanged(LFGListFrame.ApplicationViewer.ScrollBox, OnScroll)
         -- remove the shroud and allow hovering over people even when not the group leader
         do
             local f = _G.LFGListFrame.ApplicationViewer.UnempoweredCover
@@ -6501,14 +6511,14 @@ do
     end
 
     function tooltip:CanLoad()
-        return _G.GuildFrame
+        return GuildRosterContainer
     end
 
     function tooltip:OnLoad()
         self:Enable()
         local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
-        ScrollBoxUtil:OnViewFramesChanged(_G.GuildRosterContainer, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(_G.GuildRosterContainer, OnScroll)
+        ScrollBoxUtil:OnViewFramesChanged(GuildRosterContainer, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+        ScrollBoxUtil:OnViewScrollChanged(GuildRosterContainer, OnScroll)
     end
 
 end
@@ -6618,25 +6628,25 @@ do
     end
 
     function tooltip:CanLoad()
-        return _G.CommunitiesFrame and _G.ClubFinderGuildFinderFrame and _G.ClubFinderCommunityAndGuildFinderFrame
+        return CommunitiesFrame and ClubFinderGuildFinderFrame and ClubFinderCommunityAndGuildFinderFrame
     end
 
     function tooltip:OnLoad()
         self:Enable()
-        ScrollBoxUtil:OnViewFramesChanged(_G.CommunitiesFrame.MemberList.ListScrollFrame or _G.CommunitiesFrame.MemberList.ScrollBox, SmartHookButtons) -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(_G.CommunitiesFrame.MemberList.ListScrollFrame or _G.CommunitiesFrame.MemberList.ScrollBox, OnScroll) -- TODO: DF
-        ScrollBoxUtil:OnViewFramesChanged(_G.ClubFinderGuildFinderFrame.CommunityCards.ListScrollFrame or _G.ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(_G.ClubFinderGuildFinderFrame.CommunityCards.ListScrollFrame or _G.ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, OnScroll) -- TODO: DF
-        ScrollBoxUtil:OnViewFramesChanged(_G.ClubFinderGuildFinderFrame.PendingCommunityCards.ListScrollFrame or _G.ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(_G.ClubFinderGuildFinderFrame.PendingCommunityCards.ListScrollFrame or _G.ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, OnScroll) -- TODO: DF
-        ScrollBoxUtil:OnViewFramesChanged(_G.ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ListScrollFrame or _G.ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(_G.ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ListScrollFrame or _G.ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox, OnScroll) -- TODO: DF
-        ScrollBoxUtil:OnViewFramesChanged(_G.ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ListScrollFrame or _G.ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(_G.ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ListScrollFrame or _G.ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox, OnScroll) -- TODO: DF
-        hooksecurefunc(_G.ClubFinderGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
-        hooksecurefunc(_G.ClubFinderGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
-        hooksecurefunc(_G.ClubFinderCommunityAndGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
-        hooksecurefunc(_G.ClubFinderCommunityAndGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
+        ScrollBoxUtil:OnViewFramesChanged(CommunitiesFrame.MemberList.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(CommunitiesFrame.MemberList.ScrollBox, OnScroll) -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, OnScroll) -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, OnScroll) -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox, OnScroll) -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox, OnScroll) -- TODO: DF
+        hooksecurefunc(ClubFinderGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(ClubFinderGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(ClubFinderCommunityAndGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(ClubFinderCommunityAndGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
     end
 
 end
@@ -7018,7 +7028,7 @@ do
 
     local function CreateGuildWeeklyFrame()
         ---@type GuildWeeklyFrame
-        local frame = CreateFrame("Frame", "RaiderIO_GuildWeeklyFrame", ChallengesFrame, BackdropTemplateMixin and "BackdropTemplate")
+        local frame = CreateFrame("Frame", addonName .. "_GuildWeeklyFrame", ChallengesFrame, BackdropTemplateMixin and "BackdropTemplate")
         frame.maxVisible = 5
         -- inherit from the mixin
         for k, v in pairs(GuildWeeklyFrameMixin) do

@@ -11,7 +11,7 @@ Description: Allows for easy creation of graphs
 --Thanks to Nelson Minar for catching several errors where width was being used instead of height (damn copy and paste >_>)
 
 local major = "LibGraph-2.0"
-local minor = 90000 + tonumber(("$Revision: 55 $"):match("(%d+)"))
+local minor = 90000 + tonumber(("$Revision: 55 $"):match("(%d+)")) + 1 -- HOTFIX: this fixed library has higher priority than older outdated once
 
 
 --Search for just Addon\\ at the front since the interface part often gets trimmed

@@ -7204,7 +7204,7 @@ do
 end
 
 -- traces.lua
--- dependencies: module, callback, config, util
+-- dependencies: module, callback, config, util + LibGraph
 do
 
     ---@class TracesModule : Module
@@ -7212,6 +7212,91 @@ do
     local callback = ns:GetModule("Callback") ---@type CallbackModule
     local config = ns:GetModule("Config") ---@type ConfigModule
     local util = ns:GetModule("Util") ---@type UtilModule
+
+    ---@alias LibGraphColor number[]
+    ---@alias LibGraphDataXY number[]
+    ---@alias LibGraphTexture string|number
+    ---@alias LibGraphMode "SLOW"|"FAST"|"EXP"|"EXPFAST"|"RAW"
+
+    ---@class LibGraphBase
+    ---@field public OnUpdate fun(self: LibGraphBase)
+    ---@field public DrawLine fun(self: LibGraphBase, C: LibGraphBase, sx: number, sy: number, ex: number, ey: number, w: number, color: LibGraphColor, layer: DrawLayer, linetexture: LibGraphTexture): Texture?
+    ---@field public DrawVLine fun(self: LibGraphBase, C: LibGraphBase, x: number, sy: number, ey: number, w: number, color: LibGraphColor, layer: DrawLayer): Texture
+    ---@field public DrawHLine fun(self: LibGraphBase, C: LibGraphBase, sx: number, ex: number, y: number, w: number, color: LibGraphColor, layer: DrawLayer): Texture
+    ---@field public HideLines fun(self: LibGraphBase, C: LibGraphBase)
+    ---@field public HideTextures fun(self: LibGraphBase)
+    ---@field public FindTexture fun(self: LibGraphBase)
+
+    ---@class LibGraphBase3D : LibGraphBase
+    ---@field public SetXAxis fun(self: LibGraphBase3D, mi: number, ma: number)
+    ---@field public SetYAxis fun(self: LibGraphBase3D, mi: number, ma: number)
+    ---@field public AddDataSeries fun(self: LibGraphBase3D, data: LibGraphDataXY[], color: LibGraphColor)
+    ---@field public ResetData fun(self: LibGraphBase3D)
+    ---@field public RefreshGraph fun(self: LibGraphBase3D)
+    ---@field public CreateGridlines fun(self: LibGraphBase3D)
+    ---@field public SetAxisDrawing fun(self: LibGraphBase3D, x: boolean, y: boolean)
+    ---@field public SetGridSpacing fun(self: LibGraphBase3D, x: number, y: number)
+    ---@field public SetAxisColor fun(self: LibGraphBase3D, color: LibGraphColor)
+    ---@field public SetGridColor fun(self: LibGraphBase3D, color: LibGraphColor)
+    ---@field public SetGridColorSecondary fun(self: LibGraphBase3D)
+    ---@field public SetGridSecondaryMultiple fun(self: LibGraphBase3D)
+    ---@field public SetAutoScale fun(self: LibGraphBase3D, autoScale: boolean)
+    ---@field public SetYLabels fun(self: LibGraphBase3D)
+    ---@field public LockXMin fun(self: LibGraphBase3D)
+    ---@field public LockXMax fun(self: LibGraphBase3D)
+    ---@field public LockYMin fun(self: LibGraphBase3D)
+    ---@field public LockYMax fun(self: LibGraphBase3D)
+    ---@field public HideFontStrings fun(self: LibGraphBase3D)
+    ---@field public FindFontString fun(self: LibGraphBase3D)
+
+    ---@class LibGraphRealtime : LibGraphBase3D, Frame
+    ---@field public SetYMax fun(self: LibGraphRealtime, ma: number)
+    ---@field public AddTimeData fun(self: LibGraphRealtime, data: number)
+    ---@field public SetFilterRadius fun(self: LibGraphRealtime, r: number)
+    ---@field public SetMode fun(self: LibGraphRealtime, mode: LibGraphMode)
+    ---@field public SetWidth fun(self: LibGraphRealtime)
+    ---@field public SetHeight fun(self: LibGraphRealtime)
+    ---@field public SetBarColors fun(self: LibGraphRealtime, from: LibGraphColor, to: LibGraphColor)
+    ---@field public GetMaxValue fun(self: LibGraphRealtime)
+    ---@field public GetValue fun(self: LibGraphRealtime)
+    ---@field public SetUpdateLimit fun(self: LibGraphRealtime)
+    ---@field public SetDecay fun(self: LibGraphRealtime)
+    ---@field public SetMinMaxY fun(self: LibGraphRealtime)
+    ---@field public AddBar fun(self: LibGraphRealtime, data: number)
+    ---@field public SetBars fun(self: LibGraphRealtime)
+
+    ---@class LibGraphLine : LibGraphBase3D, Frame
+    ---@field public AddFilledDataSeries fun(self: LibGraphLine)
+    ---@field public SetLineTexture fun(self: LibGraphLine)
+    ---@field public SetBorderSize fun(self: LibGraphLine)
+    ---@field public DrawBar fun(self: LibGraphLine, C: LibGraphLine, sx: number, sy: number, ex: number, ey: number, color: string, level: number)
+    ---@field public HideBars fun(self: LibGraphLine, C: LibGraphLine)
+
+    ---@class LibGraphScatterPlot : LibGraphBase3D, Frame
+    ---@field public LinearRegression fun(self: LibGraphScatterPlot)
+    ---@field public SetLinearFit fun(self: LibGraphScatterPlot, linearFit: boolean)
+
+    ---@class LibGraphPieChart : LibGraphBase, Frame
+    ---@field public AddPie fun(self: LibGraphPieChart, data: number, color: LibGraphColor)
+    ---@field public CompletePie fun(self: LibGraphPieChart, color: LibGraphColor)
+    ---@field public ResetPie fun(self: LibGraphPieChart)
+    ---@field public SetSelectionFunc fun(self: LibGraphPieChart)
+
+    ---@class LibGraph : LibGraphBase
+    ---@field public RegisteredGraphRealtime LibGraphRealtime[]
+    ---@field public RegisteredGraphLine LibGraphLine[]
+    ---@field public RegisteredGraphScatterPlot LibGraphScatterPlot[]
+    ---@field public RegisteredGraphPieChart LibGraphPieChart[]
+    ---@field public CreateGraphRealtime fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: Region, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphRealtime
+    ---@field public CreateGraphLine fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: Region, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphLine
+    ---@field public CreateGraphScatterPlot fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: Region, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphScatterPlot
+    ---@field public CreateGraphPieChart fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: Region, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphPieChart
+    ---@field public DrawBar fun(self: LibGraph, C: LibGraphBase, sx: number, sy: number, ex: number, ey: number, color: string, level: number)
+    ---@field public HideBars fun(self: LibGraph, C: LibGraphBase)
+    ---@field public TestGraph2Lib fun(self: LibGraph)
+
+    ---@type LibGraph
+    local LibGraph = LibStub and LibStub:GetLibrary("LibGraph-2.0", true)
 
     ---@type Trace[]?
     local traceItems

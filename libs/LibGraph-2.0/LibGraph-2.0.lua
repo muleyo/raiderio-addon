@@ -20,6 +20,7 @@ local minor = 90000 + tonumber(("$Revision: 55 $"):match("(%d+)"))
 local TextureDirectory
 do
 	local path = string.match(debugstack(1, 1, 0), "AddOns\\(.+)LibGraph%-2%.0%.lua")
+	if not path then path = "RaiderIO\\libs\\LibGraph-2.0\\" end -- HOTFIX: path length fix hardcoded to this instance of the library
 	if path then
 		TextureDirectory = "Interface\\AddOns\\"..path
 	else
@@ -163,7 +164,7 @@ function lib:CreateGraphRealtime(name, parent, relative, relativeTo, offsetX, of
 		bar:GetStatusBarTexture():SetVertTile(false)
 
 		local t = bar:GetStatusBarTexture()
-		t:SetGradientAlpha("VERTICAL", 0.2, 0.0, 0.0, 0.5, 1.0, 0.0, 0.0, 1.0)
+		t:SetGradient("VERTICAL", { r = 0.2, g = 0.0, b = 0.0, a = 0.5 }, { r = 1.0, g = 0.0, b = 0.0, a = 1.0 })
 
 		bar:Show()
 		tinsert(graph.Bars, bar)
@@ -504,7 +505,7 @@ function GraphFunctions:SetBarColors(BotColor, TopColor)
 	end
 	for i = 1, self.BarNum do
 		local t = self.Bars[i]:GetStatusBarTexture()
-		t:SetGradientAlpha("VERTICAL", BotColor[1], BotColor[2], BotColor[3], BotColor[4], TopColor[1], TopColor[2], TopColor[3], TopColor[4])
+		t:SetGradient("VERTICAL", { r = BotColor[1], g = BotColor[2], b = BotColor[3], a = BotColor[4] }, { r = TopColor[1], g = TopColor[2], b = TopColor[3], a = TopColor[4] })
 	end
 end
 
@@ -529,7 +530,7 @@ function GraphFunctions:RealtimeSetColors(BotColor, TopColor)
 	self.BarColorBot = BotColor
 	self.BarColorTop = TopColor
 	for _, v in pairs(self.Bars) do
-		v:GetStatusBarTexture():SetGradientAlpha("VERTICAL", self.BarColorBot[1], self.BarColorBot[2], self.BarColorBot[3], self.BarColorBot[4], self.BarColorTop[1], self.BarColorTop[2], self.BarColorTop[3], self.BarColorTop[4])
+		v:GetStatusBarTexture():SetGradient("VERTICAL", { r = self.BarColorBot[1], g = self.BarColorBot[2], b = self.BarColorBot[3], a = self.BarColorBot[4] }, { r = self.BarColorTop[1], g = self.BarColorTop[2], b = self.BarColorTop[3], a = self.BarColorTop[4] })
 	end
 end
 
@@ -555,7 +556,7 @@ function GraphFunctions:RealtimeSetWidth(Width)
 			bar:GetStatusBarTexture():SetVertTile(false)
 
 			local t = bar:GetStatusBarTexture()
-			t:SetGradientAlpha("VERTICAL", self.BarColorBot[1], self.BarColorBot[2], self.BarColorBot[3], self.BarColorBot[4], self.BarColorTop[1], self.BarColorTop[2], self.BarColorTop[3], self.BarColorTop[4])
+			t:SetGradient("VERTICAL", { r = self.BarColorBot[1], g = self.BarColorBot[2], b = self.BarColorBot[3], a = self.BarColorBot[4] }, { r = self.BarColorTop[1], g = self.BarColorTop[2], b = self.BarColorTop[3], a = self.BarColorTop[4] })
 
 			tinsert(self.Bars, bar)
 		else

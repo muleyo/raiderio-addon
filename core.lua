@@ -7465,7 +7465,7 @@ do
     end
 
     function traces:CanLoad()
-        return not frame and config:IsEnabled() and ns:GetTraces()
+        return LibGraph and not frame and config:IsEnabled() and ns:GetTraces()
     end
 
     function traces:OnLoad()

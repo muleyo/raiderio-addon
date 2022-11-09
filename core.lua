@@ -7177,7 +7177,7 @@ do
     ---@field public GetValue fun(self: LibGraphRealtime)
     ---@field public SetUpdateLimit fun(self: LibGraphRealtime)
     ---@field public SetDecay fun(self: LibGraphRealtime)
-    ---@field public SetMinMaxY fun(self: LibGraphRealtime)
+    ---@field public SetMinMaxY fun(self: LibGraphRealtime, mi: number, ma: number)
     ---@field public AddBar fun(self: LibGraphRealtime, data: number)
     ---@field public SetBars fun(self: LibGraphRealtime)
 
@@ -7203,10 +7203,10 @@ do
     ---@field public RegisteredGraphLine LibGraphLine[]
     ---@field public RegisteredGraphScatterPlot LibGraphScatterPlot[]
     ---@field public RegisteredGraphPieChart LibGraphPieChart[]
-    ---@field public CreateGraphRealtime fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: Region, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphRealtime
-    ---@field public CreateGraphLine fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: Region, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphLine
-    ---@field public CreateGraphScatterPlot fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: Region, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphScatterPlot
-    ---@field public CreateGraphPieChart fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: Region, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphPieChart
+    ---@field public CreateGraphRealtime fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: AnchorPoint, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphRealtime
+    ---@field public CreateGraphLine fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: AnchorPoint, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphLine
+    ---@field public CreateGraphScatterPlot fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: AnchorPoint, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphScatterPlot
+    ---@field public CreateGraphPieChart fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: AnchorPoint, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphPieChart
     ---@field public DrawBar fun(self: LibGraph, C: LibGraphBase, sx: number, sy: number, ex: number, ey: number, color: string, level: number)
     ---@field public HideBars fun(self: LibGraph, C: LibGraphBase)
     ---@field public TestGraph2Lib fun(self: LibGraph)
@@ -7289,8 +7289,27 @@ do
         return index, current, future
     end
 
+    ---@param summary TraceSummary
+    ---@return number timer, number deaths, number trash, number bosses, boolean ...
+    local function UnpackSummary(summary)
+        return summary.timer, summary.deaths, summary.trash, #summary.kills, unpack(summary.kills)
+    end
+
+    ---@param oldKills boolean[]
+    ---@param newKills boolean[]
+    ---@return number? nextKillIndex
+    local function GetNextKill(oldKills, newKills)
+        for k, v in ipairs(oldKills) do
+            local n = newKills[k]
+            if not v and n then
+                return k
+            end
+        end
+    end
+
     ---@param elapse number
     local function FrameOnUpdate(_, elapse)
+        elapse = elapse * 30 -- DEBUG: timescale modifier
         frame.elapsed = frame.elapsed + elapse
         if frame.elapsed < 0.25 then return end
         if not frame.timerRunning then frame.elapsed = 0 return end
@@ -7300,24 +7319,40 @@ do
         local elapsedTimeMS = elapsedTime * 1000
         local trace = frame.trace ---@type Trace
         local traceSummary = frame.traceSummary
+        local prevTrash = traceSummary.trash
         local traceIndex, current, future = ReplayTraceTick(traceSummary, trace.logs, frame.traceIndex, elapsedTimeMS)
         frame.traceIndex = traceIndex
         local logCount = #trace.logs
         local traceTimeMS = trace.logs[logCount].timer -- DEBUG: HOTFIX: trace.time?
         local traceTime = traceTimeMS / 1000
         local safeElapsedTime = min(traceTime, elapsedTime)
+        local futureCountdown = future and (future.timer/1000) - safeElapsedTime or 0
+        local futureDeaths = future and future.deaths or 0
+        local futureTrash = future and future.trash or 0
+        local futureBoss = future and future.kills and GetNextKill(traceSummary.kills, future.kills) or 0
         local bossText = {}
         for k, v in ipairs(traceSummary.kills) do
-            bossText[k] = v and "X" or "-"
+            if futureBoss == k then
+                bossText[k] = "O"
+            else
+                bossText[k] = v and "X" or "-"
+            end
         end
         frame.Text:SetFormattedText(
-            "Log Index = %d / %d\nTimer = %s / %s (%.1f%%)\nDeaths = %d\nTrash = %d / %d (%.1f%%)\nBosses = %s",
+            [[Log Index = %d / %d
+Timer = %s / %s (%.1f%%) |cff00FF00%s|r
+Deaths = %d |cff00FF00%s|r
+Trash = %d / %d (%.1f%%) |cff00FF00%s|r
+Bosses = %s |cff00FF00%s|r]],
             traceIndex, logCount,
-            SecondsToClock(safeElapsedTime, true), SecondsToClock(traceTime, true), safeElapsedTime/traceTime*100,
-            traceSummary.deaths,
-            traceSummary.trash, trace.trash, traceSummary.trash/trace.trash*100,
-            table.concat(bossText, "")
+            SecondsToClock(safeElapsedTime, true), SecondsToClock(traceTime, true), safeElapsedTime/traceTime*100, futureCountdown > 0 and format("> %d", futureCountdown) or "",
+            traceSummary.deaths, futureDeaths > 0 and format("> %d", futureDeaths) or "",
+            traceSummary.trash, trace.trash, traceSummary.trash/trace.trash*100, futureTrash > 0 and format("> %d", futureTrash) or "",
+            table.concat(bossText, ""), futureBoss > 0 and format("> %d", futureBoss) or ""
         )
+        if traceSummary.trash ~= prevTrash then
+            frame.Graph:AddBar(traceSummary.trash)
+        end
         if current and not future then
             frame.timerRunning = false
         end
@@ -7336,13 +7371,15 @@ do
         tracesFrame.traceItem = nil ---@type TraceLog?
         tracesFrame.traceSummary = nil ---@type TraceSummary?
         tracesFrame:SetPoint("CENTER", 0, 0)
-        tracesFrame:SetSize(300, 120)
+        tracesFrame:SetSize(300, 120 + 120)
         tracesFrame:SetBackdrop(BACKDROP_DARK_DIALOG_32_32)
+        tracesFrame:SetFrameStrata("HIGH")
         tracesFrame.Text = tracesFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
         tracesFrame.Text:SetPoint("TOPLEFT", tracesFrame, "TOPLEFT", 16, -16)
         tracesFrame.Text:SetPoint("BOTTOMRIGHT", tracesFrame, "BOTTOMRIGHT", -16, 16)
         tracesFrame.Text:SetJustifyH("LEFT")
         tracesFrame.Text:SetJustifyV("TOP")
+        tracesFrame:SetClampedToScreen(true)
         tracesFrame:EnableMouse(true)
         tracesFrame:SetMovable(true)
         tracesFrame:RegisterForDrag("LeftButton")
@@ -7350,6 +7387,13 @@ do
         tracesFrame:SetScript("OnDragStop", tracesFrame.StopMovingOrSizing)
         tracesFrame:Hide()
         tracesFrame:SetScript("OnUpdate", FrameOnUpdate)
+        tracesFrame.Graph = LibGraph:CreateGraphRealtime(tracesFrame:GetName() .. "Graph", tracesFrame, "BOTTOMLEFT", "BOTTOMLEFT", 10, 10, 300 - 20, 120)
+        tracesFrame.Graph:SetPoint("BOTTOMRIGHT", -10, 0)
+        tracesFrame.Graph:SetMode("RAW")
+        -- tracesFrame.Graph:SetAutoScale(true)
+        tracesFrame.Graph.Background = tracesFrame.Graph:CreateTexture(nil, "BACKGROUND")
+        tracesFrame.Graph.Background:SetAllPoints()
+        tracesFrame.Graph.Background:SetColorTexture(0, 0, 1, 0.5)
         return tracesFrame
     end
 
@@ -7415,6 +7459,7 @@ do
         frame.traceIndex = traceIndex
         frame.traceItem = traceItem
         frame.traceSummary = traceSummary
+        frame.Graph:SetYMax(trace.trash)
         ReplayTraceUntil(traceSummary, logs, traceIndex)
     end
 
@@ -7438,7 +7483,7 @@ do
                 frame.timerRunning = false
             end
         end
-        found, frame.timerID, frame.timerRunning, frame.elapsedTime = true, 1, true, 2160 - 60*4+20 -- DEBUG: fake running timer
+        found, frame.timerID, frame.timerRunning, frame.elapsedTime = true, 1, true, 0 -- 2160 - 60*4+20 -- DEBUG: fake running timer
         if found == nil then
             frame.timerID, frame.timerRunning = nil, nil
         else

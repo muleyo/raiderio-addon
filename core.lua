@@ -7240,6 +7240,7 @@ do
     ---@field public FindTexture fun(self: LibGraphBase): Texture
 
     ---@class LibGraphBase3D : LibGraphBase
+    ---@field public CullXAxis boolean
     ---@field public YMax number
     ---@field public YMin number
     ---@field public XMax number
@@ -7268,6 +7269,8 @@ do
     ---@field public ExpNorm number
     ---@field public FilterOverlap number
     ---@field public TextFrame Frame
+    ---@field public SetXAxisCulling fun(self: LibGraphBase3D, state?: boolean)
+    ---@field public SetXAxisCullingPadding fun(self: LibGraphBase3D, padding: number)
     ---@field public SetXAxis fun(self: LibGraphBase3D, xmin: number, xmax: number)
     ---@field public NeedsUpdate boolean
     ---@field public AddedBar boolean
@@ -7275,7 +7278,7 @@ do
     ---@field public RefreshGraph fun(self: LibGraphBase3D)
     ---@field public CreateGridlines fun(self: LibGraphBase3D)
     ---@field public SetAxisDrawing fun(self: LibGraphBase3D, xaxis: boolean, yaxis: boolean)
-    ---@field public SetGridSpacing fun(self: LibGraphBase3D, xspacing: number, yspacing: number)
+    ---@field public SetGridSpacing fun(self: LibGraphBase3D, xspacing?: number, yspacing?: number)
     ---@field public SetAxisColor fun(self: LibGraphBase3D, color: LibGraphColor)
     ---@field public SetGridColor fun(self: LibGraphBase3D, color: LibGraphColor)
     ---@field public SetGridColorSecondary fun(self: LibGraphBase3D, color: LibGraphColor)
@@ -7452,6 +7455,55 @@ do
         end
     end
 
+    ---@param points LibGraphDataXY[]
+    ---@param timer number
+    ---@return boolean hasData, number value
+    local function GetClosestGraphPoint(points, timer)
+        for index, point in ipairs(points) do
+            if point[1] > timer then
+                point = points[index - 1] or point
+                return true, point[2]
+            end
+        end
+        return false, 0
+    end
+
+    ---@param delta number
+    local function UpdateGraphGradient(delta)
+        local r, g, b, a
+        if delta > 5 then
+            delta = 1-1/(delta == 0 and 1 or delta)
+            delta = delta > 0.2 and 0.2 or delta
+            r, g, b, a = 0.1, 0.5, 0.1, delta
+        elseif delta < -5 then
+            delta = 1-1/(delta == 0 and 1 or -delta)
+            delta = delta > 0.2 and 0.2 or delta
+            r, g, b, a = 0.5, 0.1, 0.1, delta
+        else
+            r, g, b, a = 0.5, 0.5, 0.1, 0.2
+        end
+        frame.Graph.Gradient:SetColorTexture(r, g, b, a)
+    end
+
+    local function RefreshGraphState()
+        local Graph = frame.Graph
+        local elapsedTime = frame.elapsedTime
+        local hasData, closestValue = GetClosestGraphPoint(Graph.traceData, elapsedTime)
+        if not hasData then
+            return
+        end
+        local liveData = Graph.liveData
+        liveData.timer = floor(elapsedTime + 0.5)
+        liveData.trash = (liveData.trash or 0) + (random(1, max(1, 80 - abs((liveData.trash or 0) - closestValue))) == 1 and random(0, 5) or 0)
+        liveData.index = (liveData.index or 0) + 1
+        liveData[liveData.index] = { liveData.timer, liveData.trash }
+        local delta = liveData.trash - closestValue
+        local offset = 0 -- delta < -Graph.DeltaYOffset/2 and (-delta + 10) or (delta > Graph.DeltaYOffset/2 and delta - 10) or 0
+        UpdateGraphGradient(delta)
+        Graph:SetXAxis(liveData.timer - Graph.DeltaXOffset, liveData.timer + Graph.DeltaXOffset)
+        Graph:SetYAxis(liveData.trash - Graph.DeltaYOffset - offset, liveData.trash + Graph.DeltaYOffset + offset)
+    end
+
     ---@param elapse number
     local function FrameOnUpdate(_, elapse)
         elapse = elapse * 30 -- DEBUG: timescale modifier
@@ -7464,7 +7516,6 @@ do
         local elapsedTimeMS = elapsedTime * 1000
         local trace = frame.trace ---@type Trace
         local traceSummary = frame.traceSummary
-        local prevTrash = traceSummary.trash
         local traceIndex, current, future = ReplayTraceTick(traceSummary, trace.logs, frame.traceIndex, elapsedTimeMS)
         frame.traceIndex = traceIndex
         local logCount = #trace.logs
@@ -7495,9 +7546,7 @@ Bosses = %s |cff00FF00%s|r]],
             traceSummary.trash, trace.trash, traceSummary.trash/trace.trash*100, futureTrash > 0 and format("> %d", futureTrash) or "",
             table.concat(bossText, ""), futureBoss > 0 and format("> %d", futureBoss) or ""
         )
-        if traceSummary.trash ~= prevTrash then
-            frame.Graph:AddBar(traceSummary.trash)
-        end
+        RefreshGraphState()
         if current and not future then
             frame.timerRunning = false
         end
@@ -7516,7 +7565,7 @@ Bosses = %s |cff00FF00%s|r]],
         tracesFrame.traceItem = nil ---@type TraceLog?
         tracesFrame.traceSummary = nil ---@type TraceSummary?
         tracesFrame:SetPoint("CENTER", 0, 0)
-        tracesFrame:SetSize(300, 120 + 120)
+        tracesFrame:SetSize(300, 120 + 72)
         tracesFrame:SetBackdrop(BACKDROP_DARK_DIALOG_32_32)
         tracesFrame:SetFrameStrata("HIGH")
         tracesFrame.Text = tracesFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
@@ -7532,13 +7581,29 @@ Bosses = %s |cff00FF00%s|r]],
         tracesFrame:SetScript("OnDragStop", tracesFrame.StopMovingOrSizing)
         tracesFrame:Hide()
         tracesFrame:SetScript("OnUpdate", FrameOnUpdate)
-        tracesFrame.Graph = LibGraph:CreateGraphRealtime(tracesFrame:GetName() .. "Graph", tracesFrame, "BOTTOMLEFT", "BOTTOMLEFT", 10, 10, 300 - 20, 120)
-        tracesFrame.Graph:SetPoint("BOTTOMRIGHT", -10, 0)
-        tracesFrame.Graph:SetMode("RAW")
-        -- tracesFrame.Graph:SetAutoScale(true)
-        tracesFrame.Graph.Background = tracesFrame.Graph:CreateTexture(nil, "BACKGROUND")
-        tracesFrame.Graph.Background:SetAllPoints()
-        tracesFrame.Graph.Background:SetColorTexture(0, 0, 1, 0.5)
+        local Graph = LibGraph:CreateGraphLine(tracesFrame:GetName() .. "Graph", tracesFrame, "BOTTOMLEFT", "BOTTOMLEFT", 10, 10, 300 - 20, 72)
+        tracesFrame.Graph = Graph
+        Graph.liveData = {} ---@type LibGraphDataXY[]
+        Graph.traceData = {} ---@type LibGraphDataXY[]
+        Graph:SetPoint("BOTTOMRIGHT", -10, 0)
+        Graph:SetClipsChildren(true)
+        Graph.Background = Graph:CreateTexture(nil, "BACKGROUND", nil, 1)
+        Graph.Background:SetAllPoints()
+        Graph.Background:SetColorTexture(0, 0, 0, 1)
+        Graph.Gradient = Graph:CreateTexture(nil, "BACKGROUND", nil, 2)
+        Graph.Gradient:SetAllPoints()
+        Graph.DeltaXOffset = 60
+        Graph.DeltaYOffset = 20
+        Graph:SetGridColor({ 0.2, 0.2, 0.2, 1 })
+        Graph:SetGridColorSecondary({ 0.2, 0.2, 0.2, 1 })
+        Graph:SetGridSpacing(nil, Graph.DeltaYOffset/2)
+        Graph:SetGridSecondaryMultiple(Graph.DeltaXOffset/2, Graph.DeltaYOffset/2)
+        Graph:SetAxisDrawing(false, false)
+        Graph:SetAxisColor({ 1, 1, 1, 1 - 1 })
+        Graph:SetXAxis(0, Graph.DeltaXOffset)
+        Graph:SetYAxis(0, Graph.DeltaYOffset)
+        Graph:SetXAxisCulling(true)
+        Graph:SetXAxisCullingPadding(120)
         return tracesFrame
     end
 
@@ -7581,10 +7646,32 @@ Bosses = %s |cff00FF00%s|r]],
         return count, items[count]
     end
 
+    ---@param data LibGraphDataXY[]
+    ---@param items TraceLog[]
+    local function PopulateGraphData(data, items)
+        local trash = 0
+        local index = 0
+        local timer
+        for _, item in ipairs(items) do
+            if item.trash or (not timer) or (item.timer - timer > 10 * 1000) then
+                if item.trash then
+                    trash = trash + item.trash
+                end
+                index = index + 1
+                data[index] = { floor(item.timer/1000), trash }
+            end
+            timer = item.timer
+        end
+        data[index + 1] = nil
+    end
+
     ---@param trace? Trace
     local function UpdateFrameState(trace)
         frame.elapsed = 0
         frame.trace = trace
+        frame.Graph:ResetData()
+        wipe(frame.Graph.liveData)
+        wipe(frame.Graph.traceData)
         if not trace then
             return
         end
@@ -7604,7 +7691,9 @@ Bosses = %s |cff00FF00%s|r]],
         frame.traceIndex = traceIndex
         frame.traceItem = traceItem
         frame.traceSummary = traceSummary
-        frame.Graph:SetYMax(trace.trash)
+        PopulateGraphData(frame.Graph.traceData, logs)
+        frame.Graph:AddDataSeries(frame.Graph.liveData, { 1, 1, 0, 1 })
+        frame.Graph:AddDataSeries(frame.Graph.traceData, { 0, 1, 0, 1 })
         ReplayTraceUntil(traceSummary, logs, traceIndex)
     end
 
@@ -7672,81 +7761,6 @@ Bosses = %s |cff00FF00%s|r]],
     function traces:OnDisable()
         UpdateState()
         callback:UnregisterEvent(UpdateState, unpack(UpdateEvents))
-    end
-
-    -- DEBUG: /tinspect RaiderIODebugGraph
-    local Graph = LibGraph:CreateGraphLine(addonName .. "DebugGraph", UIParent, "CENTER", "CENTER", 0, 0, 128, 72)
-    Graph.DeltaXOffset = 60
-    Graph.DeltaYOffset = 20
-    do
-        Graph:SetGridColor({ 0.2, 0.2, 0.2, 1 - 1 })
-        Graph:SetGridColorSecondary({ 0.2, 0.2, 0.2, 1 - 1 })
-        Graph:SetGridSpacing(Graph.DeltaYOffset, Graph.DeltaXOffset)
-        Graph:SetGridSecondaryMultiple(Graph.DeltaYOffset, Graph.DeltaXOffset)
-        Graph:SetAxisDrawing(false, false)
-        Graph:SetAxisColor({ 1, 1, 1, 1 - 1 })
-        Graph:SetXAxis(0, Graph.DeltaXOffset)
-        Graph:SetYAxis(0, Graph.DeltaYOffset)
-    end
-    do
-        Graph:SetClampedToScreen(true)
-        Graph:EnableMouse(true)
-        Graph:SetMovable(true)
-        Graph:RegisterForDrag("LeftButton")
-        Graph:HookScript("OnDragStart", Graph.StartMoving)
-        Graph:HookScript("OnDragStop", Graph.StopMovingOrSizing)
-        Graph.Background = Graph:CreateTexture(nil, "BACKGROUND")
-        Graph.Background:SetAllPoints()
-        Graph.Background:SetColorTexture(0, 0, 0, 1)
-        -- clip out of bounds children until we cull data outside the view and add it into view as needed (both trace and live data)
-        Graph:SetClipsChildren(true)
-    end
-    do
-        local liveData = { index = 0, elapsed = 0, timer = 0, trash = 0 }
-        local liveFrame = CreateFrame("Frame")
-        liveFrame:SetScript("OnUpdate", function(_, elapsed)
-            -- elapsed = elapsed * 30 -- DEBUG: timescale modifier
-            liveData.elapsed = liveData.elapsed + elapsed
-            if liveData.elapsed < 1 then return end
-            liveData.timer = liveData.timer + liveData.elapsed
-            liveData.elapsed = 0
-            local randomlyIncrementBy = random(1, 10) == 1 and random(0, 5) or 0
-            liveData.trash = liveData.trash + randomlyIncrementBy
-            liveData.index = liveData.index + 1
-            local timer = floor(liveData.timer)
-            liveData[liveData.index] = { timer, liveData.trash }
-            -- get data for the closest trace point
-            local points = Graph.Data[2].Points
-            local closest = 0
-            local outofdata = true
-            for k, v in ipairs(points) do
-                if v[1] > timer then
-                    outofdata = false
-                    v = points[k - 1] or v
-                    closest = v[2]
-                    break
-                end
-            end
-            -- halt generating fake data if we reach the end of the trace
-            if outofdata then return liveFrame:Hide() end
-            local delta = liveData.trash - closest
-            local offset = delta < 0 and (-delta + 10) or (delta > 0 and delta - 10) or 0
-            -- update the axis to be on the tip of our current live data
-            Graph:SetXAxis(liveData.timer - Graph.DeltaXOffset, liveData.timer + Graph.DeltaXOffset)
-            Graph:SetYAxis(liveData.trash - Graph.DeltaYOffset - offset, liveData.trash + Graph.DeltaYOffset + offset)
-        end)
-        Graph:AddDataSeries(liveData, { 0, 0, 1, 1 })
-    end
-    do
-        local traceData = { index = 0, trash = 0 }
-        for _, item in ipairs(ns:GetTraces()[1].logs) do
-            if item.trash then
-                traceData.trash = traceData.trash + item.trash
-                traceData.index = traceData.index + 1
-                traceData[traceData.index] = { floor(item.timer/1000), traceData.trash }
-            end
-        end
-        Graph:AddDataSeries(traceData, { 0, 1, 0, 1 })
     end
 
 end

@@ -7133,59 +7133,60 @@ do
     ---@alias LibGraphDataXY number[]
     ---@alias LibGraphTexture string|number
     ---@alias LibGraphMode "SLOW"|"FAST"|"EXP"|"EXPFAST"|"RAW"
+    ---@alias LibGraphBorder "left"|"right"|"top"|"bottom"
 
     ---@class LibGraphBase
-    ---@field public OnUpdate fun(self: LibGraphBase)
-    ---@field public DrawLine fun(self: LibGraphBase, C: LibGraphBase, sx: number, sy: number, ex: number, ey: number, w: number, color: LibGraphColor, layer: DrawLayer, linetexture: LibGraphTexture): Texture?
-    ---@field public DrawVLine fun(self: LibGraphBase, C: LibGraphBase, x: number, sy: number, ey: number, w: number, color: LibGraphColor, layer: DrawLayer): Texture
-    ---@field public DrawHLine fun(self: LibGraphBase, C: LibGraphBase, sx: number, ex: number, y: number, w: number, color: LibGraphColor, layer: DrawLayer): Texture
+    ---@field public OnUpdate fun(self: LibGraphBase) #Overrides using `OnUpdateGraph`, `PieChart_OnUpdate` or `OnUpdateGraphRealtime` depending on the type of chart.
+    ---@field public DrawLine fun(self: LibGraphBase, C: LibGraphBase, sx: number, sy: number, ex: number, ey: number, w: number, color: LibGraphColor, layer?: DrawLayer, linetexture?: LibGraphTexture): Texture?
+    ---@field public DrawVLine fun(self: LibGraphBase, C: LibGraphBase, x: number, sy: number, ey: number, w: number, color: LibGraphColor, layer?: DrawLayer): Texture
+    ---@field public DrawHLine fun(self: LibGraphBase, C: LibGraphBase, sx: number, ex: number, y: number, w: number, color: LibGraphColor, layer?: DrawLayer): Texture
     ---@field public HideLines fun(self: LibGraphBase, C: LibGraphBase)
     ---@field public HideTextures fun(self: LibGraphBase)
-    ---@field public FindTexture fun(self: LibGraphBase)
+    ---@field public FindTexture fun(self: LibGraphBase): Texture
 
     ---@class LibGraphBase3D : LibGraphBase
-    ---@field public SetXAxis fun(self: LibGraphBase3D, mi: number, ma: number)
-    ---@field public SetYAxis fun(self: LibGraphBase3D, mi: number, ma: number)
-    ---@field public AddDataSeries fun(self: LibGraphBase3D, data: LibGraphDataXY[], color: LibGraphColor)
+    ---@field public SetXAxis fun(self: LibGraphBase3D, xmin: number, xmax: number)
+    ---@field public SetYAxis fun(self: LibGraphBase3D, ymin: number, ymax: number)
+    ---@field public AddDataSeries fun(self: LibGraphBase3D, points: LibGraphDataXY[], color: LibGraphColor, n2?: boolean, linetexture?: string)
     ---@field public ResetData fun(self: LibGraphBase3D)
     ---@field public RefreshGraph fun(self: LibGraphBase3D)
     ---@field public CreateGridlines fun(self: LibGraphBase3D)
-    ---@field public SetAxisDrawing fun(self: LibGraphBase3D, x: boolean, y: boolean)
-    ---@field public SetGridSpacing fun(self: LibGraphBase3D, x: number, y: number)
+    ---@field public SetAxisDrawing fun(self: LibGraphBase3D, xaxis: boolean, yaxis: boolean)
+    ---@field public SetGridSpacing fun(self: LibGraphBase3D, xspacing: number, yspacing: number)
     ---@field public SetAxisColor fun(self: LibGraphBase3D, color: LibGraphColor)
     ---@field public SetGridColor fun(self: LibGraphBase3D, color: LibGraphColor)
-    ---@field public SetGridColorSecondary fun(self: LibGraphBase3D)
-    ---@field public SetGridSecondaryMultiple fun(self: LibGraphBase3D)
-    ---@field public SetAutoScale fun(self: LibGraphBase3D, autoScale: boolean)
-    ---@field public SetYLabels fun(self: LibGraphBase3D)
-    ---@field public LockXMin fun(self: LibGraphBase3D)
-    ---@field public LockXMax fun(self: LibGraphBase3D)
-    ---@field public LockYMin fun(self: LibGraphBase3D)
-    ---@field public LockYMax fun(self: LibGraphBase3D)
+    ---@field public SetGridColorSecondary fun(self: LibGraphBase3D, color: LibGraphColor)
+    ---@field public SetGridSecondaryMultiple fun(self: LibGraphBase3D, XAxis?: number, YAxis?: number)
+    ---@field public SetAutoScale fun(self: LibGraphBase3D, auto: boolean)
+    ---@field public SetYLabels fun(self: LibGraphBase3D, Left: string, Right: string)
+    ---@field public LockXMin fun(self: LibGraphBase3D, state?: boolean)
+    ---@field public LockXMax fun(self: LibGraphBase3D, state?: boolean)
+    ---@field public LockYMin fun(self: LibGraphBase3D, state?: boolean)
+    ---@field public LockYMax fun(self: LibGraphBase3D, state?: boolean)
     ---@field public HideFontStrings fun(self: LibGraphBase3D)
-    ---@field public FindFontString fun(self: LibGraphBase3D)
+    ---@field public FindFontString fun(self: LibGraphBase3D): FontString
 
     ---@class LibGraphRealtime : LibGraphBase3D, Frame
-    ---@field public SetYMax fun(self: LibGraphRealtime, ma: number)
-    ---@field public AddTimeData fun(self: LibGraphRealtime, data: number)
-    ---@field public SetFilterRadius fun(self: LibGraphRealtime, r: number)
+    ---@field public SetYMax fun(self: LibGraphRealtime, ymax: number)
+    ---@field public AddTimeData fun(self: LibGraphRealtime, value: number)
+    ---@field public SetFilterRadius fun(self: LibGraphRealtime, radius: number)
     ---@field public SetMode fun(self: LibGraphRealtime, mode: LibGraphMode)
-    ---@field public SetWidth fun(self: LibGraphRealtime)
-    ---@field public SetHeight fun(self: LibGraphRealtime)
-    ---@field public SetBarColors fun(self: LibGraphRealtime, from: LibGraphColor, to: LibGraphColor)
-    ---@field public GetMaxValue fun(self: LibGraphRealtime)
-    ---@field public GetValue fun(self: LibGraphRealtime)
-    ---@field public SetUpdateLimit fun(self: LibGraphRealtime)
-    ---@field public SetDecay fun(self: LibGraphRealtime)
-    ---@field public SetMinMaxY fun(self: LibGraphRealtime, mi: number, ma: number)
-    ---@field public AddBar fun(self: LibGraphRealtime, data: number)
+    ---@field public SetWidth fun(self: LibGraphRealtime, Width: number) #Overrides using `RealtimeSetWidth`
+    ---@field public SetHeight fun(self: LibGraphRealtime, Height: number) #Overrides using `RealtimeSetHeight`
+    ---@field public SetBarColors fun(self: LibGraphRealtime, BotColor: LibGraphColor, TopColor: LibGraphColor)
+    ---@field public GetMaxValue fun(self: LibGraphRealtime): number
+    ---@field public GetValue fun(self: LibGraphRealtime, Time: number) #Overrides using `RealtimeGetValue`
+    ---@field public SetUpdateLimit fun(self: LibGraphRealtime, Time: number)
+    ---@field public SetDecay fun(self: LibGraphRealtime, decay: number)
+    ---@field public SetMinMaxY fun(self: LibGraphRealtime, val: number)
+    ---@field public AddBar fun(self: LibGraphRealtime, value: number)
     ---@field public SetBars fun(self: LibGraphRealtime)
 
     ---@class LibGraphLine : LibGraphBase3D, Frame
-    ---@field public AddFilledDataSeries fun(self: LibGraphLine)
-    ---@field public SetLineTexture fun(self: LibGraphLine)
-    ---@field public SetBorderSize fun(self: LibGraphLine)
-    ---@field public DrawBar fun(self: LibGraphLine, C: LibGraphLine, sx: number, sy: number, ex: number, ey: number, color: string, level: number)
+    ---@field public AddFilledDataSeries fun(self: LibGraphLine, points: LibGraphDataXY[], color: LibGraphColor, n2?: boolean)
+    ---@field public SetLineTexture fun(self: LibGraphLine, texture: string)
+    ---@field public SetBorderSize fun(self: LibGraphLine, border: LibGraphBorder, size: number): boolean
+    ---@field public DrawBar fun(self: LibGraphLine, C: LibGraphLine, sx: number, sy: number, ex: number, ey: number, color: string, level?: number)
     ---@field public HideBars fun(self: LibGraphLine, C: LibGraphLine)
 
     ---@class LibGraphScatterPlot : LibGraphBase3D, Frame

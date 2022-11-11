@@ -7692,8 +7692,8 @@ Bosses = %s |cff00FF00%s|r]],
         frame.traceItem = traceItem
         frame.traceSummary = traceSummary
         PopulateGraphData(frame.Graph.traceData, logs)
-        frame.Graph:AddDataSeries(frame.Graph.liveData, { 1, 1, 0, 1 })
-        frame.Graph:AddDataSeries(frame.Graph.traceData, { 0, 1, 0, 1 })
+        frame.Graph:AddDataSeries(frame.Graph.liveData, { 0, 1, 0, 1 })
+        frame.Graph:AddDataSeries(frame.Graph.traceData, { 0.5, 1, 0.5, 0.5 })
         ReplayTraceUntil(traceSummary, logs, traceIndex)
     end
 

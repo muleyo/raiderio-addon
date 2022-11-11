@@ -85,6 +85,8 @@ local function SetupGraphRealtimeFunctions(graph, upgrade)
 	local self = lib
 
 	--Set the various functions
+	graph.SetXAxisCulling = GraphFunctions.SetXAxisCulling
+	graph.SetXAxisCullingPadding = GraphFunctions.SetXAxisCullingPadding
 	graph.SetXAxis = GraphFunctions.SetXAxis
 	graph.SetYMax = GraphFunctions.SetYMax
 	graph.AddTimeData = GraphFunctions.AddTimeData
@@ -177,6 +179,8 @@ function lib:CreateGraphRealtime(name, parent, relative, relativeTo, offsetX, of
 
 	--Initialize Data
 	graph.GraphType = "REALTIME"
+	graph.CullXAxis = false
+	graph.CullXAxisPadding = 60
 	graph.YMax = 60
 	graph.YMin = 0
 	graph.XMax = -0.75
@@ -225,6 +229,8 @@ local function SetupGraphLineFunctions(graph)
 	local self = lib
 
 	--Set the various functions
+	graph.SetXAxisCulling = GraphFunctions.SetXAxisCulling
+	graph.SetXAxisCullingPadding = GraphFunctions.SetXAxisCullingPadding
 	graph.SetXAxis = GraphFunctions.SetXAxis
 	graph.SetYAxis = GraphFunctions.SetYAxis
 	graph.AddDataSeries = GraphFunctions.AddDataSeries
@@ -285,6 +291,8 @@ function lib:CreateGraphLine(name, parent, relative, relativeTo, offsetX, offset
 
 	--Initialize Data
 	graph.GraphType = "LINE"
+	graph.CullXAxis = false
+	graph.CullXAxisPadding = 60
 	graph.YMax = 1
 	graph.YMin = -1
 	graph.XMax = 1
@@ -307,7 +315,6 @@ function lib:CreateGraphLine(name, parent, relative, relativeTo, offsetX, offset
 	graph.TextFrame = CreateFrame("Frame", nil, graph)
 	graph.TextFrame:SetAllPoints(graph)
 
-
 	tinsert(self.RegisteredGraphLine, graph)
 	return graph
 end
@@ -318,6 +325,8 @@ local function SetupGraphScatterPlotFunctions(graph)
 	local self = lib
 
 	--Set the various functions
+	graph.SetXAxisCulling = GraphFunctions.SetXAxisCulling
+	graph.SetXAxisCullingPadding = GraphFunctions.SetXAxisCullingPadding
 	graph.SetXAxis = GraphFunctions.SetXAxis
 	graph.SetYAxis = GraphFunctions.SetYAxis
 	graph.AddDataSeries = GraphFunctions.AddDataSeries
@@ -374,6 +383,8 @@ function lib:CreateGraphScatterPlot(name, parent, relative, relativeTo, offsetX,
 
 	--Initialize Data
 	graph.GraphType = "SCATTER"
+	graph.CullXAxis = false
+	graph.CullXAxisPadding = 60
 	graph.YMax = 1
 	graph.YMin = -1
 	graph.XMax = 1
@@ -1174,6 +1185,18 @@ function GraphFunctions:SetXAxis(xmin, xmax)
 	end
 end
 
+function GraphFunctions:SetXAxisCulling(state)
+	if state == nil then
+		self.CullXAxis = not self.CullXAxis
+		return
+	end
+	self.CullXAxis = state
+end
+
+function GraphFunctions:SetXAxisCullingPadding(value)
+	self.CullXAxisPadding = value
+end
+
 function GraphFunctions:SetAutoScale(auto)
 	self.AutoScale = auto
 
@@ -1750,20 +1773,22 @@ function GraphFunctions:RefreshLineGraph()
 		LastPoint = nil
 		
 		for k2, point in ipairs(series.Points) do
-			if LastPoint then
-				local TPoint = {x = point[1]; y = point[2]}
+			if (not self.CullXAxis) or (point[1] >= self.XMin - self.CullXAxisPadding and point[1] <= self.XMax + self.CullXAxisPadding) then
+				if LastPoint then
+					local TPoint = {x = point[1]; y = point[2]}
 
-				TPoint.x = Width * (TPoint.x - self.XMin) / (self.XMax - self.XMin)
-				TPoint.y = Height * (TPoint.y - self.YMin) / (self.YMax - self.YMin)
+					TPoint.x = Width * (TPoint.x - self.XMin) / (self.XMax - self.XMin)
+					TPoint.y = Height * (TPoint.y - self.YMin) / (self.YMax - self.YMin)
 
-				--tercioo: send the data index to DrawLine so custom draw functions know what they are drawing
-				self:DrawLine(self, LastPoint.x, LastPoint.y, TPoint.x, TPoint.y, 32, series.Color, nil, series.LineTexture, k1)
+					--tercioo: send the data index to DrawLine so custom draw functions know what they are drawing
+					self:DrawLine(self, LastPoint.x, LastPoint.y, TPoint.x, TPoint.y, 32, series.Color, nil, series.LineTexture, k1)
 
-				LastPoint = TPoint
-			else
-				LastPoint = {x = point[1]; y = point[2]}
-				LastPoint.x = Width * (LastPoint.x - self.XMin) / (self.XMax - self.XMin)
-				LastPoint.y = Height * (LastPoint.y - self.YMin) / (self.YMax - self.YMin)
+					LastPoint = TPoint
+				else
+					LastPoint = {x = point[1]; y = point[2]}
+					LastPoint.x = Width * (LastPoint.x - self.XMin) / (self.XMax - self.XMin)
+					LastPoint.y = Height * (LastPoint.y - self.YMin) / (self.YMax - self.YMin)
+				end
 			end
 		end
 	end

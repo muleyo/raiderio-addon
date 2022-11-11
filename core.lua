@@ -7675,17 +7675,79 @@ Bosses = %s |cff00FF00%s|r]],
     end
 
     -- DEBUG: /tinspect RaiderIODebugGraph
-    local Graph = LibGraph:CreateGraphLine(addonName .. "DebugGraph", UIParent, "CENTER", "CENTER", 0, 0, 320, 180)
-    Graph:SetGridColor({ 1, 0, 0, 1 })
-    Graph:SetGridColorSecondary({ 0, 0, 1, 1 })
-    Graph:SetGridSpacing(10, 30)
-    Graph:SetGridSecondaryMultiple(5, 10)
-    Graph:SetAxisDrawing(true, true)
-    Graph:SetAxisColor({ 1, 1, 1, 1 })
-    Graph:SetXAxis(-50, 50)
-    Graph:SetYAxis(-50, 50)
-    Graph:AddDataSeries({ { -15, -15 }, { -10, -5 }, { -5, 0 }, { 5, 10 }, { 5, 15 }, { 5, 20 }, { 15, 25 }, { 30, 25 }, { 35, 25 }, { 40, 35 }, { 50, 50 } }, { 1, 0, 0, 1 })
-    Graph:AddDataSeries({ { -20, -20 }, { 0, 0 }, { 10, 15 }, { 30, 25 }, { 30, 30 }, { 35, 30 }, { 40, 45 }, { 50, 50 } }, { 0, 1, 0, 1 })
+    local Graph = LibGraph:CreateGraphLine(addonName .. "DebugGraph", UIParent, "CENTER", "CENTER", 0, 0, 128, 72)
+    Graph.DeltaXOffset = 60
+    Graph.DeltaYOffset = 20
+    do
+        Graph:SetGridColor({ 0.2, 0.2, 0.2, 1 - 1 })
+        Graph:SetGridColorSecondary({ 0.2, 0.2, 0.2, 1 - 1 })
+        Graph:SetGridSpacing(Graph.DeltaYOffset, Graph.DeltaXOffset)
+        Graph:SetGridSecondaryMultiple(Graph.DeltaYOffset, Graph.DeltaXOffset)
+        Graph:SetAxisDrawing(false, false)
+        Graph:SetAxisColor({ 1, 1, 1, 1 - 1 })
+        Graph:SetXAxis(0, Graph.DeltaXOffset)
+        Graph:SetYAxis(0, Graph.DeltaYOffset)
+    end
+    do
+        Graph:SetClampedToScreen(true)
+        Graph:EnableMouse(true)
+        Graph:SetMovable(true)
+        Graph:RegisterForDrag("LeftButton")
+        Graph:HookScript("OnDragStart", Graph.StartMoving)
+        Graph:HookScript("OnDragStop", Graph.StopMovingOrSizing)
+        Graph.Background = Graph:CreateTexture(nil, "BACKGROUND")
+        Graph.Background:SetAllPoints()
+        Graph.Background:SetColorTexture(0, 0, 0, 1)
+        -- clip out of bounds children until we cull data outside the view and add it into view as needed (both trace and live data)
+        Graph:SetClipsChildren(true)
+    end
+    do
+        local liveData = { index = 0, elapsed = 0, timer = 0, trash = 0 }
+        local liveFrame = CreateFrame("Frame")
+        liveFrame:SetScript("OnUpdate", function(_, elapsed)
+            -- elapsed = elapsed * 30 -- DEBUG: timescale modifier
+            liveData.elapsed = liveData.elapsed + elapsed
+            if liveData.elapsed < 1 then return end
+            liveData.timer = liveData.timer + liveData.elapsed
+            liveData.elapsed = 0
+            local randomlyIncrementBy = random(1, 10) == 1 and random(0, 5) or 0
+            liveData.trash = liveData.trash + randomlyIncrementBy
+            liveData.index = liveData.index + 1
+            local timer = floor(liveData.timer)
+            liveData[liveData.index] = { timer, liveData.trash }
+            -- get data for the closest trace point
+            local points = Graph.Data[2].Points
+            local closest = 0
+            local outofdata = true
+            for k, v in ipairs(points) do
+                if v[1] > timer then
+                    outofdata = false
+                    v = points[k - 1] or v
+                    closest = v[2]
+                    break
+                end
+            end
+            -- halt generating fake data if we reach the end of the trace
+            if outofdata then return liveFrame:Hide() end
+            local delta = liveData.trash - closest
+            local offset = delta < 0 and (-delta + 10) or (delta > 0 and delta - 10) or 0
+            -- update the axis to be on the tip of our current live data
+            Graph:SetXAxis(liveData.timer - Graph.DeltaXOffset, liveData.timer + Graph.DeltaXOffset)
+            Graph:SetYAxis(liveData.trash - Graph.DeltaYOffset - offset, liveData.trash + Graph.DeltaYOffset + offset)
+        end)
+        Graph:AddDataSeries(liveData, { 0, 0, 1, 1 })
+    end
+    do
+        local traceData = { index = 0, trash = 0 }
+        for _, item in ipairs(ns:GetTraces()[1].logs) do
+            if item.trash then
+                traceData.trash = traceData.trash + item.trash
+                traceData.index = traceData.index + 1
+                traceData[traceData.index] = { floor(item.timer/1000), traceData.trash }
+            end
+        end
+        Graph:AddDataSeries(traceData, { 0, 1, 0, 1 })
+    end
 
 end
 

@@ -791,7 +791,7 @@ function GraphFunctions:LinearRegression(data)
 	local alpha, beta
 	local n, SX, SY, SXX, SXY = 0, 0, 0, 0, 0
 
-	for k, v in pairs(data) do
+	for k, v in ipairs(data) do
 		n = n + 1
 
 		SX = SX + v[1]
@@ -1682,8 +1682,8 @@ function GraphFunctions:RefreshLineGraph()
 	if self.AutoScale and self.Data then
 		local MinX, MaxX, MinY, MaxY = math_huge, -math_huge, math_huge, -math_huge
 		--Go through line data first
-		for k1, series in pairs(self.Data) do
-			for k2, point in pairs(series.Points) do
+		for k1, series in ipairs(self.Data) do
+			for k2, point in ipairs(series.Points) do
 				MinX = math_min(point[1], MinX)
 				MaxX = math_max(point[1], MaxX)
 				MinY = math_min(point[2], MinY)
@@ -1692,8 +1692,8 @@ function GraphFunctions:RefreshLineGraph()
 		end
 
 		--Now through the Filled Lines
-		for k1, series in pairs(self.FilledData) do
-			for k2, point in pairs(series.Points) do
+		for k1, series in ipairs(self.FilledData) do
+			for k2, point in ipairs(series.Points) do
 				MinX = math_min(point[1], MinX)
 				MaxX = math_max(point[1], MaxX)
 				MinY = math_min(point[2], MinY)
@@ -1745,11 +1745,11 @@ function GraphFunctions:RefreshLineGraph()
 	local Width = self:GetWidth()
 	local Height = self:GetHeight()
 
-	for k1, series in pairs(self.Data) do
+	for k1, series in ipairs(self.Data) do
 		local LastPoint
 		LastPoint = nil
 		
-		for k2, point in pairs(series.Points) do
+		for k2, point in ipairs(series.Points) do
 			if LastPoint then
 				local TPoint = {x = point[1]; y = point[2]}
 
@@ -1769,11 +1769,11 @@ function GraphFunctions:RefreshLineGraph()
 	end
 
 	--Filled Line Graphs
-	for k1, series in pairs(self.FilledData) do
+	for k1, series in ipairs(self.FilledData) do
 		local LastPoint
 		LastPoint = nil
 
-		for k2, point in pairs(series.Points) do
+		for k2, point in ipairs(series.Points) do
 			if LastPoint then
 				local TPoint = {x = point[1]; y = point[2]}
 
@@ -1798,8 +1798,8 @@ function GraphFunctions:RefreshScatterPlot()
 
 	if self.AutoScale and self.Data then
 		local MinX, MaxX, MinY, MaxY = math_huge, -math_huge, math_huge, -math_huge
-		for k1, series in pairs(self.Data) do
-			for k2, point in pairs(series.Points) do
+		for k1, series in ipairs(self.Data) do
+			for k2, point in ipairs(series.Points) do
 				MinX = math_min(point[1], MinX)
 				MaxX = math_max(point[1], MaxX)
 				MinY = math_min(point[2], MinY)
@@ -1832,9 +1832,9 @@ function GraphFunctions:RefreshScatterPlot()
 	local Height = self:GetHeight()
 
 	self:HideTextures()
-	for k1, series in pairs(self.Data) do
+	for k1, series in ipairs(self.Data) do
 		local MinX, MaxX = self.XMax, self.XMin
-		for k2, point in pairs(series.Points) do
+		for k2, point in ipairs(series.Points) do
 			local x, y
 			MinX = math_min(point[1],MinX)
 			MaxX = math_max(point[1],MaxX)

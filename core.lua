@@ -7216,10 +7216,21 @@ do
     ---@alias LibGraphColor number[]
     ---@alias LibGraphDataXY number[]
     ---@alias LibGraphTexture string|number
+    ---@alias LibGraphType "REALTIME"|"LINE"|"SCATTER"|"PIE"
     ---@alias LibGraphMode "SLOW"|"FAST"|"EXP"|"EXPFAST"|"RAW"
+    ---@alias LibGraphFilter "RECT"|"TRI"
     ---@alias LibGraphBorder "left"|"right"|"top"|"bottom"
 
+    ---@class LibGraphDataTime
+    ---@field public Time number
+    ---@field public Value number
+
+    ---@class LibGraphDataSeries
+    ---@field public Points LibGraphDataXY[]
+    ---@field public Color LibGraphColor
+
     ---@class LibGraphBase
+    ---@field public GraphType LibGraphType
     ---@field public OnUpdate fun(self: LibGraphBase) #Overrides using `OnUpdateGraph`, `PieChart_OnUpdate` or `OnUpdateGraphRealtime` depending on the type of chart.
     ---@field public DrawLine fun(self: LibGraphBase, C: LibGraphBase, sx: number, sy: number, ex: number, ey: number, w: number, color: LibGraphColor, layer?: DrawLayer, linetexture?: LibGraphTexture): Texture?
     ---@field public DrawVLine fun(self: LibGraphBase, C: LibGraphBase, x: number, sy: number, ey: number, w: number, color: LibGraphColor, layer?: DrawLayer): Texture
@@ -7229,9 +7240,37 @@ do
     ---@field public FindTexture fun(self: LibGraphBase): Texture
 
     ---@class LibGraphBase3D : LibGraphBase
+    ---@field public YMax number
+    ---@field public YMin number
+    ---@field public XMax number
+    ---@field public XMin number
+    ---@field public TimeRadius number
+    ---@field public Mode LibGraphMode
+    ---@field public Filter LibGraphFilter
+    ---@field public AxisColor LibGraphColor
+    ---@field public GridColor LibGraphColor
+    ---@field public BarColorTop LibGraphColor
+    ---@field public BarColorBot LibGraphColor
+    ---@field public AutoScale boolean
+    ---@field public Data number[][]
+    ---@field public MinMaxY number
+    ---@field public CurVal number
+    ---@field public LastDataTime number
+    ---@field public Textures Texture[]
+    ---@field public TexturesUsed Texture[]
+    ---@field public LimitUpdates number
+    ---@field public NextUpdate number
+    ---@field public BarHeight number[]
+    ---@field public LastShift number
+    ---@field public BarWidth number
+    ---@field public DecaySet number
+    ---@field public Decay number
+    ---@field public ExpNorm number
+    ---@field public FilterOverlap number
+    ---@field public TextFrame Frame
     ---@field public SetXAxis fun(self: LibGraphBase3D, xmin: number, xmax: number)
-    ---@field public SetYAxis fun(self: LibGraphBase3D, ymin: number, ymax: number)
-    ---@field public AddDataSeries fun(self: LibGraphBase3D, points: LibGraphDataXY[], color: LibGraphColor, n2?: boolean, linetexture?: string)
+    ---@field public NeedsUpdate boolean
+    ---@field public AddedBar boolean
     ---@field public ResetData fun(self: LibGraphBase3D)
     ---@field public RefreshGraph fun(self: LibGraphBase3D)
     ---@field public CreateGridlines fun(self: LibGraphBase3D)
@@ -7250,7 +7289,28 @@ do
     ---@field public HideFontStrings fun(self: LibGraphBase3D)
     ---@field public FindFontString fun(self: LibGraphBase3D): FontString
 
+    ---@class LibGraphBase2D : LibGraphBase
+    ---@field public XGridInterval number
+    ---@field public YGridInterval number
+    ---@field public XAxisDrawn boolean
+    ---@field public YAxisDrawn boolean
+    ---@field public LockOnXMin boolean
+    ---@field public LockOnXMax boolean
+    ---@field public LockOnYMin boolean
+    ---@field public LockOnYMax boolean
+    ---@field public FilledData LibGraphDataSeries[]
+    ---@field public SetYAxis fun(self: LibGraphBase3D, ymin: number, ymax: number)
+    ---@field public AddDataSeries fun(self: LibGraphBase2D, points: LibGraphDataXY[], color: LibGraphColor, n2?: boolean, linetexture?: string)
+
     ---@class LibGraphRealtime : LibGraphBase3D, Frame
+    ---@field public LastDataTime number
+    ---@field public Data LibGraphDataTime[]
+    ---@field public TimeRadius number
+    ---@field public AutoScale boolean
+    ---@field public Bars StatusBar[]
+    ---@field public BarsUsing StatusBar[]
+    ---@field public BarNum number
+    ---@field public Height number
     ---@field public SetYMax fun(self: LibGraphRealtime, ymax: number)
     ---@field public AddTimeData fun(self: LibGraphRealtime, value: number)
     ---@field public SetFilterRadius fun(self: LibGraphRealtime, radius: number)
@@ -7266,7 +7326,7 @@ do
     ---@field public AddBar fun(self: LibGraphRealtime, value: number)
     ---@field public SetBars fun(self: LibGraphRealtime)
 
-    ---@class LibGraphLine : LibGraphBase3D, Frame
+    ---@class LibGraphLine : LibGraphBase3D, LibGraphBase2D, Frame
     ---@field public AddFilledDataSeries fun(self: LibGraphLine, points: LibGraphDataXY[], color: LibGraphColor, n2?: boolean)
     ---@field public SetLineTexture fun(self: LibGraphLine, texture: string)
     ---@field public SetBorderSize fun(self: LibGraphLine, border: LibGraphBorder, size: number): boolean
@@ -7277,7 +7337,7 @@ do
     ---@field public LinearRegression fun(self: LibGraphScatterPlot)
     ---@field public SetLinearFit fun(self: LibGraphScatterPlot, linearFit: boolean)
 
-    ---@class LibGraphPieChart : LibGraphBase, Frame
+    ---@class LibGraphPieChart : LibGraphBase2D, Frame
     ---@field public AddPie fun(self: LibGraphPieChart, data: number, color: LibGraphColor)
     ---@field public CompletePie fun(self: LibGraphPieChart, color: LibGraphColor)
     ---@field public ResetPie fun(self: LibGraphPieChart)
@@ -7613,6 +7673,19 @@ Bosses = %s |cff00FF00%s|r]],
         UpdateState()
         callback:UnregisterEvent(UpdateState, unpack(UpdateEvents))
     end
+
+    -- DEBUG: /tinspect RaiderIODebugGraph
+    local Graph = LibGraph:CreateGraphLine(addonName .. "DebugGraph", UIParent, "CENTER", "CENTER", 0, 0, 320, 180)
+    Graph:SetGridColor({ 1, 0, 0, 1 })
+    Graph:SetGridColorSecondary({ 0, 0, 1, 1 })
+    Graph:SetGridSpacing(10, 30)
+    Graph:SetGridSecondaryMultiple(5, 10)
+    Graph:SetAxisDrawing(true, true)
+    Graph:SetAxisColor({ 1, 1, 1, 1 })
+    Graph:SetXAxis(-50, 50)
+    Graph:SetYAxis(-50, 50)
+    Graph:AddDataSeries({ { -15, -15 }, { -10, -5 }, { -5, 0 }, { 5, 10 }, { 5, 15 }, { 5, 20 }, { 15, 25 }, { 30, 25 }, { 35, 25 }, { 40, 35 }, { 50, 50 } }, { 1, 0, 0, 1 })
+    Graph:AddDataSeries({ { -20, -20 }, { 0, 0 }, { 10, 15 }, { 30, 25 }, { 30, 30 }, { 35, 30 }, { 40, 45 }, { 50, 50 } }, { 0, 1, 0, 1 })
 
 end
 

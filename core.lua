@@ -2102,6 +2102,12 @@ do
         return info
     end
 
+    ---@param seconds number
+    ---@param displayZeroHours? boolean
+    function util:SecondsToTimeText(seconds, displayZeroHours)
+        return SecondsToClock(seconds, displayZeroHours)
+    end
+
 end
 
 -- json.lua
@@ -7368,10 +7374,17 @@ do
     ---@class TracesFrame : Frame, BackdropTemplate
     local frame
 
+    ---@class TraceBoss
+    ---@field public killed number
+    ---@field public killedText string
+    ---@field public dead boolean
+    ---@field public engaged? number
+    ---@field public health? number
+
     ---@class TraceSummary
     ---@field public timer number
     ---@field public deaths number
-    ---@field public kills boolean[]
+    ---@field public bosses TraceBoss[]
     ---@field public trash number
 
     ---@param summary TraceSummary
@@ -7395,7 +7408,10 @@ do
             if item.kills then
                 for k, v in ipairs(item.kills) do
                     if type(v) == "table" then v = v[2] end -- DEBUG: HOTFIX: unpack the table wrapper
-                    summary.kills[k] = v
+                    local boss = v and summary.bosses[k]
+                    if boss then
+                        boss.dead = true
+                    end
                 end
             end
         end
@@ -7435,24 +7451,6 @@ do
             ReplayTraceUntil(summary, items, index, index)
         end
         return index, current, future
-    end
-
-    ---@param summary TraceSummary
-    ---@return number timer, number deaths, number trash, number bosses, boolean ...
-    local function UnpackSummary(summary)
-        return summary.timer, summary.deaths, summary.trash, #summary.kills, unpack(summary.kills)
-    end
-
-    ---@param oldKills boolean[]
-    ---@param newKills boolean[]
-    ---@return number? nextKillIndex
-    local function GetNextKill(oldKills, newKills)
-        for k, v in ipairs(oldKills) do
-            local n = newKills[k]
-            if not v and n then
-                return k
-            end
-        end
     end
 
     ---@param points LibGraphDataXY[]
@@ -7504,6 +7502,21 @@ do
         Graph:SetYAxis(liveData.trash - Graph.DeltaYOffset - offset, liveData.trash + Graph.DeltaYOffset + offset)
     end
 
+    local function RefreshBossState()
+        local pool = frame.BossFramePool
+        local traceSummary = frame.traceSummary
+        local bosses = traceSummary.bosses
+        for bossFrame in pool:EnumerateActive() do
+            local boss = bosses[bossFrame.index]
+            if boss.dead then
+                bossFrame.Info:SetFormattedText("%s\n|cff%s%s%s|r", boss.killedText, "55FF55", "+", "999:99:99") -- TOOD: detect if we gained or lost time
+            else
+                local remaining = floor((boss.killed - traceSummary.timer) / 1000)
+                bossFrame.Info:SetFormattedText("%s\n|cff%s%s%s|r", boss.killedText, "FFFF55", "", util:SecondsToTimeText(remaining)) -- TODO: show how far away we are from reaching the kill time on the replay
+            end
+        end
+    end
+
     ---@param elapse number
     local function FrameOnUpdate(_, elapse)
         elapse = elapse * 30 -- DEBUG: timescale modifier
@@ -7525,28 +7538,16 @@ do
         local futureCountdown = future and (future.timer/1000) - safeElapsedTime or 0
         local futureDeaths = future and future.deaths or 0
         local futureTrash = future and future.trash or 0
-        local futureBoss = future and future.kills and GetNextKill(traceSummary.kills, future.kills) or 0
-        local bossText = {}
-        for k, v in ipairs(traceSummary.kills) do
-            if futureBoss == k then
-                bossText[k] = "O"
-            else
-                bossText[k] = v and "X" or "-"
-            end
-        end
         frame.Text:SetFormattedText(
-            [[Log Index = %d / %d
-Timer = %s / %s (%.1f%%) |cff00FF00%s|r
-Deaths = %d |cff00FF00%s|r
-Trash = %d / %d (%.1f%%) |cff00FF00%s|r
-Bosses = %s |cff00FF00%s|r]],
-            traceIndex, logCount,
-            SecondsToClock(safeElapsedTime, true), SecondsToClock(traceTime, true), safeElapsedTime/traceTime*100, futureCountdown > 0 and format("> %d", futureCountdown) or "",
+            [[|T661573:0:0|t %s |cff999999/ %s|r |cff55FF55%s|r
+|A:common-icon-redx:0:0|a %d |cff55FF55%s|r
+|A:common-icon-checkmark-yellow:0:0|a %d |cff999999/ %d|r |cff55FF55%s|r]],
+            util:SecondsToTimeText(safeElapsedTime), util:SecondsToTimeText(traceTime), futureCountdown > 0 and format("> %d", futureCountdown) or "",
             traceSummary.deaths, futureDeaths > 0 and format("> %d", futureDeaths) or "",
-            traceSummary.trash, trace.trash, traceSummary.trash/trace.trash*100, futureTrash > 0 and format("> %d", futureTrash) or "",
-            table.concat(bossText, ""), futureBoss > 0 and format("> %d", futureBoss) or ""
+            traceSummary.trash, trace.trash, futureTrash > 0 and format("> %d", futureTrash) or ""
         )
         RefreshGraphState()
+        RefreshBossState()
         if current and not future then
             frame.timerRunning = false
         end
@@ -7554,7 +7555,7 @@ Bosses = %s |cff00FF00%s|r]],
 
     ---@class BossFrame : BossFrameMixin, Frame
     ---@field public Name FontString
-    ---@field public Time FontString
+    ---@field public Info FontString
     ---@field public Background Texture
 
     ---@class BossFramePool
@@ -7581,7 +7582,7 @@ Bosses = %s |cff00FF00%s|r]],
         self.bossEncounterID, ---@type number
         self.bossInstanceID = EJ_GetEncounterInfo(bossID) ---@type number
         self.Name:SetText(self.bossName)
-        self.Info:SetFormattedText("%s\n|cff%s%s%s|r", "999:99:99", "55FF55", "+", "999:99:99")
+        self.Info:SetText("")
     end
 
     ---@param obj BossFrame
@@ -7653,7 +7654,7 @@ Bosses = %s |cff00FF00%s|r]],
         tracesFrame.traceItem = nil ---@type TraceLog?
         tracesFrame.traceSummary = nil ---@type TraceSummary?
         tracesFrame.width = 300
-        tracesFrame.height = 80
+        tracesFrame.height = 50
         tracesFrame.contentPaddingX = 5
         tracesFrame.contentPaddingY = 5
         tracesFrame.graphHeight = 72
@@ -7791,11 +7792,24 @@ Bosses = %s |cff00FF00%s|r]],
         local traceSummary = {
             timer = 0,
             deaths = 0,
-            kills = {},
+            bosses = {},
             trash = 0,
         }
         for i = 1, #trace.bosses do
-            traceSummary.kills[i] = false
+            traceSummary.bosses[i] = { dead = false }
+        end
+        for i = 1, #logs do
+            local item = logs[i]
+            if item.kills then
+                for k, v in ipairs(item.kills) do
+                    if type(v) == "table" then v = v[2] end -- DEBUG: HOTFIX: unpack the table wrapper
+                    local boss = v and traceSummary.bosses[k]
+                    if boss and not boss.killed then
+                        boss.killed = item.timer
+                        boss.killedText = util:SecondsToTimeText(boss.killed / 1000)
+                    end
+                end
+            end
         end
         frame.traceIndex = traceIndex
         frame.traceItem = traceItem

@@ -7468,8 +7468,96 @@ Bosses = %s |cff00FF00%s|r]],
         end
     end
 
+    ---@class BossFrame : BossFrameMixin, Frame
+    ---@field public Name FontString
+    ---@field public Time FontString
+    ---@field public Background Texture
+
+    ---@class BossFramePool
+    ---@field public Acquire fun(self: BossFramePool): BossFrame
+    ---@field public Release fun(self: BossFramePool, obj: BossFrame)
+    ---@field public ReleaseAll fun(self: BossFramePool)
+    ---@field public EnumerateActive fun(): fun(table: table<BossFrame, boolean>, index?: number): BossFrame, boolean
+
+    ---@class BossFrameMixin
+    local BossFrameMixin = {}
+
+    ---@param self BossFrame
+    ---@param index number
+    ---@param bossID number
+    function BossFrameMixin:Setup(index, bossID)
+        self.index = index
+        self.bossID = bossID
+        self.bossName, ---@type string
+        self.bossDescription, ---@type string
+        self.bossJournalEncounterID, ---@type number
+        self.bossSectionID, ---@type number
+        self.bossLink, ---@type string
+        self.bossJournalInstanceID, ---@type number
+        self.bossEncounterID, ---@type number
+        self.bossInstanceID = EJ_GetEncounterInfo(bossID) ---@type number
+        self.Name:SetText(self.bossName)
+        self.Info:SetFormattedText("%s\n|cff%s%s%s|r", "999:99:99", "55FF55", "+", "999:99:99")
+    end
+
+    ---@param obj BossFrame
+    local function BossFrameOnInit(obj)
+        Mixin(obj, BossFrameMixin)
+        obj:SetSize(320, 32)
+        obj.Name = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+        obj.Name:SetPoint("TOPLEFT", 4, -4)
+        obj.Name:SetPoint("BOTTOMRIGHT", -4 - 64, 4)
+        obj.Name:SetJustifyH("LEFT")
+        obj.Name:SetJustifyV("MIDDLE")
+        obj.Info = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        obj.Info:SetPoint("TOPLEFT", obj.Name, "TOPRIGHT", 0, 0)
+        obj.Info:SetPoint("BOTTOMRIGHT", obj, "BOTTOMRIGHT", -4, 4)
+        obj.Info:SetJustifyH("RIGHT")
+        obj.Info:SetJustifyV("MIDDLE")
+        obj.Background = obj:CreateTexture(nil, "BACKGROUND")
+        obj.Background:SetPoint("TOPLEFT", 1, -1)
+        obj.Background:SetPoint("BOTTOMRIGHT", -1, 1)
+        obj.Background:SetColorTexture(0, 0, 0, 0.5)
+    end
+
+    ---@param self BossFramePool
+    ---@param obj BossFrame
+    local function BossFrameOnReset(self, obj)
+    end
+
+    local function BossFramesUpdateLayout()
+        local pool = frame.BossFramePool
+        local bossIndex = 0
+        local bossFrames = {} ---@type BossFrame[]
+        for bossFrame in pool:EnumerateActive() do
+            bossIndex = bossIndex + 1
+            bossFrames[bossIndex] = bossFrame
+        end
+        table.sort(bossFrames, function(a, b) return a.index < b.index end)
+        local offsetX, offsetY = 0, frame.contentPaddingY
+        local prevBossFrame
+        local bossesHeight = 0
+        for _, bossFrame in ipairs(bossFrames) do
+            local height = bossFrame:GetHeight()
+            bossesHeight = bossesHeight + height
+            bossFrame:ClearAllPoints()
+            if prevBossFrame then
+                bossFrame:SetPoint("TOPLEFT", prevBossFrame, "BOTTOMLEFT", 0, 0)
+                bossFrame:SetPoint("BOTTOMRIGHT", prevBossFrame, "BOTTOMRIGHT", 0, -height)
+            else
+                bossFrame:SetPoint("TOPLEFT", frame.Graph, "BOTTOMLEFT", offsetX, -offsetY)
+                bossFrame:SetPoint("BOTTOMRIGHT", frame.Graph, "BOTTOMRIGHT", -offsetX, -height-offsetY)
+            end
+            prevBossFrame = bossFrame
+        end
+        if bossesHeight > 0 then
+            bossesHeight = bossesHeight + frame.contentPaddingY
+        end
+        frame:SetHeight(frame.baseHeight + bossesHeight)
+    end
+
     local function CreateTracesFrame()
-        local tracesFrame = CreateFrame("Frame", addonName .. "_TracesFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate") ---@class TracesFrame
+        local tracesFrame = CreateFrame("Frame", addonName .. "_TracesFrame", UIParent) ---@class TracesFrame
         tracesFrame.elapsed = nil ---@type number?
         tracesFrame.timerID = nil ---@type number?
         tracesFrame.timerRunning = nil ---@type boolean?
@@ -7480,13 +7568,22 @@ Bosses = %s |cff00FF00%s|r]],
         tracesFrame.traceIndex = nil ---@type number?
         tracesFrame.traceItem = nil ---@type TraceLog?
         tracesFrame.traceSummary = nil ---@type TraceSummary?
-        tracesFrame:SetPoint("CENTER", 0, 0)
-        tracesFrame:SetSize(300, 120 + 72)
-        tracesFrame:SetBackdrop(BACKDROP_DARK_DIALOG_32_32)
+        tracesFrame.width = 300
+        tracesFrame.height = 80
+        tracesFrame.contentPaddingX = 5
+        tracesFrame.contentPaddingY = 5
+        tracesFrame.graphHeight = 72
+        tracesFrame.baseHeight = tracesFrame.height + tracesFrame.graphHeight + tracesFrame.contentPaddingY*3
+        tracesFrame:SetPoint("TOP", 0, -200)
+        tracesFrame:SetSize(tracesFrame.width, tracesFrame.baseHeight)
         tracesFrame:SetFrameStrata("HIGH")
+        tracesFrame.Background = tracesFrame:CreateTexture(nil, "BACKGROUND")
+        tracesFrame.Background:SetAllPoints()
+        tracesFrame.Background:SetColorTexture(0, 0, 0, 0.5)
+        tracesFrame.BossFramePool = CreateFramePool("Frame", tracesFrame, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@type BossFramePool
         tracesFrame.Text = tracesFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-        tracesFrame.Text:SetPoint("TOPLEFT", tracesFrame, "TOPLEFT", 16, -16)
-        tracesFrame.Text:SetPoint("BOTTOMRIGHT", tracesFrame, "BOTTOMRIGHT", -16, 16)
+        tracesFrame.Text:SetPoint("TOPLEFT", tracesFrame, "TOPLEFT", tracesFrame.contentPaddingX, -tracesFrame.contentPaddingY)
+        tracesFrame.Text:SetPoint("BOTTOMRIGHT", tracesFrame, "TOPRIGHT", -tracesFrame.contentPaddingX, -tracesFrame.contentPaddingY - tracesFrame.height)
         tracesFrame.Text:SetJustifyH("LEFT")
         tracesFrame.Text:SetJustifyV("TOP")
         tracesFrame:SetClampedToScreen(true)
@@ -7497,21 +7594,21 @@ Bosses = %s |cff00FF00%s|r]],
         tracesFrame:SetScript("OnDragStop", tracesFrame.StopMovingOrSizing)
         tracesFrame:Hide()
         tracesFrame:SetScript("OnUpdate", FrameOnUpdate)
-        local Graph = LibGraph:CreateGraphLine(tracesFrame:GetName() .. "Graph", tracesFrame, "BOTTOMLEFT", "BOTTOMLEFT", 10, 10, 300 - 20, 72)
+        local Graph = LibGraph:CreateGraphLine(tracesFrame:GetName() .. "Graph", tracesFrame, "TOPLEFT", "TOPLEFT", 0, 0, tracesFrame.width - tracesFrame.contentPaddingX*2, tracesFrame.graphHeight)
         tracesFrame.Graph = Graph
+        Graph:SetPoint("TOPLEFT", tracesFrame.Text, "BOTTOMLEFT", 0, -tracesFrame.contentPaddingY)
         Graph.liveData = {} ---@type LibGraphDataXY[]
         Graph.traceData = {} ---@type LibGraphDataXY[]
-        Graph:SetPoint("BOTTOMRIGHT", -10, 0)
         Graph:SetClipsChildren(true)
         Graph.Background = Graph:CreateTexture(nil, "BACKGROUND", nil, 1)
         Graph.Background:SetAllPoints()
-        Graph.Background:SetColorTexture(0, 0, 0, 1)
+        Graph.Background:SetColorTexture(0, 0, 0, 0.5)
         Graph.Gradient = Graph:CreateTexture(nil, "BACKGROUND", nil, 2)
         Graph.Gradient:SetAllPoints()
         Graph.DeltaXOffset = 60
         Graph.DeltaYOffset = 20
-        Graph:SetGridColor({ 0.2, 0.2, 0.2, 1 })
-        Graph:SetGridColorSecondary({ 0.2, 0.2, 0.2, 1 })
+        Graph:SetGridColor({ 0.2, 0.2, 0.2, 1 - 1 })
+        Graph:SetGridColorSecondary({ 0.2, 0.2, 0.2, 1 - 1 })
         Graph:SetGridSpacing(nil, Graph.DeltaYOffset/2)
         Graph:SetGridSecondaryMultiple(Graph.DeltaXOffset/2, Graph.DeltaYOffset/2)
         Graph:SetAxisDrawing(false, false)
@@ -7581,6 +7678,18 @@ Bosses = %s |cff00FF00%s|r]],
         data[index + 1] = nil
     end
 
+    local function PopulateFrameData()
+        local trace = frame.trace
+        local traceSummary = frame.traceSummary
+        local bossPool = frame.BossFramePool
+        bossPool:ReleaseAll()
+        for index, bossID in ipairs(trace.bosses) do
+            local bossFrame = bossPool:Acquire()
+            bossFrame:Setup(index, bossID)
+        end
+        BossFramesUpdateLayout()
+    end
+
     ---@param trace? Trace
     local function UpdateFrameState(trace)
         frame.elapsed = 0
@@ -7611,6 +7720,7 @@ Bosses = %s |cff00FF00%s|r]],
         frame.Graph:AddDataSeries(frame.Graph.liveData, { 0, 1, 0, 1 })
         frame.Graph:AddDataSeries(frame.Graph.traceData, { 0.5, 1, 0.5, 0.5 })
         ReplayTraceUntil(traceSummary, logs, traceIndex)
+        PopulateFrameData()
     end
 
     local function UpdateState(event, ...)

@@ -7219,6 +7219,14 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
     local util = ns:GetModule("Util") ---@type UtilModule
 
+    local ICON_TIMER = "|T661573:12:12:0:0:128:128:11:123:11:121|t"
+    local ICON_DEATH = "|A:common-icon-redx:12:12|a"
+    local ICON_TRASH = "|A:common-icon-checkmark-yellow:12:12|a"
+
+    local FRAME_UPDATE_INTERVAL = 0.25
+    local FRAME_DEBUG_TIMESCALE = 60 -- 1 = normal, 0.5 = 50% slower, 10 = 10x faster, etc.
+    local FRAME_DEBUG_RAND_MOD = 1/FRAME_UPDATE_INTERVAL * FRAME_DEBUG_TIMESCALE
+
     ---@alias LibGraphColor number[]
     ---@alias LibGraphDataXY number[]
     ---@alias LibGraphTexture string|number
@@ -7455,15 +7463,14 @@ do
 
     ---@param points LibGraphDataXY[]
     ---@param timer number
-    ---@return boolean hasData, number value
     local function GetClosestGraphPoint(points, timer)
         for index, point in ipairs(points) do
             if point[1] > timer then
                 point = points[index - 1] or point
-                return true, point[2]
+                return point[2]
             end
         end
-        return false, 0
+        return points[#points][2]
     end
 
     ---@param delta number
@@ -7483,74 +7490,135 @@ do
         frame.Graph.Gradient:SetColorTexture(r, g, b, a)
     end
 
-    local function RefreshGraphState()
+    ---@param elapsedTime number
+    ---@return number timer, number deaths, number trash, TraceBoss[] bosses
+    local function UpdateFakeLiveData(elapsedTime)
         local Graph = frame.Graph
-        local elapsedTime = frame.elapsedTime
-        local hasData, closestValue = GetClosestGraphPoint(Graph.traceData, elapsedTime)
-        if not hasData then
-            return
-        end
         local liveData = Graph.liveData
-        liveData.timer = floor(elapsedTime + 0.5)
-        liveData.trash = (liveData.trash or 0) + (random(1, max(1, 80 - abs((liveData.trash or 0) - closestValue))) == 1 and random(0, 5) or 0)
-        liveData.index = (liveData.index or 0) + 1
-        liveData[liveData.index] = { liveData.timer, liveData.trash }
-        local delta = liveData.trash - closestValue
-        local offset = 0 -- delta < -Graph.DeltaYOffset/2 and (-delta + 10) or (delta > Graph.DeltaYOffset/2 and delta - 10) or 0
-        UpdateGraphGradient(delta)
-        Graph:SetXAxis(liveData.timer - Graph.DeltaXOffset, liveData.timer + Graph.DeltaXOffset)
-        Graph:SetYAxis(liveData.trash - Graph.DeltaYOffset - offset, liveData.trash + Graph.DeltaYOffset + offset)
+        local trace = frame.trace ---@type Trace
+        local traceTrash = trace.trash
+        local traceBosses = trace.bosses
+        if not liveData.trash or liveData.trash < traceTrash then
+            local closestValue = GetClosestGraphPoint(Graph.traceData, elapsedTime)
+            liveData.timer = elapsedTime
+            liveData.deaths = (liveData.deaths or 0) + (random(1, 100 * FRAME_DEBUG_RAND_MOD) == 1 and 1 or 0)
+            liveData.trash = (liveData.trash or 0) + (random(1, max(1, 80 - abs((liveData.trash or 0) - closestValue))) == 1 and random(0, 5) or 0)
+            if liveData.trash > traceTrash then liveData.trash = traceTrash end
+            liveData.index = (liveData.index or 0) + 1
+            liveData[liveData.index] = { liveData.timer, liveData.trash }
+        end
+        if not liveData.bosses then
+            liveData.bosses = {} ---@type TraceBoss[]
+            for k, v in ipairs(traceBosses) do
+                liveData.bosses[k] = { dead = false }
+            end
+            liveData.bosses.alive = #traceBosses
+        end
+        if liveData.bosses.alive > 0 then
+            liveData.timer = elapsedTime
+            local nextBossIndex = #traceBosses - liveData.bosses.alive + 1
+            local nextBoss = frame.traceSummary.bosses[nextBossIndex]
+            if random(1, max(1, (1 - (elapsedTime*1000 / (nextBoss.killed + 120000)))*100*FRAME_DEBUG_RAND_MOD)) == 1 then
+                local boss = liveData.bosses[nextBossIndex]
+                boss.dead = true
+                boss.killed = liveData.timer * 1000
+                boss.killedText = util:SecondsToTimeText(boss.killed / 1000)
+                liveData.bosses.alive = liveData.bosses.alive - 1
+            end
+        end
+        return liveData.timer, liveData.deaths, liveData.trash, liveData.bosses
     end
 
-    local function RefreshBossState()
+    ---@param delta number
+    ---@param isNeutral? boolean
+    local function SecondsDiffToTimeText(delta, isNeutral)
+        local ahead = delta >= 0
+        local prefix = isNeutral and "" or (ahead and (delta == 0 and "~" or "+") or "-")
+        local color = isNeutral and "FFFF55" or (ahead and "55FF55" or "FF5555")
+        local text = util:SecondsToTimeText(ahead and delta or -delta)
+        return format("|cff%s%s%s|r", color, prefix, text)
+    end
+
+    ---@param delta number
+    local function AmountDiffToText(delta)
+        if delta == 0 then
+            return ""
+        end
+        local ahead = delta >= 0
+        local prefix = ahead and (delta == 0 and "~" or "+") or "-"
+        local color = ahead and "55FF55" or "FF5555"
+        local text = ahead and delta or -delta
+        return format("|cff%s%s%d|r", color, prefix, text)
+    end
+
+    ---@param timer number
+    ---@param trash number
+    local function RefreshGraphState(timer, trash)
+        local Graph = frame.Graph
+        local elapsedTime = frame.elapsedTime
+        local closestValue = GetClosestGraphPoint(Graph.traceData, elapsedTime)
+        local delta = trash - closestValue
+        local offset = 0 -- delta < -Graph.DeltaYOffset/2 and (-delta + 10) or (delta > Graph.DeltaYOffset/2 and delta - 10) or 0
+        UpdateGraphGradient(delta)
+        Graph:SetXAxis(timer - Graph.DeltaXOffset, timer + Graph.DeltaXOffset)
+        Graph:SetYAxis(trash - Graph.DeltaYOffset - offset, trash + Graph.DeltaYOffset + offset)
+    end
+
+    ---@param timer number
+    ---@param liveBosses TraceBoss[]
+    local function RefreshBossState(timer, liveBosses)
         local pool = frame.BossFramePool
         local traceSummary = frame.traceSummary
         local bosses = traceSummary.bosses
         for bossFrame in pool:EnumerateActive() do
-            local boss = bosses[bossFrame.index]
-            if boss.dead then
-                bossFrame.Info:SetFormattedText("%s\n|cff%s%s%s|r", boss.killedText, "55FF55", "+", "999:99:99") -- TOOD: detect if we gained or lost time
+            local bossIndex = bossFrame.index
+            local liveBoss = liveBosses[bossIndex]
+            local boss = bosses[bossIndex]
+            local pending
+            local delta
+            local text
+            if liveBoss.dead then
+                pending = false
+                delta = floor((boss.killed - liveBoss.killed) / 1000)
+                text = liveBoss.killedText
             else
-                local remaining = floor((boss.killed - traceSummary.timer) / 1000)
-                bossFrame.Info:SetFormattedText("%s\n|cff%s%s%s|r", boss.killedText, "FFFF55", "", util:SecondsToTimeText(remaining)) -- TODO: show how far away we are from reaching the kill time on the replay
+                pending = true
+                delta = floor((boss.killed - timer*1000) / 1000)
+                text = boss.killedText
             end
+            bossFrame.Info:SetFormattedText("%s\n%s", text, SecondsDiffToTimeText(delta, pending))
         end
     end
 
     ---@param elapse number
     local function FrameOnUpdate(_, elapse)
-        elapse = elapse * 30 -- DEBUG: timescale modifier
+        elapse = elapse * FRAME_DEBUG_TIMESCALE -- DEBUG: timescale modifier
         frame.elapsed = frame.elapsed + elapse
-        if frame.elapsed < 0.25 then return end
+        if frame.elapsed < FRAME_UPDATE_INTERVAL then return end
         if not frame.timerRunning then frame.elapsed = 0 return end
         frame.elapsedTime = frame.elapsedTime + frame.elapsed
         frame.elapsed = 0
-        local elapsedTime = frame.elapsedTime ---@type number
-        local elapsedTimeMS = elapsedTime * 1000
+        local liveTimer, liveDeaths, liveTrash, liveBosses = UpdateFakeLiveData(frame.elapsedTime) -- DEBUG: fake data generated randomly as the run progresses
+        local liveTimerMS = liveTimer * 1000
         local trace = frame.trace ---@type Trace
         local traceSummary = frame.traceSummary
-        local traceIndex, current, future = ReplayTraceTick(traceSummary, trace.logs, frame.traceIndex, elapsedTimeMS)
+        local traceIndex, current, future = ReplayTraceTick(traceSummary, trace.logs, frame.traceIndex, liveTimerMS)
         frame.traceIndex = traceIndex
         local logCount = #trace.logs
         local traceTimeMS = trace.logs[logCount].timer -- DEBUG: HOTFIX: trace.time?
         local traceTime = traceTimeMS / 1000
-        local safeElapsedTime = min(traceTime, elapsedTime)
-        local futureCountdown = future and (future.timer/1000) - safeElapsedTime or 0
-        local futureDeaths = future and future.deaths or 0
-        local futureTrash = future and future.trash or 0
         frame.Text:SetFormattedText(
-            [[|T661573:0:0|t %s |cff999999/ %s|r |cff55FF55%s|r
-|A:common-icon-redx:0:0|a %d |cff55FF55%s|r
-|A:common-icon-checkmark-yellow:0:0|a %d |cff999999/ %d|r |cff55FF55%s|r]],
-            util:SecondsToTimeText(safeElapsedTime), util:SecondsToTimeText(traceTime), futureCountdown > 0 and format("> %d", futureCountdown) or "",
-            traceSummary.deaths, futureDeaths > 0 and format("> %d", futureDeaths) or "",
-            traceSummary.trash, trace.trash, futureTrash > 0 and format("> %d", futureTrash) or ""
+            [[%s %s / %s %s
+%s %d / %d %s
+%s %d / %d %s]],
+            ICON_TIMER, util:SecondsToTimeText(liveTimer), util:SecondsToTimeText(traceTime), SecondsDiffToTimeText(traceTime - liveTimer),
+            ICON_DEATH, liveDeaths, traceSummary.deaths, AmountDiffToText(traceSummary.deaths - liveDeaths),
+            ICON_TRASH, liveTrash, traceSummary.trash, AmountDiffToText(liveTrash - traceSummary.trash)
         )
-        RefreshGraphState()
-        RefreshBossState()
-        if current and not future then
-            frame.timerRunning = false
-        end
+        RefreshGraphState(liveTimer, liveTrash)
+        RefreshBossState(liveTimer, liveBosses)
+        local textHeight = frame.Text:GetStringHeight() + frame.contentPaddingY
+        frame:SetHeight(textHeight + frame.graphHeight + frame.bossesHeight + frame.contentPaddingY)
     end
 
     ---@class BossFrame : BossFrameMixin, Frame
@@ -7610,6 +7678,7 @@ do
     local function BossFrameOnReset(self, obj)
     end
 
+    ---@return number bossesHeight
     local function BossFramesUpdateLayout()
         local pool = frame.BossFramePool
         local bossIndex = 0
@@ -7638,50 +7707,50 @@ do
         if bossesHeight > 0 then
             bossesHeight = bossesHeight + frame.contentPaddingY
         end
-        frame:SetHeight(frame.baseHeight + bossesHeight)
+        return bossesHeight
     end
 
     local function CreateTracesFrame()
-        local tracesFrame = CreateFrame("Frame", addonName .. "_TracesFrame", UIParent) ---@class TracesFrame
-        tracesFrame.elapsed = nil ---@type number?
-        tracesFrame.timerID = nil ---@type number?
-        tracesFrame.timerRunning = nil ---@type boolean?
-        tracesFrame.elapsedTime = nil ---@type number?
-        tracesFrame.mapID = nil ---@type number?
-        tracesFrame.timeLimit = nil ---@type number?
-        tracesFrame.trace = nil ---@type Trace?
-        tracesFrame.traceIndex = nil ---@type number?
-        tracesFrame.traceItem = nil ---@type TraceLog?
-        tracesFrame.traceSummary = nil ---@type TraceSummary?
-        tracesFrame.width = 300
-        tracesFrame.height = 50
-        tracesFrame.contentPaddingX = 5
-        tracesFrame.contentPaddingY = 5
-        tracesFrame.graphHeight = 72
-        tracesFrame.baseHeight = tracesFrame.height + tracesFrame.graphHeight + tracesFrame.contentPaddingY*3
-        tracesFrame:SetPoint("TOP", 0, -200)
-        tracesFrame:SetSize(tracesFrame.width, tracesFrame.baseHeight)
-        tracesFrame:SetFrameStrata("HIGH")
-        tracesFrame.Background = tracesFrame:CreateTexture(nil, "BACKGROUND")
-        tracesFrame.Background:SetAllPoints()
-        tracesFrame.Background:SetColorTexture(0, 0, 0, 0.5)
-        tracesFrame.BossFramePool = CreateFramePool("Frame", tracesFrame, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@type BossFramePool
-        tracesFrame.Text = tracesFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-        tracesFrame.Text:SetPoint("TOPLEFT", tracesFrame, "TOPLEFT", tracesFrame.contentPaddingX, -tracesFrame.contentPaddingY)
-        tracesFrame.Text:SetPoint("BOTTOMRIGHT", tracesFrame, "TOPRIGHT", -tracesFrame.contentPaddingX, -tracesFrame.contentPaddingY - tracesFrame.height)
-        tracesFrame.Text:SetJustifyH("LEFT")
-        tracesFrame.Text:SetJustifyV("TOP")
-        tracesFrame:SetClampedToScreen(true)
-        tracesFrame:EnableMouse(true)
-        tracesFrame:SetMovable(true)
-        tracesFrame:RegisterForDrag("LeftButton")
-        tracesFrame:SetScript("OnDragStart", tracesFrame.StartMoving)
-        tracesFrame:SetScript("OnDragStop", tracesFrame.StopMovingOrSizing)
-        tracesFrame:Hide()
-        tracesFrame:SetScript("OnUpdate", FrameOnUpdate)
-        local Graph = LibGraph:CreateGraphLine(tracesFrame:GetName() .. "Graph", tracesFrame, "TOPLEFT", "TOPLEFT", 0, 0, tracesFrame.width - tracesFrame.contentPaddingX*2, tracesFrame.graphHeight)
-        tracesFrame.Graph = Graph
-        Graph:SetPoint("TOPLEFT", tracesFrame.Text, "BOTTOMLEFT", 0, -tracesFrame.contentPaddingY)
+        local traceFrame = CreateFrame("Frame", addonName .. "_TracesFrame", UIParent) ---@class TracesFrame
+        frame = traceFrame
+        frame.elapsed = nil ---@type number?
+        frame.timerID = nil ---@type number?
+        frame.timerRunning = nil ---@type boolean?
+        frame.elapsedTime = nil ---@type number?
+        frame.mapID = nil ---@type number?
+        frame.timeLimit = nil ---@type number?
+        frame.trace = nil ---@type Trace?
+        frame.traceIndex = nil ---@type number?
+        frame.traceItem = nil ---@type TraceLog?
+        frame.traceSummary = nil ---@type TraceSummary?
+        frame.width = 300
+        frame.contentPaddingX = 5
+        frame.contentPaddingY = 5
+        frame.graphHeight = 72
+        frame.bossesHeight = 0
+        frame:SetPoint("TOP", 0, -200) -- DEBUG
+        frame:SetSize(frame.width, 0)
+        frame:SetFrameStrata("HIGH")
+        frame.Background = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
+        frame.Background:SetAllPoints()
+        frame.Background:SetColorTexture(0, 0, 0, 0.5)
+        frame.BossFramePool = CreateFramePool("Frame", frame, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@type BossFramePool
+        frame.Text = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+        frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", frame.contentPaddingX, -frame.contentPaddingY)
+        frame.Text:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -frame.contentPaddingX, -frame.contentPaddingY)
+        frame.Text:SetJustifyH("LEFT")
+        frame.Text:SetJustifyV("TOP")
+        frame:SetClampedToScreen(true)
+        frame:EnableMouse(true)
+        frame:SetMovable(true)
+        frame:RegisterForDrag("LeftButton")
+        frame:SetScript("OnDragStart", frame.StartMoving)
+        frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+        frame:Hide()
+        frame:SetScript("OnUpdate", FrameOnUpdate)
+        local Graph = LibGraph:CreateGraphLine(frame:GetName() .. "Graph", frame, "TOPLEFT", "TOPLEFT", 0, 0, frame.width - frame.contentPaddingX*2, frame.graphHeight)
+        frame.Graph = Graph
+        Graph:SetPoint("TOPLEFT", frame.Text, "BOTTOMLEFT", 0, -frame.contentPaddingY)
         Graph.liveData = {} ---@type LibGraphDataXY[]
         Graph.traceData = {} ---@type LibGraphDataXY[]
         Graph:SetClipsChildren(true)
@@ -7702,7 +7771,7 @@ do
         Graph:SetYAxis(0, Graph.DeltaYOffset)
         Graph:SetXAxisCulling(true)
         Graph:SetXAxisCullingPadding(120)
-        return tracesFrame
+        return frame
     end
 
     local UpdateEvents = {
@@ -7772,7 +7841,8 @@ do
             local bossFrame = bossPool:Acquire()
             bossFrame:Setup(index, bossID)
         end
-        BossFramesUpdateLayout()
+        local bossesHeight = BossFramesUpdateLayout()
+        frame.bossesHeight = bossesHeight
     end
 
     ---@param trace? Trace
@@ -7814,6 +7884,7 @@ do
         frame.traceIndex = traceIndex
         frame.traceItem = traceItem
         frame.traceSummary = traceSummary
+        frame.graphHeight = frame.Graph:GetHeight() + frame.contentPaddingY
         PopulateGraphData(frame.Graph.traceData, logs)
         frame.Graph:AddDataSeries(frame.Graph.liveData, { 0, 1, 0, 1 })
         frame.Graph:AddDataSeries(frame.Graph.traceData, { 0.5, 1, 0.5, 0.5 })

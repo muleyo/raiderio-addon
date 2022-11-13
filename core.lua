@@ -7140,7 +7140,7 @@ do
     local ICON_TRASH = "|A:common-icon-checkmark-yellow:12:12|a"
 
     local FRAME_UPDATE_INTERVAL = 0.25
-    local FRAME_DEBUG_TIMESCALE = 60 -- 1 = normal, 0.5 = 50% slower, 10 = 10x faster, etc.
+    local FRAME_DEBUG_TIMESCALE = 30 -- 1 = normal, 0.5 = 50% slower, 10 = 10x faster, etc.
     local FRAME_DEBUG_RAND_MOD = 1/FRAME_UPDATE_INTERVAL * FRAME_DEBUG_TIMESCALE
 
     ---@alias LibGraphColor number[]

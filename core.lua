@@ -2108,6 +2108,30 @@ do
         return SecondsToClock(seconds, displayZeroHours)
     end
 
+    ---@generic T
+    ---@alias TableFunc fun(value: any, index: number, tbl: T, tbl2: T): T
+
+    ---@generic T
+    ---@param tbl T
+    ---@param func TableFunc
+    ---@return T
+    function util:TableMap(tbl, func)
+        local temp = {}
+        for k, v in pairs(tbl) do
+            temp[k] = func(v, k, tbl, temp)
+end
+        return temp
+    end
+
+    ---@generic T
+    ---@param tbl T
+    ---@param func TableFunc
+    ---@return string
+    function util:TableMapConcat(tbl, func, delim)
+        local temp = util:TableMap(tbl, func)
+        return table.concat(temp, delim)
+    end
+
 end
 
 -- json.lua
@@ -5125,9 +5149,9 @@ do
             if status == 1 then
                 return false
             elseif status == 2 or status == 3 then
-                return
+                    return
+                end
             end
-        end
         -- if the owner is the UIParent we must beware as it might be the fading out unit tooltips that linger, we do not wish to update these as we do not have a valid unit anymore for reference so we just don't do anything instead
         if o1 == UIParent then
             return
@@ -7607,18 +7631,12 @@ do
         local logCount = #trace.logs
         local traceTimeMS = trace.logs[logCount].timer -- DEBUG: HOTFIX: trace.time?
         local traceTime = traceTimeMS / 1000
-        frame.Text:SetFormattedText(
-            [[%s %s / %s %s
-%s %d / %d %s
-%s %d / %d %s]],
-            ICON_TIMER, util:SecondsToTimeText(liveTimer), util:SecondsToTimeText(traceTime), SecondsDiffToTimeText(traceTime - liveTimer),
-            ICON_DEATH, liveDeaths, traceSummary.deaths, AmountDiffToText(traceSummary.deaths - liveDeaths),
-            ICON_TRASH, liveTrash, traceSummary.trash, AmountDiffToText(liveTrash - traceSummary.trash)
-        )
+        frame.TextL:SetFormattedText("%s\r\n%s\r\n%s\r\n%s", ICON_TIMER, util:SecondsToTimeText(liveTimer), util:SecondsToTimeText(traceTime), SecondsDiffToTimeText(traceTime - liveTimer))
+        frame.TextC:SetFormattedText("%s\r\n%d\r\n%d\r\n%s", ICON_DEATH, liveDeaths, traceSummary.deaths, AmountDiffToText(traceSummary.deaths - liveDeaths))
+        frame.TextR:SetFormattedText("%s\r\n%d\r\n%d\r\n%s", ICON_TRASH, liveTrash, traceSummary.trash, AmountDiffToText(liveTrash - traceSummary.trash))
         RefreshGraphState(liveTimer, liveTrash)
         RefreshBossState(liveTimer, liveBosses)
-        local textHeight = frame.Text:GetStringHeight() + frame.contentPaddingY
-        frame:SetHeight(textHeight + frame.graphHeight + frame.bossesHeight + frame.contentPaddingY)
+        frame:SetHeight(frame.textTotalHeight + frame.graphHeight + frame.bossesHeight + frame.contentPaddingY)
     end
 
     ---@class BossFrame : BossFrameMixin, Frame
@@ -7723,9 +7741,14 @@ do
         frame.traceIndex = nil ---@type number?
         frame.traceItem = nil ---@type TraceLog?
         frame.traceSummary = nil ---@type TraceSummary?
-        frame.width = 300
+        frame.width = 280
         frame.contentPaddingX = 5
         frame.contentPaddingY = 5
+        frame.textTopWidth = (frame.width - (frame.contentPaddingX * 3)) / 2
+        frame.textTopHeight = 32
+        frame.textWidth = (frame.width - (frame.contentPaddingX * 4)) / 3
+        frame.textHeight = 80
+        frame.textTotalHeight = frame.textTopHeight + frame.textHeight + frame.contentPaddingY * 2
         frame.graphHeight = 72
         frame.bossesHeight = 0
         frame:SetPoint("TOP", 0, -200) -- DEBUG
@@ -7735,11 +7758,37 @@ do
         frame.Background:SetAllPoints()
         frame.Background:SetColorTexture(0, 0, 0, 0.5)
         frame.BossFramePool = CreateFramePool("Frame", frame, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@type BossFramePool
-        frame.Text = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-        frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", frame.contentPaddingX, -frame.contentPaddingY)
-        frame.Text:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -frame.contentPaddingX, -frame.contentPaddingY)
-        frame.Text:SetJustifyH("LEFT")
-        frame.Text:SetJustifyV("TOP")
+        frame.TextTL = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+        frame.TextTL:SetSize(frame.textTopWidth, frame.textTopHeight)
+        frame.TextTL:SetPoint("TOPLEFT", frame, "TOPLEFT", frame.contentPaddingX, -frame.contentPaddingY)
+        frame.TextTL:SetJustifyH("LEFT")
+        frame.TextTL:SetJustifyV("MIDDLE")
+        frame.TextTR = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+        frame.TextTR:SetSize(frame.textTopWidth, frame.textTopHeight)
+        frame.TextTR:SetPoint("TOPLEFT", frame.TextTL, "TOPRIGHT", frame.contentPaddingX, 0)
+        frame.TextTR:SetJustifyH("RIGHT")
+        frame.TextTR:SetJustifyV("MIDDLE")
+        frame.TextL = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+        frame.TextL:SetSize(frame.textWidth, frame.textHeight)
+        frame.TextL:SetPoint("TOPLEFT", frame.TextTL, "BOTTOMLEFT", 0, -frame.contentPaddingY)
+        frame.TextL:SetJustifyH("LEFT")
+        frame.TextL:SetJustifyV("TOP")
+        frame.TextC = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+        frame.TextC:SetSize(frame.textWidth, frame.textHeight)
+        frame.TextC:SetPoint("TOPLEFT", frame.TextL, "TOPRIGHT", frame.contentPaddingX, 0)
+        frame.TextC:SetJustifyH("CENTER")
+        frame.TextC:SetJustifyV("TOP")
+        frame.TextR = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+        frame.TextR:SetSize(frame.textWidth, frame.textHeight)
+        frame.TextR:SetPoint("TOPLEFT", frame.TextC, "TOPRIGHT", frame.contentPaddingX, 0)
+        frame.TextR:SetJustifyH("RIGHT")
+        frame.TextR:SetJustifyV("TOP")
+        for _, v in ipairs({"TextTL", "TextTR", "TextL", "TextC", "TextR"}) do
+            local text = frame[v]
+            text.Background = frame:CreateTexture(nil, "BACKGROUND")
+            text.Background:SetAllPoints(text)
+            text.Background:SetColorTexture(0, 0, 0, 0.5)
+        end
         frame:SetClampedToScreen(true)
         frame:EnableMouse(true)
         frame:SetMovable(true)
@@ -7750,7 +7799,7 @@ do
         frame:SetScript("OnUpdate", FrameOnUpdate)
         local Graph = LibGraph:CreateGraphLine(frame:GetName() .. "Graph", frame, "TOPLEFT", "TOPLEFT", 0, 0, frame.width - frame.contentPaddingX*2, frame.graphHeight)
         frame.Graph = Graph
-        Graph:SetPoint("TOPLEFT", frame.Text, "BOTTOMLEFT", 0, -frame.contentPaddingY)
+        Graph:SetPoint("TOPLEFT", frame.TextL, "BOTTOMLEFT", 0, -frame.contentPaddingY)
         Graph.liveData = {} ---@type LibGraphDataXY[]
         Graph.traceData = {} ---@type LibGraphDataXY[]
         Graph:SetClipsChildren(true)
@@ -7836,6 +7885,8 @@ do
         local trace = frame.trace
         local traceSummary = frame.traceSummary
         local bossPool = frame.BossFramePool
+        frame.TextTL:SetFormattedText("%s +%d", ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup", 16), trace.mythic_level)
+        frame.TextTR:SetText(util:TableMapConcat(trace.affixIcons, function(o) return format("|TInterface\\Icons\\%s:16:16|t", o) end, ""))
         bossPool:ReleaseAll()
         for index, bossID in ipairs(trace.bosses) do
             local bossFrame = bossPool:Acquire()
@@ -8893,8 +8944,8 @@ do
             if type(itemLinkFilter) == "table" then
                 for _, filter in pairs(itemLinkFilter) do
                     if itemLink:find(filter) then
-                        return true
-                    end
+            return true
+        end
                 end
             elseif itemLink:find(itemLinkFilter) then
                 return true

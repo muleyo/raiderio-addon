@@ -7553,6 +7553,47 @@ do
         return liveData.timer, liveData.deaths, liveData.trash, liveData.bosses
     end
 
+    ---@return number timer, number deaths, number trash, TraceBoss[] bosses
+    local function RetrieveLiveData()
+        local Graph = frame.Graph
+        local liveData = Graph.liveData
+        local elapsedTime, _ = frame.elapsedTime
+        if frame.timerRunning then
+            _, elapsedTime = GetWorldElapsedTime(frame.timerID)
+        end
+        liveData.timer = elapsedTime or 0
+        local numDeaths, timeLost = C_ChallengeMode.GetDeathCount()
+        liveData.deaths = numDeaths or 0
+        if not liveData.trash then
+            liveData.trash = 0
+        end
+        if not liveData.bosses then
+            liveData.bosses = {} ---@type TraceBoss[]
+        end
+        local _, _, numCriteria = C_Scenario.GetStepInfo()
+        if numCriteria then
+            for i = 1, numCriteria do
+                local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
+                if criteriaString then
+                    if criteriaType == 0 then
+                        if liveData.trash ~= quantity then
+                            liveData.trash = quantity
+                            liveData.index = (liveData.index or 0) + 1
+                            liveData[liveData.index] = { liveData.timer, liveData.trash }
+                        end
+                    elseif criteriaType == 165 then
+                        local boss = liveData.bosses[i]
+                        if not boss then
+                            boss = {} ---@type TraceBoss
+                        end
+                        boss.dead = not not completed
+                    end
+                end
+            end
+        end
+        return liveData.timer, liveData.deaths, liveData.trash, liveData.bosses
+    end
+
     ---@param delta number
     ---@param isNeutral? boolean
     local function SecondsDiffToTimeText(delta, isNeutral)
@@ -7601,7 +7642,7 @@ do
             local pending
             local delta
             local text
-            if liveBoss.dead then
+            if liveBoss and liveBoss.dead then
                 pending = false
                 delta = floor((boss.killed - liveBoss.killed) / 1000)
                 text = liveBoss.killedText
@@ -7616,13 +7657,15 @@ do
 
     ---@param elapse number
     local function FrameOnUpdate(_, elapse)
-        elapse = elapse * FRAME_DEBUG_TIMESCALE -- DEBUG: timescale modifier
+        -- elapse = elapse * FRAME_DEBUG_TIMESCALE -- DEBUG: timescale modifier
         frame.elapsed = frame.elapsed + elapse
         if frame.elapsed < FRAME_UPDATE_INTERVAL then return end
         if not frame.timerRunning then frame.elapsed = 0 return end
         frame.elapsedTime = frame.elapsedTime + frame.elapsed
         frame.elapsed = 0
-        local liveTimer, liveDeaths, liveTrash, liveBosses = UpdateFakeLiveData(frame.elapsedTime) -- DEBUG: fake data generated randomly as the run progresses
+        -- local liveTimer, liveDeaths, liveTrash, liveBosses = UpdateFakeLiveData(frame.elapsedTime) -- DEBUG: fake data generated randomly as the run progresses
+        local liveTimer, liveDeaths, liveTrash, liveBosses = RetrieveLiveData()
+        frame.elapsedTime = liveTimer
         local liveTimerMS = liveTimer * 1000
         local trace = frame.trace ---@type Trace
         local traceSummary = frame.traceSummary
@@ -7751,7 +7794,7 @@ do
         frame.textTotalHeight = frame.textTopHeight + frame.textHeight + frame.contentPaddingY * 2
         frame.graphHeight = 72
         frame.bossesHeight = 0
-        frame:SetPoint("TOP", 0, -200) -- DEBUG
+        frame:SetPoint("TOPRIGHT", _G.ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
         frame:SetSize(frame.width, 0)
         frame:SetFrameStrata("HIGH")
         frame.Background = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -7825,9 +7868,6 @@ do
 
     local UpdateEvents = {
         "PLAYER_ENTERING_WORLD",
-        "CHALLENGE_MODE_START",
-        "CHALLENGE_MODE_RESET",
-        "CHALLENGE_MODE_COMPLETED",
         "WORLD_STATE_TIMER_START",
         "WORLD_STATE_TIMER_STOP",
     }
@@ -7948,7 +7988,7 @@ do
         local found ---@type boolean?
         for _, timerID in ipairs(timerIDs) do
             local elapsedTime = GetChallengeTimer(timerID)
-            if GetChallengeTimer(timerID) then
+            if elapsedTime then
                 found = true
                 frame.timerID = timerID
                 frame.timerRunning = true
@@ -7963,7 +8003,7 @@ do
                 frame.timerRunning = false
             end
         end
-        found, frame.timerID, frame.timerRunning, frame.elapsedTime = true, 1, true, 0 -- 2160 - 60*4+20 -- DEBUG: fake running timer
+        -- found, frame.timerID, frame.timerRunning, frame.elapsedTime = true, 1, true, 0 -- 2160 - 60*4+20 -- DEBUG: fake running timer
         if found == nil then
             frame.timerID, frame.timerRunning = nil, nil
         else
@@ -7972,7 +8012,7 @@ do
             if mapID then
                 _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapID)
             end
-            mapID, timeLimit = 369, 2160 -- DEBUG: Mechagon Junkyard
+            -- mapID, timeLimit = 369, 2160 -- DEBUG: Mechagon Junkyard
             frame.mapID = mapID
             frame.timeLimit = timeLimit
         end
@@ -7985,6 +8025,7 @@ do
                     break
                 end
             end
+            -- if not frame.trace then for _, trace in ipairs(traceItems) do UpdateFrameState(trace) break end end -- DEBUG: first available trace for any map
         end
         frame:SetShown(not not (frame.timerID and frame.trace))
     end

@@ -219,6 +219,12 @@ do
             RAIDERIO_WHITE = { 256, 256, 0, 0, 64/256, 128/256, 64/256, 128/256, 0, 0 },
             RAIDERIO_BLACK = { 256, 256, 0, 0, 128/256, 192/256, 64/256, 128/256, 0, 0 },
         },
+        trace = {
+            TIMER = { 256, 256, 0, 0, 0/256, 64/256, 0/256, 64/256, 0, 0 },
+            DEATH = { 256, 256, 0, 0, 64/256, 128/256, 0/256, 64/256, 0, 0 },
+            TRASH = { 256, 256, 0, 0, 128/256, 192/256, 0/256, 64/256, 0, 0 },
+            PENALTY = { 256, 256, 0, 0, 192/256, 256/256, 0/256, 64/256, 0, 0 },
+        },
     }
 
     -- Finalize the `ns.CUSTOM_ICONS` table
@@ -2106,6 +2112,18 @@ do
     ---@param displayZeroHours? boolean
     function util:SecondsToTimeText(seconds, displayZeroHours)
         return SecondsToClock(seconds, displayZeroHours)
+    end
+
+    ---@generic K, V
+    ---@param tbl table<K, V>
+    ---@param value V
+    ---@return K|nil key
+    function util:TableContains(tbl, value)
+        for k, v in pairs(tbl) do
+            if v == value then
+                return k
+            end
+        end
     end
 
     ---@generic T
@@ -7247,352 +7265,14 @@ do
     local ICON_DEATH = "|A:common-icon-redx:12:12|a"
     local ICON_TRASH = "|A:common-icon-checkmark-yellow:12:12|a"
 
-    local FRAME_UPDATE_INTERVAL = 0.25
-    local FRAME_DEBUG_TIMESCALE = 30 -- 1 = normal, 0.5 = 50% slower, 10 = 10x faster, etc.
-    local FRAME_DEBUG_RAND_MOD = 1/FRAME_UPDATE_INTERVAL * FRAME_DEBUG_TIMESCALE
+    local FRAME_UPDATE_INTERVAL = 0.5
+    local FRAME_TIMER_SCALE = 1 -- always 1 for production
 
-    ---@alias LibGraphColor number[]
-    ---@alias LibGraphDataXY number[]
-    ---@alias LibGraphTexture string|number
-    ---@alias LibGraphType "REALTIME"|"LINE"|"SCATTER"|"PIE"
-    ---@alias LibGraphMode "SLOW"|"FAST"|"EXP"|"EXPFAST"|"RAW"
-    ---@alias LibGraphFilter "RECT"|"TRI"
-    ---@alias LibGraphBorder "left"|"right"|"top"|"bottom"
-
-    ---@class LibGraphDataTime
-    ---@field public Time number
-    ---@field public Value number
-
-    ---@class LibGraphDataSeries
-    ---@field public Points LibGraphDataXY[]
-    ---@field public Color LibGraphColor
-
-    ---@class LibGraphBase
-    ---@field public GraphType LibGraphType
-    ---@field public OnUpdate fun(self: LibGraphBase) #Overrides using `OnUpdateGraph`, `PieChart_OnUpdate` or `OnUpdateGraphRealtime` depending on the type of chart.
-    ---@field public DrawLine fun(self: LibGraphBase, C: LibGraphBase, sx: number, sy: number, ex: number, ey: number, w: number, color: LibGraphColor, layer?: DrawLayer, linetexture?: LibGraphTexture): Texture?
-    ---@field public DrawVLine fun(self: LibGraphBase, C: LibGraphBase, x: number, sy: number, ey: number, w: number, color: LibGraphColor, layer?: DrawLayer): Texture
-    ---@field public DrawHLine fun(self: LibGraphBase, C: LibGraphBase, sx: number, ex: number, y: number, w: number, color: LibGraphColor, layer?: DrawLayer): Texture
-    ---@field public HideLines fun(self: LibGraphBase, C: LibGraphBase)
-    ---@field public HideTextures fun(self: LibGraphBase)
-    ---@field public FindTexture fun(self: LibGraphBase): Texture
-
-    ---@class LibGraphBase3D : LibGraphBase
-    ---@field public CullXAxis boolean
-    ---@field public YMax number
-    ---@field public YMin number
-    ---@field public XMax number
-    ---@field public XMin number
-    ---@field public TimeRadius number
-    ---@field public Mode LibGraphMode
-    ---@field public Filter LibGraphFilter
-    ---@field public AxisColor LibGraphColor
-    ---@field public GridColor LibGraphColor
-    ---@field public BarColorTop LibGraphColor
-    ---@field public BarColorBot LibGraphColor
-    ---@field public AutoScale boolean
-    ---@field public Data number[][]
-    ---@field public MinMaxY number
-    ---@field public CurVal number
-    ---@field public LastDataTime number
-    ---@field public Textures Texture[]
-    ---@field public TexturesUsed Texture[]
-    ---@field public LimitUpdates number
-    ---@field public NextUpdate number
-    ---@field public BarHeight number[]
-    ---@field public LastShift number
-    ---@field public BarWidth number
-    ---@field public DecaySet number
-    ---@field public Decay number
-    ---@field public ExpNorm number
-    ---@field public FilterOverlap number
-    ---@field public TextFrame Frame
-    ---@field public SetXAxisCulling fun(self: LibGraphBase3D, state?: boolean)
-    ---@field public SetXAxisCullingPadding fun(self: LibGraphBase3D, padding: number)
-    ---@field public SetXAxis fun(self: LibGraphBase3D, xmin: number, xmax: number)
-    ---@field public NeedsUpdate boolean
-    ---@field public AddedBar boolean
-    ---@field public ResetData fun(self: LibGraphBase3D)
-    ---@field public RefreshGraph fun(self: LibGraphBase3D)
-    ---@field public CreateGridlines fun(self: LibGraphBase3D)
-    ---@field public SetAxisDrawing fun(self: LibGraphBase3D, xaxis: boolean, yaxis: boolean)
-    ---@field public SetGridSpacing fun(self: LibGraphBase3D, xspacing?: number, yspacing?: number)
-    ---@field public SetAxisColor fun(self: LibGraphBase3D, color: LibGraphColor)
-    ---@field public SetGridColor fun(self: LibGraphBase3D, color: LibGraphColor)
-    ---@field public SetGridColorSecondary fun(self: LibGraphBase3D, color: LibGraphColor)
-    ---@field public SetGridSecondaryMultiple fun(self: LibGraphBase3D, XAxis?: number, YAxis?: number)
-    ---@field public SetAutoScale fun(self: LibGraphBase3D, auto: boolean)
-    ---@field public SetYLabels fun(self: LibGraphBase3D, Left: string, Right: string)
-    ---@field public LockXMin fun(self: LibGraphBase3D, state?: boolean)
-    ---@field public LockXMax fun(self: LibGraphBase3D, state?: boolean)
-    ---@field public LockYMin fun(self: LibGraphBase3D, state?: boolean)
-    ---@field public LockYMax fun(self: LibGraphBase3D, state?: boolean)
-    ---@field public HideFontStrings fun(self: LibGraphBase3D)
-    ---@field public FindFontString fun(self: LibGraphBase3D): FontString
-
-    ---@class LibGraphBase2D : LibGraphBase
-    ---@field public XGridInterval number
-    ---@field public YGridInterval number
-    ---@field public XAxisDrawn boolean
-    ---@field public YAxisDrawn boolean
-    ---@field public LockOnXMin boolean
-    ---@field public LockOnXMax boolean
-    ---@field public LockOnYMin boolean
-    ---@field public LockOnYMax boolean
-    ---@field public FilledData LibGraphDataSeries[]
-    ---@field public SetYAxis fun(self: LibGraphBase3D, ymin: number, ymax: number)
-    ---@field public AddDataSeries fun(self: LibGraphBase2D, points: LibGraphDataXY[], color: LibGraphColor, n2?: boolean, linetexture?: string)
-
-    ---@class LibGraphRealtime : LibGraphBase3D, Frame
-    ---@field public LastDataTime number
-    ---@field public Data LibGraphDataTime[]
-    ---@field public TimeRadius number
-    ---@field public AutoScale boolean
-    ---@field public Bars StatusBar[]
-    ---@field public BarsUsing StatusBar[]
-    ---@field public BarNum number
-    ---@field public Height number
-    ---@field public SetYMax fun(self: LibGraphRealtime, ymax: number)
-    ---@field public AddTimeData fun(self: LibGraphRealtime, value: number)
-    ---@field public SetFilterRadius fun(self: LibGraphRealtime, radius: number)
-    ---@field public SetMode fun(self: LibGraphRealtime, mode: LibGraphMode)
-    ---@field public SetWidth fun(self: LibGraphRealtime, Width: number) #Overrides using `RealtimeSetWidth`
-    ---@field public SetHeight fun(self: LibGraphRealtime, Height: number) #Overrides using `RealtimeSetHeight`
-    ---@field public SetBarColors fun(self: LibGraphRealtime, BotColor: LibGraphColor, TopColor: LibGraphColor)
-    ---@field public GetMaxValue fun(self: LibGraphRealtime): number
-    ---@field public GetValue fun(self: LibGraphRealtime, Time: number) #Overrides using `RealtimeGetValue`
-    ---@field public SetUpdateLimit fun(self: LibGraphRealtime, Time: number)
-    ---@field public SetDecay fun(self: LibGraphRealtime, decay: number)
-    ---@field public SetMinMaxY fun(self: LibGraphRealtime, val: number)
-    ---@field public AddBar fun(self: LibGraphRealtime, value: number)
-    ---@field public SetBars fun(self: LibGraphRealtime)
-
-    ---@class LibGraphLine : LibGraphBase3D, LibGraphBase2D, Frame
-    ---@field public AddFilledDataSeries fun(self: LibGraphLine, points: LibGraphDataXY[], color: LibGraphColor, n2?: boolean)
-    ---@field public SetLineTexture fun(self: LibGraphLine, texture: string)
-    ---@field public SetBorderSize fun(self: LibGraphLine, border: LibGraphBorder, size: number): boolean
-    ---@field public DrawBar fun(self: LibGraphLine, C: LibGraphLine, sx: number, sy: number, ex: number, ey: number, color: string, level?: number)
-    ---@field public HideBars fun(self: LibGraphLine, C: LibGraphLine)
-
-    ---@class LibGraphScatterPlot : LibGraphBase3D, Frame
-    ---@field public LinearRegression fun(self: LibGraphScatterPlot)
-    ---@field public SetLinearFit fun(self: LibGraphScatterPlot, linearFit: boolean)
-
-    ---@class LibGraphPieChart : LibGraphBase2D, Frame
-    ---@field public AddPie fun(self: LibGraphPieChart, data: number, color: LibGraphColor)
-    ---@field public CompletePie fun(self: LibGraphPieChart, color: LibGraphColor)
-    ---@field public ResetPie fun(self: LibGraphPieChart)
-    ---@field public SetSelectionFunc fun(self: LibGraphPieChart)
-
-    ---@class LibGraph : LibGraphBase
-    ---@field public RegisteredGraphRealtime LibGraphRealtime[]
-    ---@field public RegisteredGraphLine LibGraphLine[]
-    ---@field public RegisteredGraphScatterPlot LibGraphScatterPlot[]
-    ---@field public RegisteredGraphPieChart LibGraphPieChart[]
-    ---@field public CreateGraphRealtime fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: AnchorPoint, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphRealtime
-    ---@field public CreateGraphLine fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: AnchorPoint, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphLine
-    ---@field public CreateGraphScatterPlot fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: AnchorPoint, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphScatterPlot
-    ---@field public CreateGraphPieChart fun(self: LibGraph, name: string, parent: Region, relative: AnchorPoint, relativeTo: AnchorPoint, offsetX: number, offsetY: number, Width: number, Height: number): LibGraphPieChart
-    ---@field public DrawBar fun(self: LibGraph, C: LibGraphBase, sx: number, sy: number, ex: number, ey: number, color: string, level: number)
-    ---@field public HideBars fun(self: LibGraph, C: LibGraphBase)
-    ---@field public TestGraph2Lib fun(self: LibGraph)
-
-    ---@type LibGraph
-    local LibGraph = LibStub and LibStub:GetLibrary("LibGraph-2.0", true)
-
-    ---@type Trace[]?
-    local traceItems
-
-    ---@class TracesFrame : Frame, BackdropTemplate
-    local frame
-
-    ---@class TraceBoss
-    ---@field public killed number
-    ---@field public killedText string
-    ---@field public dead boolean
-    ---@field public engaged? number
-    ---@field public health? number
-
-    ---@class TraceSummary
-    ---@field public timer number
-    ---@field public deaths number
-    ---@field public bosses TraceBoss[]
-    ---@field public trash number
-
-    ---@param summary TraceSummary
-    ---@param items TraceLog[]
-    ---@param endAt number
-    ---@param startFrom? number
-    local function ReplayTraceUntil(summary, items, endAt, startFrom)
-        startFrom = startFrom or 1
-        local item ---@type TraceLog?
-        for i = startFrom, endAt do
-            item = items[i]
-            if not item then
-                break
-            end
-            if item.deaths then
-                summary.deaths = summary.deaths + item.deaths
-            end
-            if item.trash then
-                summary.trash = summary.trash + item.trash 
-            end
-            if item.kills then
-                for k, v in ipairs(item.kills) do
-                    if type(v) == "table" then v = v[2] end -- DEBUG: HOTFIX: unpack the table wrapper
-                    local boss = v and summary.bosses[k]
-                    if boss then
-                        boss.dead = true
-                    end
-                end
-            end
-        end
-        if not item then
-            return
-        end
-        summary.timer = item.timer
-    end
-
-    ---@param summary TraceSummary
-    ---@param items TraceLog[]
-    ---@param index number
-    ---@param elapsedTimeMS number
-    ---@return number index, TraceLog current, TraceLog? future
-    local function ReplayTraceTick(summary, items, index, elapsedTimeMS)
-        local count = #items
-        local current = items[index]
-        local future ---@type TraceLog?
-        if index >= count then
-            return index, current, future
-        end
-        local futureStartAt = index + 2
-        for i = futureStartAt, count do
-            future = items[i]
-            if future.timer > elapsedTimeMS then
-                future = items[i - 1]
-                break
-            end
-        end
-        if futureStartAt > count then
-            future = items[count]
-        end
-        if future and future.timer < elapsedTimeMS then
-            index = index + 1
-            current = future
-            future = items[index + 1]
-            ReplayTraceUntil(summary, items, index, index)
-        end
-        return index, current, future
-    end
-
-    ---@param points LibGraphDataXY[]
-    ---@param timer number
-    local function GetClosestGraphPoint(points, timer)
-        for index, point in ipairs(points) do
-            if point[1] > timer then
-                point = points[index - 1] or point
-                return point[2]
-            end
-        end
-        return points[#points][2]
-    end
-
-    ---@param delta number
-    local function UpdateGraphGradient(delta)
-        local r, g, b, a
-        if delta > 5 then
-            delta = 1-1/(delta == 0 and 1 or delta)
-            delta = delta > 0.2 and 0.2 or delta
-            r, g, b, a = 0.1, 0.5, 0.1, delta
-        elseif delta < -5 then
-            delta = 1-1/(delta == 0 and 1 or -delta)
-            delta = delta > 0.2 and 0.2 or delta
-            r, g, b, a = 0.5, 0.1, 0.1, delta
-        else
-            r, g, b, a = 0.5, 0.5, 0.1, 0.2
-        end
-        frame.Graph.Gradient:SetColorTexture(r, g, b, a)
-    end
-
-    ---@param elapsedTime number
-    ---@return number timer, number deaths, number trash, TraceBoss[] bosses
-    local function UpdateFakeLiveData(elapsedTime)
-        local Graph = frame.Graph
-        local liveData = Graph.liveData
-        local trace = frame.trace ---@type Trace
-        local traceTrash = trace.trash
-        local traceBosses = trace.bosses
-        if not liveData.trash or liveData.trash < traceTrash then
-            local closestValue = GetClosestGraphPoint(Graph.traceData, elapsedTime)
-            liveData.timer = elapsedTime
-            liveData.deaths = (liveData.deaths or 0) + (random(1, 100 * FRAME_DEBUG_RAND_MOD) == 1 and 1 or 0)
-            liveData.trash = (liveData.trash or 0) + (random(1, max(1, 80 - abs((liveData.trash or 0) - closestValue))) == 1 and random(0, 5) or 0)
-            if liveData.trash > traceTrash then liveData.trash = traceTrash end
-            liveData.index = (liveData.index or 0) + 1
-            liveData[liveData.index] = { liveData.timer, liveData.trash }
-        end
-        if not liveData.bosses then
-            liveData.bosses = {} ---@type TraceBoss[]
-            for k, v in ipairs(traceBosses) do
-                liveData.bosses[k] = { dead = false }
-            end
-            liveData.bosses.alive = #traceBosses
-        end
-        if liveData.bosses.alive > 0 then
-            liveData.timer = elapsedTime
-            local nextBossIndex = #traceBosses - liveData.bosses.alive + 1
-            local nextBoss = frame.traceSummary.bosses[nextBossIndex]
-            if random(1, max(1, (1 - (elapsedTime*1000 / (nextBoss.killed + 120000)))*100*FRAME_DEBUG_RAND_MOD)) == 1 then
-                local boss = liveData.bosses[nextBossIndex]
-                boss.dead = true
-                boss.killed = liveData.timer * 1000
-                boss.killedText = util:SecondsToTimeText(boss.killed / 1000)
-                liveData.bosses.alive = liveData.bosses.alive - 1
-            end
-        end
-        return liveData.timer, liveData.deaths, liveData.trash, liveData.bosses
-    end
-
-    ---@return number timer, number deaths, number trash, TraceBoss[] bosses
-    local function RetrieveLiveData()
-        local Graph = frame.Graph
-        local liveData = Graph.liveData
-        local elapsedTime, _ = frame.elapsedTime
-        if frame.timerRunning then
-            _, elapsedTime = GetWorldElapsedTime(frame.timerID)
-        end
-        liveData.timer = elapsedTime or 0
-        local numDeaths, timeLost = C_ChallengeMode.GetDeathCount()
-        liveData.deaths = numDeaths or 0
-        if not liveData.trash then
-            liveData.trash = 0
-        end
-        if not liveData.bosses then
-            liveData.bosses = {} ---@type TraceBoss[]
-        end
-        local _, _, numCriteria = C_Scenario.GetStepInfo()
-        if numCriteria then
-            for i = 1, numCriteria do
-                local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
-                if criteriaString then
-                    if criteriaType == 0 then
-                        if liveData.trash ~= quantity then
-                            liveData.trash = quantity
-                            liveData.index = (liveData.index or 0) + 1
-                            liveData[liveData.index] = { liveData.timer, liveData.trash }
-                        end
-                    elseif criteriaType == 165 then
-                        local boss = liveData.bosses[i]
-                        if not boss then
-                            boss = {} ---@type TraceBoss
-                        end
-                        boss.dead = not not completed
-                    end
-                end
-            end
-        end
-        return liveData.timer, liveData.deaths, liveData.trash, liveData.bosses
-    end
+    local UPDATE_EVENTS = {
+        "PLAYER_ENTERING_WORLD",
+        "WORLD_STATE_TIMER_START",
+        "WORLD_STATE_TIMER_STOP",
+    }
 
     ---@param delta number
     ---@param isNeutral? boolean
@@ -7616,73 +7296,36 @@ do
         return format("|cff%s%s%d|r", color, prefix, text)
     end
 
-    ---@param timer number
-    ---@param trash number
-    local function RefreshGraphState(timer, trash)
-        local Graph = frame.Graph
-        local elapsedTime = frame.elapsedTime
-        local closestValue = GetClosestGraphPoint(Graph.traceData, elapsedTime)
-        local delta = trash - closestValue
-        local offset = 0 -- delta < -Graph.DeltaYOffset/2 and (-delta + 10) or (delta > Graph.DeltaYOffset/2 and delta - 10) or 0
-        UpdateGraphGradient(delta)
-        Graph:SetXAxis(timer - Graph.DeltaXOffset, timer + Graph.DeltaXOffset)
-        Graph:SetYAxis(trash - Graph.DeltaYOffset - offset, trash + Graph.DeltaYOffset + offset)
+    ---@param delta number
+    local function AheadColor(delta)
+        return delta < 0 and "55FF55" or "FF5555"
     end
 
-    ---@param timer number
-    ---@param liveBosses TraceBoss[]
-    local function RefreshBossState(timer, liveBosses)
-        local pool = frame.BossFramePool
-        local traceSummary = frame.traceSummary
-        local bosses = traceSummary.bosses
-        for bossFrame in pool:EnumerateActive() do
-            local bossIndex = bossFrame.index
-            local liveBoss = liveBosses[bossIndex]
-            local boss = bosses[bossIndex]
-            local pending
-            local delta
-            local text
-            if liveBoss and liveBoss.dead then
-                pending = false
-                delta = floor((boss.killed - liveBoss.killed) / 1000)
-                text = liveBoss.killedText
-            else
-                pending = true
-                delta = floor((boss.killed - timer*1000) / 1000)
-                text = boss.killedText
-            end
-            bossFrame.Info:SetFormattedText("%s\n%s", text, SecondsDiffToTimeText(delta, pending))
-        end
-    end
+    ---@class TraceBoss
+    ---@field public index number
+    ---@field public id number
+    ---@field public dead boolean
+    ---@field public killed? number
+    ---@field public killedText? string
+    ---@field public engaged? number
+    ---@field public health? number
 
-    ---@param elapse number
-    local function FrameOnUpdate(_, elapse)
-        -- elapse = elapse * FRAME_DEBUG_TIMESCALE -- DEBUG: timescale modifier
-        frame.elapsed = frame.elapsed + elapse
-        if frame.elapsed < FRAME_UPDATE_INTERVAL then return end
-        if not frame.timerRunning then frame.elapsed = 0 return end
-        frame.elapsedTime = frame.elapsedTime + frame.elapsed
-        frame.elapsed = 0
-        -- local liveTimer, liveDeaths, liveTrash, liveBosses = UpdateFakeLiveData(frame.elapsedTime) -- DEBUG: fake data generated randomly as the run progresses
-        local liveTimer, liveDeaths, liveTrash, liveBosses = RetrieveLiveData()
-        frame.elapsedTime = liveTimer
-        local liveTimerMS = liveTimer * 1000
-        local trace = frame.trace ---@type Trace
-        local traceSummary = frame.traceSummary
-        local traceIndex, current, future = ReplayTraceTick(traceSummary, trace.logs, frame.traceIndex, liveTimerMS)
-        frame.traceIndex = traceIndex
-        local logCount = #trace.logs
-        local traceTimeMS = trace.logs[logCount].timer -- DEBUG: HOTFIX: trace.time?
-        local traceTime = traceTimeMS / 1000
-        frame.TextL:SetFormattedText("%s\r\n%s\r\n%s\r\n%s", ICON_TIMER, util:SecondsToTimeText(liveTimer), util:SecondsToTimeText(traceTime), SecondsDiffToTimeText(traceTime - liveTimer))
-        frame.TextC:SetFormattedText("%s\r\n%d\r\n%d\r\n%s", ICON_DEATH, liveDeaths, traceSummary.deaths, AmountDiffToText(traceSummary.deaths - liveDeaths))
-        frame.TextR:SetFormattedText("%s\r\n%d\r\n%d\r\n%s", ICON_TRASH, liveTrash, traceSummary.trash, AmountDiffToText(liveTrash - traceSummary.trash))
-        RefreshGraphState(liveTimer, liveTrash)
-        RefreshBossState(liveTimer, liveBosses)
-        frame:SetHeight(frame.textTotalHeight + frame.graphHeight + frame.bossesHeight + frame.contentPaddingY)
-    end
+    ---@class TraceSummary
+    ---@field public level number
+    ---@field public affixes number[]
+    ---@field public index number
+    ---@field public timer number
+    ---@field public deaths number
+    ---@field public trash number
+    ---@field public bosses TraceBoss[]
 
-    ---@class BossFrame : BossFrameMixin, Frame
+    ---@type Trace[]?
+    local traceItems
+
+    ---@class TracesFrame : Frame
+    local frame
+
+    ---@class BossFrame : Frame
     ---@field public Name FontString
     ---@field public Info FontString
     ---@field public Background Texture
@@ -7693,7 +7336,7 @@ do
     ---@field public ReleaseAll fun(self: BossFramePool)
     ---@field public EnumerateActive fun(): fun(table: table<BossFrame, boolean>, index?: number): BossFrame, boolean
 
-    ---@class BossFrameMixin
+    ---@class BossFrame
     local BossFrameMixin = {}
 
     ---@param self BossFrame
@@ -7712,6 +7355,25 @@ do
         self.bossInstanceID = EJ_GetEncounterInfo(bossID) ---@type number
         self.Name:SetText(self.bossName)
         self.Info:SetText("")
+    end
+
+    ---@param self BossFrame
+    ---@param liveBoss TraceBoss
+    ---@param traceBoss TraceBoss
+    function BossFrameMixin:Update(liveBoss, traceBoss)
+        local pending
+        local delta
+        local text
+        if liveBoss and liveBoss.dead then
+            pending = false
+            delta = floor((traceBoss.killed - liveBoss.killed) / 1000)
+            text = liveBoss.killedText
+        else
+            pending = true
+            delta = floor((traceBoss.killed - frame.elapsedKeystoneTimer * 1000) / 1000)
+            text = traceBoss.killedText
+        end
+        self.Info:SetFormattedText("%s\n%s", text, SecondsDiffToTimeText(delta, pending))
     end
 
     ---@param obj BossFrame
@@ -7739,12 +7401,14 @@ do
     local function BossFrameOnReset(self, obj)
     end
 
+    ---@class BossFramePool
+    local BossFramePoolMixin = {}
+
     ---@return number bossesHeight
-    local function BossFramesUpdateLayout()
-        local pool = frame.BossFramePool
+    function BossFramePoolMixin:UpdateLayout()
         local bossIndex = 0
         local bossFrames = {} ---@type BossFrame[]
-        for bossFrame in pool:EnumerateActive() do
+        for bossFrame in self:EnumerateActive() do
             bossIndex = bossIndex + 1
             bossFrames[bossIndex] = bossFrame
         end
@@ -7760,8 +7424,8 @@ do
                 bossFrame:SetPoint("TOPLEFT", prevBossFrame, "BOTTOMLEFT", 0, 0)
                 bossFrame:SetPoint("BOTTOMRIGHT", prevBossFrame, "BOTTOMRIGHT", 0, -height)
             else
-                bossFrame:SetPoint("TOPLEFT", frame.Graph, "BOTTOMLEFT", offsetX, -offsetY)
-                bossFrame:SetPoint("BOTTOMRIGHT", frame.Graph, "BOTTOMRIGHT", -offsetX, -height-offsetY)
+                bossFrame:SetPoint("TOPLEFT", frame.TextBlock, "BOTTOMLEFT", offsetX, -offsetY)
+                bossFrame:SetPoint("BOTTOMRIGHT", frame.TextBlock, "BOTTOMRIGHT", -offsetX, -height-offsetY)
             end
             prevBossFrame = bossFrame
         end
@@ -7771,283 +7435,531 @@ do
         return bossesHeight
     end
 
-    local function CreateTracesFrame()
-        local traceFrame = CreateFrame("Frame", addonName .. "_TracesFrame", UIParent) ---@class TracesFrame
-        frame = traceFrame
-        frame.elapsed = nil ---@type number?
-        frame.timerID = nil ---@type number?
-        frame.timerRunning = nil ---@type boolean?
-        frame.elapsedTime = nil ---@type number?
-        frame.mapID = nil ---@type number?
-        frame.timeLimit = nil ---@type number?
-        frame.trace = nil ---@type Trace?
-        frame.traceIndex = nil ---@type number?
-        frame.traceItem = nil ---@type TraceLog?
-        frame.traceSummary = nil ---@type TraceSummary?
-        frame.width = 280
-        frame.contentPaddingX = 5
-        frame.contentPaddingY = 5
-        frame.textTopWidth = (frame.width - (frame.contentPaddingX * 3)) / 2
-        frame.textTopHeight = 32
-        frame.textWidth = (frame.width - (frame.contentPaddingX * 4)) / 3
-        frame.textHeight = 80
-        frame.textTotalHeight = frame.textTopHeight + frame.textHeight + frame.contentPaddingY * 2
-        frame.graphHeight = 72
-        frame.bossesHeight = 0
-        frame:SetPoint("TOPRIGHT", _G.ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
-        frame:SetSize(frame.width, 0)
-        frame:SetFrameStrata("HIGH")
-        frame.Background = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
-        frame.Background:SetAllPoints()
-        frame.Background:SetColorTexture(0, 0, 0, 0.5)
-        frame.BossFramePool = CreateFramePool("Frame", frame, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@type BossFramePool
-        frame.TextTL = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
-        frame.TextTL:SetSize(frame.textTopWidth, frame.textTopHeight)
-        frame.TextTL:SetPoint("TOPLEFT", frame, "TOPLEFT", frame.contentPaddingX, -frame.contentPaddingY)
-        frame.TextTL:SetJustifyH("LEFT")
-        frame.TextTL:SetJustifyV("MIDDLE")
-        frame.TextTR = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
-        frame.TextTR:SetSize(frame.textTopWidth, frame.textTopHeight)
-        frame.TextTR:SetPoint("TOPLEFT", frame.TextTL, "TOPRIGHT", frame.contentPaddingX, 0)
-        frame.TextTR:SetJustifyH("RIGHT")
-        frame.TextTR:SetJustifyV("MIDDLE")
-        frame.TextL = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-        frame.TextL:SetSize(frame.textWidth, frame.textHeight)
-        frame.TextL:SetPoint("TOPLEFT", frame.TextTL, "BOTTOMLEFT", 0, -frame.contentPaddingY)
-        frame.TextL:SetJustifyH("LEFT")
-        frame.TextL:SetJustifyV("TOP")
-        frame.TextC = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-        frame.TextC:SetSize(frame.textWidth, frame.textHeight)
-        frame.TextC:SetPoint("TOPLEFT", frame.TextL, "TOPRIGHT", frame.contentPaddingX, 0)
-        frame.TextC:SetJustifyH("CENTER")
-        frame.TextC:SetJustifyV("TOP")
-        frame.TextR = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-        frame.TextR:SetSize(frame.textWidth, frame.textHeight)
-        frame.TextR:SetPoint("TOPLEFT", frame.TextC, "TOPRIGHT", frame.contentPaddingX, 0)
-        frame.TextR:SetJustifyH("RIGHT")
-        frame.TextR:SetJustifyV("TOP")
-        for _, v in ipairs({"TextTL", "TextTR", "TextL", "TextC", "TextR"}) do
-            local text = frame[v]
-            text.Background = frame:CreateTexture(nil, "BACKGROUND")
-            text.Background:SetAllPoints(text)
-            text.Background:SetColorTexture(0, 0, 0, 0.5)
+    ---@param frame TracesFrame
+    ---@return BossFramePool
+    local function CreateBossFramePool(frame)
+        local bossFramePool = CreateFramePool("Frame", frame, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@class BossFramePool
+        Mixin(bossFramePool, BossFramePoolMixin)
+        return bossFramePool
+    end
+
+    ---@class TracesDataProvider
+    local TracesDataProviderMixin = {}
+
+    function TracesDataProviderMixin:OnLoad()
+        self.traceSummary = self:CreateSummary()
+    end
+
+    ---@param trace Trace
+    function TracesDataProviderMixin:SetTrace(trace)
+        if self.trace == trace then
+            return
         end
-        frame:SetClampedToScreen(true)
-        frame:EnableMouse(true)
-        frame:SetMovable(true)
-        frame:RegisterForDrag("LeftButton")
-        frame:SetScript("OnDragStart", frame.StartMoving)
-        frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-        frame:Hide()
-        frame:SetScript("OnUpdate", FrameOnUpdate)
-        local Graph = LibGraph:CreateGraphLine(frame:GetName() .. "Graph", frame, "TOPLEFT", "TOPLEFT", 0, 0, frame.width - frame.contentPaddingX*2, frame.graphHeight)
-        frame.Graph = Graph
-        Graph:SetPoint("TOPLEFT", frame.TextL, "BOTTOMLEFT", 0, -frame.contentPaddingY)
-        Graph.liveData = {} ---@type LibGraphDataXY[]
-        Graph.traceData = {} ---@type LibGraphDataXY[]
-        Graph:SetClipsChildren(true)
-        Graph.Background = Graph:CreateTexture(nil, "BACKGROUND", nil, 1)
-        Graph.Background:SetAllPoints()
-        Graph.Background:SetColorTexture(0, 0, 0, 0.5)
-        Graph.Gradient = Graph:CreateTexture(nil, "BACKGROUND", nil, 2)
-        Graph.Gradient:SetAllPoints()
-        Graph.DeltaXOffset = 60
-        Graph.DeltaYOffset = 20
-        Graph:SetGridColor({ 0.2, 0.2, 0.2, 1 - 1 })
-        Graph:SetGridColorSecondary({ 0.2, 0.2, 0.2, 1 - 1 })
-        Graph:SetGridSpacing(nil, Graph.DeltaYOffset/2)
-        Graph:SetGridSecondaryMultiple(Graph.DeltaXOffset/2, Graph.DeltaYOffset/2)
-        Graph:SetAxisDrawing(false, false)
-        Graph:SetAxisColor({ 1, 1, 1, 1 - 1 })
-        Graph:SetXAxis(0, Graph.DeltaXOffset)
-        Graph:SetYAxis(0, Graph.DeltaYOffset)
-        Graph:SetXAxisCulling(true)
-        Graph:SetXAxisCullingPadding(120)
+        self.trace = trace
+        self:SetupSummary()
+    end
+
+    ---@return Trace? trace
+    function TracesDataProviderMixin:GetTrace()
+        return self.trace
+    end
+
+    ---@return TraceSummary traceSummary
+    function TracesDataProviderMixin:CreateSummary()
+        ---@type TraceSummary
+        local traceSummary = {
+            level = 0,
+            affixes = {},
+            index = 0,
+            timer = 0,
+            deaths = 0,
+            trash = 0,
+            bosses = {},
+        }
+        return traceSummary
+    end
+
+    function TracesDataProviderMixin:SetupSummary()
+        local traceSummary = self.traceSummary
+        traceSummary.level = 0
+        traceSummary.index = 0
+        traceSummary.timer = 0
+        traceSummary.deaths = 0
+        traceSummary.trash = 0
+        table.wipe(traceSummary.bosses)
+        local trace = self:GetTrace()
+        traceSummary.level = trace.mythic_level
+        traceSummary.affixes = trace.affixes
+        for index, bossID in ipairs(trace.bosses) do
+            local traceBoss = {} ---@type TraceBoss
+            traceBoss.index = index
+            traceBoss.id = bossID
+            traceBoss.dead = false
+            traceSummary.bosses[index] = traceBoss
+        end
+        for _, traceLog in ipairs(trace.logs) do
+            if traceLog.kills then
+                for bossIndex, dead in pairs(traceLog.kills) do
+                    if type(dead) == "table" then dead = dead[2] end -- DEBUG: HOTFIX: unpack the table wrapper
+                    if dead then
+                        local boss = traceSummary.bosses[bossIndex]
+                        if not boss.killed then
+                            boss.killed = traceLog.timer
+                            boss.killedText = SecondsToClock(traceLog.timer / 1000)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    ---@return TraceSummary traceSummary
+    function TracesDataProviderMixin:GetSummary()
+        return self.traceSummary
+    end
+
+    ---@param timerMS number
+    ---@return TraceSummary traceSummary, TraceLog currentTraceLog, TraceLog? nextTraceLog
+    function TracesDataProviderMixin:GetTraceSummaryAt(timerMS)
+        local traceSummary = self:GetSummary()
+        local trace = self:GetTrace()
+        local traceLogs = trace.logs
+        for i = traceSummary.index + 1, #traceLogs do
+            local traceLog = traceLogs[i]
+            if traceLog.timer > timerMS then
+                break
+            end
+            traceSummary.index = i
+            traceSummary.timer = traceLog.timer
+            if traceLog.deaths then
+                traceSummary.deaths = traceSummary.deaths + traceLog.deaths
+            end
+            if traceLog.trash then
+                traceSummary.trash = traceSummary.trash + traceLog.trash
+            end
+            if traceLog.kills then
+                for bossIndex, dead in pairs(traceLog.kills) do
+                    if type(dead) == "table" then dead = dead[2] end -- DEBUG: HOTFIX: unpack the table wrapper
+                    if dead then
+                        local boss = traceSummary.bosses[bossIndex]
+                        boss.dead = true
+                    end
+                end
+            end
+        end
+        return traceSummary, traceLogs[traceSummary.index], traceLogs[traceSummary.index + 1]
+    end
+
+    ---@class LiveDataProvider : TracesDataProvider
+    local LiveDataProviderMixin = {}
+
+    function LiveDataProviderMixin:OnLoad()
+        self.SetTrace = nil
+        self.GetTrace = nil
+        self.CreateSummary = nil
+        self.SetupSummary = nil
+        self.GetTraceSummaryAt = nil
+        self:SetDeathPenalty(5)
+    end
+
+    ---@return TraceSummary liveSummary
+    function LiveDataProviderMixin:GetSummary()
+        local liveSummary = self.traceSummary
+        if frame.elapsedKeystoneTimer then
+            liveSummary.timer = frame.elapsedKeystoneTimer * 1000
+        end
+        local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
+        if activeKeystoneLevel then
+            liveSummary.level = activeKeystoneLevel
+        end
+        if activeAffixIDs then
+            liveSummary.affixes = activeAffixIDs
+        end
+        local numDeaths, timeLost = C_ChallengeMode.GetDeathCount()
+        if numDeaths then
+            liveSummary.deaths = numDeaths
+        end
+        local _, _, numCriteria = C_Scenario.GetStepInfo()
+        if numCriteria then
+            for i = 1, numCriteria do
+                local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
+                if criteriaString then
+                    if criteriaType == 0 then
+                        if liveSummary.trash ~= quantity then
+                            liveSummary.trash = quantity
+                        end
+                    elseif criteriaType == 165 then
+                        local boss = liveSummary.bosses[i]
+                        if not boss then
+                            boss = {} ---@type TraceBoss
+                            boss.dead = false
+                            liveSummary.bosses[i] = boss
+                        end
+                        local dead = not not completed
+                        if dead and dead ~= boss.dead then
+                            boss.dead = true
+                            boss.killed = liveSummary.timer
+                            boss.killedText = SecondsToClock(ceil(liveSummary.timer / 1000))
+                        end
+                    end
+                end
+            end
+        end
+        return liveSummary
+    end
+
+    ---@param seconds number
+    function LiveDataProviderMixin:SetDeathPenalty(seconds)
+        self.deathPenalty = seconds
+    end
+
+    ---@return number deathPenalty
+    function LiveDataProviderMixin:GetDeathPenalty()
+        return self.deathPenalty
+    end
+
+    ---@class TracesFrame : Frame
+    local TracesFrameMixin = {}
+
+    function TracesFrameMixin:OnLoad()
+        self:Hide()
+        self:SetScript("OnUpdate", self.OnUpdate)
+        self.width = 200
+        self.contentPaddingX = 5
+        self.contentPaddingY = 5
+        self.textColumnWidth = (self.width - (self.contentPaddingX * 4)) / 3
+        self.textRowHeight = 25
+        self.textHeight = self.textRowHeight * 5 + self.contentPaddingY * 3
+        self.bossesHeight = 0
+        self:SetPoint("TOPRIGHT", _G.ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
+        self:SetSize(self.width, 0)
+        self:SetFrameStrata("HIGH")
+        self:SetClampedToScreen(true)
+        self:EnableMouse(true)
+        self:SetMovable(true)
+        self:RegisterForDrag("LeftButton")
+        self:SetScript("OnDragStart", self.StartMoving)
+        self:SetScript("OnDragStop", self.StopMovingOrSizing)
+        self.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
+        self.Background:SetAllPoints()
+        self.Background:SetColorTexture(0, 0, 0, 0.5)
+        self.BossFramePool = CreateBossFramePool(self)
+        self.TextBlock = CreateFrame("Frame", nil, self) ---@class TextBlock : Frame
+        self.TextBlock:SetPoint("TOPLEFT", self, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
+        self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
+        self.TextBlock.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
+        self.TextBlock.Background:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", 0, 0)
+        self.TextBlock.Background:SetPoint("BOTTOMRIGHT", self.TextBlock, "BOTTOMRIGHT", 0, 0)
+        self.TextBlock.Background:SetColorTexture(0, 0, 0, 0.5)
+        ---@param previous Region
+        ---@return FontString Left, FontString Middle, FontString Right
+        local function CreateTextRow(previous)
+            local equalWidth = self.textColumnWidth
+            local middleWidth = 30
+            local extraWidth = (equalWidth - middleWidth)/2
+            equalWidth = equalWidth + extraWidth
+            local L = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+            L:SetSize(equalWidth, self.textRowHeight)
+            if previous then
+                L:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, 0)
+            else
+                L:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
+            end
+            L:SetJustifyH("RIGHT")
+            L:SetJustifyV("MIDDLE")
+            local M = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+            M:SetSize(middleWidth, self.textRowHeight)
+            M:SetPoint("TOPLEFT", L, "TOPRIGHT", 0, 0)
+            M:SetJustifyH("CENTER")
+            M:SetJustifyV("MIDDLE")
+            local R = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+            R:SetSize(equalWidth, self.textRowHeight)
+            R:SetPoint("TOPLEFT", M, "TOPRIGHT", 0, 0)
+            R:SetJustifyH("LEFT")
+            R:SetJustifyV("MIDDLE")
+            return L, M, R
+        end
+        self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow()
+        self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL)
+        self.TextBlock.DeathL, self.TextBlock.DeathM, self.TextBlock.DeathR = CreateTextRow(self.TextBlock.TimerL)
+        self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.DeathL)
+        self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL)
+        self.TextBlock.TitleM:SetText(ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
+        self.TextBlock.TimerM:SetText(ns.CUSTOM_ICONS.trace.TIMER("TextureMarkup"))
+        self.TextBlock.DeathM:SetText(ns.CUSTOM_ICONS.trace.DEATH("TextureMarkup"))
+        self.TextBlock.TrashM:SetText(ns.CUSTOM_ICONS.trace.TRASH("TextureMarkup"))
+        self.TextBlock.DeathPenM:SetText(ns.CUSTOM_ICONS.trace.PENALTY("TextureMarkup"))
+    end
+
+    ---@param traceDataProvider? TracesDataProvider
+    function TracesFrameMixin:SetTraceDataProvider(traceDataProvider)
+        self.traceDataProvider = traceDataProvider
+    end
+
+    ---@return TracesDataProvider? traceDataProvider
+    function TracesFrameMixin:GetTraceDataProvider()
+        return self.traceDataProvider
+    end
+
+    ---@param liveDataProvider? LiveDataProvider
+    function TracesFrameMixin:SetLiveDataProvider(liveDataProvider)
+        self.liveDataProvider = liveDataProvider
+    end
+
+    ---@return LiveDataProvider? liveDataProvider
+    function TracesFrameMixin:GetLiveDataProvider()
+        return self.liveDataProvider
+    end
+
+    ---@param timerID? number
+    ---@param elapsedTime number
+    ---@param isActive boolean
+    function TracesFrameMixin:SetTimer(timerID, elapsedTime, isActive)
+        if not timerID then
+            self:Stop()
+            return
+        end
+        self.timerID = timerID
+        self.elapsedTime = elapsedTime
+        self.isActive = isActive
+        if isActive then
+            self:Start()
+        else
+            self:Stop()
+        end
+    end
+
+    ---@return number? timerID, number elapsedTime, boolean isActive
+    function TracesFrameMixin:GetTimer()
+        return self.timerID, self.elapsedTime, self.isActive
+    end
+
+    ---@param mapID? number
+    ---@param timeLimit number
+    function TracesFrameMixin:SetKeystone(mapID, timeLimit)
+        if not mapID then
+            self:Stop()
+            return
+        end
+        self.mapID = mapID
+        self.timeLimit = timeLimit
+        self:Update()
+    end
+
+    ---@return number? mapID, number timeLimit
+    function TracesFrameMixin:GetKeystone()
+        return self.mapID, self.timeLimit
+    end
+
+    function TracesFrameMixin:Start()
+        if not self.isPlaying then
+            self.isPlaying = true
+            self.elapsedTimer = 0
+        end
+        self:Update()
+    end
+
+    function TracesFrameMixin:Stop()
+        if self.isPlaying then
+            self.isPlaying = false
+        end
+        self:Update()
+    end
+
+    function TracesFrameMixin:UpdateShown()
+        self:SetShown(self.timerID and self.mapID and self.isPlaying)
+    end
+
+    function TracesFrameMixin:OnUpdate(elapsed)
+        self.elapsed = (self.elapsed or 0) + (elapsed * FRAME_TIMER_SCALE)
+        if self.elapsed < FRAME_UPDATE_INTERVAL then return end
+        self.elapsedTimer = (self.elapsedTimer or 0) + self.elapsed
+        self.elapsed = 0
+        self:Update()
+    end
+
+    function TracesFrameMixin:Update()
+        local traceDataProvider = self:GetTraceDataProvider()
+        local trace = traceDataProvider:GetTrace()
+        local isRunning = self.isActive and self.isPlaying
+        if isRunning then
+            self.elapsedKeystoneTimer = self.elapsedTimer + self.elapsedTime
+        end
+        local liveDataProvider = self:GetLiveDataProvider()
+        local liveSummary = liveDataProvider:GetSummary()
+        local deathPenalty = liveDataProvider:GetDeathPenalty()
+        local elapsedKeystoneTimer = liveSummary.timer
+        local traceSummary, currentTraceLog, nextTraceLog = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
+        self:SetUITitle(liveSummary.level, liveSummary.affixes, traceSummary.level, traceSummary.affixes)
+        self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(traceSummary.timer / 1000), ceil(trace.time / 1000))
+        self:SetUIDeaths(liveSummary.deaths, traceSummary.deaths)
+        self:SetUITrash(liveSummary.trash, traceSummary.trash, trace.trash)
+        self:SetUIDeathPenalty(liveSummary.deaths, traceSummary.deaths, deathPenalty)
+        self:SetUIBosses(liveSummary.bosses, traceSummary.bosses)
+        self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
+    end
+
+    ---@param liveLevel number
+    ---@param liveAffixes number[]
+    ---@param traceLevel number
+    ---@param traceAffixes number[]
+    function TracesFrameMixin:SetUITitle(liveLevel, liveAffixes, traceLevel, traceAffixes)
+        local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
+        local traceAffix = util:TableContains(traceAffixes, 9) and 9 or 10
+        self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
+        self.TextBlock.TitleR:SetFormattedText("+%d %s", traceLevel, ns.KEYSTONE_AFFIX_TEXTURE[traceAffix])
+    end
+
+    ---@param liveTimer number
+    ---@param traceTimer number
+    ---@param totalTimer number
+    function TracesFrameMixin:SetUITimer(liveTimer, traceTimer, totalTimer)
+        self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(liveTimer - traceTimer), SecondsToClock(liveTimer))
+        self.TextBlock.TimerR:SetText(SecondsToClock(totalTimer))
+    end
+
+    ---@param liveDeaths number
+    ---@param traceDeaths number
+    function TracesFrameMixin:SetUIDeaths(liveDeaths, traceDeaths)
+        local totalDeaths = max(liveDeaths, traceDeaths)
+        self.TextBlock.DeathL:SetFormattedText("|cff%s%d/%d|r", AheadColor(liveDeaths - traceDeaths), liveDeaths, totalDeaths)
+        self.TextBlock.DeathR:SetFormattedText("%d/%d", traceDeaths, totalDeaths)
+    end
+
+    ---@param liveTrash number
+    ---@param traceTrash number
+    function TracesFrameMixin:SetUITrash(liveTrash, traceTrash, totalTrash)
+        self.TextBlock.TrashL:SetFormattedText("|cff%s%.1f%%|r", AheadColor(traceTrash - liveTrash), liveTrash / totalTrash * 100)
+        self.TextBlock.TrashR:SetFormattedText("%.1f%%", traceTrash / totalTrash * 100)
+    end
+
+    ---@param liveDeaths number
+    ---@param traceDeaths number
+    ---@param deathPenalty number
+    function TracesFrameMixin:SetUIDeathPenalty(liveDeaths, traceDeaths, deathPenalty)
+        self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(liveDeaths - traceDeaths), liveDeaths, liveDeaths * deathPenalty)
+        self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", traceDeaths, traceDeaths * deathPenalty)
+    end
+
+    ---@param liveBosses TraceBoss[]
+    ---@param traceBosses TraceBoss[]
+    function TracesFrameMixin:SetUIBosses(liveBosses, traceBosses)
+        local pool = self.BossFramePool
+        pool:ReleaseAll()
+        local count = max(#liveBosses, #traceBosses)
+        for i = 1, count do
+            local liveBoss = liveBosses[i]
+            local traceBoss = traceBosses[i]
+            local bossID = (liveBoss and liveBoss.id) or (traceBoss and traceBoss.id)
+            if bossID then
+                local bossFrame = pool:Acquire()
+                bossFrame:Setup(i, bossID)
+                bossFrame:Update(liveBoss, traceBoss)
+            end
+        end
+        self.bossesHeight = pool:UpdateLayout()
+    end
+
+    local function CreateTracesDataProvider()
+        local dataProvider = {} ---@class TracesDataProvider
+        Mixin(dataProvider, TracesDataProviderMixin)
+        dataProvider:OnLoad()
+        return dataProvider
+    end
+
+    local function CreateLiveDataProvider()
+        local liveDataProvider = CreateTracesDataProvider() ---@class LiveDataProvider
+        Mixin(liveDataProvider, LiveDataProviderMixin)
+        liveDataProvider:OnLoad()
+        return liveDataProvider
+    end
+
+    local function CreateTracesFrame()
+        local frame = CreateFrame("Frame", addonName .. "_TracesFrame", UIParent) ---@class TracesFrame
+        Mixin(frame, TracesFrameMixin)
+        frame:OnLoad()
         return frame
     end
 
-    local UpdateEvents = {
-        "PLAYER_ENTERING_WORLD",
-        "WORLD_STATE_TIMER_START",
-        "WORLD_STATE_TIMER_STOP",
-    }
-
     ---@param timerID number
     ---@return number? elapsedTime
-    local function GetChallengeTimer(timerID)
+    local function GetWorldElapsedTimerForKeystone(timerID)
         ---@type number, number, number
-        local _, elapsedTime, type = GetWorldElapsedTime(timerID)
-        if type ~= LE_WORLD_ELAPSED_TIMER_TYPE_CHALLENGE_MODE then
+        local _, elapsedTime, timerType = GetWorldElapsedTime(timerID)
+        if timerType ~= LE_WORLD_ELAPSED_TIMER_TYPE_CHALLENGE_MODE then
             return
         end
         return elapsedTime
     end
 
-    ---@param items TraceLog[]
-    ---@param elapsedTimeMS number
-    ---@return number index, TraceLog? item
-    local function GetTraceLogItemForTimer(items, elapsedTimeMS)
-        local first = items[1]
-        if first.timer > elapsedTimeMS then
-            return 0, nil
-        end
-        for index, current in ipairs(items) do
-            if current.timer > elapsedTimeMS then
-                index = index - 1
-                if index < 1 then index = 1 end
-                return index, current
+    ---@param stopTimer? boolean
+    ---@param stopTimerID? number
+    ---@return number? timerID, number? elapsedTime, boolean? isActive
+    local function GetKeystoneTimer(stopTimer, stopTimerID)
+        local timerIDs = {GetWorldElapsedTimers()} ---@type number[]
+        local found = false
+        for _, timerID in ipairs(timerIDs) do
+            local elapsedTime = GetWorldElapsedTimerForKeystone(timerID)
+            if elapsedTime then
+                return timerID, elapsedTime, not stopTimer or stopTimerID ~= timerID
             end
         end
-        local count = #items
-        return count, items[count]
     end
 
-    ---@param data LibGraphDataXY[]
-    ---@param items TraceLog[]
-    local function PopulateGraphData(data, items)
-        local trash = 0
-        local index = 0
-        local timer
-        for _, item in ipairs(items) do
-            if item.trash or (not timer) or (item.timer - timer > 10 * 1000) then
-                if item.trash then
-                    trash = trash + item.trash
-                end
-                index = index + 1
-                data[index] = { floor(item.timer/1000), trash }
-            end
-            timer = item.timer
-        end
-        data[index + 1] = nil
-    end
-
-    local function PopulateFrameData()
-        local trace = frame.trace
-        local traceSummary = frame.traceSummary
-        local bossPool = frame.BossFramePool
-        frame.TextTL:SetFormattedText("%s +%d", ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup", 16), trace.mythic_level)
-        frame.TextTR:SetText(util:TableMapConcat(trace.affixIcons, function(o) return format("|TInterface\\Icons\\%s:16:16|t", o) end, ""))
-        bossPool:ReleaseAll()
-        for index, bossID in ipairs(trace.bosses) do
-            local bossFrame = bossPool:Acquire()
-            bossFrame:Setup(index, bossID)
-        end
-        local bossesHeight = BossFramesUpdateLayout()
-        frame.bossesHeight = bossesHeight
-    end
-
-    ---@param trace? Trace
-    local function UpdateFrameState(trace)
-        frame.elapsed = 0
-        frame.trace = trace
-        frame.Graph:ResetData()
-        wipe(frame.Graph.liveData)
-        wipe(frame.Graph.traceData)
-        if not trace then
+    ---@return number? mapID, number? timeLimit
+    local function GetKeystoneInfo()
+        local mapID = C_ChallengeMode.GetActiveChallengeMapID()
+        if not mapID then
             return
         end
-        local elapsedTimeMS = frame.elapsedTime * 1000
-        local logs = trace.logs
-        local traceIndex, traceItem = GetTraceLogItemForTimer(logs, elapsedTimeMS)
-        ---@type TraceSummary
-        local traceSummary = {
-            timer = 0,
-            deaths = 0,
-            bosses = {},
-            trash = 0,
-        }
-        for i = 1, #trace.bosses do
-            traceSummary.bosses[i] = { dead = false }
-        end
-        for i = 1, #logs do
-            local item = logs[i]
-            if item.kills then
-                for k, v in ipairs(item.kills) do
-                    if type(v) == "table" then v = v[2] end -- DEBUG: HOTFIX: unpack the table wrapper
-                    local boss = v and traceSummary.bosses[k]
-                    if boss and not boss.killed then
-                        boss.killed = item.timer
-                        boss.killedText = util:SecondsToTimeText(boss.killed / 1000)
-                    end
-                end
-            end
-        end
-        frame.traceIndex = traceIndex
-        frame.traceItem = traceItem
-        frame.traceSummary = traceSummary
-        frame.graphHeight = frame.Graph:GetHeight() + frame.contentPaddingY
-        PopulateGraphData(frame.Graph.traceData, logs)
-        frame.Graph:AddDataSeries(frame.Graph.liveData, { 0, 1, 0, 1 })
-        frame.Graph:AddDataSeries(frame.Graph.traceData, { 0.5, 1, 0.5, 0.5 })
-        ReplayTraceUntil(traceSummary, logs, traceIndex)
-        PopulateFrameData()
+        local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapID)
+        return mapID, timeLimit
     end
 
-    local function UpdateState(event, ...)
-        local timerIDs = {GetWorldElapsedTimers()} ---@type number[]
-        local found ---@type boolean?
-        for _, timerID in ipairs(timerIDs) do
-            local elapsedTime = GetChallengeTimer(timerID)
-            if elapsedTime then
-                found = true
-                frame.timerID = timerID
-                frame.timerRunning = true
-                frame.elapsedTime = elapsedTime
-                break
+    ---@param mapID number
+    local function GetTraceForMapID(mapID)
+        for _, trace in ipairs(traceItems) do
+            if trace.dungeon.keystone_instance == mapID then
+                return trace
             end
         end
-        if event == "WORLD_STATE_TIMER_STOP" then
-            local timerID = ... ---@type number
-            if timerID == frame.timerID then
-                found = false
-                frame.timerRunning = false
-            end
+        return traceItems[1] -- DEBUG: first available
+    end
+
+    local function OnEvent(event, ...)
+        local timerID, elapsedTime, isActive = GetKeystoneTimer(event == "WORLD_STATE_TIMER_STOP", ...)
+        local mapID, timeLimit = GetKeystoneInfo()
+        local traceDataProvider = frame:GetTraceDataProvider()
+        local trace = traceDataProvider:GetTrace()
+        if mapID then
+            trace = GetTraceForMapID(mapID)
         end
-        -- found, frame.timerID, frame.timerRunning, frame.elapsedTime = true, 1, true, 0 -- 2160 - 60*4+20 -- DEBUG: fake running timer
-        if found == nil then
-            frame.timerID, frame.timerRunning = nil, nil
-        else
-            local mapID = C_ChallengeMode.GetActiveChallengeMapID()
-            local _, timeLimit
-            if mapID then
-                _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapID)
-            end
-            -- mapID, timeLimit = 369, 2160 -- DEBUG: Mechagon Junkyard
-            frame.mapID = mapID
-            frame.timeLimit = timeLimit
-        end
-        -- DEBUG: select first available trace in the database
-        if frame.timerID and traceItems then
-            UpdateFrameState()
-            for _, trace in ipairs(traceItems) do
-                if trace.dungeon.keystone_instance == frame.mapID then
-                    UpdateFrameState(trace)
-                    break
-                end
-            end
-            -- if not frame.trace then for _, trace in ipairs(traceItems) do UpdateFrameState(trace) break end end -- DEBUG: first available trace for any map
-        end
-        frame:SetShown(not not (frame.timerID and frame.trace))
+        traceDataProvider:SetTrace(trace)
+        frame:SetTimer(timerID, elapsedTime, isActive)
+        frame:SetKeystone(mapID, timeLimit)
+        frame:UpdateShown()
     end
 
     function traces:CanLoad()
-        return LibGraph and not frame and config:IsEnabled() and ns:GetTraces()
+        return config:IsEnabled() and ns:GetTraces()
     end
 
     function traces:OnLoad()
         traceItems = ns:GetTraces()
         frame = CreateTracesFrame()
+        frame:SetTraceDataProvider(CreateTracesDataProvider())
+        frame:SetLiveDataProvider(CreateLiveDataProvider())
         self:Enable()
     end
 
     function traces:OnEnable()
-        UpdateState()
-        callback:RegisterEvent(UpdateState, unpack(UpdateEvents))
+        OnEvent()
+        callback:RegisterEvent(OnEvent, unpack(UPDATE_EVENTS))
     end
 
     function traces:OnDisable()
-        UpdateState()
-        callback:UnregisterEvent(UpdateState, unpack(UpdateEvents))
+        OnEvent()
+        callback:UnregisterEvent(OnEvent, unpack(UPDATE_EVENTS))
     end
 
 end

@@ -7177,15 +7177,13 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
     local util = ns:GetModule("Util") ---@type UtilModule
 
-    local ICON_TIMER = "|T661573:12:12:0:0:128:128:11:123:11:121|t"
-    local ICON_DEATH = "|A:common-icon-redx:12:12|a"
-    local ICON_TRASH = "|A:common-icon-checkmark-yellow:12:12|a"
-
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
 
     local UPDATE_EVENTS = {
         "PLAYER_ENTERING_WORLD",
+        "SCENARIO_CRITERIA_UPDATE",
+        "CHALLENGE_MODE_START",
         "WORLD_STATE_TIMER_START",
         "WORLD_STATE_TIMER_STOP",
     }
@@ -7198,18 +7196,6 @@ do
         local color = isNeutral and "FFFF55" or (ahead and "55FF55" or "FF5555")
         local text = util:SecondsToTimeText(ahead and delta or -delta)
         return format("|cff%s%s%s|r", color, prefix, text)
-    end
-
-    ---@param delta number
-    local function AmountDiffToText(delta)
-        if delta == 0 then
-            return ""
-        end
-        local ahead = delta >= 0
-        local prefix = ahead and (delta == 0 and "~" or "+") or "-"
-        local color = ahead and "55FF55" or "FF5555"
-        local text = ahead and delta or -delta
-        return format("|cff%s%s%d|r", color, prefix, text)
     end
 
     ---@param delta number
@@ -7284,10 +7270,13 @@ do
             pending = false
             delta = floor((traceBoss.killed - liveBoss.killed) / 1000)
             text = liveBoss.killedText
-        else
+        elseif frame.elapsedKeystoneTimer then
             pending = true
             delta = floor((traceBoss.killed - frame.elapsedKeystoneTimer * 1000) / 1000)
             text = traceBoss.killedText
+        end
+        if not text then
+            return
         end
         self.Info:SetFormattedText("%s\n%s", text, SecondsDiffToTimeText(delta, pending))
     end
@@ -7695,11 +7684,14 @@ do
     end
 
     function TracesFrameMixin:Update()
-        local traceDataProvider = self:GetTraceDataProvider()
-        local trace = traceDataProvider:GetTrace()
         local isRunning = self.isActive and self.isPlaying
         if isRunning then
             self.elapsedKeystoneTimer = self.elapsedTimer + self.elapsedTime
+        end
+        local traceDataProvider = self:GetTraceDataProvider()
+        local trace = traceDataProvider:GetTrace()
+        if not trace then
+            return
         end
         local liveDataProvider = self:GetLiveDataProvider()
         local liveSummary = liveDataProvider:GetSummary()
@@ -7839,7 +7831,7 @@ do
                 return trace
             end
         end
-        return traceItems[1] -- DEBUG: first available
+        -- return traceItems[1] -- DEBUG: test using whatever is available
     end
 
     local function OnEvent(event, ...)

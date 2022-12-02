@@ -712,23 +712,23 @@ do
 
     ---@class Module
     -- private properties for internal use only
-    ---@field private id string @Required and unique string to identify the module.
-    ---@field private index number @Automatically assigned a number based on the creation order.
-    ---@field private loaded boolean @Flag indicates if the module is loaded.
-    ---@field private enabled boolean @Flag indicates if the module is enabled.
-    ---@field private dependencies string[] @List over dependencies before we can Load the module.
+    ---@field public id string @Required and unique string to identify the module.
+    ---@field public index number @Automatically assigned a number based on the creation order.
+    ---@field public loaded boolean @Flag indicates if the module is loaded.
+    ---@field public enabled boolean @Flag indicates if the module is enabled.
+    ---@field public dependencies string[] @List over dependencies before we can Load the module.
     -- private functions that should never be called
-    ---@field private SetLoaded function @Internal function should not be called manually.
-    ---@field private Load function @Internal function should not be called manually.
-    ---@field private SetEnabled function @Internal function should not be called manually.
+    ---@field public SetLoaded function @Internal function should not be called manually.
+    ---@field public Load function @Internal function should not be called manually.
+    ---@field public SetEnabled function @Internal function should not be called manually.
     -- protected functions that can be called but should never be overridden
-    ---@field protected IsLoaded function @Internal function, can be called but do not override.
-    ---@field protected IsEnabled function @Internal function, can be called but do not override.
-    ---@field protected Enable function @Internal function, can be called but do not override.
-    ---@field protected Disable function @Internal function, can be called but do not override.
-    ---@field protected SetDependencies function @Internal function, can be called but do not override.
-    ---@field protected HasDependencies function @Internal function, can be called but do not override.
-    ---@field protected GetDependencies function @Internal function, can be called but do not override. Returns a table using the same order as the dependencies table. Returns the modules or nil depending if they are available or not.
+    ---@field public IsLoaded function @Internal function, can be called but do not override.
+    ---@field public IsEnabled function @Internal function, can be called but do not override.
+    ---@field public Enable function @Internal function, can be called but do not override.
+    ---@field public Disable function @Internal function, can be called but do not override.
+    ---@field public SetDependencies function @Internal function, can be called but do not override.
+    ---@field public HasDependencies function @Internal function, can be called but do not override.
+    ---@field public GetDependencies function @Internal function, can be called but do not override. Returns a table using the same order as the dependencies table. Returns the modules or nil depending if they are available or not.
     -- public functions that can be overridden
     ---@field public CanLoad function @If it returns true the module will be loaded, otherwise postponed for later. Override to define your modules load criteria that have to be met before loading.
     ---@field public OnLoad function @Once the module loads this function is executed. Use this to setup further logic for your module. The args provided are the module references as described in the dependencies table.
@@ -1662,7 +1662,7 @@ do
             temp.dungeon = util:GetDungeonByLFDActivityID(activityInfo.activityID) or util:GetRaidByLFDActivityID(activityInfo.activityID)
             temp.hosting = true
         end
-        local applications = C_LFGList.GetApplications()
+        local applications = C_LFGList.GetApplications() ---@type number[]
         for _, resultID in ipairs(applications) do
             local searchResultInfo = C_LFGList.GetSearchResultInfo(resultID)
             if searchResultInfo and searchResultInfo.activityID and not searchResultInfo.isDelisted then
@@ -3923,7 +3923,7 @@ do
                             weekDungeonTimes[dungeonIndex] = fractionalTime
                             -- if runNumUpgrades > 0 and (runMapScore > maxDungeonScore or (runMapScore == maxDungeonScore and fractionalTime < maxDungeonTime)) then
                             if runNumUpgrades > 0 and (runBestRunLevel > maxDungeonLevel or (runBestRunLevel == maxDungeonLevel and runTimerAsFraction < maxDungeonRunTimer)) then
-                                maxDungeonIndex = dungeonIndex
+                                maxDungeonIndex = dungeonIndex ---@type number
                                 -- maxDungeonTime = fractionalTime
                                 -- maxDungeonScore = runMapScore
                                 maxDungeonLevel = runBestRunLevel
@@ -4601,7 +4601,7 @@ do
         end
         CACHED_FATED_RAIDS_MAP = util:GetFatedRaids(true)
         cache = CACHED_FATED_RAIDS_MAP
-        if not next(cache) then
+        if not next(cache) then ---@diagnostic disable-line: param-type-mismatch
             return
         end
         return cache
@@ -7355,7 +7355,7 @@ do
         self.traceSummary = self:CreateSummary()
     end
 
-    ---@param trace Trace
+    ---@param trace? Trace
     function TracesDataProviderMixin:SetTrace(trace)
         if self.trace == trace then
             return
@@ -7393,6 +7393,9 @@ do
         traceSummary.trash = 0
         table.wipe(traceSummary.bosses)
         local trace = self:GetTrace()
+        if not trace then
+            return
+        end
         traceSummary.level = trace.mythic_level
         traceSummary.affixes = trace.affixes
         for index, bossID in ipairs(trace.bosses) do
@@ -7427,7 +7430,7 @@ do
     ---@return TraceSummary traceSummary, TraceLog currentTraceLog, TraceLog? nextTraceLog
     function TracesDataProviderMixin:GetTraceSummaryAt(timerMS)
         local traceSummary = self:GetSummary()
-        local trace = self:GetTrace()
+        local trace = self:GetTrace() ---@type Trace
         local traceLogs = trace.logs
         for i = traceSummary.index + 1, #traceLogs do
             local traceLog = traceLogs[i]
@@ -7556,7 +7559,7 @@ do
         self.TextBlock.Background:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", 0, 0)
         self.TextBlock.Background:SetPoint("BOTTOMRIGHT", self.TextBlock, "BOTTOMRIGHT", 0, 0)
         self.TextBlock.Background:SetColorTexture(0, 0, 0, 0.5)
-        ---@param previous Region
+        ---@param previous? Region
         ---@return FontString Left, FontString Middle, FontString Right
         local function CreateTextRow(previous)
             local equalWidth = self.textColumnWidth
@@ -7596,29 +7599,29 @@ do
         self.TextBlock.DeathPenM:SetText(ns.CUSTOM_ICONS.trace.PENALTY("TextureMarkup"))
     end
 
-    ---@param traceDataProvider? TracesDataProvider
+    ---@param traceDataProvider TracesDataProvider
     function TracesFrameMixin:SetTraceDataProvider(traceDataProvider)
         self.traceDataProvider = traceDataProvider
     end
 
-    ---@return TracesDataProvider? traceDataProvider
+    ---@return TracesDataProvider traceDataProvider
     function TracesFrameMixin:GetTraceDataProvider()
         return self.traceDataProvider
     end
 
-    ---@param liveDataProvider? LiveDataProvider
+    ---@param liveDataProvider LiveDataProvider
     function TracesFrameMixin:SetLiveDataProvider(liveDataProvider)
         self.liveDataProvider = liveDataProvider
     end
 
-    ---@return LiveDataProvider? liveDataProvider
+    ---@return LiveDataProvider liveDataProvider
     function TracesFrameMixin:GetLiveDataProvider()
         return self.liveDataProvider
     end
 
     ---@param timerID? number
-    ---@param elapsedTime number
-    ---@param isActive boolean
+    ---@param elapsedTime? number
+    ---@param isActive? boolean
     function TracesFrameMixin:SetTimer(timerID, elapsedTime, isActive)
         if not timerID then
             self:Stop()
@@ -7640,7 +7643,7 @@ do
     end
 
     ---@param mapID? number
-    ---@param timeLimit number
+    ---@param timeLimit? number
     function TracesFrameMixin:SetKeystone(mapID, timeLimit)
         if not mapID then
             self:Stop()
@@ -7825,7 +7828,11 @@ do
     end
 
     ---@param mapID number
+    ---@return Trace? trace
     local function GetTraceForMapID(mapID)
+        if not traceItems then
+            return
+        end
         for _, trace in ipairs(traceItems) do
             if trace.dungeon.keystone_instance == mapID then
                 return trace
@@ -8067,7 +8074,7 @@ do
         f.texRight:SetSize(32, 32)
         f.texRight:SetPoint("RIGHT", 16, 0)
         f.texMid = f:CreateTexture(nil, "BACKGROUND")
-        f.texMid:SetTexture("Interface\\ChatFrame\\UI-ChatInputBorder-Mid2", true)
+        f.texMid:SetTexture("Interface\\ChatFrame\\UI-ChatInputBorder-Mid2", "REPEAT")
         f.texMid:SetSize(0, 32)
         f.texMid:SetPoint("TOPLEFT", f.texLeft, "TOPRIGHT", 0, 0)
         f.texMid:SetPoint("TOPRIGHT", f.texRight, "TOPLEFT", 0, 0)
@@ -8081,7 +8088,7 @@ do
         f.texFocusRight:SetSize(32, 32)
         f.texFocusRight:SetPoint("RIGHT", 16, 0)
         f.texFocusMid = f:CreateTexture(nil, "BORDER")
-        f.texFocusMid:SetTexture("Interface\\ChatFrame\\UI-ChatInputBorderFocus-Mid", true)
+        f.texFocusMid:SetTexture("Interface\\ChatFrame\\UI-ChatInputBorderFocus-Mid", "REPEAT")
         f.texFocusMid:SetSize(0, 32)
         f.texFocusMid:SetPoint("TOPLEFT", f.texFocusLeft, "TOPRIGHT", 0, 0)
         f.texFocusMid:SetPoint("TOPRIGHT", f.texFocusRight, "TOPLEFT", 0, 0)
@@ -8913,6 +8920,7 @@ do
             end
         end)
         LOOT_FRAME.MiniFrame:StartScanning()
+        ---@type RwfTicker
         guildNewsTicker = C_Timer.NewTicker(SCAN_INTERVAL_BETWEEN_CYCLES, function()
             if not coroutine.resume(co) then
                 if guildNewsTicker then
@@ -10665,9 +10673,9 @@ do
     ---@field public name string @The character name.
     ---@field public success boolean @Set `true` if the profile exists and contains data, otherwise `false` to ensure it is empty or missing.
     ---@field public exists boolean @Set `true` if the test expects the profile to exist, otherwise `false` to ensure it doesn't exist
-    ---@field private profile DataProviderCharacterProfile @Set internally once the test runs and the profile is attempted retrieved.
-    ---@field private status boolean @Set internally to `true` if the test passed, otherwise `false` if something went wrong.
-    ---@field private explanation string @Set internally to describe what went wrong, or what went right depending on the test.
+    ---@field public profile DataProviderCharacterProfile @Set internally once the test runs and the profile is attempted retrieved.
+    ---@field public status boolean @Set internally to `true` if the test passed, otherwise `false` if something went wrong.
+    ---@field public explanation string @Set internally to describe what went wrong, or what went right depending on the test.
 
     ---@param guid1 any
     ---@param guid2 any

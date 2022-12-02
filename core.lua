@@ -7798,8 +7798,8 @@ do
         local liveSummary = liveDataProvider:GetSummary()
         local deathPenalty = liveDataProvider:GetDeathPenalty()
         local elapsedKeystoneTimer = liveSummary.timer
-        local traceSummary = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
-        self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(traceSummary.timer / 1000), ceil(trace.time / 1000))
+        local traceSummary, _, nextTraceLog = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
+        self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(traceSummary.timer / 1000), ceil(trace.time / 1000), not nextTraceLog)
         self:SetUIDeaths(liveSummary.deaths, traceSummary.deaths)
         self:SetUITrash(liveSummary.trash, traceSummary.trash, trace.trash)
         self:SetUIDeathPenalty(liveSummary.deaths, traceSummary.deaths, deathPenalty)
@@ -7820,8 +7820,10 @@ do
     ---@param liveTimer number
     ---@param traceTimer number
     ---@param totalTimer number
-    function TracesFrameMixin:SetUITimer(liveTimer, traceTimer, totalTimer)
-        self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(traceTimer - liveTimer - 1), SecondsToClock(liveTimer))
+    ---@param traceIsCompleted boolean
+    function TracesFrameMixin:SetUITimer(liveTimer, traceTimer, totalTimer, traceIsCompleted)
+        local delta = traceIsCompleted and 1 or (traceTimer - liveTimer - 1)
+        self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta), SecondsToClock(liveTimer))
         self.TextBlock.TimerR:SetText(SecondsToClock(totalTimer))
     end
 

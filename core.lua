@@ -7277,14 +7277,17 @@ do
     local function SecondsDiffToTimeText(delta, isNeutral)
         local ahead = delta >= 0
         local prefix = isNeutral and "" or (ahead and (delta == 0 and "~" or "+") or "-")
-        local color = isNeutral and "FFFF55" or (ahead and "55FF55" or "FF5555")
+        local color = ahead and "55FF55" or "FF5555"
         local text = util:SecondsToTimeText(ahead and delta or -delta)
         return format("|cff%s%s%s|r", color, prefix, text)
     end
 
     ---@param delta number
     local function AheadColor(delta)
-        return delta < 0 and "55FF55" or "FF5555"
+        if delta == 0 then
+            return "FFFF55"
+        end
+        return delta <= 0 and "55FF55" or "FF5555"
     end
 
     ---@class TraceBoss
@@ -7424,10 +7427,10 @@ do
         return bossesHeight
     end
 
-    ---@param frame TracesFrame
+    ---@param parent TracesFrame
     ---@return BossFramePool
-    local function CreateBossFramePool(frame)
-        local bossFramePool = CreateFramePool("Frame", frame, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@class BossFramePool
+    local function CreateBossFramePool(parent)
+        local bossFramePool = CreateFramePool("Frame", parent, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@class BossFramePool
         Mixin(bossFramePool, BossFramePoolMixin)
         return bossFramePool
     end
@@ -7759,7 +7762,18 @@ do
     end
 
     function TracesFrameMixin:UpdateShown()
-        self:SetShown(self.timerID and self.mapID and self.isPlaying)
+        local shown = self.timerID and self.mapID and self.isPlaying
+        if shown then
+            local traceDataProvider = self:GetTraceDataProvider()
+            local liveDataProvider = self:GetLiveDataProvider()
+            local liveSummary = liveDataProvider:GetSummary()
+            local elapsedKeystoneTimer = liveSummary.timer
+            local traceSummary = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
+            self:SetUITitle(liveSummary.level, liveSummary.affixes, traceSummary.level, traceSummary.affixes)
+            self:SetUIBosses(liveSummary.bosses, traceSummary.bosses)
+            self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
+        end
+        self:SetShown(shown)
     end
 
     function TracesFrameMixin:OnUpdate(elapsed)
@@ -7784,14 +7798,12 @@ do
         local liveSummary = liveDataProvider:GetSummary()
         local deathPenalty = liveDataProvider:GetDeathPenalty()
         local elapsedKeystoneTimer = liveSummary.timer
-        local traceSummary, currentTraceLog, nextTraceLog = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
-        self:SetUITitle(liveSummary.level, liveSummary.affixes, traceSummary.level, traceSummary.affixes)
+        local traceSummary = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
         self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(traceSummary.timer / 1000), ceil(trace.time / 1000))
         self:SetUIDeaths(liveSummary.deaths, traceSummary.deaths)
         self:SetUITrash(liveSummary.trash, traceSummary.trash, trace.trash)
         self:SetUIDeathPenalty(liveSummary.deaths, traceSummary.deaths, deathPenalty)
-        self:SetUIBosses(liveSummary.bosses, traceSummary.bosses)
-        self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
+        self:UpdateUIBosses(liveSummary.bosses, traceSummary.bosses)
     end
 
     ---@param liveLevel number
@@ -7809,7 +7821,7 @@ do
     ---@param traceTimer number
     ---@param totalTimer number
     function TracesFrameMixin:SetUITimer(liveTimer, traceTimer, totalTimer)
-        self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(liveTimer - traceTimer), SecondsToClock(liveTimer))
+        self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(traceTimer - liveTimer - 1), SecondsToClock(liveTimer))
         self.TextBlock.TimerR:SetText(SecondsToClock(totalTimer))
     end
 
@@ -7855,6 +7867,21 @@ do
         self.bossesHeight = pool:UpdateLayout()
     end
 
+    ---@param liveBosses TraceBoss[]
+    ---@param traceBosses TraceBoss[]
+    function TracesFrameMixin:UpdateUIBosses(liveBosses, traceBosses)
+        local pool = self.BossFramePool
+        for bossFrame in pool:EnumerateActive() do
+            local i = bossFrame.index
+            local liveBoss = liveBosses[i]
+            local traceBoss = traceBosses[i]
+            local bossID = (liveBoss and liveBoss.id) or (traceBoss and traceBoss.id)
+            if bossID and bossID == bossFrame.bossID then
+                bossFrame:Update(liveBoss, traceBoss)
+            end
+        end
+    end
+
     local function CreateTracesDataProvider()
         local dataProvider = {} ---@class TracesDataProvider
         Mixin(dataProvider, TracesDataProviderMixin)
@@ -7892,12 +7919,14 @@ do
     ---@return number? timerID, number? elapsedTime, boolean? isActive
     local function GetKeystoneTimer(stopTimer, stopTimerID)
         local timerIDs = {GetWorldElapsedTimers()} ---@type number[]
-        local found = false
         for _, timerID in ipairs(timerIDs) do
             local elapsedTime = GetWorldElapsedTimerForKeystone(timerID)
             if elapsedTime then
                 return timerID, elapsedTime, not stopTimer or stopTimerID ~= timerID
             end
+        end
+        if config:Get("debugMode") then
+            return 1, 0, true -- fake timer
         end
     end
 
@@ -7905,6 +7934,9 @@ do
     local function GetKeystoneInfo()
         local mapID = C_ChallengeMode.GetActiveChallengeMapID()
         if not mapID then
+            if config:Get("debugMode") then
+                return 2521, 1800 -- Ruby Life Pools
+            end
             return
         end
         local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapID)
@@ -7922,7 +7954,9 @@ do
                 return trace
             end
         end
-        -- return traceItems[1] -- DEBUG: test using whatever is available
+        if config:Get("debugMode") then
+            return traceItems[1] -- first available trace
+        end
     end
 
     local function OnEvent(event, ...)

@@ -2137,7 +2137,7 @@ do
         local temp = {}
         for k, v in pairs(tbl) do
             temp[k] = func(v, k, tbl, temp)
-end
+        end
         return temp
     end
 
@@ -4025,7 +4025,7 @@ do
                             weekDungeonTimes[dungeonIndex] = fractionalTime
                             -- if runNumUpgrades > 0 and (runMapScore > maxDungeonScore or (runMapScore == maxDungeonScore and fractionalTime < maxDungeonTime)) then
                             if runNumUpgrades > 0 and (runBestRunLevel > maxDungeonLevel or (runBestRunLevel == maxDungeonLevel and runTimerAsFraction < maxDungeonRunTimer)) then
-                                maxDungeonIndex = dungeonIndex
+                                maxDungeonIndex = dungeonIndex ---@type number
                                 -- maxDungeonTime = fractionalTime
                                 -- maxDungeonScore = runMapScore
                                 maxDungeonLevel = runBestRunLevel
@@ -4707,7 +4707,7 @@ do
         end
         CACHED_FATED_RAIDS_MAP = util:GetFatedRaids(true)
         cache = CACHED_FATED_RAIDS_MAP
-        if not next(cache) then
+        if not next(cache) then ---@diagnostic disable-line: param-type-mismatch
             return
         end
         return cache
@@ -7439,7 +7439,7 @@ do
         self.traceSummary = self:CreateSummary()
     end
 
-    ---@param trace Trace
+    ---@param trace? Trace
     function TracesDataProviderMixin:SetTrace(trace)
         if self.trace == trace then
             return
@@ -7477,6 +7477,9 @@ do
         traceSummary.trash = 0
         table.wipe(traceSummary.bosses)
         local trace = self:GetTrace()
+        if not trace then
+            return
+        end
         traceSummary.level = trace.mythic_level
         traceSummary.affixes = trace.affixes
         for index, bossID in ipairs(trace.bosses) do
@@ -7511,7 +7514,7 @@ do
     ---@return TraceSummary traceSummary, TraceLog currentTraceLog, TraceLog? nextTraceLog
     function TracesDataProviderMixin:GetTraceSummaryAt(timerMS)
         local traceSummary = self:GetSummary()
-        local trace = self:GetTrace()
+        local trace = self:GetTrace() ---@type Trace
         local traceLogs = trace.logs
         for i = traceSummary.index + 1, #traceLogs do
             local traceLog = traceLogs[i]
@@ -7640,7 +7643,7 @@ do
         self.TextBlock.Background:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", 0, 0)
         self.TextBlock.Background:SetPoint("BOTTOMRIGHT", self.TextBlock, "BOTTOMRIGHT", 0, 0)
         self.TextBlock.Background:SetColorTexture(0, 0, 0, 0.5)
-        ---@param previous Region
+        ---@param previous? Region
         ---@return FontString Left, FontString Middle, FontString Right
         local function CreateTextRow(previous)
             local equalWidth = self.textColumnWidth
@@ -7680,29 +7683,29 @@ do
         self.TextBlock.DeathPenM:SetText(ns.CUSTOM_ICONS.trace.PENALTY("TextureMarkup"))
     end
 
-    ---@param traceDataProvider? TracesDataProvider
+    ---@param traceDataProvider TracesDataProvider
     function TracesFrameMixin:SetTraceDataProvider(traceDataProvider)
         self.traceDataProvider = traceDataProvider
     end
 
-    ---@return TracesDataProvider? traceDataProvider
+    ---@return TracesDataProvider traceDataProvider
     function TracesFrameMixin:GetTraceDataProvider()
         return self.traceDataProvider
     end
 
-    ---@param liveDataProvider? LiveDataProvider
+    ---@param liveDataProvider LiveDataProvider
     function TracesFrameMixin:SetLiveDataProvider(liveDataProvider)
         self.liveDataProvider = liveDataProvider
     end
 
-    ---@return LiveDataProvider? liveDataProvider
+    ---@return LiveDataProvider liveDataProvider
     function TracesFrameMixin:GetLiveDataProvider()
         return self.liveDataProvider
     end
 
     ---@param timerID? number
-    ---@param elapsedTime number
-    ---@param isActive boolean
+    ---@param elapsedTime? number
+    ---@param isActive? boolean
     function TracesFrameMixin:SetTimer(timerID, elapsedTime, isActive)
         if not timerID then
             self:Stop()
@@ -7724,7 +7727,7 @@ do
     end
 
     ---@param mapID? number
-    ---@param timeLimit number
+    ---@param timeLimit? number
     function TracesFrameMixin:SetKeystone(mapID, timeLimit)
         if not mapID then
             self:Stop()
@@ -7909,7 +7912,11 @@ do
     end
 
     ---@param mapID number
+    ---@return Trace? trace
     local function GetTraceForMapID(mapID)
+        if not traceItems then
+            return
+        end
         for _, trace in ipairs(traceItems) do
             if trace.dungeon.keystone_instance == mapID then
                 return trace

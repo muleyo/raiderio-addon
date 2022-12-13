@@ -27,7 +27,7 @@ ns.dungeons = {
         ["lfd_activity_ids"] = { 427, 437, 447, 461 },
         ["timers"] = { 1368, 1824, 2280 },
         ["name"] = "Halls of Valor",
-        ["shortName"] = "HV",
+        ["shortName"] = "HOV",
     },
     [4] = {
         ["id"] = 8079,
@@ -36,7 +36,7 @@ ns.dungeons = {
         ["lfd_activity_ids"] = { 433, 443, 453, 466 },
         ["timers"] = { 1080, 1440, 1800 },
         ["name"] = "Court of Stars",
-        ["shortName"] = "CS",
+        ["shortName"] = "COS",
     },
     [5] = {
         ["id"] = 14063,
@@ -54,7 +54,7 @@ ns.dungeons = {
         ["lfd_activity_ids"] = { 1181, 1182, 1183, 1184 },
         ["timers"] = { 1440, 1920, 2400 },
         ["name"] = "The Nokhud Offensive",
-        ["shortName"] = "TNO",
+        ["shortName"] = "NO",
     },
     [7] = {
         ["id"] = 13954,
@@ -63,7 +63,7 @@ ns.dungeons = {
         ["lfd_activity_ids"] = { 1177, 1178, 1179, 1180 },
         ["timers"] = { 1224, 1632, 2040 },
         ["name"] = "The Azure Vault",
-        ["shortName"] = "TAV",
+        ["shortName"] = "AV",
     },
     [8] = {
         ["id"] = 14032,
@@ -83,6 +83,6 @@ ns.raids = {
         ["instance_map_id"] = 2522,
         ["lfd_activity_ids"] = { 1189, 1190, 1191 },
         ["name"] = "Vault of the Incarnates",
-        ["shortName"] = "VI",
+        ["shortName"] = "VOTW",
     }
 }

@@ -3,7 +3,7 @@ local _, ns = ...
 -- Dungeon listing sorted by id
 ns.dungeons = {
     [1] = {
-        ["id"] = 1000001,
+        ["id"] = 5965,
         ["keystone_instance"] = 2,
         ["instance_map_id"] = 960,
         ["lfd_activity_ids"] = { 155, 163, 1192 },
@@ -12,7 +12,7 @@ ns.dungeons = {
         ["shortName"] = "TJS",
     },
     [2] = {
-        ["id"] = 1000002,
+        ["id"] = 6932,
         ["keystone_instance"] = 165,
         ["instance_map_id"] = 1176,
         ["lfd_activity_ids"] = { 27, 35, 185, 407, 1193 },
@@ -21,7 +21,7 @@ ns.dungeons = {
         ["shortName"] = "SBG",
     },
     [3] = {
-        ["id"] = 1000003,
+        ["id"] = 7672,
         ["keystone_instance"] = 200,
         ["instance_map_id"] = 1477,
         ["lfd_activity_ids"] = { 427, 437, 447, 461 },
@@ -30,7 +30,7 @@ ns.dungeons = {
         ["shortName"] = "HV",
     },
     [4] = {
-        ["id"] = 1000004,
+        ["id"] = 8079,
         ["keystone_instance"] = 210,
         ["instance_map_id"] = 1571,
         ["lfd_activity_ids"] = { 433, 443, 453, 466 },
@@ -39,7 +39,7 @@ ns.dungeons = {
         ["shortName"] = "CS",
     },
     [5] = {
-        ["id"] = 1000005,
+        ["id"] = 14063,
         ["keystone_instance"] = 399,
         ["instance_map_id"] = 2521,
         ["lfd_activity_ids"] = { 1173, 1174, 1175, 1176 },
@@ -48,7 +48,7 @@ ns.dungeons = {
         ["shortName"] = "RLP",
     },
     [6] = {
-        ["id"] = 1000006,
+        ["id"] = 13982,
         ["keystone_instance"] = 400,
         ["instance_map_id"] = 2516,
         ["lfd_activity_ids"] = { 1181, 1182, 1183, 1184 },
@@ -57,7 +57,7 @@ ns.dungeons = {
         ["shortName"] = "TNO",
     },
     [7] = {
-        ["id"] = 1000007,
+        ["id"] = 13954,
         ["keystone_instance"] = 401,
         ["instance_map_id"] = 2515,
         ["lfd_activity_ids"] = { 1177, 1178, 1179, 1180 },
@@ -66,7 +66,7 @@ ns.dungeons = {
         ["shortName"] = "TAV",
     },
     [8] = {
-        ["id"] = 1000008,
+        ["id"] = 14032,
         ["keystone_instance"] = 402,
         ["instance_map_id"] = 2526,
         ["lfd_activity_ids"] = { 1157, 1158, 1159, 1160 },
@@ -79,7 +79,7 @@ ns.dungeons = {
 -- Raid listing sorted by id
 ns.raids = {
     [1] = {
-        ["id"] = 1000009,
+        ["id"] = 14030,
         ["instance_map_id"] = 2522,
         ["lfd_activity_ids"] = { 1189, 1190, 1191 },
         ["name"] = "Vault of the Incarnates",

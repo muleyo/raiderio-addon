@@ -83,6 +83,6 @@ ns.raids = {
         ["instance_map_id"] = 2522,
         ["lfd_activity_ids"] = { 1189, 1190, 1191 },
         ["name"] = "Vault of the Incarnates",
-        ["shortName"] = "VOTW",
+        ["shortName"] = "VOTI",
     }
 }

@@ -39,13 +39,13 @@ ns.dungeons = {
         ["shortName"] = "COS",
     },
     [5] = {
-        ["id"] = 14063,
-        ["keystone_instance"] = 399,
-        ["instance_map_id"] = 2521,
-        ["lfd_activity_ids"] = { 1173, 1174, 1175, 1176 },
-        ["timers"] = { 1080, 1440, 1800 },
-        ["name"] = "Ruby Life Pools",
-        ["shortName"] = "RLP",
+        ["id"] = 13954,
+        ["keystone_instance"] = 401,
+        ["instance_map_id"] = 2515,
+        ["lfd_activity_ids"] = { 1177, 1178, 1179, 1180 },
+        ["timers"] = { 1224, 1632, 2040 },
+        ["name"] = "The Azure Vault",
+        ["shortName"] = "AV",
     },
     [6] = {
         ["id"] = 13982,
@@ -57,15 +57,6 @@ ns.dungeons = {
         ["shortName"] = "NO",
     },
     [7] = {
-        ["id"] = 13954,
-        ["keystone_instance"] = 401,
-        ["instance_map_id"] = 2515,
-        ["lfd_activity_ids"] = { 1177, 1178, 1179, 1180 },
-        ["timers"] = { 1224, 1632, 2040 },
-        ["name"] = "The Azure Vault",
-        ["shortName"] = "AV",
-    },
-    [8] = {
         ["id"] = 14032,
         ["keystone_instance"] = 402,
         ["instance_map_id"] = 2526,
@@ -73,6 +64,15 @@ ns.dungeons = {
         ["timers"] = { 1152, 1536, 1920 },
         ["name"] = "Algeth'ar Academy",
         ["shortName"] = "AA",
+    },
+    [8] = {
+        ["id"] = 14063,
+        ["keystone_instance"] = 399,
+        ["instance_map_id"] = 2521,
+        ["lfd_activity_ids"] = { 1173, 1174, 1175, 1176 },
+        ["timers"] = { 1080, 1440, 1800 },
+        ["name"] = "Ruby Life Pools",
+        ["shortName"] = "RLP",
     }
 }
 

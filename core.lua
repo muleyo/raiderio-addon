@@ -3171,21 +3171,21 @@ do
             }
         end
         results.mplusCurrent = {
-            score = results.currentScore,
+            score = results.currentScore or 0,
             roles = ORDERED_ROLES[results.currentRoleOrdinalIndex] or ORDERED_ROLES[1]
         }
         results.mplusPrevious = {
             season = results.previousScoreSeason,
-            score = results.previousScore,
+            score = results.previousScore or 0,
             roles = ORDERED_ROLES[results.previousRoleOrdinalIndex] or ORDERED_ROLES[1]
         }
         results.mplusMainCurrent = {
-            score = results.mainCurrentScore,
+            score = results.mainCurrentScore or 0,
             roles = ORDERED_ROLES[results.mainCurrentRoleOrdinalIndex] or ORDERED_ROLES[1]
         }
         results.mplusMainPrevious = {
             season = results.mainPreviousScoreSeason,
-            score = results.mainPreviousScore,
+            score = results.mainPreviousScore or 0,
             roles = ORDERED_ROLES[results.mainPreviousRoleOrdinalIndex] or ORDERED_ROLES[1]
         }
     end

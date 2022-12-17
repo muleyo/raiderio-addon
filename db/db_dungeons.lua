@@ -45,7 +45,7 @@ ns.dungeons = {
         ["lfd_activity_ids"] = { 1177, 1178, 1179, 1180 },
         ["timers"] = { 1224, 1632, 2040 },
         ["name"] = "The Azure Vault",
-        ["shortName"] = "TAV",
+        ["shortName"] = "AV",
     },
     [6] = {
         ["id"] = 13982,
@@ -54,7 +54,7 @@ ns.dungeons = {
         ["lfd_activity_ids"] = { 1181, 1182, 1183, 1184 },
         ["timers"] = { 1440, 1920, 2400 },
         ["name"] = "The Nokhud Offensive",
-        ["shortName"] = "TNO",
+        ["shortName"] = "NO",
     },
     [7] = {
         ["id"] = 14032,

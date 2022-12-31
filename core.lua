@@ -7251,6 +7251,16 @@ end
 -- dependencies: module, callback, config, util + LibGraph
 do
 
+    local hotfixDungeonEncounterToJournalID do
+        hotfixDungeonEncounterToJournalID = {}
+        for i = 1, 3000 do
+            local _, _, journalEncounterID, _, _, _, dungeonEncounterID = EJ_GetEncounterInfo(i)
+            if dungeonEncounterID then
+                hotfixDungeonEncounterToJournalID[dungeonEncounterID] = journalEncounterID
+            end
+        end
+    end
+
     ---@class TracesModule : Module
     local traces = ns:NewModule("Traces") ---@type TracesModule
     local callback = ns:GetModule("Callback") ---@type CallbackModule
@@ -7484,14 +7494,14 @@ do
         for index, bossID in ipairs(trace.bosses) do
             local traceBoss = {} ---@type TraceBoss
             traceBoss.index = index
-            traceBoss.id = bossID
+            traceBoss.id = hotfixDungeonEncounterToJournalID[bossID] or bossID -- DEBUG: HOTFIX: adjust the dungeon encounter ID to the journal ID for the boss
             traceBoss.dead = false
             traceSummary.bosses[index] = traceBoss
         end
         for _, traceLog in ipairs(trace.logs) do
             if traceLog.kills then
                 for bossIndex, dead in pairs(traceLog.kills) do
-                    if type(dead) == "table" then dead = dead[2] end -- DEBUG: HOTFIX: unpack the table wrapper
+                    if type(dead) == "table" then dead = dead[2] dead = dead == true or dead == "true" end -- DEBUG: HOTFIX: unpack the table wrapper + fix issue where boolean is stringified
                     if dead then
                         local boss = traceSummary.bosses[bossIndex]
                         if not boss.killed then

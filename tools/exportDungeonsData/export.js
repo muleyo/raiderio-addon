@@ -1,11 +1,14 @@
+const path = require('node:path');
+const fs = require('node:fs/promises');
 const fetch = require('node-fetch');
 const csv = require('fast-csv');
 
 // https://wow.tools/dbc/?dbc=displayseason
 const config = {
-    build: '9.2.7.45338',
-    expansion: 8,
-    season: 8,
+    download: false,
+    build: '10.1.0.48898',
+    expansion: 9,
+    season: 9,
     // manually specify the activity id's for these particular keystone instances
     keystoneInstanceOverride: {
         [227]: { // Return to Karazhan: Lower
@@ -39,13 +42,14 @@ const config = {
     },
 };
 
-// Object.assign(config, { build: '10.0.0.45454', expansion: 9, season: 9 }); // DEBUG
-// Object.assign(config, { build: '10.0.2.45505', expansion: 9, season: 9 }); // DEBUG
-
 (async () => {
 
-    if (!/^\d+\.\d+\.\d+\.\d+$/.test(config.build) || typeof config.expansion !== 'number') return console.error('Missing valid build and/or expansion id.');
-    console.info(`Downloading data for game version ${config.build} and expansion ${config.expansion}`);
+    if (config.download) {
+      if (!/^\d+\.\d+\.\d+\.\d+$/.test(config.build) || typeof config.expansion !== 'number') return console.error('Missing valid build and/or expansion id.');
+      console.info(`Downloading data for game version ${config.build} and expansion ${config.expansion} ...`);
+    } else {
+      console.info('Using cached db data ...');
+    }
 
     const seasonFiles = [
         {
@@ -143,13 +147,17 @@ const config = {
 
         for (const file of files) {
 
-            const request = await fetch(`https://wow.tools/dbc/api/export/?name=${file.name}&build=${config.build}`, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-            });
+            let text;
 
-            const text = await request.text();
+            if (config.download) {
+              const request = await fetch(`https://wow.tools/dbc/api/export/?name=${file.name}&build=${config.build}`, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+              });
+              text = await request.text();
+            } else {
+              const filePath = `${path.join(__dirname, 'db', file.name)}.csv`;
+              text = await fs.readFile(filePath);
+            }
 
             file.rows = await parseCsv(text);
 

@@ -1,6 +1,5 @@
 {
     "Lua.diagnostics.disable": [
-        "undefined-field",
         "unbalanced-assignments",
         "redundant-parameter",
         "assign-type-mismatch"
@@ -10,6 +9,7 @@
         "db"
     ],
     "Lua.diagnostics.globals": [
+        "ActionButton_ShowOverlayGlow",
         "AUTOCOMPLETE_FLAG_ALL",
         "AUTOCOMPLETE_FLAG_NONE",
         "AutoComplete_Update",
@@ -18,6 +18,7 @@
         "BACKDROP_TUTORIAL_16_16",
         "ButtonFrameTemplate_HidePortrait",
         "CANCEL",
+        "ChallengeModeCompleteBanner",
         "ChallengesFrame",
         "ChatEdit_GetActiveWindow",
         "ChatFrame_AddMessageEventFilter",
@@ -38,6 +39,7 @@
         "ERR_FRIEND_NOT_FOUND",
         "FriendsTooltip",
         "GameFontDisableSmallLeft",
+        "GameFontHighlightHuge",
         "GameFontHighlightSmallLeft",
         "GameFontNormalSmallLeft",
         "GameMenuFrame",
@@ -48,6 +50,9 @@
         "GameTooltip_Hide",
         "GameTooltip_SetTitle",
         "GameTooltipTextLeft1",
+        "GameTooltipTextRight2",
+        "GUILD_NEWS",
+        "GUILD_NEWS_TITLE",
         "GuildRosterContainer",
         "HIGHLIGHT_FONT_COLOR",
         "InterfaceOptions_AddCategory",
@@ -59,6 +64,7 @@
         "MYTHIC_PLUS_LEADER_BOARD_NAME_ICON",
         "MYTHIC_PLUS_POWER_LEVEL",
         "NORMAL_FONT_COLOR",
+        "ObjectiveTrackerFrame",
         "PVEFrame",
         "RED_FONT_COLOR",
         "ReloadUI",
@@ -78,6 +84,8 @@
         "TooltipDataProcessor",
         "UIButtonMixin",
         "UIDropDownMenuButton_OpenColorPicker",
+        "WHISPER",
+        "WHISPER_LEADER",
         "WHO_LIST_FORMAT",
         "WHO_LIST_GUILD_FORMAT",
         "WhoFrame"

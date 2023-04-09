@@ -1,6 +1,6 @@
 local ns = select(2, ...) ---@type ns @The addon namespace.
 
-local L = ns:NewLocale()
+local L = ns:NewLocale() ---@class LocaleEnglish
 
 L.LOCALE_NAME = "enUS"
 
@@ -154,6 +154,7 @@ L.RAID_BOSS_VOTI_7 = "Broodkeeper Diurna"
 L.RAID_BOSS_VOTI_8 = "Raszageth the Storm-Eater"
 L.RAID_ENCOUNTERS_DEFEATED_TITLE = "Raid Encounters Defeated"
 L.RAIDING_DATA_HEADER = "Raider.IO Raid Progress"
+L.PVP_DATA_HEADER = "Raider.IO PvP Profile"
 L.CONFIG_WHERE_TO_SHOW_TOOLTIPS = "Where to Show Mythic+ and Raid Progress"
 L.MAINS_RAID_PROGRESS = "Main's Progress"
 L.HIDE_OWN_PROFILE = "Hide Personal Raider.IO Profile Tooltip"

@@ -23,6 +23,8 @@ local ScrollBoxUtil do
     ---@class ScrollBoxBaseMixin : CallbackRegistryMixin
     ---@field public GetFrames fun(): Frame[]
     ---@field public Update fun()
+    ---@field public buttons? Button[]
+    ---@field public update? fun()
 
     ---@param scrollBox ScrollBoxBaseMixin
     ---@param callback fun(frames: Button[], scrollBox: ScrollBoxBaseMixin)
@@ -132,6 +134,32 @@ end
 do
 
     ---@class ns
+    ---@field public utf8 UTF8
+    ---@field public L LocaleEnglish
+    ---@field public DUNGEONS Dungeon[]
+    ---@field public dungeons Dungeon[] @DEPRECATED
+    ---@field public RAIDS DungeonRaid[]
+    ---@field public raids DungeonRaid[] @DEPRECATED
+    ---@field public REALMS RealmCollection<string, string>
+    ---@field public realmSlugs RealmCollection<string, string> @DEPRECATED
+    ---@field public REGIONS RegionCollection<number, number>
+    ---@field public regionIDs RegionCollection<number, number> @DEPRECATED
+    ---@field public SCORE_STATS ScoreStatsCollection<number, number>
+    ---@field public scoreLevelStats ScoreStatsCollection<number, number> @DEPRECATED
+    ---@field public SCORE_TIERS ScoreColorCollection<number, ScoreColor>
+    ---@field public scoreTiers ScoreColorCollection<number, ScoreColor> @DEPRECATED
+    ---@field public SCORE_TIERS_SIMPLE ScoreTiersSimpleCollection<number, ScoreTierSimple>
+    ---@field public scoreTiersSimple ScoreTiersSimpleCollection<number, ScoreTierSimple> @DEPRECATED
+    ---@field public SCORE_TIERS_PREV ScoreColorCollection<number, ScoreColor>
+    ---@field public previousScoreTiers ScoreColorCollection<number, ScoreColor> @DEPRECATED
+    ---@field public SCORE_TIERS_SIMPLE_PREV ScoreTiersSimpleCollection<number, ScoreTierSimple>
+    ---@field public previousScoreTiersSimple ScoreTiersSimpleCollection<number, ScoreTierSimple> @DEPRECATED
+    ---@field public CUSTOM_TITLES RecruitmentTitlesCollection<number, RecruitmentTitle>
+    ---@field public CLIENT_CHARACTERS Character<string, CharacterCollection>
+    ---@field public CLIENT_COLORS ScoreColorCollection<number, ScoreColor>
+    ---@field public CLIENT_CONFIG ClientConfig
+    ---@field public GUILD_BEST_DATA Guild<string, GuildCollection>
+    ---@field public REPLAYS Replay[]
     ---@field public Print function @Prints yellow text to the default chat frame. Behaves otherwise same way as AddMessage does
     ---@field public EXPANSION number @The currently accessible expansion to the playerbase
     ---@field public MAX_LEVEL number @The currently accessible expansion max level to the playerbase
@@ -146,7 +174,6 @@ do
     ---@field public PLAYER_REALM_SLUG string @The realm slug of the player character
     ---@field public OUTDATED_CUTOFF number @Seconds before we start looking at the data as out-of-date
     ---@field public OUTDATED_BLOCK_CUTOFF number @Seconds before we block future score showing
-    ---@field public PROVIDER_DATA_TYPE number[] @Data Type enum
     ---@field public LOOKUP_MAX_SIZE number @The maximum index we can use in a table before we start to get errors
     ---@field public CURRENT_SEASON number @The current mythic keystone season
     ---@field public HEADLINE_MODE table<string, number> @Enum over headline modes
@@ -181,7 +208,7 @@ do
     ns.PLAYER_FACTION_TEXT = nil
     ns.OUTDATED_CUTOFF = 86400 * 3 -- number of seconds before we start warning about stale data (warning the user should update their addon)
     ns.OUTDATED_BLOCK_CUTOFF = 86400 * 7 -- number of seconds before we hide the data (block showing score as its most likely inaccurate)
-    ns.PROVIDER_DATA_TYPE = {MythicKeystone = 1, Raid = 2, Recruitment = 3, PvP = 4}
+    ns.PROVIDER_DATA_TYPE = { MythicKeystone = 1, Raid = 2, Recruitment = 3, PvP = 4 }
     ns.LOOKUP_MAX_SIZE = floor(2^18-1)
     ns.CURRENT_SEASON = 1
     ns.RAIDERIO_ADDON_DOWNLOAD_URL = "https://rio.gg/addon"
@@ -540,6 +567,7 @@ do
     ---@field public fraction number
     ---@field public clear_time string
     ---@field public party GuildMythicKeystoneRunMember[]
+    ---@field public dungeon Dungeon
 
     ---@class GuildCollection
     ---@field public profile GuildProfile
@@ -586,6 +614,8 @@ do
     ---@field public encounter_id number
     ---@field public journal_encounter_id number
 
+    ---@alias ReplayEventEnum 1|2|3|4 `PLAYER_DEATH`, `ENEMY_FORCES`, `ENCOUNTER_STARTED`, `ENCOUNTER_ENDED`
+
     ---@class ReplayEvent
     ---@field public _replayEventInfo? ReplayEventInfo Once `UnpackReplayEvent` has parsed the `ReplayEvent` the result is stored and re-used when needed.
 
@@ -606,10 +636,16 @@ do
 
     ---@class ReplayEventInfo
     ---@field public timer number The keystone timer in milliseconds.
-    ---@field public event number The type of event.
+    ---@field public event ReplayEventEnum The event type.
     ---@field public deaths? number The delta number of deaths.
-    ---@field public trash? number The delta number of forces progress.
-    ---@field public kills? boolean[] The updated boss delta state.
+    ---@field public forces? number The delta number of forces progress.
+    ---@field public bosses? ReplayBossInfo[] The updated boss delta state.
+
+    ---@class ReplayBossInfo
+    ---@field public index number
+    ---@field public pulls number
+    ---@field public combat boolean
+    ---@field public killed boolean
 
     ---@return Replay[]?
     function ns:GetReplays()
@@ -1293,7 +1329,7 @@ do
         return util:GetRaidByKeyValue("shortName", name) or util:GetRaidByKeyValue("shortNameLocale", name)
     end
 
-    ---@param object Region @Any interface widget object that supports the methods GetScript.
+    ---@param object Frame @Any interface widget object that supports the methods GetScript.
     ---@param handler string @The script handler like OnEnter, OnClick, etc.
     ---@return boolean|nil @If successfully executed returns true, otherwise false if nothing has been called. nil if the widget had no handler to execute.
     function util:ExecuteWidgetHandler(object, handler, ...)
@@ -1310,8 +1346,8 @@ do
         return true
     end
 
-    ---@param frame Region
-    ---@param parent Region
+    ---@param frame Frame
+    ---@param parent Frame
     local function IsParentedBy(frame, parent)
         if type(frame) ~= "table" or type(parent) ~= "table" or type(frame.GetParent) ~= "function" or type(parent.GetParent) ~= "function" then
             return
@@ -1328,7 +1364,7 @@ do
         end
     end
 
-    ---@param frame Region @Any interface widget object that supports the methods GetScript.
+    ---@param frame Frame @Any interface widget object that supports the methods GetScript.
     ---@param onEnter fun() @Any function originating from the OnEnter handler.
     ---@return boolean|nil @If the provided object is not a region or has no function we return `nil`, otherwise `true` that it is safe to call, and `false` that it is unsafe to call its function.
     local function IsOnEnterSafe(frame, onEnter)
@@ -1361,7 +1397,7 @@ do
     ---| 2 #Script handler executed successfully.
     ---| 3 #Script handler executed but silently errored.
 
-    ---@param object Region @Any interface widget object that supports the methods GetScript.
+    ---@param object Frame @Any interface widget object that supports the methods GetScript.
     ---@param before? fun() @Optional function to run right before the OnEnter script executes.
     ---@return ExecuteWidgetOnEnterSafelyStatus @Returns a status enum to indicate the outcome of the call.
     function util:ExecuteWidgetOnEnterSafely(object, before)
@@ -1384,8 +1420,8 @@ do
         return 2
     end
 
-    ---@param object Region @Any interface widget object that supports the methods GetOwner.
-    ---@param owner Region @Any interface widget object.
+    ---@param object GameTooltip @Any interface widget object that supports the methods GetOwner.
+    ---@param owner Frame @Any interface widget object.
     ---@param anchor string @`ANCHOR_TOPLEFT`, `ANCHOR_NONE`, `ANCHOR_CURSOR`, etc.
     ---@param offsetX? number @Optional offset X for some of the anchors.
     ---@param offsetY? number @Optional offset Y for some of the anchors.
@@ -1600,7 +1636,7 @@ do
         end
         if type(arg1) == "string" then
             if arg1:find("-", nil, true) then
-                name, realm = ("-"):split(arg1)
+                name, realm = strsplit("-", arg1)
             else
                 name = arg1 -- assume this is the name
             end
@@ -1962,7 +1998,7 @@ do
     ---@type FontString
     local TOOLTIP_TEXT_FONTSTRING do
         TOOLTIP_TEXT_FONTSTRING = UIParent:CreateFontString(nil, nil, "GameTooltipText")
-        local fontWidget = _G.GameTooltipTextRight2 ---@type FontString
+        local fontWidget = GameTooltipTextRight2 ---@type FontString
         local fontObject = fontWidget:GetFontObject()
         if fontObject then
             TOOLTIP_TEXT_FONTSTRING:SetFontObject(fontObject)
@@ -2005,7 +2041,7 @@ do
         return format("https://raider.io/characters/%s/%s/%s/%s?utm_source=addon", ns.PLAYER_REGION, realmSlug, name, urlSuffix), name, realm, realmSlug
     end
 
-    ---@class InternalStaticPopupDialog
+    ---@class InternalStaticPopupDialog : Frame
     ---@field public id string
     ---@field public which? string
     ---@field public text string|fun(): string
@@ -2055,7 +2091,7 @@ do
         OnShow = function(self)
             self:SetWidth(420)
             local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"]
-            editBox:SetText(self.text.text_arg2)
+            editBox:SetText(self.text.text_arg2) ---@diagnostic disable-line: undefined-field
             editBox:SetFocus()
             editBox:HighlightText()
             local button = _G[self:GetName() .. "Button2"]
@@ -2064,7 +2100,7 @@ do
             button:SetPoint("CENTER", editBox, "CENTER", 0, -30)
         end,
         EditBoxOnEscapePressed = function(self)
-            self:GetParent():Hide()
+            self:GetParent():Hide() ---@diagnostic disable-line: undefined-field
         end,
         OnHide = nil,
         OnAccept = nil,
@@ -2260,7 +2296,7 @@ do
         OnHide = function() json:CloseCopyDialog() end,
         OnAccept = nil,
         OnCancel = nil,
-        EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end
+        EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end ---@diagnostic disable-line: undefined-field
     }
 
     local exportButton
@@ -2407,7 +2443,7 @@ do
     end
 
     local function CreateExportButton()
-        local button = CreateFrame("Button", addonName .. "_ExportButton", _G.LFGListFrame)
+        local button = CreateFrame("Button", addonName .. "_ExportButton", LFGListFrame)
         button:SetPoint("BOTTOMRIGHT", button:GetParent(), "BOTTOM", -12, 7) ---@diagnostic disable-line: param-type-mismatch
         button:SetSize(16, 16)
         -- script handlers
@@ -2434,7 +2470,7 @@ do
     end
 
     function json:CanLoad()
-        return not exportButton and _G.LFGListFrame
+        return not exportButton and LFGListFrame
     end
 
     function json:OnLoad()
@@ -4423,6 +4459,7 @@ do
     ---@field public faction number @1 (alliance), 2 (horde), 3 (neutral)
     ---@field public region string @"us","kr","eu","tw","cn"
     ---@field public options number @render.Flags
+    ---@field public args table @Assigned dynamically and can contain any kind of data, depending on the usage.
 
     ---@class TooltipStates
 
@@ -5889,6 +5926,10 @@ do
         end
     end
 
+    ---@class ScalePolyfill
+    ---@field public SetScaleFrom fun(x, y)
+    ---@field public SetScaleTo fun(x, y)
+
     local function CreateDecorationFrame()
         local frame = CreateFrame("Frame")
         frame:Hide()
@@ -5927,13 +5968,13 @@ do
             alpha:SetDuration(0.25)
             alpha:SetFromAlpha(0)
             alpha:SetToAlpha(1)
-            local scale = frame.AnimIn:CreateAnimation("Scale")
+            local scale = frame.AnimIn:CreateAnimation("Scale") ---@type Animation|Scale|ScalePolyfill
             scale:SetOrder(1)
             scale:SetStartDelay(0.2)
             scale:SetDuration(0.25)
             scale:SetScaleFrom(5, 5)
             scale:SetScaleTo(1, 1)
-            local sparks = frame.AnimIn:CreateAnimation("Scale")
+            local sparks = frame.AnimIn:CreateAnimation("Scale") ---@type Animation|Scale|ScalePolyfill
             sparks:SetOrder(1)
             sparks:SetStartDelay(0)
             sparks:SetDuration(LEVEL_UP_EFFECT.duration)
@@ -6043,7 +6084,7 @@ do
         if hooked then
             return
         end
-        local frame = _G.ChallengeModeCompleteBanner
+        local frame = ChallengeModeCompleteBanner ---@type Frame?
         if not frame or frame ~= self then
             return
         end
@@ -6355,7 +6396,7 @@ do
     end
 
     function profile:CanLoad()
-        return not tooltip and config:IsEnabled() and _G.PVEFrame
+        return not tooltip and config:IsEnabled() and PVEFrame
     end
 
     function profile:OnLoad()
@@ -6483,7 +6524,7 @@ do
         currentResult.activityID = entry.activityID
         currentResult.leaderName = entry.leaderName
         currentResult.leaderFaction = leaderFaction
-        currentResult.keystoneLevel = util:GetKeystoneLevelFromText(entry.title) or util:GetKeystoneLevelFromText(entry.description) or 0
+        currentResult.keystoneLevel = util:GetKeystoneLevelFromText(entry.name) or util:GetKeystoneLevelFromText(entry.comment) or 0
         local success1 = render:ShowProfile(tooltip, currentResult.leaderName, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult)
         local success2 = profile:ShowProfile(tooltip, currentResult.leaderName, currentResult)
         if success1 or success2 then
@@ -6581,7 +6622,7 @@ do
         ScrollBoxUtil:OnViewScrollChanged(LFGListFrame.ApplicationViewer.ScrollBox, OnScroll)
         -- remove the shroud and allow hovering over people even when not the group leader
         do
-            local f = _G.LFGListFrame.ApplicationViewer.UnempoweredCover
+            local f = LFGListFrame.ApplicationViewer.UnempoweredCover
             f:EnableMouse(false)
             f:EnableMouseWheel(false)
             f:SetToplevel(false)
@@ -6734,10 +6775,10 @@ do
         if completed then
             return
         end
-        SmartHookButtons(_G.ClubFinderGuildFinderFrame.GuildCards.Cards)
-        SmartHookButtons(_G.ClubFinderGuildFinderFrame.PendingGuildCards.Cards)
-        SmartHookButtons(_G.ClubFinderCommunityAndGuildFinderFrame.GuildCards.Cards)
-        SmartHookButtons(_G.ClubFinderCommunityAndGuildFinderFrame.PendingGuildCards.Cards)
+        SmartHookButtons(ClubFinderGuildFinderFrame.GuildCards.Cards)
+        SmartHookButtons(ClubFinderGuildFinderFrame.PendingGuildCards.Cards)
+        SmartHookButtons(ClubFinderCommunityAndGuildFinderFrame.GuildCards.Cards)
+        SmartHookButtons(ClubFinderCommunityAndGuildFinderFrame.PendingGuildCards.Cards)
         return true
     end
 
@@ -6886,7 +6927,8 @@ do
         local dungeon = util:GetDungeonByKeystoneID(runInfo.mapChallengeModeID)
         ---@type GuildMythicKeystoneRun
         local runData = {
-            zone_id = dungeon and dungeon.id or 0, ---@diagnostic disable-line: need-check-nil
+            dungeon = dungeon,
+            zone_id = dungeon and dungeon.id or 0,
             level = runInfo.keystoneLevel or 0,
             upgrades = 0,
             party = {},
@@ -6922,6 +6964,9 @@ do
         return guildName .. "-" .. guildRealm
     end
 
+    ---@class UICheckButtonTemplatePolyfill : CheckButton
+    ---@field public text FontString
+
     ---@class GuildWeeklyFrameMixin
     ---@field public offset number @The scroll offset.
     ---@field public Refresh function @Refreshes the frame with new data.
@@ -6932,26 +6977,27 @@ do
 
     ---@class GuildWeeklyRunMixin
     ---@field public SetUp function @Sets up the run using the provided info.
+    ---@field public runInfo? GuildMythicKeystoneRun
 
-    ---@class GuildWeeklyBestNoRun
+    ---@class GuildWeeklyBestNoRun : Frame
     ---@field public Text FontString
 
-    ---@class GuildWeeklyRun : GuildWeeklyRunMixin
+    ---@class GuildWeeklyRun : GuildWeeklyRunMixin, Frame
     ---@field public CharacterName FontString
     ---@field public Level FontString
 
-    ---@class GuildWeeklyFrame : GuildWeeklyFrameMixin
+    ---@class GuildWeeklyFrame : GuildWeeklyFrameMixin, GuildWeeklyRun, BackdropTemplate
     ---@field public maxVisible number
     ---@field public Title FontString
     ---@field public SubTitle FontString
     ---@field public GuildBestNoRun GuildWeeklyBestNoRun
-    ---@field public SwitchGuildBest CheckButton
+    ---@field public SwitchGuildBest UICheckButtonTemplatePolyfill
     ---@field public GuildBests GuildWeeklyRun[]
 
     ---@type GuildWeeklyFrame
     local frame
 
-    ---@type GuildWeeklyRunMixin
+    ---@type GuildWeeklyFrame
     local GuildWeeklyRunMixin = {}
 
     ---@param runInfo GuildMythicKeystoneRun
@@ -6976,13 +7022,14 @@ do
         self:Show()
     end
 
+    ---@param self GuildWeeklyRun
     local function RunFrame_OnEnter(self)
         local runInfo = self.runInfo ---@type GuildMythicKeystoneRun
         if not runInfo then
             return
         end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(runInfo.dungeonName, 1, 1, 1)
+        GameTooltip:SetText(runInfo.dungeon.shortNameLocale, 1, 1, 1)
         local chestsText = ""
         if runInfo.upgrades > 0 then
             chestsText = " (" .. util:GetNumChests(runInfo.upgrades) .. ")"
@@ -7015,7 +7062,7 @@ do
     end
 
     local function CreateRunFrame()
-        ---@type GuildWeeklyRun
+        ---@class GuildWeeklyRun
         local frame = CreateFrame("Frame")
         -- inherit from the mixin
         for k, v in pairs(GuildWeeklyRunMixin) do
@@ -7047,7 +7094,7 @@ do
         return frame
     end
 
-    ---@type GuildWeeklyFrameMixin
+    ---@type GuildWeeklyFrame
     local GuildWeeklyFrameMixin = {}
 
     function GuildWeeklyFrameMixin:Refresh()
@@ -7106,7 +7153,7 @@ do
             self.GuildBests[i]:SetUp(currentRuns[i + self.offset])
         end
 
-        if self:IsMouseOver() then
+        if self:IsMouseOver(0, 0, 0, 0) then
             local focus = GetMouseFocus()
             if focus and focus ~= GameTooltip:GetOwner() then
                 util:ExecuteWidgetOnEnterSafely(focus)
@@ -7188,7 +7235,7 @@ do
         end
         -- toggle between weekly and season best
         do
-            frame.SwitchGuildBest = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate") ---@diagnostic disable-line: param-type-mismatch
+            frame.SwitchGuildBest = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate") ---@type UICheckButtonTemplatePolyfill
             frame.SwitchGuildBest:SetSize(15, 15)
             frame.SwitchGuildBest:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 8, 5) ---@diagnostic disable-line: param-type-mismatch
             frame.SwitchGuildBest:SetScript("OnShow", GuildWeeklyFrameSwitch_OnShow)
@@ -7250,7 +7297,7 @@ do
     end
 
     function guildweekly:CanLoad()
-        return not frame and config:IsEnabled() and _G.PVEFrame and _G.ChallengesFrame
+        return not frame and config:IsEnabled() and PVEFrame and ChallengesFrame
     end
 
     function guildweekly:OnLoad()
@@ -7268,18 +7315,6 @@ end
 -- replay.lua
 -- dependencies: module, callback, config, util
 do
-
-    ---@type table<number, number>
-    local HOTFIX_DUNGEON_ENCOUNTER_TO_JOURNAL_ID do
-        HOTFIX_DUNGEON_ENCOUNTER_TO_JOURNAL_ID = {}
-        local _, journalEncounterID, dungeonEncounterID
-        for i = 1, 10000 do
-            _, _, journalEncounterID, _, _, _, dungeonEncounterID = EJ_GetEncounterInfo(i)
-            if dungeonEncounterID then
-                HOTFIX_DUNGEON_ENCOUNTER_TO_JOURNAL_ID[dungeonEncounterID] = journalEncounterID
-            end
-        end
-    end
 
     ---@class ReplayModule : Module
     local replay = ns:NewModule("Replay") ---@type ReplayModule
@@ -7311,24 +7346,40 @@ do
         replayEventInfo.timer = replayEvent[1]
         replayEventInfo.event = replayEvent[2]
         if replayEventInfo.event == 1 then
-            -- TODO: unknown
+            replayEventInfo.deaths = replayEvent[3]
         elseif replayEventInfo.event == 2 then
-            replayEventInfo.trash = replayEvent[3]
-        elseif replayEventInfo.event == 3 then
-            -- TODO: boss encounter start
-            local bossIndex = replayEvent[3]
-            local unknown = replayEvent[4]
-            local pulled = replayEvent[5]
-            local killed = replayEvent[6]
-        elseif replayEventInfo.event == 4 then
-            -- TODO: boss encounter stop
-            local bossIndex = replayEvent[3]
-            local unknown = replayEvent[4]
-            local pulled = replayEvent[5]
-            local killed = replayEvent[6]
+            replayEventInfo.forces = replayEvent[3]
+        elseif replayEventInfo.event == 3 or replayEventInfo.event == 4 then
+            local bossInfo = {} ---@type ReplayBossInfo
+            bossInfo.index = replayEvent[3]
+            bossInfo.pulls = replayEvent[4]
+            bossInfo.combat = replayEvent[5]
+            bossInfo.killed = replayEvent[6]
+            replayEventInfo.bosses = {}
+            replayEventInfo.bosses[bossInfo.index] = bossInfo
         end
         replayEvent._replayEventInfo = replayEventInfo
         return replayEventInfo
+    end
+
+    ---@param replaySummary ReplaySummary
+    ---@param replayEventInfo ReplayEventInfo
+    local function ApplyBossInfoToSummary(replaySummary, replayEventInfo)
+        if not replayEventInfo.bosses then
+            return
+        end
+        for _, bossInfo in pairs(replayEventInfo.bosses) do
+            if bossInfo.killed then
+                local boss = replaySummary.bosses[bossInfo.index]
+                if not boss.dead then
+                    boss.dead = true
+                    boss.combat = false
+                    boss.pulls = bossInfo.pulls
+                    boss.killed = replayEventInfo.timer
+                    boss.killedText = SecondsToClock(replayEventInfo.timer / 1000)
+                end
+            end
+        end
     end
 
     ---@param delta number
@@ -7352,11 +7403,11 @@ do
     ---@class ReplayBoss
     ---@field public index number
     ---@field public id number
+    ---@field public pulls number
     ---@field public dead boolean
+    ---@field public combat? boolean
     ---@field public killed? number
     ---@field public killedText? string
-    ---@field public engaged? number
-    ---@field public health? number
 
     ---@class ReplaySummary
     ---@field public level number
@@ -7371,7 +7422,7 @@ do
     local replays
 
     ---@class ReplayFrame : Frame
-    local frame
+    local replayFrame
 
     ---@class BossFrame : Frame
     ---@field public Name FontString
@@ -7418,9 +7469,9 @@ do
                 pending = false
                 delta = floor((replayBoss.killed - liveBoss.killed) / 1000)
                 text = liveBoss.killedText
-            elseif frame.elapsedKeystoneTimer then
+            elseif replayFrame.elapsedKeystoneTimer then
                 pending = true
-                delta = floor((replayBoss.killed - frame.elapsedKeystoneTimer * 1000) / 1000)
+                delta = floor((replayBoss.killed - replayFrame.elapsedKeystoneTimer * 1000) / 1000)
                 text = replayBoss.killedText
             end
             if not text then
@@ -7470,7 +7521,7 @@ do
                 bossFrames[bossIndex] = bossFrame
             end
             table.sort(bossFrames, function(a, b) return a.index < b.index end)
-            local offsetX, offsetY = 0, frame.contentPaddingY
+            local offsetX, offsetY = 0, replayFrame.contentPaddingY
             local prevBossFrame
             local bossesHeight = 0
             for _, bossFrame in ipairs(bossFrames) do
@@ -7481,13 +7532,13 @@ do
                     bossFrame:SetPoint("TOPLEFT", prevBossFrame, "BOTTOMLEFT", 0, 0)
                     bossFrame:SetPoint("BOTTOMRIGHT", prevBossFrame, "BOTTOMRIGHT", 0, -height)
                 else
-                    bossFrame:SetPoint("TOPLEFT", frame.TextBlock, "BOTTOMLEFT", offsetX, -offsetY)
-                    bossFrame:SetPoint("BOTTOMRIGHT", frame.TextBlock, "BOTTOMRIGHT", -offsetX, -height-offsetY)
+                    bossFrame:SetPoint("TOPLEFT", replayFrame.TextBlock, "BOTTOMLEFT", offsetX, -offsetY)
+                    bossFrame:SetPoint("BOTTOMRIGHT", replayFrame.TextBlock, "BOTTOMRIGHT", -offsetX, -height-offsetY)
                 end
                 prevBossFrame = bossFrame
             end
             if bossesHeight > 0 then
-                bossesHeight = bossesHeight + frame.contentPaddingY
+                bossesHeight = bossesHeight + replayFrame.contentPaddingY
             end
             return bossesHeight
         end
@@ -7566,16 +7617,8 @@ do
             end
             for _, replayEvent in ipairs(replay.events) do
                 local replayEventInfo = UnpackReplayEvent(replayEvent)
-                if replayEventInfo.kills then
-                    for bossIndex, dead in pairs(replayEventInfo.kills) do
-                        if dead then
-                            local boss = replaySummary.bosses[bossIndex]
-                            if not boss.killed then
-                                boss.killed = replayEventInfo.timer
-                                boss.killedText = SecondsToClock(replayEventInfo.timer / 1000)
-                            end
-                        end
-                    end
+                if replayEventInfo.bosses then
+                    ApplyBossInfoToSummary(replaySummary, replayEventInfo)
                 end
             end
         end
@@ -7602,16 +7645,11 @@ do
                 if replayEventInfo.deaths then
                     replaySummary.deaths = replaySummary.deaths + replayEventInfo.deaths
                 end
-                if replayEventInfo.trash then
-                    replaySummary.trash = replaySummary.trash + replayEventInfo.trash
+                if replayEventInfo.forces then
+                    replaySummary.trash = replaySummary.trash + replayEventInfo.forces
                 end
-                if replayEventInfo.kills then
-                    for bossIndex, dead in pairs(replayEventInfo.kills) do
-                        if dead then
-                            local boss = replaySummary.bosses[bossIndex]
-                            boss.dead = true
-                        end
-                    end
+                if replayEventInfo.bosses then
+                    ApplyBossInfoToSummary(replaySummary, replayEventInfo)
                 end
             end
             return replaySummary, replayEvents[replaySummary.index], replayEvents[replaySummary.index + 1]
@@ -7636,8 +7674,8 @@ do
         ---@return ReplaySummary liveSummary
         function LiveDataProviderMixin:GetSummary()
             local liveSummary = self.replaySummary
-            if frame.elapsedKeystoneTimer then
-                liveSummary.timer = frame.elapsedKeystoneTimer * 1000
+            if replayFrame.elapsedKeystoneTimer then
+                liveSummary.timer = replayFrame.elapsedKeystoneTimer * 1000
             end
             local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
             if activeKeystoneLevel then
@@ -7706,7 +7744,7 @@ do
             self.textRowHeight = 25
             self.textHeight = self.textRowHeight * 5 + self.contentPaddingY * 3
             self.bossesHeight = 0
-            self:SetPoint("TOPRIGHT", _G.ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
+            self:SetPoint("TOPRIGHT", ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
             self:SetSize(self.width, 0)
             self:SetFrameStrata("HIGH")
             self:SetClampedToScreen(true)
@@ -7888,9 +7926,9 @@ do
             local deathPenalty = liveDataProvider:GetDeathPenalty()
             local elapsedKeystoneTimer = liveSummary.timer
             local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
-            self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(replaySummary.timer / 1000), ceil(replay.time / 1000), not nextReplayEvent)
+            self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(replaySummary.timer / 1000), ceil(replay.clear_time_ms / 1000), not nextReplayEvent)
             self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths)
-            self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.trash)
+            self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces)
             self:SetUIDeathPenalty(liveSummary.deaths, replaySummary.deaths, deathPenalty)
             self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses)
         end
@@ -7990,10 +8028,10 @@ do
     end
 
     local function CreateReplayFrame()
-        local replayFrame = CreateFrame("Frame", addonName .. "_ReplayFrame", UIParent) ---@class ReplayFrame
-        Mixin(replayFrame, ReplayFrameMixin)
-        replayFrame:OnLoad()
-        return replayFrame
+        local frame = CreateFrame("Frame", addonName .. "_ReplayFrame", UIParent) ---@class ReplayFrame
+        Mixin(frame, ReplayFrameMixin)
+        frame:OnLoad()
+        return frame
     end
 
     ---@param timerID number
@@ -8056,15 +8094,15 @@ do
     local function OnEvent(event, ...)
         local timerID, elapsedTime, isActive = GetKeystoneTimer(event == "WORLD_STATE_TIMER_STOP", ...)
         local mapID, timeLimit = GetKeystoneInfo()
-        local replayDataProvider = frame:GetReplayDataProvider()
+        local replayDataProvider = replayFrame:GetReplayDataProvider()
         local replay = replayDataProvider:GetReplay()
         if mapID then
             replay = GetReplayForMapID(mapID)
         end
         replayDataProvider:SetReplay(replay)
-        frame:SetTimer(timerID, elapsedTime, isActive)
-        frame:SetKeystone(mapID, timeLimit)
-        frame:UpdateShown()
+        replayFrame:SetTimer(timerID, elapsedTime, isActive)
+        replayFrame:SetKeystone(mapID, timeLimit)
+        replayFrame:UpdateShown()
     end
 
     function replay:CanLoad()
@@ -8073,10 +8111,10 @@ do
 
     function replay:OnLoad()
         replays = ns:GetReplays()
-        frame = CreateReplayFrame()
-        frame:SetStyle(FRAME_STYLE)
-        frame:SetReplayDataProvider(CreateReplayDataProvider())
-        frame:SetLiveDataProvider(CreateLiveDataProvider())
+        replayFrame = CreateReplayFrame()
+        replayFrame:SetStyle(FRAME_STYLE)
+        replayFrame:SetReplayDataProvider(CreateReplayDataProvider())
+        replayFrame:SetLiveDataProvider(CreateLiveDataProvider())
         self:Enable()
     end
 
@@ -8521,7 +8559,7 @@ do
         end
         local pattern = config:Get("debugMode") and "^(%S+)%s*(%S*)%s*(%S*)$" or "^(%S+)%s*(%S*)$"
         local arg1, arg2, arg3 = query:match(pattern)
-        arg1, arg2, arg3 = (arg1 or ""):trim(), (arg2 or ""):trim(), (arg3 or ""):trim()
+        arg1, arg2, arg3 = (arg1 or ""):trim(), (arg2 or ""):trim(), (arg3 or ""):trim() ---@diagnostic disable-line: undefined-field
         arg2 = arg2 ~= "" and arg2 or GetNormalizedRealmName()
         arg3 = arg3 ~= "" and arg3 or ns.PLAYER_REGION
         local arg3q = GetRegions(arg3, 1)
@@ -8650,7 +8688,7 @@ do
         if not name and menuList then
             for i = 1, #menuList do
                 local whisperButton = menuList[i]
-                if whisperButton and (whisperButton.text == _G.WHISPER_LEADER or whisperButton.text == _G.WHISPER) then
+                if whisperButton and (whisperButton.text == WHISPER_LEADER or whisperButton.text == WHISPER) then
                     name, realm = util:GetNameRealm(whisperButton.arg1)
                     faction = ns.PLAYER_FACTION
                     break
@@ -8924,7 +8962,7 @@ do
     local function LogItemLink(logType, linkType, id, link, count, sources, useTimestamp, additionalInfo)
         local isLogging, instanceName, instanceDifficulty, instanceID = rwf:GetLocation()
         if logType == LOG_TYPE.News then
-            instanceName = _G.GUILD_NEWS or _G.GUILD_NEWS_TITLE
+            instanceName = GUILD_NEWS or GUILD_NEWS_TITLE
             instanceID, instanceDifficulty = 0, 0
         end
         if not instanceID or not instanceDifficulty then
@@ -9204,6 +9242,30 @@ do
         rwf:CheckLocation()
     end
 
+    ---@class ButtonFramePolyfill : Button
+    ---@field public TitleText? FontString
+    ---@field public SetTitle fun(self: ButtonFramePolyfill, text: string)
+
+    ---@class PanelDragBarTemplatePolyfill : Frame
+    ---@field public OnLoad fun(self: PanelDragBarTemplatePolyfill)
+    ---@field public Init fun(self: PanelDragBarTemplatePolyfill, frame: Frame)
+
+    ---@class WowScrollBoxListPolyfill : Frame, CallbackRegistryMixin
+    ---@field public OnLoad fun(self: WowScrollBoxListPolyfill)
+    ---@field public IsAtEnd fun(self: WowScrollBoxListPolyfill): boolean
+    ---@field public HasScrollableExtent fun(self: WowScrollBoxListPolyfill): boolean
+    ---@field public ScrollToEnd fun(self: WowScrollBoxListPolyfill)
+    ---@field public SetDataProvider fun(self: WowScrollBoxListPolyfill)
+
+    ---@class WowTrimScrollBarPolyfill : Frame
+    ---@field public OnLoad fun(self: WowTrimScrollBarPolyfill)
+
+    ---@class UIPanelButtonTemplatePolyfill : Button
+    ---@field public Text FontString
+    ---@field public Left Texture
+    ---@field public Middle Texture
+    ---@field public Right Texture
+
     local function CreateLootFrame()
 
         local function CreateCounter(initialCount)
@@ -9214,7 +9276,7 @@ do
             end
         end
 
-        local frame = CreateFrame("Frame", addonName .. "_RWFFrame", UIParent, "ButtonFrameTemplate")
+        local frame = CreateFrame("Frame", addonName .. "_RWFFrame", UIParent, "ButtonFrameTemplate") ---@class ButtonFramePolyfill
         frame:SetSize(400, 250)
         frame:SetPoint("CENTER")
         frame:SetFrameStrata("HIGH")
@@ -9237,7 +9299,7 @@ do
             frame:SetTitle(L.RWF_TITLE)
         end
 
-        frame.TitleBar = CreateFrame("Frame", nil, frame, "PanelDragBarTemplate") ---@diagnostic disable-line: param-type-mismatch
+        frame.TitleBar = CreateFrame("Frame", nil, frame, "PanelDragBarTemplate") ---@type PanelDragBarTemplatePolyfill
         frame.TitleBar:OnLoad()
         frame.TitleBar:SetHeight(24)
         frame.TitleBar:SetPoint("TOPLEFT", 0, 0)
@@ -9257,14 +9319,14 @@ do
         frame.Log.Events:SetPoint("TOPLEFT", frame.Log.Bar, "BOTTOMLEFT", 0, -2)
         frame.Log.Events:SetPoint("BOTTOMRIGHT", 0, 0)
 
-        frame.Log.Events.ScrollBox = CreateFrame("Frame", nil, frame.Log.Events, "WowScrollBoxList")
+        frame.Log.Events.ScrollBox = CreateFrame("Frame", nil, frame.Log.Events, "WowScrollBoxList") ---@type WowScrollBoxListPolyfill
         frame.Log.Events.ScrollBox:OnLoad()
         frame.Log.Events.ScrollBox:SetPoint("TOPLEFT", 0, -8) -- 0, 0
         frame.Log.Events.ScrollBox:SetPoint("BOTTOMRIGHT", -25, 0)
         frame.Log.Events.ScrollBox.bgTexture = frame.Log.Events.ScrollBox:CreateTexture(nil, "BACKGROUND")
         frame.Log.Events.ScrollBox.bgTexture:SetColorTexture(0.03, 0.03, 0.03)
 
-        frame.Log.Events.ScrollBar = CreateFrame("EventFrame", nil, frame.Log.Events, "WowTrimScrollBar")
+        frame.Log.Events.ScrollBar = CreateFrame("EventFrame", nil, frame.Log.Events, "WowTrimScrollBar") ---@type WowTrimScrollBarPolyfill
         frame.Log.Events.ScrollBar:OnLoad()
         frame.Log.Events.ScrollBar:SetPoint("TOPLEFT", frame.Log.Events.ScrollBox, "TOPRIGHT", 0, 3) -- 0, -3
         frame.Log.Events.ScrollBar:SetPoint("BOTTOMLEFT", frame.Log.Events.ScrollBox, "BOTTOMRIGHT", 0, 0)
@@ -9316,7 +9378,7 @@ do
         frame.WipeLog:SetScript("OnEnter", UIButtonMixin.OnEnter)
         frame.WipeLog:SetScript("OnLeave", UIButtonMixin.OnLeave)
 
-        frame.MiniFrame = CreateFrame("Button", addonName .. "_RWFMiniFrame", UIParent, "UIPanelButtonTemplate")
+        frame.MiniFrame = CreateFrame("Button", addonName .. "_RWFMiniFrame", UIParent, "UIPanelButtonTemplate") ---@type UIPanelButtonTemplatePolyfill
         frame.MiniFrame:SetFrameLevel(100)
         frame.MiniFrame:SetClampedToScreen(true)
         frame.MiniFrame:SetSize(32, 32)
@@ -9338,9 +9400,9 @@ do
             end
         end)
         frame.MiniFrame.Text:SetPoint("TOP", frame.MiniFrame, "BOTTOM", 0, -5)
-        frame.MiniFrame:SetDisabledFontObject(_G.GameFontHighlightHuge)
-        frame.MiniFrame:SetHighlightFontObject(_G.GameFontHighlightHuge)
-        frame.MiniFrame:SetNormalFontObject(_G.GameFontHighlightHuge)
+        frame.MiniFrame:SetDisabledFontObject(GameFontHighlightHuge)
+        frame.MiniFrame:SetHighlightFontObject(GameFontHighlightHuge)
+        frame.MiniFrame:SetNormalFontObject(GameFontHighlightHuge)
         frame.MiniFrame.tooltip = L.RWF_MINIBUTTON_TOOLTIP
         frame.MiniFrame.GetAppropriateTooltip = UIButtonMixin.GetAppropriateTooltip
         frame.MiniFrame:SetScript("OnEnter", UIButtonMixin.OnEnter)
@@ -9483,7 +9545,7 @@ do
             -- self:SetEnabled(numItems > 0)
             if not self.isGlowing and numItems >= config:Get("rwfBackgroundRemindAt") then
                 self.isGlowing = true
-                _G.ActionButton_ShowOverlayGlow(self)
+                ActionButton_ShowOverlayGlow(self)
                 if not self.arrow1 then
                     self.arrow1 = CreateArrow(self)
                     self.arrow2 = CreateArrow(self)
@@ -9517,7 +9579,7 @@ do
             local isLogging, instanceName = rwf:GetLocation()
             local isLoggingGuildNews = true -- always logging guild news
             if not isLogging and isLoggingGuildNews then
-                instanceName = _G.GUILD_NEWS or _G.GUILD_NEWS_TITLE
+                instanceName = GUILD_NEWS or GUILD_NEWS_TITLE
             end
             self.SubTitle:SetText(format("%s |cff%s%s|r", instanceName or "", (isLogging or isLoggingGuildNews) and "55ff55" or "ff55ff", isLogging and L.RWF_SUBTITLE_LOGGING_LOOT or L.RWF_SUBTITLE_LOGGING_FILTERED_LOOT))
             self.EnableModule:SetShown(not isEnabled)
@@ -10122,7 +10184,7 @@ do
             end
         end
 
-        ---@class RaiderIOSettingsBaseWidget
+        ---@class RaiderIOSettingsBaseWidget : Button, BackdropTemplate
         ---@field public bg Texture
         ---@field public text FontString
         ---@field public checkButton CheckButton
@@ -10133,7 +10195,7 @@ do
 
         function configOptions.CreateWidget(self, widgetType, height, parentFrame)
 
-            ---@type RaiderIOSettingsBaseWidget
+            ---@class RaiderIOSettingsBaseWidget
             local widget = CreateFrame(widgetType, nil, parentFrame or configFrame, BackdropTemplateMixin and "BackdropTemplate")
 
             if self.lastWidget then
@@ -10205,7 +10267,6 @@ do
         end
 
         function configOptions.CreatePadding(self)
-            ---@type RaiderIOSettingsBaseWidget
             local frame = self:CreateWidget("Frame")
             local _, lastWidget = frame:GetPoint(1)
             frame:ClearAllPoints()
@@ -10216,7 +10277,6 @@ do
         end
 
         function configOptions.CreateHeadline(self, text, parentFrame)
-            ---@type RaiderIOSettingsBaseWidget
             local frame = self:CreateWidget("Frame", nil, parentFrame)
             frame.bg:Hide()
             frame.text:SetText(text)
@@ -10987,21 +11047,23 @@ do
                 if strcmputf8i(realmNameLC, realmName) == 0 then
                     realmNameUC = utf8upper(realmName)
                 else
-                    realmNameLC = nil
+                    realmNameLC = realmName
                 end
-                for i = 2, #realmData do
-                    local characterName = realmData[i]
-                    local characterNameLC = utf8lower(characterName)
-                    local characterNameUC
-                    if strcmputf8i(characterNameLC, characterName) == 0 then
-                        characterNameUC = utf8upper(characterName)
-                    else
-                        characterNameLC = nil
+                if realmNameLC then
+                    for i = 2, #realmData do
+                        local characterName = realmData[i]
+                        local characterNameLC = utf8lower(characterName)
+                        local characterNameUC
+                        if strcmputf8i(characterNameLC, characterName) == 0 then
+                            characterNameUC = utf8upper(characterName)
+                        else
+                            characterNameLC = characterName
+                        end
+                        index = index + 3
+                        collection[index - 2] = { region = region, realm = realmNameLC or realmName, name = characterNameLC or characterName, success = true }
+                        collection[index - 1] = { region = region, realm = realmNameUC or realmName, name = characterNameUC or characterName, success = true }
+                        collection[index] = CheckBothTestsAboveForSameProfiles
                     end
-                    index = index + 3
-                    collection[index - 2] = { region = region, realm = realmNameLC or realmName, name = characterNameLC or characterName, success = true }
-                    collection[index - 1] = { region = region, realm = realmNameUC or realmName, name = characterNameUC or characterName, success = true }
-                    collection[index] = CheckBothTestsAboveForSameProfiles
                 end
             end
         end

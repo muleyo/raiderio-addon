@@ -7255,12 +7255,14 @@ end
 -- dependencies: module, callback, config, util + LibGraph
 do
 
-    local hotfixDungeonEncounterToJournalID do
-        hotfixDungeonEncounterToJournalID = {}
-        for i = 1, 3000 do
-            local _, _, journalEncounterID, _, _, _, dungeonEncounterID = EJ_GetEncounterInfo(i)
+    ---@type table<number, number>
+    local HOTFIX_DUNGEON_ENCOUNTER_TO_JOURNAL_ID do
+        HOTFIX_DUNGEON_ENCOUNTER_TO_JOURNAL_ID = {}
+        local _, journalEncounterID, dungeonEncounterID
+        for i = 1, 10000 do
+            _, _, journalEncounterID, _, _, _, dungeonEncounterID = EJ_GetEncounterInfo(i)
             if dungeonEncounterID then
-                hotfixDungeonEncounterToJournalID[dungeonEncounterID] = journalEncounterID
+                HOTFIX_DUNGEON_ENCOUNTER_TO_JOURNAL_ID[dungeonEncounterID] = journalEncounterID
             end
         end
     end
@@ -7271,8 +7273,11 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
     local util = ns:GetModule("Util") ---@type UtilModule
 
+    ---@alias TracesFrameStyle "MODERN"|"MDI"
+
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
+    local FRAME_STYLE = "MDI" ---@type TracesFrameStyle
 
     local UPDATE_EVENTS = {
         "PLAYER_ENTERING_WORLD",
@@ -7338,44 +7343,48 @@ do
     ---@class BossFrame
     local BossFrameMixin = {}
 
-    ---@param self BossFrame
-    ---@param index number
-    ---@param bossID number
-    function BossFrameMixin:Setup(index, bossID)
-        self.index = index
-        self.bossID = bossID
-        self.bossName, ---@type string
-        self.bossDescription, ---@type string
-        self.bossJournalEncounterID, ---@type number
-        self.bossSectionID, ---@type number
-        self.bossLink, ---@type string
-        self.bossJournalInstanceID, ---@type number
-        self.bossEncounterID, ---@type number
-        self.bossInstanceID = EJ_GetEncounterInfo(bossID) ---@type number
-        self.Name:SetText(self.bossName)
-        self.Info:SetText("")
-    end
+    do
 
-    ---@param self BossFrame
-    ---@param liveBoss TraceBoss
-    ---@param traceBoss TraceBoss
-    function BossFrameMixin:Update(liveBoss, traceBoss)
-        local pending
-        local delta
-        local text
-        if liveBoss and liveBoss.dead then
-            pending = false
-            delta = floor((traceBoss.killed - liveBoss.killed) / 1000)
-            text = liveBoss.killedText
-        elseif frame.elapsedKeystoneTimer then
-            pending = true
-            delta = floor((traceBoss.killed - frame.elapsedKeystoneTimer * 1000) / 1000)
-            text = traceBoss.killedText
+        ---@param self BossFrame
+        ---@param index number
+        ---@param bossID number
+        function BossFrameMixin:Setup(index, bossID)
+            self.index = index
+            self.bossID = bossID
+            self.bossName, ---@type string
+            self.bossDescription, ---@type string
+            self.bossJournalEncounterID, ---@type number
+            self.bossSectionID, ---@type number
+            self.bossLink, ---@type string
+            self.bossJournalInstanceID, ---@type number
+            self.bossEncounterID, ---@type number
+            self.bossInstanceID = EJ_GetEncounterInfo(bossID) ---@type number
+            self.Name:SetText(self.bossName)
+            self.Info:SetText("")
         end
-        if not text then
-            return
+
+        ---@param self BossFrame
+        ---@param liveBoss TraceBoss
+        ---@param traceBoss TraceBoss
+        function BossFrameMixin:Update(liveBoss, traceBoss)
+            local pending
+            local delta
+            local text
+            if liveBoss and liveBoss.dead then
+                pending = false
+                delta = floor((traceBoss.killed - liveBoss.killed) / 1000)
+                text = liveBoss.killedText
+            elseif frame.elapsedKeystoneTimer then
+                pending = true
+                delta = floor((traceBoss.killed - frame.elapsedKeystoneTimer * 1000) / 1000)
+                text = traceBoss.killedText
+            end
+            if not text then
+                return
+            end
+            self.Info:SetFormattedText("%s\n%s", text, SecondsDiffToTimeText(delta, pending))
         end
-        self.Info:SetFormattedText("%s\n%s", text, SecondsDiffToTimeText(delta, pending))
+
     end
 
     ---@param obj BossFrame
@@ -7406,35 +7415,39 @@ do
     ---@class BossFramePool
     local BossFramePoolMixin = {}
 
-    ---@return number bossesHeight
-    function BossFramePoolMixin:UpdateLayout()
-        local bossIndex = 0
-        local bossFrames = {} ---@type BossFrame[]
-        for bossFrame in self:EnumerateActive() do
-            bossIndex = bossIndex + 1
-            bossFrames[bossIndex] = bossFrame
-        end
-        table.sort(bossFrames, function(a, b) return a.index < b.index end)
-        local offsetX, offsetY = 0, frame.contentPaddingY
-        local prevBossFrame
-        local bossesHeight = 0
-        for _, bossFrame in ipairs(bossFrames) do
-            local height = bossFrame:GetHeight()
-            bossesHeight = bossesHeight + height
-            bossFrame:ClearAllPoints()
-            if prevBossFrame then
-                bossFrame:SetPoint("TOPLEFT", prevBossFrame, "BOTTOMLEFT", 0, 0)
-                bossFrame:SetPoint("BOTTOMRIGHT", prevBossFrame, "BOTTOMRIGHT", 0, -height)
-            else
-                bossFrame:SetPoint("TOPLEFT", frame.TextBlock, "BOTTOMLEFT", offsetX, -offsetY)
-                bossFrame:SetPoint("BOTTOMRIGHT", frame.TextBlock, "BOTTOMRIGHT", -offsetX, -height-offsetY)
+    do
+
+        ---@return number bossesHeight
+        function BossFramePoolMixin:UpdateLayout()
+            local bossIndex = 0
+            local bossFrames = {} ---@type BossFrame[]
+            for bossFrame in self:EnumerateActive() do
+                bossIndex = bossIndex + 1
+                bossFrames[bossIndex] = bossFrame
             end
-            prevBossFrame = bossFrame
+            table.sort(bossFrames, function(a, b) return a.index < b.index end)
+            local offsetX, offsetY = 0, frame.contentPaddingY
+            local prevBossFrame
+            local bossesHeight = 0
+            for _, bossFrame in ipairs(bossFrames) do
+                local height = bossFrame:GetHeight()
+                bossesHeight = bossesHeight + height
+                bossFrame:ClearAllPoints()
+                if prevBossFrame then
+                    bossFrame:SetPoint("TOPLEFT", prevBossFrame, "BOTTOMLEFT", 0, 0)
+                    bossFrame:SetPoint("BOTTOMRIGHT", prevBossFrame, "BOTTOMRIGHT", 0, -height)
+                else
+                    bossFrame:SetPoint("TOPLEFT", frame.TextBlock, "BOTTOMLEFT", offsetX, -offsetY)
+                    bossFrame:SetPoint("BOTTOMRIGHT", frame.TextBlock, "BOTTOMRIGHT", -offsetX, -height-offsetY)
+                end
+                prevBossFrame = bossFrame
+            end
+            if bossesHeight > 0 then
+                bossesHeight = bossesHeight + frame.contentPaddingY
+            end
+            return bossesHeight
         end
-        if bossesHeight > 0 then
-            bossesHeight = bossesHeight + frame.contentPaddingY
-        end
-        return bossesHeight
+
     end
 
     ---@param parent TracesFrame
@@ -7448,450 +7461,471 @@ do
     ---@class TracesDataProvider
     local TracesDataProviderMixin = {}
 
-    function TracesDataProviderMixin:OnLoad()
-        self.traceSummary = self:CreateSummary()
-    end
+    do
 
-    ---@param trace? Trace
-    function TracesDataProviderMixin:SetTrace(trace)
-        if self.trace == trace then
-            return
+        function TracesDataProviderMixin:OnLoad()
+            self.traceSummary = self:CreateSummary()
         end
-        self.trace = trace
-        self:SetupSummary()
-    end
 
-    ---@return Trace? trace
-    function TracesDataProviderMixin:GetTrace()
-        return self.trace
-    end
-
-    ---@return TraceSummary traceSummary
-    function TracesDataProviderMixin:CreateSummary()
-        ---@type TraceSummary
-        local traceSummary = {
-            level = 0,
-            affixes = {},
-            index = 0,
-            timer = 0,
-            deaths = 0,
-            trash = 0,
-            bosses = {},
-        }
-        return traceSummary
-    end
-
-    function TracesDataProviderMixin:SetupSummary()
-        local traceSummary = self.traceSummary
-        traceSummary.level = 0
-        traceSummary.index = 0
-        traceSummary.timer = 0
-        traceSummary.deaths = 0
-        traceSummary.trash = 0
-        table.wipe(traceSummary.bosses)
-        local trace = self:GetTrace()
-        if not trace then
-            return
+        ---@param trace? Trace
+        function TracesDataProviderMixin:SetTrace(trace)
+            if self.trace == trace then
+                return
+            end
+            self.trace = trace
+            self:SetupSummary()
         end
-        traceSummary.level = trace.mythic_level
-        traceSummary.affixes = trace.affixes
-        for index, bossID in ipairs(trace.bosses) do
-            local traceBoss = {} ---@type TraceBoss
-            traceBoss.index = index
-            traceBoss.id = hotfixDungeonEncounterToJournalID[bossID] or bossID -- DEBUG: HOTFIX: adjust the dungeon encounter ID to the journal ID for the boss
-            traceBoss.dead = false
-            traceSummary.bosses[index] = traceBoss
+
+        ---@return Trace? trace
+        function TracesDataProviderMixin:GetTrace()
+            return self.trace
         end
-        for _, traceLog in ipairs(trace.logs) do
-            if traceLog.kills then
-                for bossIndex, dead in pairs(traceLog.kills) do
-                    if type(dead) == "table" then dead = dead[2] dead = dead == true or dead == "true" end -- DEBUG: HOTFIX: unpack the table wrapper + fix issue where boolean is stringified
-                    if dead then
-                        local boss = traceSummary.bosses[bossIndex]
-                        if not boss.killed then
-                            boss.killed = traceLog.timer
-                            boss.killedText = SecondsToClock(traceLog.timer / 1000)
+
+        ---@return TraceSummary traceSummary
+        function TracesDataProviderMixin:CreateSummary()
+            ---@type TraceSummary
+            local traceSummary = {
+                level = 0,
+                affixes = {},
+                index = 0,
+                timer = 0,
+                deaths = 0,
+                trash = 0,
+                bosses = {},
+            }
+            return traceSummary
+        end
+
+        function TracesDataProviderMixin:SetupSummary()
+            local traceSummary = self.traceSummary
+            traceSummary.level = 0
+            traceSummary.index = 0
+            traceSummary.timer = 0
+            traceSummary.deaths = 0
+            traceSummary.trash = 0
+            table.wipe(traceSummary.bosses)
+            local trace = self:GetTrace()
+            if not trace then
+                return
+            end
+            traceSummary.level = trace.mythic_level
+            traceSummary.affixes = trace.affixes
+            for index, bossID in ipairs(trace.bosses) do
+                local traceBoss = {} ---@type TraceBoss
+                traceBoss.index = index
+                traceBoss.id = HOTFIX_DUNGEON_ENCOUNTER_TO_JOURNAL_ID[bossID] or bossID
+                traceBoss.dead = false
+                traceSummary.bosses[index] = traceBoss
+            end
+            for _, traceLog in ipairs(trace.logs) do
+                if traceLog.kills then
+                    for bossIndex, dead in pairs(traceLog.kills) do
+                        if type(dead) == "table" then dead = dead[2] dead = dead == true or dead == "true" end -- DEBUG: HOTFIX: unpack the table wrapper + fix issue where boolean is stringified
+                        if dead then
+                            local boss = traceSummary.bosses[bossIndex]
+                            if not boss.killed then
+                                boss.killed = traceLog.timer
+                                boss.killedText = SecondsToClock(traceLog.timer / 1000)
+                            end
                         end
                     end
                 end
             end
         end
-    end
 
-    ---@return TraceSummary traceSummary
-    function TracesDataProviderMixin:GetSummary()
-        return self.traceSummary
-    end
+        ---@return TraceSummary traceSummary
+        function TracesDataProviderMixin:GetSummary()
+            return self.traceSummary
+        end
 
-    ---@param timerMS number
-    ---@return TraceSummary traceSummary, TraceLog currentTraceLog, TraceLog? nextTraceLog
-    function TracesDataProviderMixin:GetTraceSummaryAt(timerMS)
-        local traceSummary = self:GetSummary()
-        local trace = self:GetTrace() ---@type Trace
-        local traceLogs = trace.logs
-        for i = traceSummary.index + 1, #traceLogs do
-            local traceLog = traceLogs[i]
-            if traceLog.timer > timerMS then
-                break
-            end
-            traceSummary.index = i
-            traceSummary.timer = traceLog.timer
-            if traceLog.deaths then
-                traceSummary.deaths = traceSummary.deaths + traceLog.deaths
-            end
-            if traceLog.trash then
-                traceSummary.trash = traceSummary.trash + traceLog.trash
-            end
-            if traceLog.kills then
-                for bossIndex, dead in pairs(traceLog.kills) do
-                    if type(dead) == "table" then dead = dead[2] end -- DEBUG: HOTFIX: unpack the table wrapper
-                    if dead then
-                        local boss = traceSummary.bosses[bossIndex]
-                        boss.dead = true
+        ---@param timerMS number
+        ---@return TraceSummary traceSummary, TraceLog currentTraceLog, TraceLog? nextTraceLog
+        function TracesDataProviderMixin:GetTraceSummaryAt(timerMS)
+            local traceSummary = self:GetSummary()
+            local trace = self:GetTrace() ---@type Trace
+            local traceLogs = trace.logs
+            for i = traceSummary.index + 1, #traceLogs do
+                local traceLog = traceLogs[i]
+                if traceLog.timer > timerMS then
+                    break
+                end
+                traceSummary.index = i
+                traceSummary.timer = traceLog.timer
+                if traceLog.deaths then
+                    traceSummary.deaths = traceSummary.deaths + traceLog.deaths
+                end
+                if traceLog.trash then
+                    traceSummary.trash = traceSummary.trash + traceLog.trash
+                end
+                if traceLog.kills then
+                    for bossIndex, dead in pairs(traceLog.kills) do
+                        if type(dead) == "table" then dead = dead[2] end -- DEBUG: HOTFIX: unpack the table wrapper
+                        if dead then
+                            local boss = traceSummary.bosses[bossIndex]
+                            boss.dead = true
+                        end
                     end
                 end
             end
+            return traceSummary, traceLogs[traceSummary.index], traceLogs[traceSummary.index + 1]
         end
-        return traceSummary, traceLogs[traceSummary.index], traceLogs[traceSummary.index + 1]
+
     end
 
     ---@class LiveDataProvider : TracesDataProvider
     local LiveDataProviderMixin = {}
 
-    function LiveDataProviderMixin:OnLoad()
-        self.SetTrace = nil
-        self.GetTrace = nil
-        self.CreateSummary = nil
-        self.SetupSummary = nil
-        self.GetTraceSummaryAt = nil
-        self:SetDeathPenalty(5)
-    end
+    do
 
-    ---@return TraceSummary liveSummary
-    function LiveDataProviderMixin:GetSummary()
-        local liveSummary = self.traceSummary
-        if frame.elapsedKeystoneTimer then
-            liveSummary.timer = frame.elapsedKeystoneTimer * 1000
+        function LiveDataProviderMixin:OnLoad()
+            self.SetTrace = nil
+            self.GetTrace = nil
+            self.CreateSummary = nil
+            self.SetupSummary = nil
+            self.GetTraceSummaryAt = nil
+            self:SetDeathPenalty(5)
         end
-        local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
-        if activeKeystoneLevel then
-            liveSummary.level = activeKeystoneLevel
-        end
-        if activeAffixIDs then
-            liveSummary.affixes = activeAffixIDs
-        end
-        local numDeaths, timeLost = C_ChallengeMode.GetDeathCount()
-        if numDeaths then
-            liveSummary.deaths = numDeaths
-        end
-        local _, _, numCriteria = C_Scenario.GetStepInfo()
-        if numCriteria then
-            for i = 1, numCriteria do
-                local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
-                if criteriaString then
-                    if criteriaType == 0 then
-                        if liveSummary.trash ~= quantity then
-                            liveSummary.trash = quantity
-                        end
-                    elseif criteriaType == 165 then
-                        local boss = liveSummary.bosses[i]
-                        if not boss then
-                            boss = {} ---@type TraceBoss
-                            boss.dead = false
-                            liveSummary.bosses[i] = boss
-                        end
-                        local dead = not not completed
-                        if dead and dead ~= boss.dead then
-                            boss.dead = true
-                            boss.killed = liveSummary.timer
-                            boss.killedText = SecondsToClock(ceil(liveSummary.timer / 1000))
+
+        ---@return TraceSummary liveSummary
+        function LiveDataProviderMixin:GetSummary()
+            local liveSummary = self.traceSummary
+            if frame.elapsedKeystoneTimer then
+                liveSummary.timer = frame.elapsedKeystoneTimer * 1000
+            end
+            local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
+            if activeKeystoneLevel then
+                liveSummary.level = activeKeystoneLevel
+            end
+            if activeAffixIDs then
+                liveSummary.affixes = activeAffixIDs
+            end
+            local numDeaths, timeLost = C_ChallengeMode.GetDeathCount()
+            if numDeaths then
+                liveSummary.deaths = numDeaths
+            end
+            local _, _, numCriteria = C_Scenario.GetStepInfo()
+            if numCriteria then
+                for i = 1, numCriteria do
+                    local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
+                    if criteriaString then
+                        if criteriaType == 0 then
+                            if liveSummary.trash ~= quantity then
+                                liveSummary.trash = quantity
+                            end
+                        elseif criteriaType == 165 then
+                            local boss = liveSummary.bosses[i]
+                            if not boss then
+                                boss = {} ---@type TraceBoss
+                                boss.dead = false
+                                liveSummary.bosses[i] = boss
+                            end
+                            local dead = not not completed
+                            if dead and dead ~= boss.dead then
+                                boss.dead = true
+                                boss.killed = liveSummary.timer
+                                boss.killedText = SecondsToClock(ceil(liveSummary.timer / 1000))
+                            end
                         end
                     end
                 end
             end
+            return liveSummary
         end
-        return liveSummary
-    end
 
-    ---@param seconds number
-    function LiveDataProviderMixin:SetDeathPenalty(seconds)
-        self.deathPenalty = seconds
-    end
+        ---@param seconds number
+        function LiveDataProviderMixin:SetDeathPenalty(seconds)
+            self.deathPenalty = seconds
+        end
 
-    ---@return number deathPenalty
-    function LiveDataProviderMixin:GetDeathPenalty()
-        return self.deathPenalty
+        ---@return number deathPenalty
+        function LiveDataProviderMixin:GetDeathPenalty()
+            return self.deathPenalty
+        end
+
     end
 
     ---@class TracesFrame : Frame
     local TracesFrameMixin = {}
 
-    function TracesFrameMixin:OnLoad()
-        self:Hide()
-        self:SetScript("OnUpdate", self.OnUpdate)
-        self.width = 200
-        self.contentPaddingX = 5
-        self.contentPaddingY = 5
-        self.textColumnWidth = (self.width - (self.contentPaddingX * 4)) / 3
-        self.textRowHeight = 25
-        self.textHeight = self.textRowHeight * 5 + self.contentPaddingY * 3
-        self.bossesHeight = 0
-        self:SetPoint("TOPRIGHT", _G.ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
-        self:SetSize(self.width, 0)
-        self:SetFrameStrata("HIGH")
-        self:SetClampedToScreen(true)
-        self:EnableMouse(true)
-        self:SetMovable(true)
-        self:RegisterForDrag("LeftButton")
-        self:SetScript("OnDragStart", self.StartMoving)
-        self:SetScript("OnDragStop", self.StopMovingOrSizing)
-        self.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
-        self.Background:SetAllPoints()
-        self.Background:SetColorTexture(0, 0, 0, 0.5)
-        self.BossFramePool = CreateBossFramePool(self)
-        self.TextBlock = CreateFrame("Frame", nil, self) ---@class TextBlock : Frame
-        self.TextBlock:SetPoint("TOPLEFT", self, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
-        self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
-        self.TextBlock.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
-        self.TextBlock.Background:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", 0, 0)
-        self.TextBlock.Background:SetPoint("BOTTOMRIGHT", self.TextBlock, "BOTTOMRIGHT", 0, 0)
-        self.TextBlock.Background:SetColorTexture(0, 0, 0, 0.5)
-        ---@param previous? Region
-        ---@return FontString Left, FontString Middle, FontString Right
-        local function CreateTextRow(previous)
-            local equalWidth = self.textColumnWidth
-            local middleWidth = 30
-            local extraWidth = (equalWidth - middleWidth)/2
-            equalWidth = equalWidth + extraWidth
-            local L = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
-            L:SetSize(equalWidth, self.textRowHeight)
-            if previous then
-                L:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, 0)
-            else
-                L:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
+    do
+
+        function TracesFrameMixin:OnLoad()
+            self:Hide()
+            self:SetScript("OnUpdate", self.OnUpdate)
+            self.width = 200
+            self.contentPaddingX = 5
+            self.contentPaddingY = 5
+            self.textColumnWidth = (self.width - (self.contentPaddingX * 4)) / 3
+            self.textRowHeight = 25
+            self.textHeight = self.textRowHeight * 5 + self.contentPaddingY * 3
+            self.bossesHeight = 0
+            self:SetPoint("TOPRIGHT", _G.ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
+            self:SetSize(self.width, 0)
+            self:SetFrameStrata("HIGH")
+            self:SetClampedToScreen(true)
+            self:EnableMouse(true)
+            self:SetMovable(true)
+            self:RegisterForDrag("LeftButton")
+            self:SetScript("OnDragStart", self.StartMoving)
+            self:SetScript("OnDragStop", self.StopMovingOrSizing)
+            self.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.Background:SetAllPoints()
+            self.Background:SetColorTexture(0, 0, 0, 0.5)
+            self.BossFramePool = CreateBossFramePool(self)
+            self.TextBlock = CreateFrame("Frame", nil, self) ---@class TextBlock : Frame
+            self.TextBlock:SetPoint("TOPLEFT", self, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
+            self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
+            self.TextBlock.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.TextBlock.Background:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", 0, 0)
+            self.TextBlock.Background:SetPoint("BOTTOMRIGHT", self.TextBlock, "BOTTOMRIGHT", 0, 0)
+            self.TextBlock.Background:SetColorTexture(0, 0, 0, 0.5)
+            ---@param previous? Region
+            ---@return FontString Left, FontString Middle, FontString Right
+            local function CreateTextRow(previous)
+                local equalWidth = self.textColumnWidth
+                local middleWidth = 30
+                local extraWidth = (equalWidth - middleWidth)/2
+                equalWidth = equalWidth + extraWidth
+                local LF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+                LF:SetSize(equalWidth, self.textRowHeight)
+                if previous then
+                    LF:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, 0)
+                else
+                    LF:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
+                end
+                LF:SetJustifyH("RIGHT")
+                LF:SetJustifyV("MIDDLE")
+                local MF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+                MF:SetSize(middleWidth, self.textRowHeight)
+                MF:SetPoint("TOPLEFT", LF, "TOPRIGHT", 0, 0)
+                MF:SetJustifyH("CENTER")
+                MF:SetJustifyV("MIDDLE")
+                local RF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+                RF:SetSize(equalWidth, self.textRowHeight)
+                RF:SetPoint("TOPLEFT", MF, "TOPRIGHT", 0, 0)
+                RF:SetJustifyH("LEFT")
+                RF:SetJustifyV("MIDDLE")
+                return LF, MF, RF
             end
-            L:SetJustifyH("RIGHT")
-            L:SetJustifyV("MIDDLE")
-            local M = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
-            M:SetSize(middleWidth, self.textRowHeight)
-            M:SetPoint("TOPLEFT", L, "TOPRIGHT", 0, 0)
-            M:SetJustifyH("CENTER")
-            M:SetJustifyV("MIDDLE")
-            local R = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
-            R:SetSize(equalWidth, self.textRowHeight)
-            R:SetPoint("TOPLEFT", M, "TOPRIGHT", 0, 0)
-            R:SetJustifyH("LEFT")
-            R:SetJustifyV("MIDDLE")
-            return L, M, R
+            self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow()
+            self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL)
+            self.TextBlock.DeathL, self.TextBlock.DeathM, self.TextBlock.DeathR = CreateTextRow(self.TextBlock.TimerL)
+            self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.DeathL)
+            self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL)
+            self.TextBlock.TitleM:SetText(ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
+            self.TextBlock.TimerM:SetText(ns.CUSTOM_ICONS.trace.TIMER("TextureMarkup"))
+            self.TextBlock.DeathM:SetText(ns.CUSTOM_ICONS.trace.DEATH("TextureMarkup"))
+            self.TextBlock.TrashM:SetText(ns.CUSTOM_ICONS.trace.TRASH("TextureMarkup"))
+            self.TextBlock.DeathPenM:SetText(ns.CUSTOM_ICONS.trace.PENALTY("TextureMarkup"))
         end
-        self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow()
-        self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL)
-        self.TextBlock.DeathL, self.TextBlock.DeathM, self.TextBlock.DeathR = CreateTextRow(self.TextBlock.TimerL)
-        self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.DeathL)
-        self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL)
-        self.TextBlock.TitleM:SetText(ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
-        self.TextBlock.TimerM:SetText(ns.CUSTOM_ICONS.trace.TIMER("TextureMarkup"))
-        self.TextBlock.DeathM:SetText(ns.CUSTOM_ICONS.trace.DEATH("TextureMarkup"))
-        self.TextBlock.TrashM:SetText(ns.CUSTOM_ICONS.trace.TRASH("TextureMarkup"))
-        self.TextBlock.DeathPenM:SetText(ns.CUSTOM_ICONS.trace.PENALTY("TextureMarkup"))
-    end
 
-    ---@param traceDataProvider TracesDataProvider
-    function TracesFrameMixin:SetTraceDataProvider(traceDataProvider)
-        self.traceDataProvider = traceDataProvider
-    end
-
-    ---@return TracesDataProvider traceDataProvider
-    function TracesFrameMixin:GetTraceDataProvider()
-        return self.traceDataProvider
-    end
-
-    ---@param liveDataProvider LiveDataProvider
-    function TracesFrameMixin:SetLiveDataProvider(liveDataProvider)
-        self.liveDataProvider = liveDataProvider
-    end
-
-    ---@return LiveDataProvider liveDataProvider
-    function TracesFrameMixin:GetLiveDataProvider()
-        return self.liveDataProvider
-    end
-
-    ---@param timerID? number
-    ---@param elapsedTime? number
-    ---@param isActive? boolean
-    function TracesFrameMixin:SetTimer(timerID, elapsedTime, isActive)
-        if not timerID then
-            self:Stop()
-            return
+        ---@param style TracesFrameStyle
+        function TracesFrameMixin:SetStyle(style)
+            if style == "MDI" then
+                -- TODO: apply modifications to existing regions so they appear using the MDI style
+            elseif style == "MODERN" then
+                -- TODO: revert any changes from the other styles back to the modern style
+            end
         end
-        self.timerID = timerID
-        self.elapsedTime = elapsedTime
-        self.isActive = isActive
-        if isActive then
-            self:Start()
-        else
-            self:Stop()
+
+        ---@param traceDataProvider TracesDataProvider
+        function TracesFrameMixin:SetTraceDataProvider(traceDataProvider)
+            self.traceDataProvider = traceDataProvider
         end
-    end
 
-    ---@return number? timerID, number elapsedTime, boolean isActive
-    function TracesFrameMixin:GetTimer()
-        return self.timerID, self.elapsedTime, self.isActive
-    end
-
-    ---@param mapID? number
-    ---@param timeLimit? number
-    function TracesFrameMixin:SetKeystone(mapID, timeLimit)
-        if not mapID then
-            self:Stop()
-            return
+        ---@return TracesDataProvider traceDataProvider
+        function TracesFrameMixin:GetTraceDataProvider()
+            return self.traceDataProvider
         end
-        self.mapID = mapID
-        self.timeLimit = timeLimit
-        self:Update()
-    end
 
-    ---@return number? mapID, number timeLimit
-    function TracesFrameMixin:GetKeystone()
-        return self.mapID, self.timeLimit
-    end
-
-    function TracesFrameMixin:Start()
-        if not self.isPlaying then
-            self.isPlaying = true
-            self.elapsedTimer = 0
+        ---@param liveDataProvider LiveDataProvider
+        function TracesFrameMixin:SetLiveDataProvider(liveDataProvider)
+            self.liveDataProvider = liveDataProvider
         end
-        self:Update()
-    end
 
-    function TracesFrameMixin:Stop()
-        if self.isPlaying then
-            self.isPlaying = false
+        ---@return LiveDataProvider liveDataProvider
+        function TracesFrameMixin:GetLiveDataProvider()
+            return self.liveDataProvider
         end
-        self:Update()
-    end
 
-    function TracesFrameMixin:UpdateShown()
-        local shown = self.timerID and self.mapID and self.isPlaying
-        if shown then
+        ---@param timerID? number
+        ---@param elapsedTime? number
+        ---@param isActive? boolean
+        function TracesFrameMixin:SetTimer(timerID, elapsedTime, isActive)
+            if not timerID then
+                self:Stop()
+                return
+            end
+            self.timerID = timerID
+            self.elapsedTime = elapsedTime
+            self.isActive = isActive
+            if isActive then
+                self:Start()
+            else
+                self:Stop()
+            end
+        end
+
+        ---@return number? timerID, number elapsedTime, boolean isActive
+        function TracesFrameMixin:GetTimer()
+            return self.timerID, self.elapsedTime, self.isActive
+        end
+
+        ---@param mapID? number
+        ---@param timeLimit? number
+        function TracesFrameMixin:SetKeystone(mapID, timeLimit)
+            if not mapID then
+                self:Stop()
+                return
+            end
+            self.mapID = mapID
+            self.timeLimit = timeLimit
+            self:Update()
+        end
+
+        ---@return number? mapID, number timeLimit
+        function TracesFrameMixin:GetKeystone()
+            return self.mapID, self.timeLimit
+        end
+
+        function TracesFrameMixin:Start()
+            if not self.isPlaying then
+                self.isPlaying = true
+                self.elapsedTimer = 0
+            end
+            self:Update()
+        end
+
+        function TracesFrameMixin:Stop()
+            if self.isPlaying then
+                self.isPlaying = false
+            end
+            self:Update()
+        end
+
+        function TracesFrameMixin:UpdateShown()
+            local shown = self.timerID and self.mapID and self.isPlaying
+            if shown then
+                local traceDataProvider = self:GetTraceDataProvider()
+                local liveDataProvider = self:GetLiveDataProvider()
+                local liveSummary = liveDataProvider:GetSummary()
+                local elapsedKeystoneTimer = liveSummary.timer
+                local traceSummary = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
+                self:SetUITitle(liveSummary.level, liveSummary.affixes, traceSummary.level, traceSummary.affixes)
+                self:SetUIBosses(liveSummary.bosses, traceSummary.bosses)
+                self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
+            end
+            self:SetShown(shown)
+        end
+
+        function TracesFrameMixin:OnUpdate(elapsed)
+            self.elapsed = (self.elapsed or 0) + (elapsed * FRAME_TIMER_SCALE)
+            if self.elapsed < FRAME_UPDATE_INTERVAL then return end
+            self.elapsedTimer = (self.elapsedTimer or 0) + self.elapsed
+            self.elapsed = 0
+            self:Update()
+        end
+
+        function TracesFrameMixin:Update()
+            local isRunning = self.isActive and self.isPlaying
+            if isRunning then
+                self.elapsedKeystoneTimer = self.elapsedTimer + self.elapsedTime
+            end
             local traceDataProvider = self:GetTraceDataProvider()
+            local trace = traceDataProvider:GetTrace()
+            if not trace then
+                return
+            end
             local liveDataProvider = self:GetLiveDataProvider()
             local liveSummary = liveDataProvider:GetSummary()
+            local deathPenalty = liveDataProvider:GetDeathPenalty()
             local elapsedKeystoneTimer = liveSummary.timer
-            local traceSummary = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
-            self:SetUITitle(liveSummary.level, liveSummary.affixes, traceSummary.level, traceSummary.affixes)
-            self:SetUIBosses(liveSummary.bosses, traceSummary.bosses)
-            self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
+            local traceSummary, _, nextTraceLog = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
+            self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(traceSummary.timer / 1000), ceil(trace.time / 1000), not nextTraceLog)
+            self:SetUIDeaths(liveSummary.deaths, traceSummary.deaths)
+            self:SetUITrash(liveSummary.trash, traceSummary.trash, trace.trash)
+            self:SetUIDeathPenalty(liveSummary.deaths, traceSummary.deaths, deathPenalty)
+            self:UpdateUIBosses(liveSummary.bosses, traceSummary.bosses)
         end
-        self:SetShown(shown)
-    end
 
-    function TracesFrameMixin:OnUpdate(elapsed)
-        self.elapsed = (self.elapsed or 0) + (elapsed * FRAME_TIMER_SCALE)
-        if self.elapsed < FRAME_UPDATE_INTERVAL then return end
-        self.elapsedTimer = (self.elapsedTimer or 0) + self.elapsed
-        self.elapsed = 0
-        self:Update()
-    end
-
-    function TracesFrameMixin:Update()
-        local isRunning = self.isActive and self.isPlaying
-        if isRunning then
-            self.elapsedKeystoneTimer = self.elapsedTimer + self.elapsedTime
+        ---@param liveLevel number
+        ---@param liveAffixes number[]
+        ---@param traceLevel number
+        ---@param traceAffixes number[]
+        function TracesFrameMixin:SetUITitle(liveLevel, liveAffixes, traceLevel, traceAffixes)
+            local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
+            local traceAffix = util:TableContains(traceAffixes, 9) and 9 or 10
+            self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
+            self.TextBlock.TitleR:SetFormattedText("+%d %s", traceLevel, ns.KEYSTONE_AFFIX_TEXTURE[traceAffix])
         end
-        local traceDataProvider = self:GetTraceDataProvider()
-        local trace = traceDataProvider:GetTrace()
-        if not trace then
-            return
+
+        ---@param liveTimer number
+        ---@param traceTimer number
+        ---@param totalTimer number
+        ---@param traceIsCompleted boolean
+        function TracesFrameMixin:SetUITimer(liveTimer, traceTimer, totalTimer, traceIsCompleted)
+            local delta = traceIsCompleted and 1 or (traceTimer - liveTimer - 1)
+            self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta), SecondsToClock(liveTimer))
+            self.TextBlock.TimerR:SetText(SecondsToClock(totalTimer))
         end
-        local liveDataProvider = self:GetLiveDataProvider()
-        local liveSummary = liveDataProvider:GetSummary()
-        local deathPenalty = liveDataProvider:GetDeathPenalty()
-        local elapsedKeystoneTimer = liveSummary.timer
-        local traceSummary, _, nextTraceLog = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
-        self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(traceSummary.timer / 1000), ceil(trace.time / 1000), not nextTraceLog)
-        self:SetUIDeaths(liveSummary.deaths, traceSummary.deaths)
-        self:SetUITrash(liveSummary.trash, traceSummary.trash, trace.trash)
-        self:SetUIDeathPenalty(liveSummary.deaths, traceSummary.deaths, deathPenalty)
-        self:UpdateUIBosses(liveSummary.bosses, traceSummary.bosses)
-    end
 
-    ---@param liveLevel number
-    ---@param liveAffixes number[]
-    ---@param traceLevel number
-    ---@param traceAffixes number[]
-    function TracesFrameMixin:SetUITitle(liveLevel, liveAffixes, traceLevel, traceAffixes)
-        local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
-        local traceAffix = util:TableContains(traceAffixes, 9) and 9 or 10
-        self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
-        self.TextBlock.TitleR:SetFormattedText("+%d %s", traceLevel, ns.KEYSTONE_AFFIX_TEXTURE[traceAffix])
-    end
+        ---@param liveDeaths number
+        ---@param traceDeaths number
+        function TracesFrameMixin:SetUIDeaths(liveDeaths, traceDeaths)
+            local totalDeaths = max(liveDeaths, traceDeaths)
+            self.TextBlock.DeathL:SetFormattedText("|cff%s%d/%d|r", AheadColor(liveDeaths - traceDeaths), liveDeaths, totalDeaths)
+            self.TextBlock.DeathR:SetFormattedText("%d/%d", traceDeaths, totalDeaths)
+        end
 
-    ---@param liveTimer number
-    ---@param traceTimer number
-    ---@param totalTimer number
-    ---@param traceIsCompleted boolean
-    function TracesFrameMixin:SetUITimer(liveTimer, traceTimer, totalTimer, traceIsCompleted)
-        local delta = traceIsCompleted and 1 or (traceTimer - liveTimer - 1)
-        self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta), SecondsToClock(liveTimer))
-        self.TextBlock.TimerR:SetText(SecondsToClock(totalTimer))
-    end
+        ---@param liveTrash number
+        ---@param traceTrash number
+        function TracesFrameMixin:SetUITrash(liveTrash, traceTrash, totalTrash)
+            self.TextBlock.TrashL:SetFormattedText("|cff%s%.1f%%|r", AheadColor(traceTrash - liveTrash), liveTrash / totalTrash * 100)
+            self.TextBlock.TrashR:SetFormattedText("%.1f%%", traceTrash / totalTrash * 100)
+        end
 
-    ---@param liveDeaths number
-    ---@param traceDeaths number
-    function TracesFrameMixin:SetUIDeaths(liveDeaths, traceDeaths)
-        local totalDeaths = max(liveDeaths, traceDeaths)
-        self.TextBlock.DeathL:SetFormattedText("|cff%s%d/%d|r", AheadColor(liveDeaths - traceDeaths), liveDeaths, totalDeaths)
-        self.TextBlock.DeathR:SetFormattedText("%d/%d", traceDeaths, totalDeaths)
-    end
+        ---@param liveDeaths number
+        ---@param traceDeaths number
+        ---@param deathPenalty number
+        function TracesFrameMixin:SetUIDeathPenalty(liveDeaths, traceDeaths, deathPenalty)
+            self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(liveDeaths - traceDeaths), liveDeaths, liveDeaths * deathPenalty)
+            self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", traceDeaths, traceDeaths * deathPenalty)
+        end
 
-    ---@param liveTrash number
-    ---@param traceTrash number
-    function TracesFrameMixin:SetUITrash(liveTrash, traceTrash, totalTrash)
-        self.TextBlock.TrashL:SetFormattedText("|cff%s%.1f%%|r", AheadColor(traceTrash - liveTrash), liveTrash / totalTrash * 100)
-        self.TextBlock.TrashR:SetFormattedText("%.1f%%", traceTrash / totalTrash * 100)
-    end
+        ---@param liveBosses TraceBoss[]
+        ---@param traceBosses TraceBoss[]
+        function TracesFrameMixin:SetUIBosses(liveBosses, traceBosses)
+            local pool = self.BossFramePool
+            pool:ReleaseAll()
+            local count = max(#liveBosses, #traceBosses)
+            for i = 1, count do
+                local liveBoss = liveBosses[i]
+                local traceBoss = traceBosses[i]
+                local bossID = (liveBoss and liveBoss.id) or (traceBoss and traceBoss.id)
+                if bossID then
+                    local bossFrame = pool:Acquire()
+                    bossFrame:Setup(i, bossID)
+                    bossFrame:Update(liveBoss, traceBoss)
+                end
+            end
+            self.bossesHeight = pool:UpdateLayout()
+        end
 
-    ---@param liveDeaths number
-    ---@param traceDeaths number
-    ---@param deathPenalty number
-    function TracesFrameMixin:SetUIDeathPenalty(liveDeaths, traceDeaths, deathPenalty)
-        self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(liveDeaths - traceDeaths), liveDeaths, liveDeaths * deathPenalty)
-        self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", traceDeaths, traceDeaths * deathPenalty)
-    end
-
-    ---@param liveBosses TraceBoss[]
-    ---@param traceBosses TraceBoss[]
-    function TracesFrameMixin:SetUIBosses(liveBosses, traceBosses)
-        local pool = self.BossFramePool
-        pool:ReleaseAll()
-        local count = max(#liveBosses, #traceBosses)
-        for i = 1, count do
-            local liveBoss = liveBosses[i]
-            local traceBoss = traceBosses[i]
-            local bossID = (liveBoss and liveBoss.id) or (traceBoss and traceBoss.id)
-            if bossID then
-                local bossFrame = pool:Acquire()
-                bossFrame:Setup(i, bossID)
-                bossFrame:Update(liveBoss, traceBoss)
+        ---@param liveBosses TraceBoss[]
+        ---@param traceBosses TraceBoss[]
+        function TracesFrameMixin:UpdateUIBosses(liveBosses, traceBosses)
+            local pool = self.BossFramePool
+            for bossFrame in pool:EnumerateActive() do
+                local i = bossFrame.index
+                local liveBoss = liveBosses[i]
+                local traceBoss = traceBosses[i]
+                local bossID = (liveBoss and liveBoss.id) or (traceBoss and traceBoss.id)
+                if bossID and bossID == bossFrame.bossID then
+                    bossFrame:Update(liveBoss, traceBoss)
+                end
             end
         end
-        self.bossesHeight = pool:UpdateLayout()
-    end
 
-    ---@param liveBosses TraceBoss[]
-    ---@param traceBosses TraceBoss[]
-    function TracesFrameMixin:UpdateUIBosses(liveBosses, traceBosses)
-        local pool = self.BossFramePool
-        for bossFrame in pool:EnumerateActive() do
-            local i = bossFrame.index
-            local liveBoss = liveBosses[i]
-            local traceBoss = traceBosses[i]
-            local bossID = (liveBoss and liveBoss.id) or (traceBoss and traceBoss.id)
-            if bossID and bossID == bossFrame.bossID then
-                bossFrame:Update(liveBoss, traceBoss)
-            end
-        end
     end
 
     local function CreateTracesDataProvider()
@@ -7902,17 +7936,17 @@ do
     end
 
     local function CreateLiveDataProvider()
-        local liveDataProvider = CreateTracesDataProvider() ---@class LiveDataProvider
-        Mixin(liveDataProvider, LiveDataProviderMixin)
-        liveDataProvider:OnLoad()
-        return liveDataProvider
+        local dataProvider = CreateTracesDataProvider() ---@class LiveDataProvider
+        Mixin(dataProvider, LiveDataProviderMixin)
+        dataProvider:OnLoad()
+        return dataProvider
     end
 
     local function CreateTracesFrame()
-        local frame = CreateFrame("Frame", addonName .. "_TracesFrame", UIParent) ---@class TracesFrame
-        Mixin(frame, TracesFrameMixin)
-        frame:OnLoad()
-        return frame
+        local tracesFrame = CreateFrame("Frame", addonName .. "_TracesFrame", UIParent) ---@class TracesFrame
+        Mixin(tracesFrame, TracesFrameMixin)
+        tracesFrame:OnLoad()
+        return tracesFrame
     end
 
     ---@param timerID number
@@ -7992,6 +8026,7 @@ do
     function traces:OnLoad()
         traceItems = ns:GetTraces()
         frame = CreateTracesFrame()
+        frame:SetStyle(FRAME_STYLE)
         frame:SetTraceDataProvider(CreateTracesDataProvider())
         frame:SetLiveDataProvider(CreateLiveDataProvider())
         self:Enable()

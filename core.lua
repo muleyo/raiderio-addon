@@ -219,7 +219,7 @@ do
             RAIDERIO_WHITE = { 256, 256, 0, 0, 64/256, 128/256, 64/256, 128/256, 0, 0 },
             RAIDERIO_BLACK = { 256, 256, 0, 0, 128/256, 192/256, 64/256, 128/256, 0, 0 },
         },
-        trace = {
+        replay = {
             TIMER = { 256, 256, 0, 0, 0/256, 64/256, 0/256, 64/256, 0, 0 },
             DEATH = { 256, 256, 0, 0, 64/256, 128/256, 0/256, 64/256, 0, 0 },
             TRASH = { 256, 256, 0, 0, 128/256, 192/256, 0/256, 64/256, 0, 0 },
@@ -571,35 +571,49 @@ do
         return ns.CLIENT_CONFIG
     end
 
-    ---@class TraceDungeon : Dungeon
-    ---@field public timers number[]
-    ---@field public shortNameLocale nil
-    ---@field public index nil
+    ---@class ReplayDungeon
+    ---@field public id number
+    ---@field public name string
+    ---@field public short_name string
+    ---@field public total_enemy_forces number
 
-    ---@class Trace
-    ---@field public traceId string `season-sl-4-100183-2022-10-24T18:22:32.000Z`
-    ---@field public title string `Maegisniec, Isakladin, Rövpiraten, Milio, Kasios`
+    ---@class ReplayAffix
+    ---@field public id number
+    ---@field public name string
+    ---@field public icon string
+
+    ---@class ReplayEncounter
+    ---@field public encounter_id number
+    ---@field public journal_encounter_id number
+
+    ---@class ReplayEvent
+    ---@field public _replayEventInfo? ReplayEventInfo Once `UnpackReplayEvent` has parsed the `ReplayEvent` the result is stored and re-used when needed.
+
+    ---@class Replay
+    ---@field public format_version number `2`
+    ---@field public title string `name1, name2, name3, name4, name5`
+    ---@field public run_url string
     ---@field public date string `2022-10-24T18:22:32.000Z`
-    ---@field public dungeon TraceDungeon This is a hard copy of the dungeon object. It's for historical consistency as it's just how it was at the recording date.
-    ---@field public time number The keystone timer in milliseconds.
-    ---@field public mythic_level number The keystone level.
-    ---@field public affixes number[] The affixes applied to the keystone run.
-    ---@field public affixIcons string[] The affix icons for each affix in `affixes`.
-    ---@field public season string `season-sl-4`
-    ---@field public runId number `100183`
-    ---@field public bosses number[] Table over encounter IDs for each boss in the dungeon.
-    ---@field public trash number The number of forces in the keystone run.
-    ---@field public logs TraceLog[]
+    ---@field public dungeon ReplayDungeon
+    ---@field public season string
+    ---@field public keystone_run_id number
+    ---@field public logged_run_id number
+    ---@field public clear_time_ms number
+    ---@field public mythic_level number
+    ---@field public affixes ReplayAffix[]
+    ---@field public encounters ReplayEncounter[]
+    ---@field public events ReplayEvent[]
 
-    ---@class TraceLog
+    ---@class ReplayEventInfo
     ---@field public timer number The keystone timer in milliseconds.
+    ---@field public event number The type of event.
     ---@field public deaths? number The delta number of deaths.
     ---@field public trash? number The delta number of forces progress.
     ---@field public kills? boolean[] The updated boss delta state.
 
-    ---@return Trace[]?
-    function ns:GetTraces()
-        return ns.TRACES
+    ---@return Replay[]?
+    function ns:GetReplays()
+        return ns.REPLAYS
     end
 
     ---@class DungeonInstance
@@ -7251,8 +7265,8 @@ do
 
 end
 
--- traces.lua
--- dependencies: module, callback, config, util + LibGraph
+-- replay.lua
+-- dependencies: module, callback, config, util
 do
 
     ---@type table<number, number>
@@ -7267,17 +7281,17 @@ do
         end
     end
 
-    ---@class TracesModule : Module
-    local traces = ns:NewModule("Traces") ---@type TracesModule
+    ---@class ReplayModule : Module
+    local replay = ns:NewModule("Replay") ---@type ReplayModule
     local callback = ns:GetModule("Callback") ---@type CallbackModule
     local config = ns:GetModule("Config") ---@type ConfigModule
     local util = ns:GetModule("Util") ---@type UtilModule
 
-    ---@alias TracesFrameStyle "MODERN"|"MDI"
+    ---@alias ReplayFrameStyle "MODERN"|"MDI"
 
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
-    local FRAME_STYLE = "MDI" ---@type TracesFrameStyle
+    local FRAME_STYLE = "MDI" ---@type ReplayFrameStyle
 
     local UPDATE_EVENTS = {
         "PLAYER_ENTERING_WORLD",
@@ -7286,6 +7300,36 @@ do
         "WORLD_STATE_TIMER_START",
         "WORLD_STATE_TIMER_STOP",
     }
+
+    ---@param replayEvent ReplayEvent
+    ---@return ReplayEventInfo replayEventInfo
+    local function UnpackReplayEvent(replayEvent)
+        if replayEvent._replayEventInfo then
+            return replayEvent._replayEventInfo
+        end
+        local replayEventInfo = {} ---@type ReplayEventInfo
+        replayEventInfo.timer = replayEvent[1]
+        replayEventInfo.event = replayEvent[2]
+        if replayEventInfo.event == 1 then
+            -- TODO: unknown
+        elseif replayEventInfo.event == 2 then
+            replayEventInfo.trash = replayEvent[3]
+        elseif replayEventInfo.event == 3 then
+            -- TODO: boss encounter start
+            local bossIndex = replayEvent[3]
+            local unknown = replayEvent[4]
+            local pulled = replayEvent[5]
+            local killed = replayEvent[6]
+        elseif replayEventInfo.event == 4 then
+            -- TODO: boss encounter stop
+            local bossIndex = replayEvent[3]
+            local unknown = replayEvent[4]
+            local pulled = replayEvent[5]
+            local killed = replayEvent[6]
+        end
+        replayEvent._replayEventInfo = replayEventInfo
+        return replayEventInfo
+    end
 
     ---@param delta number
     ---@param isNeutral? boolean
@@ -7305,7 +7349,7 @@ do
         return delta <= 0 and "55FF55" or "FF5555"
     end
 
-    ---@class TraceBoss
+    ---@class ReplayBoss
     ---@field public index number
     ---@field public id number
     ---@field public dead boolean
@@ -7314,19 +7358,19 @@ do
     ---@field public engaged? number
     ---@field public health? number
 
-    ---@class TraceSummary
+    ---@class ReplaySummary
     ---@field public level number
     ---@field public affixes number[]
     ---@field public index number
     ---@field public timer number
     ---@field public deaths number
     ---@field public trash number
-    ---@field public bosses TraceBoss[]
+    ---@field public bosses ReplayBoss[]
 
-    ---@type Trace[]?
-    local traceItems
+    ---@type Replay[]?
+    local replays
 
-    ---@class TracesFrame : Frame
+    ---@class ReplayFrame : Frame
     local frame
 
     ---@class BossFrame : Frame
@@ -7364,20 +7408,20 @@ do
         end
 
         ---@param self BossFrame
-        ---@param liveBoss TraceBoss
-        ---@param traceBoss TraceBoss
-        function BossFrameMixin:Update(liveBoss, traceBoss)
+        ---@param liveBoss ReplayBoss
+        ---@param replayBoss ReplayBoss
+        function BossFrameMixin:Update(liveBoss, replayBoss)
             local pending
             local delta
             local text
             if liveBoss and liveBoss.dead then
                 pending = false
-                delta = floor((traceBoss.killed - liveBoss.killed) / 1000)
+                delta = floor((replayBoss.killed - liveBoss.killed) / 1000)
                 text = liveBoss.killedText
             elseif frame.elapsedKeystoneTimer then
                 pending = true
-                delta = floor((traceBoss.killed - frame.elapsedKeystoneTimer * 1000) / 1000)
-                text = traceBoss.killedText
+                delta = floor((replayBoss.killed - frame.elapsedKeystoneTimer * 1000) / 1000)
+                text = replayBoss.killedText
             end
             if not text then
                 return
@@ -7450,7 +7494,7 @@ do
 
     end
 
-    ---@param parent TracesFrame
+    ---@param parent ReplayFrame
     ---@return BossFramePool
     local function CreateBossFramePool(parent)
         local bossFramePool = CreateFramePool("Frame", parent, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@class BossFramePool
@@ -7458,33 +7502,33 @@ do
         return bossFramePool
     end
 
-    ---@class TracesDataProvider
-    local TracesDataProviderMixin = {}
+    ---@class ReplayDataProvider
+    local ReplayDataProviderMixin = {}
 
     do
 
-        function TracesDataProviderMixin:OnLoad()
-            self.traceSummary = self:CreateSummary()
+        function ReplayDataProviderMixin:OnLoad()
+            self.replaySummary = self:CreateSummary()
         end
 
-        ---@param trace? Trace
-        function TracesDataProviderMixin:SetTrace(trace)
-            if self.trace == trace then
+        ---@param replay? Replay
+        function ReplayDataProviderMixin:SetReplay(replay)
+            if self.replay == replay then
                 return
             end
-            self.trace = trace
+            self.replay = replay
             self:SetupSummary()
         end
 
-        ---@return Trace? trace
-        function TracesDataProviderMixin:GetTrace()
-            return self.trace
+        ---@return Replay? replay
+        function ReplayDataProviderMixin:GetReplay()
+            return self.replay
         end
 
-        ---@return TraceSummary traceSummary
-        function TracesDataProviderMixin:CreateSummary()
-            ---@type TraceSummary
-            local traceSummary = {
+        ---@return ReplaySummary replaySummary
+        function ReplayDataProviderMixin:CreateSummary()
+            ---@type ReplaySummary
+            local replaySummary = {
                 level = 0,
                 affixes = {},
                 index = 0,
@@ -7493,39 +7537,42 @@ do
                 trash = 0,
                 bosses = {},
             }
-            return traceSummary
+            return replaySummary
         end
 
-        function TracesDataProviderMixin:SetupSummary()
-            local traceSummary = self.traceSummary
-            traceSummary.level = 0
-            traceSummary.index = 0
-            traceSummary.timer = 0
-            traceSummary.deaths = 0
-            traceSummary.trash = 0
-            table.wipe(traceSummary.bosses)
-            local trace = self:GetTrace()
-            if not trace then
+        function ReplayDataProviderMixin:SetupSummary()
+            local replaySummary = self.replaySummary
+            replaySummary.level = 0
+            replaySummary.index = 0
+            replaySummary.timer = 0
+            replaySummary.deaths = 0
+            replaySummary.trash = 0
+            table.wipe(replaySummary.bosses)
+            local replay = self:GetReplay()
+            if not replay then
                 return
             end
-            traceSummary.level = trace.mythic_level
-            traceSummary.affixes = trace.affixes
-            for index, bossID in ipairs(trace.bosses) do
-                local traceBoss = {} ---@type TraceBoss
-                traceBoss.index = index
-                traceBoss.id = HOTFIX_DUNGEON_ENCOUNTER_TO_JOURNAL_ID[bossID] or bossID
-                traceBoss.dead = false
-                traceSummary.bosses[index] = traceBoss
+            replaySummary.level = replay.mythic_level
+            replaySummary.affixes = {}
+            for index, affix in ipairs(replay.affixes) do
+                replaySummary.affixes[index] = affix.id
             end
-            for _, traceLog in ipairs(trace.logs) do
-                if traceLog.kills then
-                    for bossIndex, dead in pairs(traceLog.kills) do
-                        if type(dead) == "table" then dead = dead[2] dead = dead == true or dead == "true" end -- DEBUG: HOTFIX: unpack the table wrapper + fix issue where boolean is stringified
+            for index, encounter in ipairs(replay.encounters) do
+                local replayBoss = {} ---@type ReplayBoss
+                replayBoss.index = index
+                replayBoss.id = encounter.journal_encounter_id
+                replayBoss.dead = false
+                replaySummary.bosses[index] = replayBoss
+            end
+            for _, replayEvent in ipairs(replay.events) do
+                local replayEventInfo = UnpackReplayEvent(replayEvent)
+                if replayEventInfo.kills then
+                    for bossIndex, dead in pairs(replayEventInfo.kills) do
                         if dead then
-                            local boss = traceSummary.bosses[bossIndex]
+                            local boss = replaySummary.bosses[bossIndex]
                             if not boss.killed then
-                                boss.killed = traceLog.timer
-                                boss.killedText = SecondsToClock(traceLog.timer / 1000)
+                                boss.killed = replayEventInfo.timer
+                                boss.killedText = SecondsToClock(replayEventInfo.timer / 1000)
                             end
                         end
                     end
@@ -7533,62 +7580,62 @@ do
             end
         end
 
-        ---@return TraceSummary traceSummary
-        function TracesDataProviderMixin:GetSummary()
-            return self.traceSummary
+        ---@return ReplaySummary replaySummary
+        function ReplayDataProviderMixin:GetSummary()
+            return self.replaySummary
         end
 
         ---@param timerMS number
-        ---@return TraceSummary traceSummary, TraceLog currentTraceLog, TraceLog? nextTraceLog
-        function TracesDataProviderMixin:GetTraceSummaryAt(timerMS)
-            local traceSummary = self:GetSummary()
-            local trace = self:GetTrace() ---@type Trace
-            local traceLogs = trace.logs
-            for i = traceSummary.index + 1, #traceLogs do
-                local traceLog = traceLogs[i]
-                if traceLog.timer > timerMS then
+        ---@return ReplaySummary replaySummary, ReplayEvent currentReplayEvent, ReplayEvent? nextReplayEvent
+        function ReplayDataProviderMixin:GetReplaySummaryAt(timerMS)
+            local replaySummary = self:GetSummary()
+            local replay = self:GetReplay() ---@type Replay
+            local replayEvents = replay.events
+            for i = replaySummary.index + 1, #replayEvents do
+                local replayEvent = replayEvents[i]
+                local replayEventInfo = UnpackReplayEvent(replayEvent)
+                if replayEventInfo.timer > timerMS then
                     break
                 end
-                traceSummary.index = i
-                traceSummary.timer = traceLog.timer
-                if traceLog.deaths then
-                    traceSummary.deaths = traceSummary.deaths + traceLog.deaths
+                replaySummary.index = i
+                replaySummary.timer = replayEventInfo.timer
+                if replayEventInfo.deaths then
+                    replaySummary.deaths = replaySummary.deaths + replayEventInfo.deaths
                 end
-                if traceLog.trash then
-                    traceSummary.trash = traceSummary.trash + traceLog.trash
+                if replayEventInfo.trash then
+                    replaySummary.trash = replaySummary.trash + replayEventInfo.trash
                 end
-                if traceLog.kills then
-                    for bossIndex, dead in pairs(traceLog.kills) do
-                        if type(dead) == "table" then dead = dead[2] end -- DEBUG: HOTFIX: unpack the table wrapper
+                if replayEventInfo.kills then
+                    for bossIndex, dead in pairs(replayEventInfo.kills) do
                         if dead then
-                            local boss = traceSummary.bosses[bossIndex]
+                            local boss = replaySummary.bosses[bossIndex]
                             boss.dead = true
                         end
                     end
                 end
             end
-            return traceSummary, traceLogs[traceSummary.index], traceLogs[traceSummary.index + 1]
+            return replaySummary, replayEvents[replaySummary.index], replayEvents[replaySummary.index + 1]
         end
 
     end
 
-    ---@class LiveDataProvider : TracesDataProvider
+    ---@class LiveDataProvider : ReplayDataProvider
     local LiveDataProviderMixin = {}
 
     do
 
         function LiveDataProviderMixin:OnLoad()
-            self.SetTrace = nil
-            self.GetTrace = nil
+            self.SetReplay = nil
+            self.GetReplay = nil
             self.CreateSummary = nil
             self.SetupSummary = nil
-            self.GetTraceSummaryAt = nil
+            self.GetReplaySummaryAt = nil
             self:SetDeathPenalty(5)
         end
 
-        ---@return TraceSummary liveSummary
+        ---@return ReplaySummary liveSummary
         function LiveDataProviderMixin:GetSummary()
-            local liveSummary = self.traceSummary
+            local liveSummary = self.replaySummary
             if frame.elapsedKeystoneTimer then
                 liveSummary.timer = frame.elapsedKeystoneTimer * 1000
             end
@@ -7615,7 +7662,7 @@ do
                         elseif criteriaType == 165 then
                             local boss = liveSummary.bosses[i]
                             if not boss then
-                                boss = {} ---@type TraceBoss
+                                boss = {} ---@type ReplayBoss
                                 boss.dead = false
                                 liveSummary.bosses[i] = boss
                             end
@@ -7644,12 +7691,12 @@ do
 
     end
 
-    ---@class TracesFrame : Frame
-    local TracesFrameMixin = {}
+    ---@class ReplayFrame : Frame
+    local ReplayFrameMixin = {}
 
     do
 
-        function TracesFrameMixin:OnLoad()
+        function ReplayFrameMixin:OnLoad()
             self:Hide()
             self:SetScript("OnUpdate", self.OnUpdate)
             self.width = 200
@@ -7713,14 +7760,14 @@ do
             self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.DeathL)
             self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL)
             self.TextBlock.TitleM:SetText(ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
-            self.TextBlock.TimerM:SetText(ns.CUSTOM_ICONS.trace.TIMER("TextureMarkup"))
-            self.TextBlock.DeathM:SetText(ns.CUSTOM_ICONS.trace.DEATH("TextureMarkup"))
-            self.TextBlock.TrashM:SetText(ns.CUSTOM_ICONS.trace.TRASH("TextureMarkup"))
-            self.TextBlock.DeathPenM:SetText(ns.CUSTOM_ICONS.trace.PENALTY("TextureMarkup"))
+            self.TextBlock.TimerM:SetText(ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
+            self.TextBlock.DeathM:SetText(ns.CUSTOM_ICONS.replay.DEATH("TextureMarkup"))
+            self.TextBlock.TrashM:SetText(ns.CUSTOM_ICONS.replay.TRASH("TextureMarkup"))
+            self.TextBlock.DeathPenM:SetText(ns.CUSTOM_ICONS.replay.PENALTY("TextureMarkup"))
         end
 
-        ---@param style TracesFrameStyle
-        function TracesFrameMixin:SetStyle(style)
+        ---@param style ReplayFrameStyle
+        function ReplayFrameMixin:SetStyle(style)
             if style == "MDI" then
                 -- TODO: apply modifications to existing regions so they appear using the MDI style
             elseif style == "MODERN" then
@@ -7728,30 +7775,30 @@ do
             end
         end
 
-        ---@param traceDataProvider TracesDataProvider
-        function TracesFrameMixin:SetTraceDataProvider(traceDataProvider)
-            self.traceDataProvider = traceDataProvider
+        ---@param replayDataProvider ReplayDataProvider
+        function ReplayFrameMixin:SetReplayDataProvider(replayDataProvider)
+            self.replayDataProvider = replayDataProvider
         end
 
-        ---@return TracesDataProvider traceDataProvider
-        function TracesFrameMixin:GetTraceDataProvider()
-            return self.traceDataProvider
+        ---@return ReplayDataProvider replayDataProvider
+        function ReplayFrameMixin:GetReplayDataProvider()
+            return self.replayDataProvider
         end
 
         ---@param liveDataProvider LiveDataProvider
-        function TracesFrameMixin:SetLiveDataProvider(liveDataProvider)
+        function ReplayFrameMixin:SetLiveDataProvider(liveDataProvider)
             self.liveDataProvider = liveDataProvider
         end
 
         ---@return LiveDataProvider liveDataProvider
-        function TracesFrameMixin:GetLiveDataProvider()
+        function ReplayFrameMixin:GetLiveDataProvider()
             return self.liveDataProvider
         end
 
         ---@param timerID? number
         ---@param elapsedTime? number
         ---@param isActive? boolean
-        function TracesFrameMixin:SetTimer(timerID, elapsedTime, isActive)
+        function ReplayFrameMixin:SetTimer(timerID, elapsedTime, isActive)
             if not timerID then
                 self:Stop()
                 return
@@ -7767,13 +7814,13 @@ do
         end
 
         ---@return number? timerID, number elapsedTime, boolean isActive
-        function TracesFrameMixin:GetTimer()
+        function ReplayFrameMixin:GetTimer()
             return self.timerID, self.elapsedTime, self.isActive
         end
 
         ---@param mapID? number
         ---@param timeLimit? number
-        function TracesFrameMixin:SetKeystone(mapID, timeLimit)
+        function ReplayFrameMixin:SetKeystone(mapID, timeLimit)
             if not mapID then
                 self:Stop()
                 return
@@ -7784,11 +7831,11 @@ do
         end
 
         ---@return number? mapID, number timeLimit
-        function TracesFrameMixin:GetKeystone()
+        function ReplayFrameMixin:GetKeystone()
             return self.mapID, self.timeLimit
         end
 
-        function TracesFrameMixin:Start()
+        function ReplayFrameMixin:Start()
             if not self.isPlaying then
                 self.isPlaying = true
                 self.elapsedTimer = 0
@@ -7796,29 +7843,29 @@ do
             self:Update()
         end
 
-        function TracesFrameMixin:Stop()
+        function ReplayFrameMixin:Stop()
             if self.isPlaying then
                 self.isPlaying = false
             end
             self:Update()
         end
 
-        function TracesFrameMixin:UpdateShown()
+        function ReplayFrameMixin:UpdateShown()
             local shown = self.timerID and self.mapID and self.isPlaying
             if shown then
-                local traceDataProvider = self:GetTraceDataProvider()
+                local replayDataProvider = self:GetReplayDataProvider()
                 local liveDataProvider = self:GetLiveDataProvider()
                 local liveSummary = liveDataProvider:GetSummary()
                 local elapsedKeystoneTimer = liveSummary.timer
-                local traceSummary = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
-                self:SetUITitle(liveSummary.level, liveSummary.affixes, traceSummary.level, traceSummary.affixes)
-                self:SetUIBosses(liveSummary.bosses, traceSummary.bosses)
+                local replaySummary = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
+                self:SetUITitle(liveSummary.level, liveSummary.affixes, replaySummary.level, replaySummary.affixes)
+                self:SetUIBosses(liveSummary.bosses, replaySummary.bosses)
                 self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
             end
             self:SetShown(shown)
         end
 
-        function TracesFrameMixin:OnUpdate(elapsed)
+        function ReplayFrameMixin:OnUpdate(elapsed)
             self.elapsed = (self.elapsed or 0) + (elapsed * FRAME_TIMER_SCALE)
             if self.elapsed < FRAME_UPDATE_INTERVAL then return end
             self.elapsedTimer = (self.elapsedTimer or 0) + self.elapsed
@@ -7826,127 +7873,127 @@ do
             self:Update()
         end
 
-        function TracesFrameMixin:Update()
+        function ReplayFrameMixin:Update()
             local isRunning = self.isActive and self.isPlaying
             if isRunning then
                 self.elapsedKeystoneTimer = self.elapsedTimer + self.elapsedTime
             end
-            local traceDataProvider = self:GetTraceDataProvider()
-            local trace = traceDataProvider:GetTrace()
-            if not trace then
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if not replay then
                 return
             end
             local liveDataProvider = self:GetLiveDataProvider()
             local liveSummary = liveDataProvider:GetSummary()
             local deathPenalty = liveDataProvider:GetDeathPenalty()
             local elapsedKeystoneTimer = liveSummary.timer
-            local traceSummary, _, nextTraceLog = traceDataProvider:GetTraceSummaryAt(elapsedKeystoneTimer)
-            self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(traceSummary.timer / 1000), ceil(trace.time / 1000), not nextTraceLog)
-            self:SetUIDeaths(liveSummary.deaths, traceSummary.deaths)
-            self:SetUITrash(liveSummary.trash, traceSummary.trash, trace.trash)
-            self:SetUIDeathPenalty(liveSummary.deaths, traceSummary.deaths, deathPenalty)
-            self:UpdateUIBosses(liveSummary.bosses, traceSummary.bosses)
+            local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
+            self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(replaySummary.timer / 1000), ceil(replay.time / 1000), not nextReplayEvent)
+            self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths)
+            self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.trash)
+            self:SetUIDeathPenalty(liveSummary.deaths, replaySummary.deaths, deathPenalty)
+            self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses)
         end
 
         ---@param liveLevel number
         ---@param liveAffixes number[]
-        ---@param traceLevel number
-        ---@param traceAffixes number[]
-        function TracesFrameMixin:SetUITitle(liveLevel, liveAffixes, traceLevel, traceAffixes)
+        ---@param replayLevel number
+        ---@param replayAffixes number[]
+        function ReplayFrameMixin:SetUITitle(liveLevel, liveAffixes, replayLevel, replayAffixes)
             local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
-            local traceAffix = util:TableContains(traceAffixes, 9) and 9 or 10
+            local replayAffix = util:TableContains(replayAffixes, 9) and 9 or 10
             self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
-            self.TextBlock.TitleR:SetFormattedText("+%d %s", traceLevel, ns.KEYSTONE_AFFIX_TEXTURE[traceAffix])
+            self.TextBlock.TitleR:SetFormattedText("+%d %s", replayLevel, ns.KEYSTONE_AFFIX_TEXTURE[replayAffix])
         end
 
         ---@param liveTimer number
-        ---@param traceTimer number
+        ---@param replayTimer number
         ---@param totalTimer number
-        ---@param traceIsCompleted boolean
-        function TracesFrameMixin:SetUITimer(liveTimer, traceTimer, totalTimer, traceIsCompleted)
-            local delta = traceIsCompleted and 1 or (traceTimer - liveTimer - 1)
+        ---@param replayIsCompleted boolean
+        function ReplayFrameMixin:SetUITimer(liveTimer, replayTimer, totalTimer, replayIsCompleted)
+            local delta = replayIsCompleted and 1 or (replayTimer - liveTimer - 1)
             self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta), SecondsToClock(liveTimer))
             self.TextBlock.TimerR:SetText(SecondsToClock(totalTimer))
         end
 
         ---@param liveDeaths number
-        ---@param traceDeaths number
-        function TracesFrameMixin:SetUIDeaths(liveDeaths, traceDeaths)
-            local totalDeaths = max(liveDeaths, traceDeaths)
-            self.TextBlock.DeathL:SetFormattedText("|cff%s%d/%d|r", AheadColor(liveDeaths - traceDeaths), liveDeaths, totalDeaths)
-            self.TextBlock.DeathR:SetFormattedText("%d/%d", traceDeaths, totalDeaths)
+        ---@param replayDeaths number
+        function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths)
+            local totalDeaths = max(liveDeaths, replayDeaths)
+            self.TextBlock.DeathL:SetFormattedText("|cff%s%d/%d|r", AheadColor(liveDeaths - replayDeaths), liveDeaths, totalDeaths)
+            self.TextBlock.DeathR:SetFormattedText("%d/%d", replayDeaths, totalDeaths)
         end
 
         ---@param liveTrash number
-        ---@param traceTrash number
-        function TracesFrameMixin:SetUITrash(liveTrash, traceTrash, totalTrash)
-            self.TextBlock.TrashL:SetFormattedText("|cff%s%.1f%%|r", AheadColor(traceTrash - liveTrash), liveTrash / totalTrash * 100)
-            self.TextBlock.TrashR:SetFormattedText("%.1f%%", traceTrash / totalTrash * 100)
+        ---@param replayTrash number
+        function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash)
+            self.TextBlock.TrashL:SetFormattedText("|cff%s%.1f%%|r", AheadColor(replayTrash - liveTrash), liveTrash / totalTrash * 100)
+            self.TextBlock.TrashR:SetFormattedText("%.1f%%", replayTrash / totalTrash * 100)
         end
 
         ---@param liveDeaths number
-        ---@param traceDeaths number
+        ---@param replayDeaths number
         ---@param deathPenalty number
-        function TracesFrameMixin:SetUIDeathPenalty(liveDeaths, traceDeaths, deathPenalty)
-            self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(liveDeaths - traceDeaths), liveDeaths, liveDeaths * deathPenalty)
-            self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", traceDeaths, traceDeaths * deathPenalty)
+        function ReplayFrameMixin:SetUIDeathPenalty(liveDeaths, replayDeaths, deathPenalty)
+            self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(liveDeaths - replayDeaths), liveDeaths, liveDeaths * deathPenalty)
+            self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", replayDeaths, replayDeaths * deathPenalty)
         end
 
-        ---@param liveBosses TraceBoss[]
-        ---@param traceBosses TraceBoss[]
-        function TracesFrameMixin:SetUIBosses(liveBosses, traceBosses)
+        ---@param liveBosses ReplayBoss[]
+        ---@param replayBosses ReplayBoss[]
+        function ReplayFrameMixin:SetUIBosses(liveBosses, replayBosses)
             local pool = self.BossFramePool
             pool:ReleaseAll()
-            local count = max(#liveBosses, #traceBosses)
+            local count = max(#liveBosses, #replayBosses)
             for i = 1, count do
                 local liveBoss = liveBosses[i]
-                local traceBoss = traceBosses[i]
-                local bossID = (liveBoss and liveBoss.id) or (traceBoss and traceBoss.id)
+                local replayBoss = replayBosses[i]
+                local bossID = (liveBoss and liveBoss.id) or (replayBoss and replayBoss.id)
                 if bossID then
                     local bossFrame = pool:Acquire()
                     bossFrame:Setup(i, bossID)
-                    bossFrame:Update(liveBoss, traceBoss)
+                    bossFrame:Update(liveBoss, replayBoss)
                 end
             end
             self.bossesHeight = pool:UpdateLayout()
         end
 
-        ---@param liveBosses TraceBoss[]
-        ---@param traceBosses TraceBoss[]
-        function TracesFrameMixin:UpdateUIBosses(liveBosses, traceBosses)
+        ---@param liveBosses ReplayBoss[]
+        ---@param replayBosses ReplayBoss[]
+        function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses)
             local pool = self.BossFramePool
             for bossFrame in pool:EnumerateActive() do
                 local i = bossFrame.index
                 local liveBoss = liveBosses[i]
-                local traceBoss = traceBosses[i]
-                local bossID = (liveBoss and liveBoss.id) or (traceBoss and traceBoss.id)
+                local replayBoss = replayBosses[i]
+                local bossID = (liveBoss and liveBoss.id) or (replayBoss and replayBoss.id)
                 if bossID and bossID == bossFrame.bossID then
-                    bossFrame:Update(liveBoss, traceBoss)
+                    bossFrame:Update(liveBoss, replayBoss)
                 end
             end
         end
 
     end
 
-    local function CreateTracesDataProvider()
-        local dataProvider = {} ---@class TracesDataProvider
-        Mixin(dataProvider, TracesDataProviderMixin)
+    local function CreateReplayDataProvider()
+        local dataProvider = {} ---@class ReplayDataProvider
+        Mixin(dataProvider, ReplayDataProviderMixin)
         dataProvider:OnLoad()
         return dataProvider
     end
 
     local function CreateLiveDataProvider()
-        local dataProvider = CreateTracesDataProvider() ---@class LiveDataProvider
+        local dataProvider = CreateReplayDataProvider() ---@class LiveDataProvider
         Mixin(dataProvider, LiveDataProviderMixin)
         dataProvider:OnLoad()
         return dataProvider
     end
 
-    local function CreateTracesFrame()
-        local tracesFrame = CreateFrame("Frame", addonName .. "_TracesFrame", UIParent) ---@class TracesFrame
-        Mixin(tracesFrame, TracesFrameMixin)
-        tracesFrame:OnLoad()
-        return tracesFrame
+    local function CreateReplayFrame()
+        local replayFrame = CreateFrame("Frame", addonName .. "_ReplayFrame", UIParent) ---@class ReplayFrame
+        Mixin(replayFrame, ReplayFrameMixin)
+        replayFrame:OnLoad()
+        return replayFrame
     end
 
     ---@param timerID number
@@ -7990,54 +8037,55 @@ do
     end
 
     ---@param mapID number
-    ---@return Trace? trace
-    local function GetTraceForMapID(mapID)
-        if not traceItems then
+    ---@return Replay? replay
+    local function GetReplayForMapID(mapID)
+        if not replays then
             return
         end
-        for _, trace in ipairs(traceItems) do
-            if trace.dungeon.keystone_instance == mapID then
-                return trace
+        for _, replay in ipairs(replays) do
+            local dungeon = util:GetDungeonByID(replay.dungeon.id)
+            if dungeon and dungeon.keystone_instance == mapID then
+                return replay
             end
         end
         if config:Get("debugMode") then
-            return traceItems[1] -- first available trace
+            return replays[1] -- first available replay
         end
     end
 
     local function OnEvent(event, ...)
         local timerID, elapsedTime, isActive = GetKeystoneTimer(event == "WORLD_STATE_TIMER_STOP", ...)
         local mapID, timeLimit = GetKeystoneInfo()
-        local traceDataProvider = frame:GetTraceDataProvider()
-        local trace = traceDataProvider:GetTrace()
+        local replayDataProvider = frame:GetReplayDataProvider()
+        local replay = replayDataProvider:GetReplay()
         if mapID then
-            trace = GetTraceForMapID(mapID)
+            replay = GetReplayForMapID(mapID)
         end
-        traceDataProvider:SetTrace(trace)
+        replayDataProvider:SetReplay(replay)
         frame:SetTimer(timerID, elapsedTime, isActive)
         frame:SetKeystone(mapID, timeLimit)
         frame:UpdateShown()
     end
 
-    function traces:CanLoad()
-        return config:IsEnabled() and ns:GetTraces()
+    function replay:CanLoad()
+        return config:IsEnabled() and ns:GetReplays()
     end
 
-    function traces:OnLoad()
-        traceItems = ns:GetTraces()
-        frame = CreateTracesFrame()
+    function replay:OnLoad()
+        replays = ns:GetReplays()
+        frame = CreateReplayFrame()
         frame:SetStyle(FRAME_STYLE)
-        frame:SetTraceDataProvider(CreateTracesDataProvider())
+        frame:SetReplayDataProvider(CreateReplayDataProvider())
         frame:SetLiveDataProvider(CreateLiveDataProvider())
         self:Enable()
     end
 
-    function traces:OnEnable()
+    function replay:OnEnable()
         OnEvent()
         callback:RegisterEvent(OnEvent, unpack(UPDATE_EVENTS))
     end
 
-    function traces:OnDisable()
+    function replay:OnDisable()
         OnEvent()
         callback:UnregisterEvent(OnEvent, unpack(UPDATE_EVENTS))
     end

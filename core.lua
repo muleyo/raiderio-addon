@@ -2112,7 +2112,7 @@ do
     ---@param displayZeroHours? boolean
     function util:SecondsToTimeText(seconds, displayZeroHours)
         return SecondsToClock(seconds, displayZeroHours)
-    end
+end
 
     ---@generic K, V
     ---@param tbl table<K, V>
@@ -5167,9 +5167,9 @@ do
             if status == 1 then
                 return false
             elseif status == 2 or status == 3 then
-                    return
-                end
+                return
             end
+        end
         -- if the owner is the UIParent we must beware as it might be the fading out unit tooltips that linger, we do not wish to update these as we do not have a valid unit anymore for reference so we just don't do anything instead
         if o1 == UIParent then
             return
@@ -8942,8 +8942,8 @@ do
             if type(itemLinkFilter) == "table" then
                 for _, filter in pairs(itemLinkFilter) do
                     if itemLink:find(filter) then
-            return true
-        end
+                        return true
+                    end
                 end
             elseif itemLink:find(itemLinkFilter) then
                 return true

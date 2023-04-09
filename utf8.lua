@@ -198,11 +198,8 @@ local function utf8lower(s)
 end
 
 -- expose in the addon shared table
-select(2, ...).utf8 = {
+local ns = select(2, ...) ---@class ns @The addon namespace.
+ns.utf8 = {
     utf8upper = utf8upper,
     utf8lower = utf8lower,
 }
-
----@class UTF8
----@field public utf8upper fun(text: string): string
----@field public utf8lower fun(text: string): string

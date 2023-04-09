@@ -1,7 +1,7 @@
 if WOW_PROJECT_ID ~= WOW_PROJECT_MAINLINE then return end
 
 local addonName = ... ---@type string @The name of the addon.
-local ns = select(2, ...) ---@type ns @The addon namespace.
+local ns = select(2, ...) ---@class ns @The addon namespace.
 local L = ns.L
 
 local arshift = bit.arshift
@@ -134,8 +134,6 @@ end
 do
 
     ---@class ns
-    ---@field public utf8 UTF8
-    ---@field public L LocaleEnglish
     ---@field public DUNGEONS Dungeon[]
     ---@field public dungeons Dungeon[] @DEPRECATED
     ---@field public RAIDS DungeonRaid[]

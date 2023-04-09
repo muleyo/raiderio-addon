@@ -1,6 +1,6 @@
-local ns = select(2, ...) ---@type ns @The addon namespace.
+local ns = select(2, ...) ---@class ns @The addon namespace.
 
-local L = ns:NewLocale() ---@class LocaleEnglish
+local L = ns:NewLocale() ---@class LocaleEnglish : Locale
 
 L.LOCALE_NAME = "enUS"
 

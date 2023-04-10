@@ -1,6 +1,7 @@
 local ns = select(2, ...) ---@class ns @The addon namespace.
 
-local L = ns:NewLocale() ---@class LocaleEnglish : Locale
+local L = ns:NewLocale() ---@class Locale
+ns.L = L
 
 L.LOCALE_NAME = "enUS"
 
@@ -218,5 +219,3 @@ L.GUILD_LF_PVP = "Recruiting PvP Players"
 L.TEAM_LF_MPLUS_WITH_SCORE = "Recruiting %d+ Mythic+ Players"
 L.TEAM_LF_MPLUS_DEFAULT = "Recruiting Mythic+ Players"
 L.COPY_RAIDERIO_RECRUITMENT_URL = "Copy Recruitment URL"
-
-ns.L = L

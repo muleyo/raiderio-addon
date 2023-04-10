@@ -158,11 +158,8 @@ do
     ---@field public CLIENT_CONFIG ClientConfig
     ---@field public GUILD_BEST_DATA Guild<string, GuildCollection>
     ---@field public REPLAYS Replay[]
-    ---@field public Print function @Prints yellow text to the default chat frame. Behaves otherwise same way as AddMessage does
     ---@field public EXPANSION number @The currently accessible expansion to the playerbase
     ---@field public MAX_LEVEL number @The currently accessible expansion max level to the playerbase
-    ---@field public REGION_TO_LTD string[] @Region ID to LTD conversion table
-    ---@field public FACTION_TO_ID number[] @Faction group string to ID conversion table
     ---@field public PLAYER_REGION string @`us`, `kr`, `eu`, `tw`, `cn`
     ---@field public PLAYER_REGION_ID number @`1` (us), `2` (kr), `3` (eu), `4` (tw), `5` (cn)
     ---@field public PLAYER_FACTION number @`1` (alliance), `2` (horde), `3` (neutral)
@@ -170,27 +167,6 @@ do
     ---@field public PLAYER_NAME string @The name of the player character
     ---@field public PLAYER_REALM string @The realm of the player character
     ---@field public PLAYER_REALM_SLUG string @The realm slug of the player character
-    ---@field public OUTDATED_CUTOFF number @Seconds before we start looking at the data as out-of-date
-    ---@field public OUTDATED_BLOCK_CUTOFF number @Seconds before we block future score showing
-    ---@field public LOOKUP_MAX_SIZE number @The maximum index we can use in a table before we start to get errors
-    ---@field public CURRENT_SEASON number @The current mythic keystone season
-    ---@field public HEADLINE_MODE table<string, number> @Enum over headline modes
-    ---@field public ROLE_ICONS RoleIcons @Collection of roles and their icons
-    ---@field public KEYSTONE_LEVEL_PATTERN table<number, string> @Table over patterns matching keystone levels in strings
-    ---@field public KEYSTONE_LEVEL_TO_SCORE table<number, number> @Table over keystone levels and the base score for that level
-    ---@field public RAID_DIFFICULTY table<number, RaidDifficulty> @Table of 1=normal, 2=heroic, 3=mythic difficulties and their names and colors
-    ---@field public PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season must surpass from previous season to be considered better and shown as primary in addon
-    ---@field public PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD number @Threshold that current season current character must surpass from previous season main to be considered better and shown as primary in addon
-    ---@field public CUSTOM_ICONS table<string, table<string, CustomIcon>> @Map over custom icons separated by file. Each icon supports a custom metatable for request handling
-    ---@field public REGIONS_RESET_TIME table<string, number> @Maps each region string to their weekly reset timer
-    ---@field public KEYSTONE_AFFIX_SCHEDULE number[] @Maps each weekly rotation, primarily for Tyrannical (`9`) and Fortified (`10`) tracking
-    ---@field public KEYSTONE_AFFIX_INTERNAL table<number, string> @Maps each affix ID to a internal string version like `tyrannical` (`9`) and `fortified` (`10`)
-    ---@field public KEYSTONE_AFFIX_TEXTURE table<number, string> @Maps each affix to a texture string Tyrannical (`9`/`-9`) and Fortified (`10`/`-10`)
-    ---@field public RECRUITMENT_ENTITY_TYPES table<string, number> @Table over recruitment entity types.
-    ---@field public RECRUITMENT_ENTITY_TYPE_URL_SUFFIX table<number, string> @Table over recruitment entity type profile url suffixes.
-    ---@field public RECRUITMENT_ACTIVITY_TYPES table<string, number> @Table over recruitment activity types.
-    ---@field public RECRUITMENT_ACTIVITY_TYPE_ICONS table<number, string|number> @Table over recruitment activity type icons.
-    ---@field public RECRUITMENT_ROLE_ICONS table<string, string> @Table over recruitment role icons.
 
     ns.Print = function(text, r, g, b, ...)
         r, g, b = r or 1, g or 1, b or 0
@@ -198,8 +174,8 @@ do
     end
     ns.EXPANSION = max(GetServerExpansionLevel(), GetMinimumExpansionLevel(), GetExpansionLevel()) - 1
     ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
-    ns.REGION_TO_LTD = {"us", "kr", "eu", "tw", "cn"}
-    ns.FACTION_TO_ID = {Alliance = 1, Horde = 2, Neutral = 3}
+    ns.REGION_TO_LTD = { "us", "kr", "eu", "tw", "cn" }
+    ns.FACTION_TO_ID = { Alliance = 1, Horde = 2, Neutral = 3 }
     ns.PLAYER_REGION = nil
     ns.PLAYER_REGION_ID = nil
     ns.PLAYER_FACTION = nil
@@ -207,8 +183,8 @@ do
     ns.OUTDATED_CUTOFF = 86400 * 3 -- number of seconds before we start warning about stale data (warning the user should update their addon)
     ns.OUTDATED_BLOCK_CUTOFF = 86400 * 7 -- number of seconds before we hide the data (block showing score as its most likely inaccurate)
     ns.PROVIDER_DATA_TYPE = { MythicKeystone = 1, Raid = 2, Recruitment = 3, PvP = 4 }
-    ns.LOOKUP_MAX_SIZE = floor(2^18-1)
-    ns.CURRENT_SEASON = 1
+    ns.LOOKUP_MAX_SIZE = floor(2^18-1) -- the maximum index we can use in a table before we start to get errors
+    ns.CURRENT_SEASON = 1 -- the current mythic keystone season. dynamically assigned once keystone data is loaded.
     ns.RAIDERIO_ADDON_DOWNLOAD_URL = "https://rio.gg/addon"
 
     ns.HEADLINE_MODE = {
@@ -221,8 +197,8 @@ do
     -- meaning: once current score exceeds this fraction of previous season, then show current season
     local PREVIOUS_SEASON_NUM_DUNGEONS = 10
     local DUNGEONS = ns.DUNGEONS or ns.dungeons -- DEPRECATED: ns.dungeons
-    ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9)
-    ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9)
+    ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9) -- Threshold that current season must surpass from previous season to be considered better and shown as primary in addon.
+    ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9) -- Threshold that current season current character must surpass from previous season main to be considered better and shown as primary in addon.
 
     ---Use `ns.CUSTOM_ICONS.FILENAME.KEY` to get the raw icon table.
     ---
@@ -245,10 +221,21 @@ do
             RAIDERIO_BLACK = { 256, 256, 0, 0, 128/256, 192/256, 64/256, 128/256, 0, 0 },
         },
         replay = {
-            TIMER = { 256, 256, 0, 0, 0/256, 64/256, 0/256, 64/256, 0, 0 },
-            DEATH = { 256, 256, 0, 0, 64/256, 128/256, 0/256, 64/256, 0, 0 },
-            TRASH = { 256, 256, 0, 0, 128/256, 192/256, 0/256, 64/256, 0, 0 },
-            PENALTY = { 256, 256, 0, 0, 192/256, 256/256, 0/256, 64/256, 0, 0 },
+            ALARM = { 256, 256, 0, 0, 0/256, 64/256, 0/256, 64/256, 0, 0 },
+            SKULL = { 256, 256, 0, 0, 64/256, 128/256, 0/256, 64/256, 0, 0 },
+            TIMER = { 256, 256, 0, 0, 128/256, 192/256, 0/256, 64/256, 0, 0 },
+            RIP = { 256, 256, 0, 0, 192/256, 256/256, 0/256, 64/256, 0, 0 },
+        },
+        roles = {
+            dps_full = { 64, 64, 0, 0, 0/64, 18/64, 0/64, 18/64, 0, 0 },
+            dps_partial = { 64, 64, 0, 0, 0/64, 18/64, 18/64, 36/64, 0, 0 },
+            dps_thanos = { 64, 64, 0, 0, 0/64, 18/64, 36/64, 54/64, 0, 0 },
+            healer_full = { 64, 64, 0, 0, 18/64, 36/64, 0/64, 18/64, 0, 0 },
+            healer_partial = { 64, 64, 0, 0, 18/64, 36/64, 18/64, 36/64, 0, 0 },
+            healer_thanos = { 64, 64, 0, 0, 18/64, 36/64, 36/64, 54/64, 0, 0 },
+            tank_full = { 64, 64, 0, 0, 36/64, 54/64, 0/64, 18/64, 0, 0 },
+            tank_partial = { 64, 64, 0, 0, 36/64, 54/64, 18/64, 36/64, 0, 0 },
+            tank_thanos = { 64, 64, 0, 0, 36/64, 54/64, 36/64, 54/64, 0, 0 },
         },
     }
 
@@ -346,7 +333,7 @@ do
 
     end
 
-    ns.REGIONS_RESET_TIME = {
+    ns.REGIONS_RESET_TIME = { -- Maps each region string to their weekly reset timer.
         us = 1135695600,
         eu = 1135753200,
         tw = 1135810800,
@@ -354,17 +341,17 @@ do
         cn = 1135810800,
     }
 
-    ns.KEYSTONE_AFFIX_SCHEDULE = {
+    ns.KEYSTONE_AFFIX_SCHEDULE = { -- Maps each weekly rotation, primarily for Tyrannical (`9`) and Fortified (`10`) tracking.
         9,  -- Tyrannical
         10, -- Fortified
     }
 
-    ns.KEYSTONE_AFFIX_INTERNAL = {
+    ns.KEYSTONE_AFFIX_INTERNAL = { -- Maps each affix ID to a internal string version like `tyrannical` (`9`) and `fortified` (`10`).
         [9] = "tyrannical",
         [10] = "fortified",
     }
 
-    ns.KEYSTONE_AFFIX_TEXTURE = {
+    ns.KEYSTONE_AFFIX_TEXTURE = { -- Maps each affix to a texture string Tyrannical (`9`/`-9`) and Fortified (`10`/`-10`).
         [-9] = ns.CUSTOM_ICONS.affixes.TYRANNICAL_OFF("TextureMarkup"),
         [-10] = ns.CUSTOM_ICONS.affixes.FORTIFIED_OFF("TextureMarkup"),
         [9] = ns.CUSTOM_ICONS.affixes.TYRANNICAL_ON("TextureMarkup"),
@@ -380,7 +367,7 @@ do
     ---@field public healer RoleIcon
     ---@field public tank RoleIcon
 
-    ns.ROLE_ICONS = {
+    ns.ROLE_ICONS = { -- Collection of roles and their icons.
         dps = {
             full = "|TInterface\\AddOns\\RaiderIO\\icons\\roles:14:14:0:0:64:64:0:18:0:18|t",
             partial = "|TInterface\\AddOns\\RaiderIO\\icons\\roles:14:14:0:0:64:64:0:18:36:54|t"
@@ -395,14 +382,14 @@ do
         }
     }
 
-    ns.KEYSTONE_LEVEL_PATTERN = {
+    ns.KEYSTONE_LEVEL_PATTERN = { -- Table over patterns matching keystone levels in strings.
         "(%d+)%+",
         "%+%s*(%d+)",
         "(%d+)%s*%+",
         "(%d+)"
     }
 
-    ns.KEYSTONE_LEVEL_TO_SCORE = {
+    ns.KEYSTONE_LEVEL_TO_SCORE = { -- Table over keystone levels and the base score for that level.
         [2] = 40,
         [3] = 45,
         [4] = 55,
@@ -445,7 +432,7 @@ do
     ---@field public name string
     ---@field public color RaidDifficultyColor
 
-    ns.RAID_DIFFICULTY = {
+    ns.RAID_DIFFICULTY = { -- Table of `1` (normal), `2` (heroic), `3` (mythic) difficulties and their names and colors.
         [1] = {
             suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL,
             name = L.RAID_DIFFICULTY_NAME_NORMAL,
@@ -463,19 +450,19 @@ do
         }
     }
 
-    ns.RECRUITMENT_ENTITY_TYPES = {
+    ns.RECRUITMENT_ENTITY_TYPES = { -- Table over recruitment entity types.
         character = 0,
         guild = 1,
         team = 2
     }
 
-    ns.RECRUITMENT_ENTITY_TYPE_URL_SUFFIX = {
+    ns.RECRUITMENT_ENTITY_TYPE_URL_SUFFIX = { -- Table over recruitment entity type profile url suffixes.
         [ns.RECRUITMENT_ENTITY_TYPES.guild] = "guild-recruitment",
         [ns.RECRUITMENT_ENTITY_TYPES.character] = "recruitment",
         [ns.RECRUITMENT_ENTITY_TYPES.team] = "team-recruitment"
     }
 
-    ns.RECRUITMENT_ACTIVITY_TYPES = {
+    ns.RECRUITMENT_ACTIVITY_TYPES = { -- Table over recruitment activity types.
         guildraids = 0,
         guildpvp = 1,
         guildsocial = 2,
@@ -483,7 +470,7 @@ do
         teamkeystone = 4
     }
 
-    ns.RECRUITMENT_ACTIVITY_TYPE_ICONS = {
+    ns.RECRUITMENT_ACTIVITY_TYPE_ICONS = { -- Table over recruitment activity type icons.
         [ns.RECRUITMENT_ACTIVITY_TYPES.guildraids] = 4062765, -- achievement_raid_torghastraid
         [ns.RECRUITMENT_ACTIVITY_TYPES.guildpvp] = 236329, -- achievement_arena_2v2_7
         [ns.RECRUITMENT_ACTIVITY_TYPES.guildsocial] = 1495827, -- inv_7xp_inscription_talenttome01
@@ -491,7 +478,7 @@ do
         [ns.RECRUITMENT_ACTIVITY_TYPES.teamkeystone] = 255345 -- achievement_dungeon_gloryofthehero
     }
 
-    ns.RECRUITMENT_ROLE_ICONS = {
+    ns.RECRUITMENT_ROLE_ICONS = { -- Table over recruitment role icons.
         dps = "|T2202478:14:16:0:0:128:32:0:32:2:30|t",
         healer = "|T2202478:14:16:0:0:128:32:33:65:2:30|t",
         tank = "|T2202478:14:16:0:0:128:32:67:99:2:30|t"
@@ -7320,11 +7307,17 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
     local util = ns:GetModule("Util") ---@type UtilModule
 
-    ---@alias ReplayFrameStyle "MODERN"|"MDI"
+    ---@alias ReplayFrameStyle "MODERN"|"COMPACT"
+
+    ---@type table<string, ReplayFrameStyle>
+    local ReplayFrameStyle = {
+        MODERN = "MODERN",
+        COMPACT = "COMPACT",
+    }
 
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
-    local FRAME_STYLE = "MDI" ---@type ReplayFrameStyle
+    local FRAME_STYLE = ReplayFrameStyle.COMPACT
 
     local UPDATE_EVENTS = {
         "PLAYER_ENTERING_WORLD",
@@ -7772,8 +7765,9 @@ do
             self.TextBlock.Background:SetPoint("BOTTOMRIGHT", self.TextBlock, "BOTTOMRIGHT", 0, 0)
             self.TextBlock.Background:SetColorTexture(0, 0, 0, 0.5)
             ---@param previous? Region
+            ---@param middleText? string
             ---@return FontString Left, FontString Middle, FontString Right
-            local function CreateTextRow(previous)
+            local function CreateTextRow(previous, middleText)
                 local equalWidth = self.textColumnWidth
                 local middleWidth = 30
                 local extraWidth = (equalWidth - middleWidth)/2
@@ -7792,6 +7786,7 @@ do
                 MF:SetPoint("TOPLEFT", LF, "TOPRIGHT", 0, 0)
                 MF:SetJustifyH("CENTER")
                 MF:SetJustifyV("MIDDLE")
+                MF:SetText(middleText)
                 local RF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
                 RF:SetSize(equalWidth, self.textRowHeight)
                 RF:SetPoint("TOPLEFT", MF, "TOPRIGHT", 0, 0)
@@ -7799,30 +7794,23 @@ do
                 RF:SetJustifyV("MIDDLE")
                 return LF, MF, RF
             end
-            self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow()
-            self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL)
-            self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL)
-            self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL)
-            -- self.TextBlock.DeathL, self.TextBlock.DeathM, self.TextBlock.DeathR = CreateTextRow(self.TextBlock.TrashL)
-            self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL)
-            self.TextBlock.TitleM:SetText(ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
-            self.TextBlock.TimerM:SetText(ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
-            self.TextBlock.BossM:SetText(ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
-            self.TextBlock.TrashM:SetText(ns.CUSTOM_ICONS.replay.TRASH("TextureMarkup"))
-            -- self.TextBlock.DeathM:SetText(ns.CUSTOM_ICONS.replay.DEATH("TextureMarkup"))
-            self.TextBlock.DeathPenM:SetText(ns.CUSTOM_ICONS.replay.PENALTY("TextureMarkup"))
+            self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow(nil, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
+            self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL, ns.CUSTOM_ICONS.replay.ALARM("TextureMarkup"))
+            self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.SKULL("TextureMarkup"))
+            self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL, ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
+            self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.RIP("TextureMarkup"))
         end
 
         ---@param style ReplayFrameStyle
         function ReplayFrameMixin:SetStyle(style)
-            if style ~= "MODERN" and style ~= "MDI" then
+            if not style or not ReplayFrameStyle[style] then
                 return
             end
             self.style = style
-            if style == "MDI" then
+            if style == "COMPACT" then
                 self.textRowCount = 5
                 self.TextBlock.BossL:SetHeight(self.textRowHeight)
-            else -- if style == "MODERN" then
+            elseif style == "MODERN" then
                 self.textRowCount = 4
                 self.TextBlock.BossL:SetHeight(0)
                 self.TextBlock.BossL:SetText(nil)
@@ -7953,8 +7941,7 @@ do
             local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
             self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(replaySummary.timer / 1000), ceil(replay.clear_time_ms / 1000), not nextReplayEvent)
             self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces)
-            -- self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths)
-            self:SetUIDeathPenalty(liveSummary.deaths, replaySummary.deaths, deathPenalty)
+            self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty)
             self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, elapsedKeystoneTimer)
         end
 
@@ -7986,17 +7973,10 @@ do
             self.TextBlock.TrashR:SetFormattedText("%.1f%%", replayTrash / totalTrash * 100)
         end
 
-        -- ---@param liveDeaths number
-        -- ---@param replayDeaths number
-        -- function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths)
-        --     self.TextBlock.DeathL:SetFormattedText("|cff%s%d|r", AheadColor(liveDeaths - replayDeaths), liveDeaths)
-        --     self.TextBlock.DeathR:SetFormattedText("%d", replayDeaths)
-        -- end
-
         ---@param liveDeaths number
         ---@param replayDeaths number
         ---@param deathPenalty number
-        function ReplayFrameMixin:SetUIDeathPenalty(liveDeaths, replayDeaths, deathPenalty)
+        function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty)
             self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(liveDeaths - replayDeaths), liveDeaths, liveDeaths * deathPenalty)
             self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", replayDeaths, replayDeaths * deathPenalty)
         end
@@ -8006,7 +7986,7 @@ do
         function ReplayFrameMixin:SetUIBosses(liveBosses, replayBosses)
             local pool = self.BossFramePool
             pool:ReleaseAll()
-            if self:GetStyle() == "MDI" then
+            if self:GetStyle() == "COMPACT" then
                 self.bossesHeight = 0
                 return
             end
@@ -8028,7 +8008,7 @@ do
         ---@param replayBosses ReplayBoss[]
         ---@param timer number
         function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer)
-            if self:GetStyle() == "MDI" then
+            if self:GetStyle() == "COMPACT" then
                 local liveCount = 0
                 local replayCount = 0
                 for _, boss in ipairs(liveBosses) do if boss.dead then liveCount = liveCount + 1 end end

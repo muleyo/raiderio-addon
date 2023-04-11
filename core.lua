@@ -153,7 +153,7 @@ do
     ---@field public SCORE_TIERS_SIMPLE_PREV ScoreTiersSimpleCollection<number, ScoreTierSimple>
     ---@field public previousScoreTiersSimple ScoreTiersSimpleCollection<number, ScoreTierSimple> @DEPRECATED
     ---@field public CUSTOM_TITLES RecruitmentTitlesCollection<number, RecruitmentTitle>
-    ---@field public CLIENT_CHARACTERS Character<string, CharacterCollection>
+    ---@field public CLIENT_CHARACTERS table<string, CharacterCollection>
     ---@field public CLIENT_COLORS ScoreColorCollection<number, ScoreColor>
     ---@field public CLIENT_CONFIG ClientConfig
     ---@field public GUILD_BEST_DATA Guild<string, GuildCollection>
@@ -200,18 +200,23 @@ do
     ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9) -- Threshold that current season must surpass from previous season to be considered better and shown as primary in addon.
     ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9) -- Threshold that current season current character must surpass from previous season main to be considered better and shown as primary in addon.
 
+    ---@class CustomIcons
+
     ---Use `ns.CUSTOM_ICONS.FILENAME.KEY` to get the raw icon table.
     ---
     ---Use `ns.CUSTOM_ICONS.FILENAME.KEY("Texture")` to retrieve the `CustomIconTexture` for the icon.
     ---
     ---Use `ns.CUSTOM_ICONS.FILENAME.KEY("TextureMarkup")` to retrieve the texture markup `string` for the icon.
+    ---@class CustomIconsCollection
     ns.CUSTOM_ICONS = {
+        ---@class CustomIcons_Affixes : CustomIcons
         affixes = {
             TYRANNICAL_OFF = { 32, 32, 0, 0, 16/32, 32/32, 16/32, 32/32, 0, 0 },
             FORTIFIED_OFF = { 32, 32, 0, 0, 16/32, 32/32, 0/32, 16/32, 0, 0 },
             TYRANNICAL_ON = { 32, 32, 0, 0, 0/32, 16/32, 16/32, 32/32, 0, 0 },
             FORTIFIED_ON = { 32, 32, 0, 0, 0/32, 16/32, 0/32, 16/32, 0, 0 },
         },
+        ---@class CustomIcons_Icons : CustomIcons
         icons = {
             RAIDERIO_COLOR_CIRCLE = { 256, 256, 0, 0, 0/256, 64/256, 0/256, 64/256, 0, 0 },
             RAIDERIO_WHITE_CIRCLE = { 256, 256, 0, 0, 64/256, 128/256, 0/256, 64/256, 0, 0 },
@@ -220,12 +225,14 @@ do
             RAIDERIO_WHITE = { 256, 256, 0, 0, 64/256, 128/256, 64/256, 128/256, 0, 0 },
             RAIDERIO_BLACK = { 256, 256, 0, 0, 128/256, 192/256, 64/256, 128/256, 0, 0 },
         },
+        ---@class CustomIcons_Replay : CustomIcons
         replay = {
             ALARM = { 256, 256, 0, 0, 0/256, 64/256, 0/256, 64/256, 0, 0 },
             SKULL = { 256, 256, 0, 0, 64/256, 128/256, 0/256, 64/256, 0, 0 },
             TIMER = { 256, 256, 0, 0, 128/256, 192/256, 0/256, 64/256, 0, 0 },
             RIP = { 256, 256, 0, 0, 192/256, 256/256, 0/256, 64/256, 0, 0 },
         },
+        ---@class CustomIcons_Roles : CustomIcons
         roles = {
             dps_full = { 64, 64, 0, 0, 0/64, 18/64, 0/64, 18/64, 0, 0 },
             dps_partial = { 64, 64, 0, 0, 0/64, 18/64, 18/64, 36/64, 0, 0 },
@@ -367,6 +374,7 @@ do
     ---@field public healer RoleIcon
     ---@field public tank RoleIcon
 
+    ---@type RoleIcons
     ns.ROLE_ICONS = { -- Collection of roles and their icons.
         dps = {
             full = "|TInterface\\AddOns\\RaiderIO\\icons\\roles:14:14:0:0:64:64:0:18:0:18|t",
@@ -421,10 +429,10 @@ do
         [30] = 200
     }
 
-    ---@class RaidDifficultyColor : table
-    ---@field public pos1 number @red (0-1.0) - this table can be unpacked to get r, g, b
-    ---@field public pos2 number @green (0-1.0) - this table can be unpacked to get r, g, b
-    ---@field public pos3 number @blue (0-1.0) - this table can be unpacked to get r, g, b
+    ---@class RaidDifficultyColor
+    ---@field public [1] number @red (0-1.0) - this table can be unpacked to get r, g, b
+    ---@field public [2] number @green (0-1.0) - this table can be unpacked to get r, g, b
+    ---@field public [3] number @blue (0-1.0) - this table can be unpacked to get r, g, b
     ---@field public hex string @hex (000000-ffffff) - this table can be unpacked to get r, g, b
 
     ---@class RaidDifficulty
@@ -433,16 +441,19 @@ do
     ---@field public color RaidDifficultyColor
 
     ns.RAID_DIFFICULTY = { -- Table of `1` (normal), `2` (heroic), `3` (mythic) difficulties and their names and colors.
+        ---@type RaidDifficulty
         [1] = {
             suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL,
             name = L.RAID_DIFFICULTY_NAME_NORMAL,
             color = { 0.12, 1.00, 0.00, hex = "1eff00" }
         },
+        ---@type RaidDifficulty
         [2] = {
             suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC,
             name = L.RAID_DIFFICULTY_NAME_HEROIC,
             color = { 0.00, 0.44, 0.87, hex = "0070dd" }
         },
+        ---@type RaidDifficulty
         [3] = {
             suffix = L.RAID_DIFFICULTY_SUFFIX_MYTHIC,
             name = L.RAID_DIFFICULTY_NAME_MYTHIC,
@@ -450,18 +461,21 @@ do
         }
     }
 
+    ---@class RecruitmentEntityTypes
     ns.RECRUITMENT_ENTITY_TYPES = { -- Table over recruitment entity types.
         character = 0,
         guild = 1,
         team = 2
     }
 
+    ---@class RecruitmentEntityTypeUrlSuffix
     ns.RECRUITMENT_ENTITY_TYPE_URL_SUFFIX = { -- Table over recruitment entity type profile url suffixes.
         [ns.RECRUITMENT_ENTITY_TYPES.guild] = "guild-recruitment",
         [ns.RECRUITMENT_ENTITY_TYPES.character] = "recruitment",
         [ns.RECRUITMENT_ENTITY_TYPES.team] = "team-recruitment"
     }
 
+    ---@class RecruitmentActivityTypes
     ns.RECRUITMENT_ACTIVITY_TYPES = { -- Table over recruitment activity types.
         guildraids = 0,
         guildpvp = 1,
@@ -470,6 +484,7 @@ do
         teamkeystone = 4
     }
 
+    ---@class RecruitmentActivityTypeIcons
     ns.RECRUITMENT_ACTIVITY_TYPE_ICONS = { -- Table over recruitment activity type icons.
         [ns.RECRUITMENT_ACTIVITY_TYPES.guildraids] = 4062765, -- achievement_raid_torghastraid
         [ns.RECRUITMENT_ACTIVITY_TYPES.guildpvp] = 236329, -- achievement_arena_2v2_7
@@ -478,6 +493,7 @@ do
         [ns.RECRUITMENT_ACTIVITY_TYPES.teamkeystone] = 255345 -- achievement_dungeon_gloryofthehero
     }
 
+    ---@class RecruitmentRoleIcons
     ns.RECRUITMENT_ROLE_ICONS = { -- Table over recruitment role icons.
         dps = "|T2202478:14:16:0:0:128:32:0:32:2:30|t",
         healer = "|T2202478:14:16:0:0:128:32:33:65:2:30|t",
@@ -517,9 +533,7 @@ do
     ---@field public best CharacterMythicKeystoneRun
     ---@field public runs CharacterMythicKeystoneRun[]
 
-    ---@class Character
-
-    ---@return Character<string, CharacterCollection>
+    ---@return table<string, CharacterCollection>
     function ns:GetClientData()
         return ns.CLIENT_CHARACTERS
     end
@@ -2719,6 +2733,8 @@ do
         end
     end
 
+    ---@param dataType number
+    ---@param region string
     local function GetExistingProvider(dataType, region)
         for i = 1, #providers do
             local provider = providers[i]
@@ -2776,15 +2792,21 @@ do
         return true
     end
 
+    ---@param data string[]
+    ---@param name string
+    ---@param startIndex number
+    ---@param endIndex number
+    ---@return number? index, string? name
     local function BinarySearchGetIndexFromName(data, name, startIndex, endIndex)
         local minIndex = startIndex
         local maxIndex = endIndex
-        local mid, current, cmp
-
+        local mid ---@type number
+        local current ---@type string
+        local cmp ---@type number
         while minIndex <= maxIndex do
             mid = floor((maxIndex + minIndex) / 2)
             current = data[mid]
-            cmp = strcmputf8i(current, name)
+            cmp = strcmputf8i(current, name) ---@type number
             if cmp == 0 then
                 return mid, current
             elseif cmp < 0 then
@@ -2795,8 +2817,8 @@ do
         end
     end
 
-    -- TODO: can this be part of the provider? we can see if we can make a more dynamic system
-    local ENCODER_MYTHICPLUS_FIELDS = {
+    ---@class EncoderMythicPlusFields
+    local ENCODER_MYTHICPLUS_FIELDS = { -- TODO: can this be part of the provider? we can see if we can make a more dynamic system
         CURRENT_SCORE       = 1,  -- current season score
         CURRENT_ROLES       = 2,  -- current season roles
         PREVIOUS_SCORE      = 3,  -- previous season score
@@ -2810,21 +2832,23 @@ do
         DUNGEON_BEST_INDEX  = 11  -- best dungeon index
     }
 
-    -- TODO: can this be part of the provider? we can see if we can make a more dynamic system
-    local ENCODER_RECRUITMENT_FIELDS = {
+    ---@class EncoderRecruitmentFields
+    local ENCODER_RECRUITMENT_FIELDS = { -- TODO: can this be part of the provider? we can see if we can make a more dynamic system
         TITLE                 = 0, -- custom recruitment title index
         ENTITY_TYPE           = 1, -- character, guild, team
         -- ACTIVITY_TYPE         = 2, -- guildraids, guildpvp, guildsocial, guildkeystones, teamkeystones
         ROLES                 = 3, -- dps = 1, healer = 2, tank = 4 (see `ENCODER_RECRUITMENT_ROLES`)
     }
+
+    ---@class EncoderRecruitmentRoles
     local ENCODER_RECRUITMENT_ROLES = {
         dps = 1,
         healer = 2,
         tank = 4,
     }
 
-    -- TODO: can this be part of the provider? we can see if we can make a more dynamic system
-    local ENCODER_RAIDING_FIELDS = {
+    ---@class EncoderRaidingFields
+    local ENCODER_RAIDING_FIELDS = { -- TODO: can this be part of the provider? we can see if we can make a more dynamic system
         CURRENT_FULL_PROGRESS = 1,
         PREVIOUS_FULL_PROGRESS = 2,
         PREVIOUS_SUMMARY_PROGRESS = 3,
@@ -2832,7 +2856,11 @@ do
     }
 
     ---@param provider DataProvider
-    ---@return table?, number?, string?, string?, string?
+    ---@param lookup string[]
+    ---@param data table<string, string[]|nil>
+    ---@param name string
+    ---@param realm string
+    ---@return string? bucket, number? baseOffset, string? guid, string? internalName, string? internalRealm
     local function SearchForBucketByName(provider, lookup, data, name, realm)
         local internalRealm = realm
         local realmData = data[realm]
@@ -2852,28 +2880,34 @@ do
         if not nameIndex then
             return
         end
-        local bucket, baseOffset, guid
+        local bucket ---@type string?
+        local baseOffset ---@type number?
+        local guid ---@type string?
         if provider.data == ns.PROVIDER_DATA_TYPE.MythicKeystone then
             local bucketID = 1
             bucket = lookup[bucketID]
-            baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes
-            guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
+            baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes ---@type number
+            guid = format("%d:%s:%d:%d", provider.data, provider.region, bucketID, baseOffset)
         elseif provider.data == ns.PROVIDER_DATA_TYPE.Raid then
             local bucketID = 1
             bucket = lookup[bucketID]
-            baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes
-            guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
+            baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes ---@type number
+            guid = format("%d:%s:%d:%d", provider.data, provider.region, bucketID, baseOffset)
         elseif provider.data == ns.PROVIDER_DATA_TYPE.Recruitment then
             local bucketID = 1
             bucket = lookup[bucketID]
-            baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes
-            guid = provider.data .. ":" .. provider.region .. ":" .. bucketID .. ":" .. baseOffset
+            baseOffset = 1 + realmData[1] + (nameIndex - 2) * provider.recordSizeInBytes ---@type number
+            guid = format("%d:%s:%d:%d", provider.data, provider.region, bucketID, baseOffset)
         elseif provider.data == ns.PROVIDER_DATA_TYPE.PvP then
             -- TODO
         end
         return bucket, baseOffset, guid, internalName, internalRealm
     end
 
+    ---@param data string
+    ---@param offset number
+    ---@param length number
+    ---@return number value, number offset
     local function ReadBitsFromString(data, offset, length)
         local value = 0
         local readOffset = 0
@@ -2906,6 +2940,7 @@ do
         return value, offset + readOffset
     end
 
+    ---@param value number
     local function DecodeBits6(value)
         if value < 10 then
             return value
@@ -2913,6 +2948,7 @@ do
         return 10 + (value - 10) * 5
     end
 
+    ---@param value number
     local function DecodeBits7(value)
         if value < 20 then
             return value
@@ -2920,6 +2956,7 @@ do
         return 20 + (value - 20) * 4
     end
 
+    ---@param value number
     local function DecodeBits8(value)
         if value < 200 then
             return value
@@ -2927,16 +2964,19 @@ do
         return 200 + (value - 200) * 2
     end
 
+    ---@class DecodeBits2Table
     local DECODE_BITS_2_TABLE = { 0, 1, 2, 5 }
 
+    ---@param value number
     local function DecodeBits2(value)
         return DECODE_BITS_2_TABLE[1 + value] or 0
     end
 
-    -- TODO: can this be part of the provider? we can see if we can make a more dynamic system
     ---@class OrderedRolesItem
-    ---@field public pos1 string @"tank","healer","dps"
-    ---@field public pos2 string @"full","partial"
+    ---@field public [1] string @`tank`, `healer`, `dps`
+    ---@field public [2] string @`full`, `partial`
+
+    ---@type OrderedRolesItem[][]
     local ORDERED_ROLES = {
         { },
         { {"dps","full"}, },
@@ -3105,6 +3145,9 @@ do
     end
 
     ---@param results DataProviderMythicKeystoneProfile
+    ---@param bucket string
+    ---@param bitOffset number
+    ---@param weeklyAffixInternal string
     local function ApplyWeeklyAffixForDungeons(results, bucket, bitOffset, weeklyAffixInternal)
         local dungeons = {}
         local dungeonUpgrades = {}
@@ -3122,6 +3165,9 @@ do
     end
 
     ---@param results DataProviderMythicKeystoneProfile
+    ---@param bucket string
+    ---@param bitOffset any
+    ---@param weeklyAffixInternal string
     local function ApplyWeeklyAffixForDungeonBest(results, bucket, bitOffset, weeklyAffixInternal)
         local value, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
         local maxDungeonIndex = 1 + value
@@ -3146,38 +3192,44 @@ do
         }
         setmetatable(results, {
             __metatable = false,
+            ---@param self DataProviderMythicKeystoneProfile
+            ---@param key string
             __index = function(self, key)
                 if not dynamicKeys[key] then
                     return
                 end
                 local _, weeklyAffixInternal = util:GetWeeklyAffix()
-                local destKey = key:sub(1, 1):upper() .. key:sub(2)
+                local destKey = format("%s%s", key:sub(1, 1):upper(), key:sub(2))
                 return self[weeklyAffixInternal .. destKey]
             end,
         })
     end
 
     ---@param results DataProviderMythicKeystoneProfile
+    ---@param weeklyAffixInternal string?
     local function ApplySortedDungeonsForAffix(results, weeklyAffixInternal)
         ---@param sortedDungeon SortedDungeon
+        ---@param weeklyAffixInternal string
         local function getSortOrderForAffix(sortedDungeon, weeklyAffixInternal)
             local index = sortedDungeon.dungeon.index
-            local level = results[weeklyAffixInternal .. "Dungeons"][index]
-            local chests = results[weeklyAffixInternal .. "DungeonUpgrades"][index]
-            -- local fractionalTime = results[weeklyAffixInternal .. "DungeonTimes"][index]
+            local level = results[weeklyAffixInternal .. "Dungeons"][index] ---@type number
+            local chests = results[weeklyAffixInternal .. "DungeonUpgrades"][index] ---@type number
+            -- local fractionalTime = results[weeklyAffixInternal .. "DungeonTimes"][index] ---@type number
             return format("%02d-%02d", 99 - level, 99 - chests)
         end
         ---@param sortedDungeon SortedDungeon
+        ---@param primaryAffixInternal string
+        ---@param secondaryAffixInternal string
         ---@param focusAffix? number @`nil` = consider both affixes when making the weights, `1` = focus on primary affix, `2` = focus on secondary affix
         local function getSortOrder(sortedDungeon, primaryAffixInternal, secondaryAffixInternal, focusAffix)
-            local primaryOrder
+            local primaryOrder ---@type string?
             if focusAffix == nil or focusAffix == 1 then
                 primaryOrder = getSortOrderForAffix(sortedDungeon, primaryAffixInternal)
                 if focusAffix == 1 then
                     return format("%s-%s", primaryOrder, sortedDungeon.dungeon.shortNameLocale)
                 end
             end
-            local secondaryOrder
+            local secondaryOrder ---@type string?
             if focusAffix == nil or focusAffix == 2 then
                 secondaryOrder = getSortOrderForAffix(sortedDungeon, secondaryAffixInternal)
                 if focusAffix == 2 then
@@ -3188,6 +3240,8 @@ do
         end
         local sortedDungeonMetatable = {
             __metatable = false,
+            ---@param self SortedDungeon
+            ---@param key string
             __index = function(self, key)
                 local index = self.dungeon.index
                 local _, weeklyAffixInternal = util:GetWeeklyAffix()
@@ -3235,9 +3289,9 @@ do
         local dungeonUpgradeKey = "dungeonUpgrades"
         local dungeonTimeKey = "dungeonTimes"
         if weeklyAffixInternal then
-            dungeonKey = weeklyAffixInternal .. "Dungeons"
-            dungeonUpgradeKey = weeklyAffixInternal .. "DungeonUpgrades"
-            dungeonTimeKey = weeklyAffixInternal .. "DungeonTimes"
+            dungeonKey = weeklyAffixInternal .. "Dungeons" ---@type string
+            dungeonUpgradeKey = weeklyAffixInternal .. "DungeonUpgrades" ---@type string
+            dungeonTimeKey = weeklyAffixInternal .. "DungeonTimes" ---@type string
         end
         for i = 1, #DUNGEONS do
             local dungeon = DUNGEONS[i]
@@ -3258,6 +3312,7 @@ do
     end
 
     ---@param results DataProviderMythicKeystoneProfile
+    ---@param weeklyAffixInternal string?
     local function ApplySortedMilestonesForAffix(results, weeklyAffixInternal)
         results.sortedMilestones = {}
         if results.keystoneTwentyPlus > 0 then
@@ -3309,11 +3364,13 @@ do
     end
 
     ---@param results DataProviderMythicKeystoneProfile
+    ---@param name string
+    ---@param realm string
     local function ApplyClientDataToMythicKeystoneData(results, name, realm)
         if not CLIENT_CHARACTERS or not config:Get("enableClientEnhancements") then
             return
         end
-        local nameAndRealm = name .. "-" .. realm
+        local nameAndRealm = format("%s-%s", name, realm)
         local clientData = CLIENT_CHARACTERS[nameAndRealm]
         if not clientData then
             return
@@ -3346,7 +3403,7 @@ do
         end
     end
 
-    ---@param bucket table
+    ---@param bucket string
     ---@param baseOffset number
     ---@param encodingOrder number[]
     ---@param providerOutdated number
@@ -3435,6 +3492,8 @@ do
     ---@field public previousProgress? DataProviderRaidProgress[]
     ---@field public sortedProgress SortedRaidProgress[]
     ---@field public raidProgress RaidProgress[]
+
+    ---@alias DataProviderRaidProgressFields "progress"|"mainProgress"|"previousProgress"
 
     ---@class SortedRaidProgress
     ---@field public obsolete boolean If this evaluates truthy we hide it unless tooltip is expanded on purpose.
@@ -3593,18 +3652,18 @@ do
         end
     end
 
-    ---@param bucket table
+    ---@param bucket string
     ---@param raid DatabaseRaid
     ---@param offset number
     ---@param results DataProviderRaidProfile
-    ---@param field "mainProgress"|"previousProgress"|"progress"
+    ---@param field DataProviderRaidProgressFields
     local function UnpackSummaryRaidProgress(bucket, raid, offset, results, field)
         local prog = { raid = raid } ---@type DataProviderRaidProgress
         local bitOffset = offset
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
         prog.progressCount, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
         if prog.progressCount > 0 then
-            local temp = results[field]
+            local temp = results[field] ---@type DataProviderRaidProgress[]?
             if not temp then
                 temp = {}
                 results[field] = temp
@@ -3614,7 +3673,7 @@ do
         return bitOffset
     end
 
-    ---@param bucket table
+    ---@param bucket string
     ---@param raid DatabaseRaid
     ---@param offset number
     ---@param results DataProviderRaidProfile
@@ -3637,7 +3696,7 @@ do
         return bitOffset
     end
 
-    ---@param bucket table
+    ---@param bucket string
     ---@param baseOffset number
     ---@param provider DataProvider
     local function UnpackRaidData(bucket, baseOffset, provider)
@@ -3949,27 +4008,11 @@ do
         return results
     end
 
-    ---@class BlizzardKeystoneAffixInfo
-    ---@field public name string @Affix name.
-    ---@field public level number @Run keystone level.
-    ---@field public score number @Score earned from keystone.
-    ---@field public overTime boolean @Is the run depleted?
-    ---@field public durationSec number @Run duration in seconds.
-
-    ---@class BlizzardKeystoneRun
-    ---@field public bestRunDurationMS number @Timer in milliseconds
-    ---@field public bestRunLevel number @Keystone level
-    ---@field public challengeModeID number @Keystone instance ID
-    ---@field public finishedSuccess boolean @If the run was timed or not
-    ---@field public mapScore number @The score worth for the run
-    ---@field public fortified BlizzardKeystoneAffixInfo @Fortified affix data. Only accessible for the players own profile override.
-    ---@field public tyrannical BlizzardKeystoneAffixInfo @Tyrannical affix data. Only accessible for the players own profile override.
-
-    -- override or inject cache entry for tooltip rendering for this character with their BIO score and keystune run data
+    -- override or inject cache entry for tooltip rendering for this character with their Blizzard keystone score and keystune run data
     ---@param name string @Character name
     ---@param realm string @Realm name
-    ---@param overallScore number @BIO score directly from the game.
-    ---@param keystoneRuns? BlizzardKeystoneRun[] @BIO runs directly from the game.
+    ---@param overallScore number @Blizzard keystone score directly from the game.
+    ---@param keystoneRuns? MythicPlusRatingMapSummaryRaiderIOExtended[] @Blizzard keystone runs directly from the game.
     function provider:OverrideProfile(name, realm, overallScore, keystoneRuns)
         if type(name) ~= "string" or type(realm) ~= "string" or (type(overallScore) ~= "number" and type(keystoneRuns) ~= "table") then
             return
@@ -4014,7 +4057,7 @@ do
                 local needsMaxDungeonUpgrade
                 for i = 1, #keystoneRuns do
                     local run = keystoneRuns[i]
-                    local runAffixData = run[weeklyAffixInternal] ---@type BlizzardKeystoneAffixInfo
+                    local runAffixData = run[weeklyAffixInternal] ---@type MythicPlusAffixScoreInfo
                     local dungeonIndex ---@type number|nil
                     local dungeon ---@type Dungeon|nil
                     for j = 1, #DUNGEONS do
@@ -4177,12 +4220,21 @@ do
         return cache
     end
 
+    ---@class MythicPlusRatingSummaryRaiderIOExtended : MythicPlusRatingSummary
+    ---@field public runs MythicPlusRatingMapSummaryRaiderIOExtended[]
+
+    ---@class MythicPlusRatingMapSummaryRaiderIOExtended : MythicPlusRatingMapSummary
+    ---@field public fortified? MythicPlusAffixScoreInfo
+    ---@field public tyrannical? MythicPlusAffixScoreInfo
+
     ---@param bioSummary MythicPlusRatingSummary
+    ---@return MythicPlusRatingSummaryRaiderIOExtended bioSummaryExtended
     local function ExpandSummaryWithChallengeModeMapData(bioSummary)
         local mapIDs = C_ChallengeMode.GetMapTable()
         for _, mapID in ipairs(mapIDs) do
-            local affixScores, bestOverAllScore
-            local mapRun ---@type MythicPlusRatingMapSummary
+            local affixScores ---@type MythicPlusAffixScoreInfo[]?
+            local bestOverAllScore ---@type number?
+            local mapRun ---@type MythicPlusRatingMapSummary?
             for _, run in ipairs(bioSummary.runs) do
                 if mapID == run.challengeModeID then
                     affixScores, bestOverAllScore = C_MythicPlus.GetSeasonBestAffixScoreInfoForMap(mapID)
@@ -4200,13 +4252,14 @@ do
                 end
             end
         end
+        return bioSummary ---@diagnostic disable-line: return-type-mismatch
     end
 
     local function OverridePlayerData()
-        local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player") ---@type MythicPlusRatingSummary
+        local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player")
         if bioSummary and bioSummary.currentSeasonScore then
-            ExpandSummaryWithChallengeModeMapData(bioSummary)
-            provider:OverrideProfile(ns.PLAYER_NAME, ns.PLAYER_REALM, bioSummary.currentSeasonScore, bioSummary.runs)
+            local bioSummaryExtended = ExpandSummaryWithChallengeModeMapData(bioSummary)
+            provider:OverrideProfile(ns.PLAYER_NAME, ns.PLAYER_REALM, bioSummaryExtended.currentSeasonScore, bioSummaryExtended.runs)
         end
     end
 

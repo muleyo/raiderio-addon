@@ -7360,17 +7360,18 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
     local util = ns:GetModule("Util") ---@type UtilModule
 
-    ---@alias ReplayFrameStyle "MODERN"|"COMPACT"
+    ---@alias ReplayFrameStyle "MODERN"|"COMPACT"|"MDI"
 
-    ---@type table<string, ReplayFrameStyle>
-    local ReplayFrameStyle = {
+    ---@class ReplayFrameStyles
+    local ReplayFrameStyles = {
         MODERN = "MODERN",
         COMPACT = "COMPACT",
+        MDI = "MDI",
     }
 
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
-    local FRAME_STYLE = ReplayFrameStyle.COMPACT
+    local FRAME_STYLE = ReplayFrameStyles.MDI
 
     local UPDATE_EVENTS = {
         "PLAYER_ENTERING_WORLD",
@@ -7794,8 +7795,8 @@ do
             self.contentPaddingY = 5
             self.textRowCount = 4
             self.textRowHeight = 25
-            self.textColumnWidth = (self.width - (self.contentPaddingX * 4)) / 3
-            self.textHeight = self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1)
+            self.textColumnWidth = (self.width - (self.contentPaddingX * 4)) / 3 ---@type number
+            self.textHeight = self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1) ---@type number
             self.bossesHeight = 0
             self:SetPoint("TOPRIGHT", ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
             self:SetSize(self.width, 0)
@@ -7810,7 +7811,7 @@ do
             self.Background:SetAllPoints()
             self.Background:SetColorTexture(0, 0, 0, 0.5)
             self.BossFramePool = CreateBossFramePool(self)
-            self.TextBlock = CreateFrame("Frame", nil, self) ---@class TextBlock : Frame
+            self.TextBlock = CreateFrame("Frame", nil, self) ---@class ReplayFrameTextBlock : Frame
             self.TextBlock:SetPoint("TOPLEFT", self, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
             self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
             self.TextBlock.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -7823,7 +7824,7 @@ do
             local function CreateTextRow(previous, middleText)
                 local equalWidth = self.textColumnWidth
                 local middleWidth = 30
-                local extraWidth = (equalWidth - middleWidth)/2
+                local extraWidth = (equalWidth - middleWidth)/2 ---@type number
                 equalWidth = equalWidth + extraWidth
                 local LF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
                 LF:SetSize(equalWidth, self.textRowHeight)
@@ -7852,11 +7853,43 @@ do
             self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.SKULL("TextureMarkup"))
             self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL, ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
             self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.RIP("TextureMarkup"))
+            self.MDI = CreateFrame("Frame", nil, self, BackdropTemplateMixin and "BackdropTemplate") ---@class ReplayFrameMDI : Frame, BackdropTemplate
+            self.MDI:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
+            self.MDI:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
+            if self.MDI.SetBackdrop then
+                self.MDI:SetBackdrop(BACKDROP_TUTORIAL_16_16) ---@diagnostic disable-line: param-type-mismatch
+                self.MDI:SetBackdropBorderColor(TOOLTIP_DEFAULT_COLOR:GetRGB()) ---@diagnostic disable-line: param-type-mismatch
+                self.MDI:SetBackdropColor(TOOLTIP_DEFAULT_BACKGROUND_COLOR:GetRGB()) ---@diagnostic disable-line: param-type-mismatch
+                self.MDI:SetBackdropColor(0, 0, 0, 1) ---@diagnostic disable-line: param-type-mismatch
+            end
+            ---@param previous? Region
+            local function CreateTextRowMDI(previous)
+                local equalWidth = self.textColumnWidth -- * 3 / 2
+                local middleWidth = 30 -- 0
+                local extraWidth = (equalWidth - middleWidth)/2 ---@type number
+                equalWidth = equalWidth + extraWidth
+                local LF = self.MDI:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+                LF:SetSize(equalWidth, self.textRowHeight)
+                if previous then
+                    LF:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, 0)
+                else
+                    LF:SetPoint("TOPLEFT", self.MDI, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
+                end
+                LF:SetJustifyH("RIGHT")
+                LF:SetJustifyV("MIDDLE")
+                local RF = self.MDI:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+                RF:SetSize(equalWidth, self.textRowHeight)
+                RF:SetPoint("TOPLEFT", LF, "TOPRIGHT", 0, 0)
+                RF:SetJustifyH("LEFT")
+                RF:SetJustifyV("MIDDLE")
+                return LF, RF
+            end
+            self.MDI.BossL, self.MDI.BossR = CreateTextRowMDI()
         end
 
         ---@param style ReplayFrameStyle
         function ReplayFrameMixin:SetStyle(style)
-            if not style or not ReplayFrameStyle[style] then
+            if not style or not ReplayFrameStyles[style] then
                 return
             end
             self.style = style
@@ -7868,15 +7901,25 @@ do
                 self.TextBlock.BossL:SetHeight(0)
                 self.TextBlock.BossL:SetText(nil)
                 self.TextBlock.BossR:SetText(nil)
+            elseif style == "MDI" then
+                self.textRowCount = 0
             end
+            local hasTextRows = self.textRowCount > 0
             self.textHeight = self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1)
             self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
+            self.TextBlock:SetShown(hasTextRows)
+            self.MDI:SetShown(not hasTextRows)
             self:UpdateShown()
             self:Update()
         end
 
         function ReplayFrameMixin:GetStyle()
             return self.style
+        end
+
+        ---@param style ReplayFrameStyle
+        function ReplayFrameMixin:IsStyle(style)
+            return self.style == style
         end
 
         ---@param replayDataProvider ReplayDataProvider
@@ -8039,7 +8082,7 @@ do
         function ReplayFrameMixin:SetUIBosses(liveBosses, replayBosses)
             local pool = self.BossFramePool
             pool:ReleaseAll()
-            if self:GetStyle() == "COMPACT" then
+            if not self:IsStyle("MODERN") then
                 self.bossesHeight = 0
                 return
             end
@@ -8061,14 +8104,20 @@ do
         ---@param replayBosses ReplayBoss[]
         ---@param timer number
         function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer)
-            if self:GetStyle() == "COMPACT" then
+            local style = self:GetStyle()
+            if style ~= "MODERN" then
                 local liveCount = 0
                 local replayCount = 0
                 for _, boss in ipairs(liveBosses) do if boss.dead then liveCount = liveCount + 1 end end
                 for _, boss in ipairs(replayBosses) do if boss.killed and boss.killed <= timer then replayCount = replayCount + 1 end end
                 local totalCount = max(#liveBosses, #replayBosses)
-                self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(liveCount - replayCount), liveCount, totalCount)
-                self.TextBlock.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
+                if style == "COMPACT" then
+                    self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(liveCount - replayCount), liveCount, totalCount)
+                    self.TextBlock.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
+                elseif style == "MDI" then
+                    self.MDI.BossL:SetFormattedText("%d/%d", liveCount, totalCount)
+                    self.MDI.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
+                end
                 return
             end
             local pool = self.BossFramePool

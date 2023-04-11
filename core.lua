@@ -7369,9 +7369,16 @@ do
         MDI = "MDI",
     }
 
+    ---@class ReplayFrameStylesCycle
+    local ReplayFrameStylesCycle = {
+        MODERN = "COMPACT",
+        COMPACT = "MDI",
+        MDI = "MODERN",
+    }
+
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
-    local FRAME_STYLE = ReplayFrameStyles.MDI
+    local FRAME_STYLE = ReplayFrameStyles.MDI -- default style
 
     local UPDATE_EVENTS = {
         "PLAYER_ENTERING_WORLD",
@@ -7414,15 +7421,14 @@ do
             return
         end
         for _, bossInfo in pairs(replayEventInfo.bosses) do
+            local boss = replaySummary.bosses[bossInfo.index]
+            boss.combat = bossInfo.combat
+            boss.pulls = bossInfo.pulls
             if bossInfo.killed then
-                local boss = replaySummary.bosses[bossInfo.index]
-                if not boss.dead then
-                    boss.dead = true
-                    boss.combat = false
-                    boss.pulls = bossInfo.pulls
-                    boss.killed = replayEventInfo.timer
-                    boss.killedText = SecondsToClock(replayEventInfo.timer / 1000)
-                end
+                boss.dead = true
+                boss.combat = false
+                boss.killed = replayEventInfo.timer
+                boss.killedText = SecondsToClock(replayEventInfo.timer / 1000)
             end
         end
     end
@@ -7438,11 +7444,29 @@ do
     end
 
     ---@param delta number
-    local function AheadColor(delta)
+    ---@param whiteWhenZero? boolean
+    local function AheadColor(delta, whiteWhenZero)
         if delta == 0 then
-            return "FFFF55"
+            return whiteWhenZero and "FFFFFF" or "FFFF55"
         end
         return delta <= 0 and "55FF55" or "FF5555"
+    end
+
+    ---@param value number @Expected range is `0` to `100`.
+    ---@param tryHandleZero? boolean
+    ---@return string percentageText @Naturally rounded percentage strings like `90%`, `95.59%`, `99.5%`, `100%`
+    local function FormatPercentageAsText(value, tryHandleZero)
+        local rounded = floor(value * 100 + 0.5) / 100
+        local temp = tostring(rounded)
+        if strsub(temp, -3) == ".00" then
+            temp = strsub(temp, 1, -4)
+        elseif strsub(temp, -2) == ".0" then
+            temp = strsub(temp, 1, -2)
+        end
+        if tryHandleZero and temp == "0" then
+            return format("%.3f", value)
+        end
+        return temp
     end
 
     ---@class ReplayBoss
@@ -7787,14 +7811,144 @@ do
 
     do
 
+        ---@class UIWidgetBaseTextMixin : FontString
+
+        ---@class UIWidgetBaseStatusBarTemplateMixin
+        ---@field public value? number
+        ---@field public SanitizeAndSetStatusBarValues fun(self: UIWidgetBaseStatusBarTemplateMixin, barInfo: StatusBarWidgetVisualizationInfo)
+        ---@field public Setup fun(self: UIWidgetBaseStatusBarTemplateMixin, widgetContainer: Region, barInfo: StatusBarWidgetVisualizationInfo)
+        ---@field public UpdateBar fun(self: UIWidgetBaseStatusBarTemplateMixin, elapsed: number)
+        ---@field public DisplayBarValue fun(self: UIWidgetBaseStatusBarTemplateMixin)
+        ---@field public SetBarText fun(self: UIWidgetBaseStatusBarTemplateMixin, barValue: number)
+        ---@field public GetMaxTimeCount fun(self: UIWidgetBaseStatusBarTemplateMixin): number
+        ---@field public OnEnter fun(self: UIWidgetBaseStatusBarTemplateMixin)
+        ---@field public OnLeave fun(self: UIWidgetBaseStatusBarTemplateMixin)
+        ---@field public UpdateLabel fun(self: UIWidgetBaseStatusBarTemplateMixin)
+        ---@field public SetMouse fun(self: UIWidgetBaseStatusBarTemplateMixin, disableMouse: boolean)
+        ---@field public InitPartitions fun(self: UIWidgetBaseStatusBarTemplateMixin, partitionValues: number[], textureKit: string|number)
+        ---@field public UpdatePartitions fun(self: UIWidgetBaseStatusBarTemplateMixin, barValue: number)
+        ---@field public OnReset fun(self: UIWidgetBaseStatusBarTemplateMixin)
+
+        ---@class UIWidgetBaseStatusBarTemplate : StatusBar, UIWidgetBaseStatusBarTemplateMixin
+        ---@field public BackgroundGlow Texture
+        ---@field public BGLeft Texture
+        ---@field public BGRight Texture
+        ---@field public BGCenter Texture
+        ---@field public GlowLeft Texture
+        ---@field public GlowRight Texture
+        ---@field public GlowCenter Texture
+        ---@field public BorderLeft Texture
+        ---@field public BorderRight Texture
+        ---@field public BorderCenter Texture
+        ---@field public Spark Texture
+        ---@field public SparkMask Texture
+        ---@field public Label UIWidgetBaseTextMixin
+
+        ---@class UIWidgetTemplateStatusBarMixin
+        ---@field public SanitizeTextureKits fun(self: UIWidgetTemplateStatusBarMixin, widgetInfo: StatusBarWidgetVisualizationInfo)
+        ---@field public Setup fun(self: UIWidgetTemplateStatusBarMixin, widgetInfo: StatusBarWidgetVisualizationInfo, widgetContainer: Region)
+        ---@field public EvaluateTutorials fun(self: UIWidgetTemplateStatusBarMixin)
+        ---@field public OnReset fun(self: UIWidgetTemplateStatusBarMixin)
+
+        ---@class UIWidgetTemplateStatusBar : Frame, UIWidgetTemplateStatusBarMixin
+        ---@field public Bar UIWidgetBaseStatusBarTemplate
+        ---@field public Label FontString
+        ---@field public widgetContainer Region @Custom property assigned to be the same as the object used when calling `Setup`.
+        ---@field public SetBarValue fun(self: UIWidgetTemplateStatusBar, barValue: number, barMin?: number, barMax?: number, forceUpdate?: boolean) @Custom function assigned to wrap around `Setup` for updating the bar widget.
+
+        ---@type StatusBarWidgetVisualizationInfo
+        local STATUSBAR_WIDGET_DEFAULT = {
+            shownState = Enum.WidgetShownState.Shown,
+            barMin = 0,
+            barMax = 100,
+            barValue = 0,
+            -- text = "text",
+            -- tooltip = "tooltip",
+            barValueTextType = Enum.StatusBarValueTextType.Percentage,
+            -- overrideBarText = "0/500 (500)",
+            overrideBarTextShownType = Enum.StatusBarOverrideBarTextShownType.OnlyOnMouseover,
+            colorTint = Enum.StatusBarColorTintValue.Blue,
+            -- partitionValues = {},
+            tooltipLoc = Enum.UIWidgetTooltipLocation.BottomLeft,
+            fillMotionType = Enum.UIWidgetMotionType.Smooth,
+            barTextEnabledState = Enum.WidgetEnabledState.White,
+            barTextFontType = Enum.UIWidgetFontType.Shadow,
+            barTextSizeType = Enum.UIWidgetTextSizeType.Standard14Pt,
+            widgetSizeSetting = 120,
+            frameTextureKit = "widgetstatusbar", -- "ui-frame-bar" | "widgetstatusbar" | "cosmic-bar"
+            textureKit = "white", -- "blue" | "green" | "red" | "white" | "yellow"
+            -- hasTimer = false,
+            orderIndex = 0,
+            -- widgetTag = "",
+            -- inAnimType = Enum.WidgetAnimationType.Fade,
+            -- outAnimType = Enum.WidgetAnimationType.Fade,
+            widgetScale = Enum.UIWidgetScale.OneHundred,
+            layoutDirection = Enum.UIWidgetLayoutDirection.Horizontal,
+            -- modelSceneLayer = Enum.UIWidgetModelSceneLayer.None,
+            -- scriptedAnimationEffectID = 0,
+        }
+
+        ---@param barValue number
+        ---@param barMin? number
+        ---@param barMax? number
+        ---@return StatusBarWidgetVisualizationInfo barWidgetInfo
+        local function GetBarInfo(barValue, barMin, barMax)
+            STATUSBAR_WIDGET_DEFAULT.barValue = barValue
+            if barMin and barMax then
+                STATUSBAR_WIDGET_DEFAULT.barMin = barMin
+                STATUSBAR_WIDGET_DEFAULT.barMax = barMax
+            end
+            barMin = STATUSBAR_WIDGET_DEFAULT.barMin
+            barMax = STATUSBAR_WIDGET_DEFAULT.barMax
+            local remaining = barMax - barValue
+            if remaining == 0 then
+                STATUSBAR_WIDGET_DEFAULT.colorTint = Enum.StatusBarColorTintValue.Green
+                STATUSBAR_WIDGET_DEFAULT.barValueTextType = Enum.StatusBarValueTextType.Percentage
+                STATUSBAR_WIDGET_DEFAULT.overrideBarText = nil
+            elseif remaining < 0 then
+                STATUSBAR_WIDGET_DEFAULT.colorTint = Enum.StatusBarColorTintValue.Purple
+                STATUSBAR_WIDGET_DEFAULT.barValueTextType = Enum.StatusBarValueTextType.Value
+                STATUSBAR_WIDGET_DEFAULT.overrideBarText = format("> %s", FormatPercentageAsText(-remaining, true))
+            else
+                STATUSBAR_WIDGET_DEFAULT.colorTint = Enum.StatusBarColorTintValue.Blue
+                STATUSBAR_WIDGET_DEFAULT.barValueTextType = Enum.StatusBarValueTextType.Value
+                STATUSBAR_WIDGET_DEFAULT.overrideBarText = format("%s/%s (%s)", FormatPercentageAsText(barValue), barMax, FormatPercentageAsText(remaining))
+            end
+            return STATUSBAR_WIDGET_DEFAULT
+        end
+
+        ---@param self UIWidgetTemplateStatusBar
+        ---@param barValue number
+        ---@param barMin? number
+        ---@param barMax? number
+        ---@param forceUpdate? boolean
+        local function SetBarValue(self, barValue, barMin, barMax, forceUpdate)
+            local barWidgetInfo = GetBarInfo(barValue, barMin, barMax)
+            if not forceUpdate and barValue == self.Bar.value then
+                return
+            end
+            self:Setup(barWidgetInfo, self.widgetContainer)
+        end
+
+        ---@param self UIWidgetTemplateStatusBar
+        ---@param widgetContainer Region
+        local function InitBar(self, widgetContainer)
+            self.widgetContainer = widgetContainer
+            self.SetBarValue = SetBarValue
+            self:SetBarValue(0, 0, 100, true)
+        end
+
         function ReplayFrameMixin:OnLoad()
             self:Hide()
             self:SetScript("OnUpdate", self.OnUpdate)
             self.width = 200
+            self.widthMDI = 320
+            self.edgePaddingMDI = 16
             self.contentPaddingX = 5
             self.contentPaddingY = 5
             self.textRowCount = 4
             self.textRowHeight = 25
+            self.textRowHeightMDI = 30
             self.textColumnWidth = (self.width - (self.contentPaddingX * 4)) / 3 ---@type number
             self.textHeight = self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1) ---@type number
             self.bossesHeight = 0
@@ -7857,34 +8011,85 @@ do
             self.MDI:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
             self.MDI:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
             if self.MDI.SetBackdrop then
-                self.MDI:SetBackdrop(BACKDROP_TUTORIAL_16_16) ---@diagnostic disable-line: param-type-mismatch
-                self.MDI:SetBackdropBorderColor(TOOLTIP_DEFAULT_COLOR:GetRGB()) ---@diagnostic disable-line: param-type-mismatch
-                self.MDI:SetBackdropColor(TOOLTIP_DEFAULT_BACKGROUND_COLOR:GetRGB()) ---@diagnostic disable-line: param-type-mismatch
-                self.MDI:SetBackdropColor(0, 0, 0, 1) ---@diagnostic disable-line: param-type-mismatch
+                self.MDI:SetBackdrop(BACKDROP_DIALOG_32_32)
+                self.MDI:SetBackdropColor(0, 0, 0, 0.25)
             end
-            ---@param previous? Region
-            local function CreateTextRowMDI(previous)
-                local equalWidth = self.textColumnWidth -- * 3 / 2
-                local middleWidth = 30 -- 0
-                local extraWidth = (equalWidth - middleWidth)/2 ---@type number
-                equalWidth = equalWidth + extraWidth
-                local LF = self.MDI:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
-                LF:SetSize(equalWidth, self.textRowHeight)
+            ---@param previous Region|nil
+            ---@param middlePadding number|nil
+            ---@param fontObject FontObject|nil
+            local function CreateTextRowMDI(previous, middlePadding, fontObject)
+                middlePadding = middlePadding or 0
+                fontObject = fontObject or "GameFontNormalHuge4"
+                local equalWidth = (self.widthMDI - (self.contentPaddingX * 2)) / 2 - (self.edgePaddingMDI * 3 / 2) - (middlePadding / 2)
+                local LF = self.MDI:CreateFontString(nil, "ARTWORK", fontObject)
+                LF:SetTextColor(1, 1, 1)
+                LF:SetSize(equalWidth, self.textRowHeightMDI)
                 if previous then
                     LF:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, 0)
                 else
-                    LF:SetPoint("TOPLEFT", self.MDI, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
+                    LF:SetPoint("TOPLEFT", self.MDI, "TOPLEFT", self.contentPaddingX + self.edgePaddingMDI, -self.contentPaddingY - self.edgePaddingMDI)
                 end
                 LF:SetJustifyH("RIGHT")
                 LF:SetJustifyV("MIDDLE")
-                local RF = self.MDI:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
-                RF:SetSize(equalWidth, self.textRowHeight)
-                RF:SetPoint("TOPLEFT", LF, "TOPRIGHT", 0, 0)
+                local RF = self.MDI:CreateFontString(nil, "ARTWORK", fontObject)
+                RF:SetTextColor(1, 1, 1)
+                RF:SetSize(equalWidth, self.textRowHeightMDI)
+                RF:SetPoint("TOPLEFT", LF, "TOPRIGHT", self.edgePaddingMDI + middlePadding, 0)
                 RF:SetJustifyH("LEFT")
                 RF:SetJustifyV("MIDDLE")
                 return LF, RF
             end
-            self.MDI.BossL, self.MDI.BossR = CreateTextRowMDI()
+            self.MDI.TimerL, self.MDI.TimerR = CreateTextRowMDI(nil, 70)
+            self.MDI.Spacer1L, self.MDI.Spacer1R = CreateTextRowMDI(self.MDI.TimerL, 0)
+            self.MDI.BossL, self.MDI.BossR = CreateTextRowMDI(self.MDI.Spacer1L, 40)
+            self.MDI.Spacer2L, self.MDI.Spacer2R = CreateTextRowMDI(self.MDI.BossL, 0)
+            self.MDI.TrashL, self.MDI.TrashR = CreateTextRowMDI(self.MDI.Spacer2L, 0)
+            self.MDI.TimerLine = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.MDI.TimerLine:SetPoint("LEFT", self.MDI.Spacer1L, "LEFT", -self.edgePaddingMDI, 2)
+            self.MDI.TimerLine:SetPoint("RIGHT", self.MDI.Spacer1R, "RIGHT", self.edgePaddingMDI, 2)
+            self.MDI.TimerLine:SetColorTexture(0.5, 0.5, 0.5)
+            self.MDI.TimerSplit = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.MDI.TimerSplit:SetPoint("TOP", self.MDI, "TOP", 2, -self.edgePaddingMDI/2)
+            self.MDI.TimerSplit:SetPoint("BOTTOM", self.MDI.TimerLine, "TOP", 0, 0)
+            self.MDI.TimerSplit:SetColorTexture(0.5, 0.5, 0.5)
+            self.MDI.BossM = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.MDI.BossM:SetPoint("LEFT", self.MDI.BossL, "RIGHT", self.edgePaddingMDI/2, 0)
+            self.MDI.BossM:SetSize(40, 40)
+            self.MDI.BossM:SetTexture(1015842)
+            self.MDI.Spacer2L:SetHeight(20)
+            self.MDI.Spacer2R:SetHeight(20)
+            self.MDI.TrashLBar = CreateFrame("Frame", nil, self.MDI, "UIWidgetTemplateStatusBar") ---@type UIWidgetTemplateStatusBar
+            InitBar(self.MDI.TrashLBar, self.MDI)
+            self.MDI.TrashLBar:SetAllPoints(self.MDI.TrashL)
+            self.MDI.TrashRBar = CreateFrame("Frame", nil, self.MDI, "UIWidgetTemplateStatusBar") ---@type UIWidgetTemplateStatusBar
+            InitBar(self.MDI.TrashRBar, self.MDI)
+            self.MDI.TrashRBar:SetAllPoints(self.MDI.TrashR)
+            self.MDI.DeathPenL, self.MDI.DeathPenR = CreateTextRowMDI(nil, 120, "GameFontHighlightLarge2")
+            self.MDI.DeathPenL:ClearAllPoints()
+            self.MDI.DeathPenL:SetPoint("TOPLEFT", self.MDI.TimerLine, "BOTTOMLEFT", self.contentPaddingX + self.edgePaddingMDI/2, -self.contentPaddingY - self.edgePaddingMDI/2)
+            self.MDI.DeathPenL:SetJustifyH("CENTER")
+            self.MDI.DeathPenL:SetHeight(50)
+            self.MDI.DeathPenL.Background = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.MDI.DeathPenL.Background:SetAllPoints(self.MDI.DeathPenL)
+            self.MDI.DeathPenL.Background:SetColorTexture(0, 0, 0, 0.85)
+            self.MDI.DeathPenR:ClearAllPoints()
+            self.MDI.DeathPenR:SetPoint("TOPRIGHT", self.MDI.TimerLine, "BOTTOMRIGHT", -self.contentPaddingX - self.edgePaddingMDI/2, -self.contentPaddingY - self.edgePaddingMDI/2)
+            self.MDI.DeathPenR:SetJustifyH("CENTER")
+            self.MDI.DeathPenR:SetHeight(50)
+            self.MDI.DeathPenR.Background = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.MDI.DeathPenR.Background:SetAllPoints(self.MDI.DeathPenR)
+            self.MDI.DeathPenR.Background:SetColorTexture(0, 0, 0, 0.85)
+            if not config:Get("debugMode") then
+                return
+            end
+            self:HookScript("OnMouseUp", function(_, button)
+                if button ~= "LeftButton" then
+                    return
+                end
+                if IsShiftKeyDown() and IsControlKeyDown() and IsAltKeyDown() then
+                    self:SetStyle(ReplayFrameStylesCycle[self:GetStyle()])
+                end
+            end)
         end
 
         ---@param style ReplayFrameStyle
@@ -7892,23 +8097,29 @@ do
             if not style or not ReplayFrameStyles[style] then
                 return
             end
+            local heightOffset = 0
             self.style = style
             if style == "COMPACT" then
                 self.textRowCount = 5
                 self.TextBlock.BossL:SetHeight(self.textRowHeight)
+                self.TextBlock.BossM:Show()
             elseif style == "MODERN" then
                 self.textRowCount = 4
                 self.TextBlock.BossL:SetHeight(0)
                 self.TextBlock.BossL:SetText(nil)
+                self.TextBlock.BossM:Hide()
                 self.TextBlock.BossR:SetText(nil)
             elseif style == "MDI" then
+                heightOffset = 180
                 self.textRowCount = 0
             end
             local hasTextRows = self.textRowCount > 0
-            self.textHeight = self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1)
+            self.textHeight = heightOffset + self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1)
             self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
+            self.Background:SetShown(hasTextRows)
             self.TextBlock:SetShown(hasTextRows)
             self.MDI:SetShown(not hasTextRows)
+            self:SetWidth(hasTextRows and self.width or self.widthMDI)
             self:UpdateShown()
             self:Update()
         end
@@ -8046,6 +8257,9 @@ do
         ---@param replayLevel number
         ---@param replayAffixes number[]
         function ReplayFrameMixin:SetUITitle(liveLevel, liveAffixes, replayLevel, replayAffixes)
+            if self:IsStyle("MDI") then
+                return
+            end
             local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
             local replayAffix = util:TableContains(replayAffixes, 9) and 9 or 10
             self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
@@ -8057,24 +8271,49 @@ do
         ---@param totalTimer number
         ---@param replayIsCompleted boolean
         function ReplayFrameMixin:SetUITimer(liveTimer, replayTimer, totalTimer, replayIsCompleted)
+            local liveClock = SecondsToClock(liveTimer)
+            local totalClock = SecondsToClock(totalTimer)
+            if self:IsStyle("MDI") then
+                self.MDI.TimerL:SetFormattedText("%s", liveClock)
+                self.MDI.TimerR:SetFormattedText("%s", totalClock)
+                return
+            end
             local delta = replayIsCompleted and 1 or (replayTimer - liveTimer - 1)
-            self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta), SecondsToClock(liveTimer))
-            self.TextBlock.TimerR:SetText(SecondsToClock(totalTimer))
+            self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta), liveClock)
+            self.TextBlock.TimerR:SetText(totalClock)
         end
 
         ---@param liveTrash number
         ---@param replayTrash number
         function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash)
-            self.TextBlock.TrashL:SetFormattedText("|cff%s%.1f%%|r", AheadColor(replayTrash - liveTrash), liveTrash / totalTrash * 100)
-            self.TextBlock.TrashR:SetFormattedText("%.1f%%", replayTrash / totalTrash * 100)
+            local livePctl = liveTrash / totalTrash * 100
+            local replayPctl = replayTrash / totalTrash * 100
+            if self:IsStyle("MDI") then
+                self.MDI.TrashLBar:SetBarValue(livePctl)
+                self.MDI.TrashRBar:SetBarValue(replayPctl)
+                return
+            end
+            self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(replayTrash - liveTrash), FormatPercentageAsText(livePctl))
+            self.TextBlock.TrashR:SetFormattedText("%s%%", FormatPercentageAsText(replayPctl))
         end
 
         ---@param liveDeaths number
         ---@param replayDeaths number
         ---@param deathPenalty number
         function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty)
-            self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(liveDeaths - replayDeaths), liveDeaths, liveDeaths * deathPenalty)
-            self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", replayDeaths, replayDeaths * deathPenalty)
+            local deltaDeaths = liveDeaths - replayDeaths
+            local livePenalty = liveDeaths * deathPenalty
+            local replayPenalty = replayDeaths * deathPenalty
+            if self:IsStyle("MDI") then
+                local redColor = "FF5555"
+                local livePenaltyText = format("|cff%s+%s|r", redColor, SecondsToClock(livePenalty))
+                local replayPenaltyText = format("|cff%s+%s|r", redColor, SecondsToClock(replayPenalty))
+                self.MDI.DeathPenL:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", liveDeaths, livePenaltyText)
+                self.MDI.DeathPenR:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", replayDeaths, replayPenaltyText)
+                return
+            end
+            self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(deltaDeaths), liveDeaths, livePenalty)
+            self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", replayDeaths, replayPenalty)
         end
 
         ---@param liveBosses ReplayBoss[]
@@ -8112,7 +8351,7 @@ do
                 for _, boss in ipairs(replayBosses) do if boss.killed and boss.killed <= timer then replayCount = replayCount + 1 end end
                 local totalCount = max(#liveBosses, #replayBosses)
                 if style == "COMPACT" then
-                    self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(liveCount - replayCount), liveCount, totalCount)
+                    self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(replayCount - liveCount), liveCount, totalCount)
                     self.TextBlock.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
                 elseif style == "MDI" then
                     self.MDI.BossL:SetFormattedText("%d/%d", liveCount, totalCount)

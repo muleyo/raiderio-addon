@@ -7367,6 +7367,9 @@ do
         MODERN = "MODERN",
         COMPACT = "COMPACT",
         MDI = "MDI",
+        [1] = "MODERN",
+        [2] = "COMPACT",
+        [3] = "MDI",
     }
 
     ---@class ReplayFrameStylesCycle
@@ -7378,7 +7381,7 @@ do
 
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
-    local FRAME_STYLE = ReplayFrameStyles.MDI -- default style
+    local FRAME_STYLE = ReplayFrameStyles.COMPACT -- default style
 
     local UPDATE_EVENTS = {
         "PLAYER_ENTERING_WORLD",
@@ -7630,6 +7633,8 @@ do
         return bossFramePool
     end
 
+    local DEATH_PENALTY = 5
+
     ---@class ReplayDataProvider
     local ReplayDataProviderMixin = {}
 
@@ -7637,6 +7642,7 @@ do
 
         function ReplayDataProviderMixin:OnLoad()
             self.replaySummary = self:CreateSummary()
+            self:SetDeathPenalty(DEATH_PENALTY)
         end
 
         ---@param replay? Replay
@@ -7651,6 +7657,16 @@ do
         ---@return Replay? replay
         function ReplayDataProviderMixin:GetReplay()
             return self.replay
+        end
+
+        ---@param seconds number
+        function ReplayDataProviderMixin:SetDeathPenalty(seconds)
+            self.deathPenalty = seconds
+        end
+
+        ---@return number deathPenalty
+        function ReplayDataProviderMixin:GetDeathPenalty()
+            return self.deathPenalty
         end
 
         ---@return ReplaySummary replaySummary
@@ -7735,6 +7751,13 @@ do
     end
 
     ---@class LiveDataProvider : ReplayDataProvider
+    ---@field public SetReplay nil
+    ---@field public GetReplay nil
+    ---@field public CreateSummary nil
+    ---@field public SetupSummary nil
+    ---@field public GetReplaySummaryAt nil
+
+    ---@class LiveDataProvider
     local LiveDataProviderMixin = {}
 
     do
@@ -7745,7 +7768,6 @@ do
             self.CreateSummary = nil
             self.SetupSummary = nil
             self.GetReplaySummaryAt = nil
-            self:SetDeathPenalty(5)
         end
 
         ---@return ReplaySummary liveSummary
@@ -7765,11 +7787,16 @@ do
             if numDeaths then
                 liveSummary.deaths = numDeaths
             end
+            ---@type string?, string?, number?
             local _, _, numCriteria = C_Scenario.GetStepInfo()
             if numCriteria then
                 for i = 1, numCriteria do
+                    ---@type string?, number?, boolean?, number?, number?, number?, number?, string?, number?, number?, number?, boolean?, boolean?
                     local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
                     if criteriaString then
+                        -- `criteriaType`
+                        -- `0`: `Kill NPC "{Creature}"`
+                        -- `165`: `Defeat Encounter "{DungeonEncounter}"`
                         if criteriaType == 0 then
                             if liveSummary.trash ~= quantity then
                                 liveSummary.trash = quantity
@@ -7778,11 +7805,14 @@ do
                             local boss = liveSummary.bosses[i]
                             if not boss then
                                 boss = {} ---@type ReplayBoss
+                                boss.index = i
+                                boss.id = 0
+                                boss.combat = false
+                                boss.pulls = 0
                                 boss.dead = false
-                                liveSummary.bosses[i] = boss
+                                liveSummary.bosses[boss.index] = boss
                             end
-                            local dead = not not completed
-                            if dead and dead ~= boss.dead then
+                            if completed and not boss.dead then
                                 boss.dead = true
                                 boss.killed = liveSummary.timer
                                 boss.killedText = SecondsToClock(ceil(liveSummary.timer / 1000))
@@ -7794,16 +7824,161 @@ do
             return liveSummary
         end
 
-        ---@param seconds number
-        function LiveDataProviderMixin:SetDeathPenalty(seconds)
-            self.deathPenalty = seconds
+    end
+
+    ---@alias ReplayFrameDropDownMenuList "replay"|"style"
+
+    ---@class UIDropDownMenuTemplate : Frame
+
+    ---@class UIDropDownMenuInfo
+    ---@field public checked boolean
+    ---@field public text string
+    ---@field public hasArrow boolean
+    ---@field public menuList ReplayFrameDropDownMenuList
+    ---@field public arg1 ReplayFrameDropDownMenu
+    ---@field public arg2 Replay|ReplayFrameStyle
+    ---@field public value Replay|ReplayFrameStyle
+
+    ---@class ReplayFrameDropDownMenu : UIDropDownMenuTemplate
+    local ReplayFrameDropDownMenuMixin = {}
+
+    do
+
+        function ReplayFrameDropDownMenuMixin:OnLoad()
+            local parent = self:GetParent() ---@type Region
+            self:SetPoint("TOPLEFT", parent, "BOTTOMRIGHT", 0, 0)
+            UIDropDownMenu_Initialize(self, self.Initialize)
+            -- UIDropDownMenu_SetWidth(self, 200)
+            -- UIDropDownMenu_SetText(self, L.OPEN_CONFIG)
+            self:Hide()
         end
 
-        ---@return number deathPenalty
-        function LiveDataProviderMixin:GetDeathPenalty()
-            return self.deathPenalty
+        ---@param level number
+        ---@param menuList? ReplayFrameDropDownMenuList
+        function ReplayFrameDropDownMenuMixin:Initialize(level, menuList)
+            local info = UIDropDownMenu_CreateInfo() ---@type UIDropDownMenuInfo
+            if level == 1 then
+                info.text, info.hasArrow, info.menuList = "Replay", true, "replay"
+                UIDropDownMenu_AddButton(info, level)
+                info.text, info.hasArrow, info.menuList = "Style", true, "style"
+                UIDropDownMenu_AddButton(info, level)
+                info.text, info.hasArrow = "Close", nil
+                UIDropDownMenu_AddButton(info)
+            elseif menuList == "replay" then
+                if not replays then
+                    return
+                end
+                local replayDataProvider = replayFrame:GetReplayDataProvider()
+                local currentReplay = replayDataProvider:GetReplay()
+                info.func = self.OnClick
+                info.arg2 = self
+                for i = 1, #replays do
+                    local replay = replays[i]
+                    info.checked = replay == currentReplay
+                    info.text = format("%s %s (%s)", replay.date, replay.dungeon.short_name, replay.keystone_run_id)
+                    info.arg2 = replay
+                    UIDropDownMenu_AddButton(info, level)
+                end
+            elseif menuList == "style" then
+                local currentStyle = replayFrame:GetStyle()
+                info.func = self.OnClick
+                info.arg2 = self
+                for _, style in ipairs(ReplayFrameStyles) do
+                    info.checked = style == currentStyle
+                    info.text = style
+                    info.arg2 = style
+                    UIDropDownMenu_AddButton(info, level)
+                end
+            end
         end
 
+        ---@param self UIDropDownMenuInfo
+        function ReplayFrameDropDownMenuMixin:OnClick(...)
+            local dropDownMenu = self.arg1
+            local value = self.arg2 or self.value
+            if value and type(value) == "string" then
+                local style = value ---@type ReplayFrameStyle
+                replayFrame:SetStyle(style)
+            else
+                local replay = value ---@type Replay
+                local replayDataProvider = replayFrame:GetReplayDataProvider()
+                replayDataProvider:SetReplay(replay)
+                replayFrame:UpdateShown()
+            end
+            dropDownMenu:Close()
+        end
+
+        function ReplayFrameDropDownMenuMixin:Open()
+            ToggleDropDownMenu(1, nil, self, "cursor", 3, -3)
+        end
+
+        function ReplayFrameDropDownMenuMixin:Close()
+            CloseDropDownMenus()
+        end
+
+        function ReplayFrameDropDownMenuMixin:Toggle()
+            if self ~= DropDownList1.dropdown then
+                return
+            end
+            if DropDownList1:IsShown() then
+                self:Close()
+            else
+                self:Open()
+            end
+        end
+
+    end
+
+    ---@param parent Region
+    local function CreateReplayFrameDropDownMenu(parent)
+        local frame = CreateFrame("Frame", "$parent_DropDownMenu", parent, "UIDropDownMenuTemplate") ---@class ReplayFrameDropDownMenu
+        Mixin(frame, ReplayFrameDropDownMenuMixin)
+        frame:OnLoad()
+        return frame
+    end
+
+    ---@class ReplayFrameConfigButton : Button
+    local ReplayFrameConfigButtonMixin = {}
+
+    do
+
+        function ReplayFrameConfigButtonMixin:OnLoad()
+            local parent = self:GetParent() ---@type ReplayFrame
+            self:SetSize(16, 16)
+            self:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+            self:RegisterForClicks("LeftButtonUp")
+            self:SetScript("OnClick", self.OnClick)
+            -- self:SetScript("OnEnter", self.OnEnter)
+            -- self:SetScript("OnLeave", self.OnLeave)
+            self.Texture = self:CreateTexture(nil, "ARTWORK")
+            self.Texture:SetAllPoints()
+            self.Texture:SetTexture(851903)
+            self.DropDownMenu = CreateReplayFrameDropDownMenu(self)
+        end
+
+        function ReplayFrameConfigButtonMixin:OnClick()
+            PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+            self.DropDownMenu:Toggle()
+        end
+
+        function ReplayFrameConfigButtonMixin:OnEnter()
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip_SetTitle(GameTooltip, L.OPEN_CONFIG)
+            GameTooltip:Show()
+        end
+
+        function ReplayFrameConfigButtonMixin:OnLeave()
+            GameTooltip:Hide()
+        end
+
+    end
+
+    ---@param parent ReplayFrame
+    local function CreateReplayFrameConfigButton(parent)
+        local frame = CreateFrame("Button", nil, parent) ---@class ReplayFrameConfigButton
+        Mixin(frame, ReplayFrameConfigButtonMixin)
+        frame:OnLoad()
+        return frame
     end
 
     ---@class ReplayFrame : Frame
@@ -7961,6 +8136,7 @@ do
             self:RegisterForDrag("LeftButton")
             self:SetScript("OnDragStart", self.StartMoving)
             self:SetScript("OnDragStop", self.StopMovingOrSizing)
+            self.ConfigButton = CreateReplayFrameConfigButton(self)
             self.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
             self.Background:SetAllPoints()
             self.Background:SetColorTexture(0, 0, 0, 0.5)
@@ -8079,17 +8255,6 @@ do
             self.MDI.DeathPenR.Background = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
             self.MDI.DeathPenR.Background:SetAllPoints(self.MDI.DeathPenR)
             self.MDI.DeathPenR.Background:SetColorTexture(0, 0, 0, 0.85)
-            if not config:Get("debugMode") then
-                return
-            end
-            self:HookScript("OnMouseUp", function(_, button)
-                if button ~= "LeftButton" then
-                    return
-                end
-                if IsShiftKeyDown() and IsControlKeyDown() and IsAltKeyDown() then
-                    self:SetStyle(ReplayFrameStylesCycle[self:GetStyle()])
-                end
-            end)
         end
 
         ---@param style ReplayFrameStyle

@@ -2176,14 +2176,13 @@ end
     end
 
     ---@generic T
-    ---@alias TableFunc fun(value: any, index: number, tbl: T, tbl2: T): T
+    ---@alias TableFunc fun(value: T, index: number, tbl: T[], tbl2: T[]): any
 
     ---@generic T
-    ---@param tbl T
+    ---@param tbl T[]
     ---@param func TableFunc
-    ---@return T
     function util:TableMap(tbl, func)
-        local temp = {}
+        local temp = {} ---@type any[]
         for k, v in pairs(tbl) do
             temp[k] = func(v, k, tbl, temp)
         end
@@ -2191,12 +2190,48 @@ end
     end
 
     ---@generic T
-    ---@param tbl T
+    ---@param tbl T[]
     ---@param func TableFunc
     ---@return string
     function util:TableMapConcat(tbl, func, delim)
         local temp = util:TableMap(tbl, func)
         return table.concat(temp, delim)
+    end
+
+    ---@generic T
+    ---@param tbl T[]
+    ---@return T[]
+    function util:TableCopy(tbl)
+        local temp = {}
+        for k, v in pairs(tbl) do
+            temp[k] = v
+        end
+        return temp
+    end
+
+    ---@generic T
+    ---@param tbl T[]
+    ---@param ... string
+    function util:TableSort(tbl, ...)
+        local keys = {...}
+        if not keys[1] then
+            return tbl
+        end
+        table.sort(tbl, function(a, b)
+            local x
+            local y
+            for _, key in ipairs(keys) do
+                x = a[key]
+                y = b[key]
+                if x ~= nil and y ~= nil then
+                    if x ~= y then
+                        return x > y
+                    end
+                end
+            end
+            return a > b
+        end)
+        return tbl
     end
 
 end
@@ -7360,28 +7395,21 @@ do
     local config = ns:GetModule("Config") ---@type ConfigModule
     local util = ns:GetModule("Util") ---@type UtilModule
 
-    ---@alias ReplayFrameStyle "MODERN"|"COMPACT"|"MDI"
+    ---@alias ReplayFrameStyle "MODERN"|"MODERN_COMPACT"|"MDI"
 
     ---@class ReplayFrameStyles
     local ReplayFrameStyles = {
         MODERN = "MODERN",
-        COMPACT = "COMPACT",
+        MODERN_COMPACT = "MODERN_COMPACT",
         MDI = "MDI",
         [1] = "MODERN",
-        [2] = "COMPACT",
+        [2] = "MODERN_COMPACT",
         [3] = "MDI",
-    }
-
-    ---@class ReplayFrameStylesCycle
-    local ReplayFrameStylesCycle = {
-        MODERN = "COMPACT",
-        COMPACT = "MDI",
-        MDI = "MODERN",
     }
 
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
-    local FRAME_STYLE = ReplayFrameStyles.COMPACT -- default style
+    local FRAME_STYLE = ReplayFrameStyles.MODERN_COMPACT -- default style
 
     local UPDATE_EVENTS = {
         "PLAYER_ENTERING_WORLD",
@@ -7826,38 +7854,50 @@ do
 
     end
 
-    ---@alias ReplayFrameDropDownMenuList "replay"|"style"
-
-    ---@class UIDropDownMenuTemplate : Frame
-
-    ---@class UIDropDownMenuInfo
-    ---@field public checked boolean
-    ---@field public text string
-    ---@field public hasArrow boolean
-    ---@field public menuList ReplayFrameDropDownMenuList
-    ---@field public arg1 ReplayFrameDropDownMenu
-    ---@field public arg2 Replay|ReplayFrameStyle
-    ---@field public value Replay|ReplayFrameStyle
-
-    ---@class ReplayFrameDropDownMenu : UIDropDownMenuTemplate
-    local ReplayFrameDropDownMenuMixin = {}
+    ---@class ReplayFrameConfigButton : Button
+    local ReplayFrameConfigButtonMixin = {}
 
     do
 
-        function ReplayFrameDropDownMenuMixin:OnLoad()
-            local parent = self:GetParent() ---@type Region
-            self:SetPoint("TOPLEFT", parent, "BOTTOMRIGHT", 0, 0)
-            UIDropDownMenu_Initialize(self, self.Initialize)
-            -- UIDropDownMenu_SetWidth(self, 200)
-            -- UIDropDownMenu_SetText(self, L.OPEN_CONFIG)
-            self:Hide()
+        ---@alias ReplayFrameDropDownMenuList "replay"|"style"
+
+        ---@class UIDropDownMenuTemplate : Frame
+
+        ---@class UIDropDownMenuInfo
+        ---@field public checked boolean
+        ---@field public text string
+        ---@field public hasArrow boolean
+        ---@field public menuList ReplayFrameDropDownMenuList
+        ---@field public arg1 ReplayFrameConfigButton
+        ---@field public arg2 Replay|ReplayFrameStyle
+        ---@field public value Replay|ReplayFrameStyle
+        ---@field public tooltipTitle? string
+        ---@field public tooltipText? string
+        ---@field public tooltipOnButton? boolean
+
+        function ReplayFrameConfigButtonMixin:OnLoad()
+            local parent = self:GetParent() ---@type ReplayFrame
+            self:SetSize(16, 16)
+            self:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+            self:RegisterForClicks("LeftButtonUp")
+            self:SetScript("OnClick", self.OnClick)
+            -- self:SetScript("OnEnter", self.OnEnter)
+            -- self:SetScript("OnLeave", self.OnLeave)
+            self.Texture = self:CreateTexture(nil, "ARTWORK")
+            self.Texture:SetAllPoints()
+            self.Texture:SetTexture(851903)
+            self.DropDownMenu = CreateFrame("Frame", nil, self, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
+            UIDropDownMenu_Initialize(self.DropDownMenu, self.Initialize)
         end
 
+        ---@param self UIDropDownMenuTemplate
         ---@param level number
         ---@param menuList? ReplayFrameDropDownMenuList
-        function ReplayFrameDropDownMenuMixin:Initialize(level, menuList)
+        function ReplayFrameConfigButtonMixin:Initialize(level, menuList)
+            local parent = self:GetParent() ---@type ReplayFrameConfigButton
             local info = UIDropDownMenu_CreateInfo() ---@type UIDropDownMenuInfo
             if level == 1 then
+                info.notCheckable = true
                 info.text, info.hasArrow, info.menuList = "Replay", true, "replay"
                 UIDropDownMenu_AddButton(info, level)
                 info.text, info.hasArrow, info.menuList = "Style", true, "style"
@@ -7870,22 +7910,30 @@ do
                 end
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
                 local currentReplay = replayDataProvider:GetReplay()
-                info.func = self.OnClick
-                info.arg2 = self
-                for i = 1, #replays do
-                    local replay = replays[i]
+                info.func = parent.OnOptionClick
+                info.arg1 = parent
+                info.tooltipOnButton = true
+                local sortedReplays = util:TableCopy(replays)
+                util:TableSort(sortedReplays, "date", "keystone_run_id")
+                for _, replay in ipairs(sortedReplays) do
                     info.checked = replay == currentReplay
-                    info.text = format("%s %s (%s)", replay.date, replay.dungeon.short_name, replay.keystone_run_id)
+                    local replayTime = util:GetTimeFromDateString(replay.date)
+                    local replayDate = date("*t", replayTime)
+                    local replayText = format("%04d-%02d-%02d @ %02d:%02d", replayDate.year, replayDate.month, replayDate.day, replayDate.hour, replayDate.min)
+                    local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface/icons/%s:0:0|t", affix.icon) end, "")
+                    info.text = format("%s - %s - %s", replayText, replay.dungeon.short_name, replay.keystone_run_id)
                     info.arg2 = replay
+                    info.tooltipTitle = format("%s %s (%d) %s", affixesText, replay.dungeon.short_name, replay.mythic_level, SecondsToClock(replay.clear_time_ms / 1000))
+                    info.tooltipText = format("|cffFFFFFF%s|r", replay.title)
                     UIDropDownMenu_AddButton(info, level)
                 end
             elseif menuList == "style" then
                 local currentStyle = replayFrame:GetStyle()
-                info.func = self.OnClick
-                info.arg2 = self
+                info.func = parent.OnOptionClick
+                info.arg1 = parent
                 for _, style in ipairs(ReplayFrameStyles) do
                     info.checked = style == currentStyle
-                    info.text = style
+                    info.text = L[format("REPLAY_STYLE_TITLE_%s", style)]
                     info.arg2 = style
                     UIDropDownMenu_AddButton(info, level)
                 end
@@ -7893,7 +7941,7 @@ do
         end
 
         ---@param self UIDropDownMenuInfo
-        function ReplayFrameDropDownMenuMixin:OnClick(...)
+        function ReplayFrameConfigButtonMixin:OnOptionClick()
             local dropDownMenu = self.arg1
             local value = self.arg2 or self.value
             if value and type(value) == "string" then
@@ -7908,16 +7956,17 @@ do
             dropDownMenu:Close()
         end
 
-        function ReplayFrameDropDownMenuMixin:Open()
-            ToggleDropDownMenu(1, nil, self, "cursor", 3, -3)
+        function ReplayFrameConfigButtonMixin:Open()
+            ToggleDropDownMenu(1, nil, self.DropDownMenu, "cursor", 2, 2)
         end
 
-        function ReplayFrameDropDownMenuMixin:Close()
+        function ReplayFrameConfigButtonMixin:Close()
             CloseDropDownMenus()
         end
 
-        function ReplayFrameDropDownMenuMixin:Toggle()
-            if self ~= DropDownList1.dropdown then
+        function ReplayFrameConfigButtonMixin:Toggle()
+            local dropdown = DropDownList1.dropdown
+            if dropdown and dropdown ~= self.DropDownMenu then
                 return
             end
             if DropDownList1:IsShown() then
@@ -7927,43 +7976,14 @@ do
             end
         end
 
-    end
-
-    ---@param parent Region
-    local function CreateReplayFrameDropDownMenu(parent)
-        local frame = CreateFrame("Frame", "$parent_DropDownMenu", parent, "UIDropDownMenuTemplate") ---@class ReplayFrameDropDownMenu
-        Mixin(frame, ReplayFrameDropDownMenuMixin)
-        frame:OnLoad()
-        return frame
-    end
-
-    ---@class ReplayFrameConfigButton : Button
-    local ReplayFrameConfigButtonMixin = {}
-
-    do
-
-        function ReplayFrameConfigButtonMixin:OnLoad()
-            local parent = self:GetParent() ---@type ReplayFrame
-            self:SetSize(16, 16)
-            self:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
-            self:RegisterForClicks("LeftButtonUp")
-            self:SetScript("OnClick", self.OnClick)
-            -- self:SetScript("OnEnter", self.OnEnter)
-            -- self:SetScript("OnLeave", self.OnLeave)
-            self.Texture = self:CreateTexture(nil, "ARTWORK")
-            self.Texture:SetAllPoints()
-            self.Texture:SetTexture(851903)
-            self.DropDownMenu = CreateReplayFrameDropDownMenu(self)
-        end
-
         function ReplayFrameConfigButtonMixin:OnClick()
             PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
-            self.DropDownMenu:Toggle()
+            self:Toggle()
         end
 
         function ReplayFrameConfigButtonMixin:OnEnter()
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip_SetTitle(GameTooltip, L.OPEN_CONFIG)
+            GameTooltip_SetTitle(GameTooltip, L.REPLAY_SETTINGS_TOOLTIP)
             GameTooltip:Show()
         end
 
@@ -8264,7 +8284,7 @@ do
             end
             local heightOffset = 0
             self.style = style
-            if style == "COMPACT" then
+            if style == "MODERN_COMPACT" then
                 self.textRowCount = 5
                 self.TextBlock.BossL:SetHeight(self.textRowHeight)
                 self.TextBlock.BossM:Show()
@@ -8515,7 +8535,7 @@ do
                 for _, boss in ipairs(liveBosses) do if boss.dead then liveCount = liveCount + 1 end end
                 for _, boss in ipairs(replayBosses) do if boss.killed and boss.killed <= timer then replayCount = replayCount + 1 end end
                 local totalCount = max(#liveBosses, #replayBosses)
-                if style == "COMPACT" then
+                if style == "MODERN_COMPACT" then
                     self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(replayCount - liveCount), liveCount, totalCount)
                     self.TextBlock.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
                 elseif style == "MDI" then

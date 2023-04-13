@@ -187,6 +187,7 @@ do
     ns.CURRENT_SEASON = 1 -- the current mythic keystone season. dynamically assigned once keystone data is loaded.
     ns.RAIDERIO_ADDON_DOWNLOAD_URL = "https://rio.gg/addon"
 
+    ---@class HeadlineMode
     ns.HEADLINE_MODE = {
         CURRENT_SEASON = 0,
         BEST_SEASON = 1,
@@ -1068,7 +1069,12 @@ do
     local config = ns:NewModule("Config") ---@type ConfigModule
     local callback = ns:GetModule("Callback") ---@type CallbackModule
 
+    ---@class FallbackConfig
+    ---@field public mplusHeadlineMode HeadlineMode @Defaults to `ns.HEADLINE_MODE.BEST_SEASON` (`1`)
+    ---@field public replayStyle ReplayFrameStyle @Defaults to `MODERN_COMPACT`
+
     -- fallback saved variables
+    ---@class FallbackConfig
     local fallbackConfig = {
         enableUnitTooltips = true,
         enableLFGTooltips = true,
@@ -1078,7 +1084,7 @@ do
         enableWhoMessages = true,
         enableGuildTooltips = true,
         enableKeystoneTooltips = true,
-        mplusHeadlineMode = 1,
+        mplusHeadlineMode = ns.HEADLINE_MODE.BEST_SEASON,
         useEnglishAbbreviations = false,
         showMainsScore = true,
         showMainBestScore = true,
@@ -1106,17 +1112,20 @@ do
         rwfBackgroundMode = true, -- NEW in 9.2
         rwfBackgroundRemindAt = 10, -- NEW in 9.2
         rwfMiniPoint = { point = nil, x = 0, y = 0 }, -- NEW in 9.2
-        showMedalsInsteadOfText = false,-- NEW in 9.1.5
+        showMedalsInsteadOfText = false, -- NEW in 9.1.5
+        replayStyle = "MODERN_COMPACT", -- NEW in 10.0.7
     }
 
     -- fallback metatable looks up missing keys into the fallback config table
     local fallbackMetatable = {
+        ---@param key string
         __index = function(_, key)
             return fallbackConfig[key]
         end
     }
 
     -- the global saved variables table used when setting up fresh installations
+    ---@class RaiderIOConfig : FallbackConfig
     RaiderIO_Config = setmetatable({}, fallbackMetatable)
 
     local function OnPlayerLogin()
@@ -1142,11 +1151,16 @@ do
         callback:RegisterEventOnce(OnPlayerLogin, "RAIDERIO_PLAYER_LOGIN")
     end
 
+    ---@param key string
+    ---@param val any
     function config:Set(key, val)
         assert(self:IsEnabled(), "Raider.IO Config expects Set(key, val) to only be used after the addon saved variables have been loaded.")
         RaiderIO_Config[key] = val
     end
 
+    ---@param key string
+    ---@param fallback? any
+    ---@return any
     function config:Get(key, fallback)
         assert(self:IsEnabled(), "Raider.IO Config expects Get(key[, fallback]) to only be used after the addon saved variables have been loaded.")
         local val = RaiderIO_Config[key]
@@ -1154,6 +1168,12 @@ do
             return fallback
         end
         return val
+    end
+
+    ---@param key string
+    ---@return any
+    function config:GetDefault(key)
+        return fallbackConfig[key]
     end
 
 end
@@ -7409,7 +7429,6 @@ do
 
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
-    local FRAME_STYLE = ReplayFrameStyles.MODERN_COMPACT -- default style
 
     local UPDATE_EVENTS = {
         "PLAYER_ENTERING_WORLD",
@@ -7920,11 +7939,14 @@ do
                     local replayTime = util:GetTimeFromDateString(replay.date)
                     local replayDate = date("*t", replayTime)
                     local replayText = format("%04d-%02d-%02d @ %02d:%02d", replayDate.year, replayDate.month, replayDate.day, replayDate.hour, replayDate.min)
-                    local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface/icons/%s:0:0|t", affix.icon) end, "")
-                    info.text = format("%s - %s - %s", replayText, replay.dungeon.short_name, replay.keystone_run_id)
+                    local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface/icons/%s:16:16|t", affix.icon) end, "")
+                    local clearTime = SecondsToClock(replay.clear_time_ms / 1000)
+                    local members = {strsplit(",", replay.title)} ---@type string[]
+                    members = format(" - %s", util:TableMapConcat(members, function(name) return strtrim(name) end, "\n - ")) ---@diagnostic disable-line: cast-local-type
+                    info.text = format("%s - %s (%d) %s", replayText, replay.dungeon.short_name, replay.mythic_level, clearTime)
                     info.arg2 = replay
-                    info.tooltipTitle = format("%s %s (%d) %s", affixesText, replay.dungeon.short_name, replay.mythic_level, SecondsToClock(replay.clear_time_ms / 1000))
-                    info.tooltipText = format("|cffFFFFFF%s|r", replay.title)
+                    info.tooltipTitle = affixesText
+                    info.tooltipText = format("|cffFFFFFF%s|r", members)
                     UIDropDownMenu_AddButton(info, level)
                 end
             elseif menuList == "style" then
@@ -7946,7 +7968,7 @@ do
             local value = self.arg2 or self.value
             if value and type(value) == "string" then
                 local style = value ---@type ReplayFrameStyle
-                replayFrame:SetStyle(style)
+                replayFrame:SetStyle(style, true)
             else
                 local replay = value ---@type Replay
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
@@ -8278,9 +8300,13 @@ do
         end
 
         ---@param style ReplayFrameStyle
-        function ReplayFrameMixin:SetStyle(style)
+        ---@param save? boolean
+        function ReplayFrameMixin:SetStyle(style, save)
             if not style or not ReplayFrameStyles[style] then
-                return
+                style = config:GetDefault("replayStyle") ---@type ReplayFrameStyle
+            end
+            if save then
+                config:Set("replayStyle", style)
             end
             local heightOffset = 0
             self.style = style
@@ -8659,7 +8685,7 @@ do
         replayFrame = CreateReplayFrame()
         replayFrame:SetReplayDataProvider(CreateReplayDataProvider())
         replayFrame:SetLiveDataProvider(CreateLiveDataProvider())
-        replayFrame:SetStyle(FRAME_STYLE)
+        replayFrame:SetStyle(config:Get("replayStyle"))
         self:Enable()
     end
 

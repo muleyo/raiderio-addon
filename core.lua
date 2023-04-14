@@ -2181,7 +2181,7 @@ do
     ---@param displayZeroHours? boolean
     function util:SecondsToTimeText(seconds, displayZeroHours)
         return SecondsToClock(seconds, displayZeroHours)
-end
+    end
 
     ---@generic K, V
     ---@param tbl table<K, V>
@@ -2238,18 +2238,24 @@ end
             return tbl
         end
         table.sort(tbl, function(a, b)
-            local x
-            local y
-            for _, key in ipairs(keys) do
-                x = a[key]
-                y = b[key]
-                if x ~= nil and y ~= nil then
-                    if x ~= y then
-                        return x > y
+            local x = type(a)
+            local y = type(b)
+            if x ~= y then
+                return x < y
+            elseif x == "number" or x == "string" then
+                return a < b
+            elseif x == "table" then
+                for _, key in ipairs(keys) do
+                    x = a[key]
+                    y = b[key]
+                    if x ~= nil and y ~= nil then
+                        if x ~= y then
+                            return x > y
+                        end
                     end
                 end
             end
-            return a > b
+            return tostring(a) < tostring(b)
         end)
         return tbl
     end
@@ -7906,7 +7912,7 @@ do
             self.Texture:SetAllPoints()
             self.Texture:SetTexture(851903)
             self.DropDownMenu = CreateFrame("Frame", nil, self, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
-            UIDropDownMenu_Initialize(self.DropDownMenu, self.Initialize)
+            UIDropDownMenu_Initialize(self.DropDownMenu, self.Initialize, "MENU")
         end
 
         ---@param self UIDropDownMenuTemplate
@@ -7929,6 +7935,7 @@ do
                 end
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
                 local currentReplay = replayDataProvider:GetReplay()
+                local mapID = replayFrame:GetKeystone()
                 info.func = parent.OnOptionClick
                 info.arg1 = parent
                 info.tooltipOnButton = true
@@ -7936,18 +7943,21 @@ do
                 util:TableSort(sortedReplays, "date", "keystone_run_id")
                 for _, replay in ipairs(sortedReplays) do
                     info.checked = replay == currentReplay
-                    local replayTime = util:GetTimeFromDateString(replay.date)
-                    local replayDate = date("*t", replayTime)
-                    local replayText = format("%04d-%02d-%02d @ %02d:%02d", replayDate.year, replayDate.month, replayDate.day, replayDate.hour, replayDate.min)
-                    local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface/icons/%s:16:16|t", affix.icon) end, "")
-                    local clearTime = SecondsToClock(replay.clear_time_ms / 1000)
-                    local members = {strsplit(",", replay.title)} ---@type string[]
-                    members = format(" - %s", util:TableMapConcat(members, function(name) return strtrim(name) end, "\n - ")) ---@diagnostic disable-line: cast-local-type
-                    info.text = format("%s - %s (%d) %s", replayText, replay.dungeon.short_name, replay.mythic_level, clearTime)
-                    info.arg2 = replay
-                    info.tooltipTitle = affixesText
-                    info.tooltipText = format("|cffFFFFFF%s|r", members)
-                    UIDropDownMenu_AddButton(info, level)
+                    local dungeon = util:GetDungeonByID(replay.dungeon.id)
+                    if info.checked or (dungeon and dungeon.instance_map_id == mapID) then
+                        local replayTime = util:GetTimeFromDateString(replay.date)
+                        local replayDate = date("*t", replayTime)
+                        local replayText = format("%04d-%02d-%02d @ %02d:%02d", replayDate.year, replayDate.month, replayDate.day, replayDate.hour, replayDate.min)
+                        local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface/icons/%s:16:16|t", affix.icon) end, "")
+                        local clearTime = SecondsToClock(replay.clear_time_ms / 1000)
+                        local members = {strsplit(",", replay.title)} ---@type string[]
+                        members = format(" - %s", util:TableMapConcat(members, function(name) return strtrim(name) end, "\n - ")) ---@diagnostic disable-line: cast-local-type
+                        info.text = format("%s - %s (%d) %s", replayText, replay.dungeon.short_name, replay.mythic_level, clearTime)
+                        info.arg2 = replay
+                        info.tooltipTitle = affixesText
+                        info.tooltipText = format("|cffFFFFFF%s|r", members)
+                        UIDropDownMenu_AddButton(info, level)
+                    end
                 end
             elseif menuList == "style" then
                 local currentStyle = replayFrame:GetStyle()

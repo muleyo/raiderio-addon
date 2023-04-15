@@ -647,7 +647,7 @@ do
     ---@field public combat boolean
     ---@field public killed boolean
 
-    ---@return Replay[]?
+    ---@return Replay[]
     function ns:GetReplays()
         return ns.REPLAYS
     end
@@ -663,6 +663,7 @@ do
 
     ---@class Dungeon : DungeonInstance
     ---@field public keystone_instance number
+    ---@field public timers number[]
 
     ---@class DungeonRaid : DungeonInstance
 
@@ -7438,10 +7439,74 @@ do
 
     local UPDATE_EVENTS = {
         "PLAYER_ENTERING_WORLD",
+        "LOADING_SCREEN_DISABLED",
+        "ZONE_CHANGED_NEW_AREA",
         "SCENARIO_CRITERIA_UPDATE",
         "CHALLENGE_MODE_START",
         "WORLD_STATE_TIMER_START",
         "WORLD_STATE_TIMER_STOP",
+    }
+
+    ---@class InstanceIdToChallengeMapId
+    local INSTANCE_ID_TO_CHALLENGE_MAP_ID = {
+        [960] = 2,
+        [961] = 56,
+        [962] = 57,
+        [959] = 58,
+        [1011] = 59,
+        [994] = 60,
+        [1007] = 76,
+        [1001] = 77,
+        [1004] = 78,
+        [1209] = 161,
+        [1175] = 163,
+        [1182] = 164,
+        [1176] = 165,
+        [1208] = 166,
+        [1358] = 167,
+        [1279] = 168,
+        [1195] = 169,
+        [1456] = 197,
+        [1466] = 198,
+        [1501] = 199,
+        [1477] = 200,
+        [1458] = 206,
+        [1493] = 207,
+        [1492] = 208,
+        [1516] = 209,
+        [1571] = 210,
+        [1651] = { 227, 234 },
+        [1677] = 233,
+        [1753] = 239,
+        [1763] = 244,
+        [1754] = 245,
+        [1771] = 246,
+        [1594] = 247,
+        [1862] = 248,
+        [1762] = 249,
+        [1877] = 250,
+        [1841] = 251,
+        [1864] = 252,
+        [1822] = 353,
+        [2097] = { 369, 370 },
+        [2290] = 375,
+        [2286] = 376,
+        [2291] = 377,
+        [2287] = 378,
+        [2289] = 379,
+        [2284] = 380,
+        [2285] = 381,
+        [2293] = 382,
+        [2441] = { 391, 392 },
+        [2521] = 399,
+        [2516] = 400,
+        [2515] = 401,
+        [2526] = 402,
+        [2451] = 403,
+        [2519] = 404,
+        [2520] = 405,
+        [2527] = 406,
+        [657] = 438,
     }
 
     ---@param replayEvent ReplayEvent
@@ -7543,7 +7608,7 @@ do
     ---@field public trash number
     ---@field public bosses ReplayBoss[]
 
-    ---@type Replay[]?
+    ---@type Replay[]
     local replays
 
     ---@class ReplayFrame : Frame
@@ -7632,6 +7697,7 @@ do
         obj.Combat:SetPoint("LEFT", obj.Info, "RIGHT", -1, 0)
         obj.Combat:SetSize(10, 10)
         obj.Combat:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
+        obj.Combat:Hide()
     end
 
     ---@param self BossFramePool
@@ -7847,25 +7913,25 @@ do
                     ---@type string?, number?, boolean?, number?, number?, number?, number?, string?, number?, number?, number?, boolean?, boolean?
                     local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
                     if criteriaString then
-                        -- `criteriaType`
-                        -- `0`: `Kill NPC "{Creature}"`
-                        -- `165`: `Defeat Encounter "{DungeonEncounter}"`
-                        if criteriaType == 0 then
+                        local isTrash = i == numCriteria
+                        if isTrash then
                             if liveSummary.trash ~= quantity then
                                 liveSummary.trash = quantity
                             end
-                        elseif criteriaType == 165 then
+                        else
                             local boss = liveSummary.bosses[i]
                             if not boss then
                                 boss = {} ---@type ReplayBoss
                                 boss.index = i
-                                boss.id = 0
+                                boss.id = 0 -- the journal encounter id is not available and luckily we don't need it
                                 boss.combat = false
                                 boss.pulls = 0
                                 boss.dead = false
                                 liveSummary.bosses[boss.index] = boss
                             end
                             if completed and not boss.dead then
+                                boss.combat = false
+                                boss.pulls = 1
                                 boss.dead = true
                                 boss.killed = liveSummary.timer
                                 boss.killedText = SecondsToClock(ceil(liveSummary.timer / 1000))
@@ -7930,25 +7996,21 @@ do
                 info.text, info.hasArrow = "Close", nil
                 UIDropDownMenu_AddButton(info)
             elseif menuList == "replay" then
-                if not replays then
-                    return
-                end
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
                 local currentReplay = replayDataProvider:GetReplay()
-                local mapID = replayFrame:GetKeystone()
+                local mapID, _, otherMapIDs = replayFrame:GetKeystone()
                 info.func = parent.OnOptionClick
                 info.arg1 = parent
                 info.tooltipOnButton = true
-                local sortedReplays = util:TableCopy(replays)
-                util:TableSort(sortedReplays, "date", "keystone_run_id")
-                for _, replay in ipairs(sortedReplays) do
+                for _, replay in ipairs(replays) do
                     info.checked = replay == currentReplay
                     local dungeon = util:GetDungeonByID(replay.dungeon.id)
-                    if info.checked or (dungeon and dungeon.instance_map_id == mapID) then
+                    local showDungeon = info.checked or (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
+                    if showDungeon then
                         local replayTime = util:GetTimeFromDateString(replay.date)
                         local replayDate = date("*t", replayTime)
                         local replayText = format("%04d-%02d-%02d @ %02d:%02d", replayDate.year, replayDate.month, replayDate.day, replayDate.hour, replayDate.min)
-                        local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface/icons/%s:16:16|t", affix.icon) end, "")
+                        local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface\\icons\\%s:16:16|t", affix.icon) end, "")
                         local clearTime = SecondsToClock(replay.clear_time_ms / 1000)
                         local members = {strsplit(",", replay.title)} ---@type string[]
                         members = format(" - %s", util:TableMapConcat(members, function(name) return strtrim(name) end, "\n - ")) ---@diagnostic disable-line: cast-local-type
@@ -7997,11 +8059,7 @@ do
         end
 
         function ReplayFrameConfigButtonMixin:Toggle()
-            local dropdown = DropDownList1.dropdown
-            if dropdown and dropdown ~= self.DropDownMenu then
-                return
-            end
-            if DropDownList1:IsShown() then
+            if DropDownList1:IsShown() and DropDownList1.dropdown == self.DropDownMenu then
                 self:Close()
             else
                 self:Open()
@@ -8399,19 +8457,21 @@ do
 
         ---@param mapID? number
         ---@param timeLimit? number
-        function ReplayFrameMixin:SetKeystone(mapID, timeLimit)
+        ---@param otherMapIDs? number[]
+        function ReplayFrameMixin:SetKeystone(mapID, timeLimit, otherMapIDs)
             if not mapID then
                 self:Stop()
                 return
             end
             self.mapID = mapID
             self.timeLimit = timeLimit
+            self.otherMapIDs = otherMapIDs
             self:Update()
         end
 
-        ---@return number? mapID, number timeLimit
+        ---@return number? mapID, number timeLimit, number[]? otherMapIDs
         function ReplayFrameMixin:GetKeystone()
-            return self.mapID, self.timeLimit
+            return self.mapID, self.timeLimit, self.otherMapIDs
         end
 
         function ReplayFrameMixin:Start()
@@ -8429,8 +8489,17 @@ do
             self:Update()
         end
 
+        ---@param isStaging boolean
+        function ReplayFrameMixin:SetStaging(isStaging)
+            self.isStaging = isStaging
+        end
+
+        function ReplayFrameMixin:IsStaging()
+            return self.isStaging
+        end
+
         function ReplayFrameMixin:UpdateShown()
-            local shown = self.timerID and self.mapID and self.isPlaying
+            local shown = self.timerID and self.mapID and (self.isPlaying or self.isStaging)
             if shown then
                 local replayDataProvider = self:GetReplayDataProvider()
                 local liveDataProvider = self:GetLiveDataProvider()
@@ -8550,7 +8619,7 @@ do
             for i = 1, count do
                 local liveBoss = liveBosses[i]
                 local replayBoss = replayBosses[i]
-                local bossID = (liveBoss and liveBoss.id) or (replayBoss and replayBoss.id)
+                local bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id)
                 if bossID then
                     local bossFrame = pool:Acquire()
                     bossFrame:Setup(i, bossID)
@@ -8585,7 +8654,7 @@ do
                 local i = bossFrame.index
                 local liveBoss = liveBosses[i]
                 local replayBoss = replayBosses[i]
-                local bossID = (liveBoss and liveBoss.id) or (replayBoss and replayBoss.id)
+                local bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id)
                 if bossID and bossID == bossFrame.bossID then
                     bossFrame:Update(liveBoss, replayBoss)
                 end
@@ -8638,7 +8707,7 @@ do
             end
         end
         if config:Get("debugMode") then
-            return 1, 0, true -- fake timer
+            return 1, 0, true
         end
     end
 
@@ -8646,43 +8715,99 @@ do
     local function GetKeystoneInfo()
         local mapID = C_ChallengeMode.GetActiveChallengeMapID()
         if not mapID then
-            if config:Get("debugMode") then
-                return 2521, 1800 -- Ruby Life Pools
-            end
             return
         end
         local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapID)
         return mapID, timeLimit
     end
 
-    ---@param mapID number
-    ---@return Replay? replay
-    local function GetReplayForMapID(mapID)
-        if not replays then
+    ---@return (number|number[])? mapID, number? timeLimit
+    local function GetKeystoneForInstance()
+        local _, _, difficultyID, _, _, _, _, instanceID = GetInstanceInfo()
+        if not difficultyID then
             return
         end
+        local _, _, _, isChallengeMode, _, displayMythic = GetDifficultyInfo(difficultyID)
+        if not isChallengeMode then -- and not displayMythic
+            return
+        end
+        local mapID = INSTANCE_ID_TO_CHALLENGE_MAP_ID[instanceID]
+        if not mapID then
+            return
+        end
+        local firstMapID = type(mapID) == "table" and mapID[1] or mapID ---@type number
+        local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(firstMapID)
+        return mapID, timeLimit
+    end
+
+    ---@return number? mapID, number? timeLimit, number[]? otherMapIDs
+    local function GetKeystoneOrInstanceInfo()
+        local mapID, timeLimit = GetKeystoneInfo()
+        local mapIDs ---@type number[]?
+        if not mapID then
+            local temp, timer = GetKeystoneForInstance()
+            if not temp then
+                return
+            end
+            timeLimit = timer
+            if type(temp) == "table" then
+                mapID = temp[1]
+                mapIDs = temp
+            elseif type(temp) == "number" then
+                mapID = temp
+            end
+        end
+        if not mapID and config:Get("debugMode") then
+            local dungeons = ns:GetDungeonData()
+            local dungeon = dungeons[1]
+            mapID, timeLimit = dungeon.instance_map_id, dungeon.timers[3]
+        end
+        return mapID, timeLimit, mapIDs
+    end
+
+    ---@param mapID number
+    ---@param otherMapIDs? number[]
+    ---@return Replay? replay
+    local function GetReplayForMapID(mapID, otherMapIDs)
         for _, replay in ipairs(replays) do
             local dungeon = util:GetDungeonByID(replay.dungeon.id)
             if dungeon and dungeon.keystone_instance == mapID then
                 return replay
             end
         end
+        if otherMapIDs then
+            for _, replay in ipairs(replays) do
+                local dungeon = util:GetDungeonByID(replay.dungeon.id)
+                if dungeon then
+                    for _, otherMapID in ipairs(otherMapIDs) do
+                        if dungeon.keystone_instance == otherMapID then
+                            return replay
+                        end
+                    end
+                end
+            end
+        end
         if config:Get("debugMode") then
-            return replays[1] -- first available replay
+            return replays[1]
         end
     end
 
     local function OnEvent(event, ...)
         local timerID, elapsedTime, isActive = GetKeystoneTimer(event == "WORLD_STATE_TIMER_STOP", ...)
-        local mapID, timeLimit = GetKeystoneInfo()
+        local mapID, timeLimit, otherMapIDs = GetKeystoneOrInstanceInfo()
         local replayDataProvider = replayFrame:GetReplayDataProvider()
         local replay = replayDataProvider:GetReplay()
+        local staging = false
         if mapID then
-            replay = GetReplayForMapID(mapID)
+            replay = GetReplayForMapID(mapID, otherMapIDs)
+            if not timerID or not elapsedTime then
+                staging, timerID, elapsedTime, isActive = true, 1, 0, false
+            end
         end
         replayDataProvider:SetReplay(replay)
+        replayFrame:SetStaging(staging)
         replayFrame:SetTimer(timerID, elapsedTime, isActive)
-        replayFrame:SetKeystone(mapID, timeLimit)
+        replayFrame:SetKeystone(mapID, timeLimit, otherMapIDs)
         replayFrame:UpdateShown()
     end
 
@@ -8692,6 +8817,7 @@ do
 
     function replay:OnLoad()
         replays = ns:GetReplays()
+        util:TableSort(replays, "date", "keystone_run_id")
         replayFrame = CreateReplayFrame()
         replayFrame:SetReplayDataProvider(CreateReplayDataProvider())
         replayFrame:SetLiveDataProvider(CreateLiveDataProvider())

@@ -7661,9 +7661,9 @@ do
                 pending = false
                 delta = floor((replayBoss.killed - liveBoss.killed) / 1000)
                 text = liveBoss.killedText
-            elseif replayFrame.elapsedKeystoneTimer then
+            elseif replayBoss and replayBoss.killed then
                 pending = true
-                delta = floor((replayBoss.killed - replayFrame.elapsedKeystoneTimer * 1000) / 1000)
+                delta = floor((replayBoss.killed - replayFrame:GetKeystoneTimeMS()) / 1000)
                 text = replayBoss.killedText
             end
             if not text then
@@ -7892,9 +7892,7 @@ do
         ---@return ReplaySummary liveSummary
         function LiveDataProviderMixin:GetSummary()
             local liveSummary = self.replaySummary
-            if replayFrame.elapsedKeystoneTimer then
-                liveSummary.timer = replayFrame.elapsedKeystoneTimer * 1000
-            end
+            liveSummary.timer = replayFrame:GetKeystoneTimeMS()
             local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
             if activeKeystoneLevel then
                 liveSummary.level = activeKeystoneLevel
@@ -8226,6 +8224,9 @@ do
         function ReplayFrameMixin:OnLoad()
             self:Hide()
             self:SetScript("OnUpdate", self.OnUpdate)
+            self.elapsedTime = 0 -- the start time as provided by the WORLD_STATE_TIMER_START event
+            self.elapsedTimer = 0 -- the accumulated time assigned in the OnUpdate handler
+            self.elapsedKeystoneTimer = 0 -- the current keystone timer
             self.width = 200
             self.widthMDI = 320
             self.edgePaddingMDI = 16
@@ -8444,6 +8445,7 @@ do
             self.elapsedTime = elapsedTime
             self.isActive = isActive
             if isActive then
+                self.elapsedTimer = 0
                 self:Start()
             else
                 self:Stop()
@@ -8453,6 +8455,23 @@ do
         ---@return number? timerID, number elapsedTime, boolean isActive
         function ReplayFrameMixin:GetTimer()
             return self.timerID, self.elapsedTime, self.isActive
+        end
+
+        ---@param time number
+        ---@return number time
+        function ReplayFrameMixin:SetKeystoneTime(time)
+            self.elapsedKeystoneTimer = time
+            return time
+        end
+
+        ---@return number time
+        function ReplayFrameMixin:GetKeystoneTime()
+            return self.elapsedKeystoneTimer
+        end
+
+        ---@return number timeMS
+        function ReplayFrameMixin:GetKeystoneTimeMS()
+            return self.elapsedKeystoneTimer * 1000
         end
 
         ---@param mapID? number
@@ -8516,7 +8535,7 @@ do
         function ReplayFrameMixin:OnUpdate(elapsed)
             self.elapsed = (self.elapsed or 0) + (elapsed * FRAME_TIMER_SCALE)
             if self.elapsed < FRAME_UPDATE_INTERVAL then return end
-            self.elapsedTimer = (self.elapsedTimer or 0) + self.elapsed
+            self.elapsedTimer = self.elapsedTimer + self.elapsed
             self.elapsed = 0
             self:Update()
         end
@@ -8524,7 +8543,7 @@ do
         function ReplayFrameMixin:Update()
             local isRunning = self.isActive and self.isPlaying
             if isRunning then
-                self.elapsedKeystoneTimer = self.elapsedTimer + self.elapsedTime
+                self:SetKeystoneTime(self.elapsedTimer + self.elapsedTime)
             end
             local replayDataProvider = self:GetReplayDataProvider()
             local replay = replayDataProvider:GetReplay()
@@ -8765,6 +8784,28 @@ do
         return mapID, timeLimit, mapIDs
     end
 
+    ---@param replay Replay
+    ---@param mapID number
+    ---@param otherMapIDs? number[]
+    ---@return boolean
+    local function IsReplayForMapID(replay, mapID, otherMapIDs)
+        local dungeon = util:GetDungeonByID(replay.dungeon.id)
+        if not dungeon then
+            return
+        end
+        if dungeon.keystone_instance == mapID then
+            return true
+        end
+        if otherMapIDs then
+            for _, otherMapID in ipairs(otherMapIDs) do
+                if dungeon.keystone_instance == otherMapID then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
     ---@param mapID number
     ---@param otherMapIDs? number[]
     ---@return Replay? replay
@@ -8799,7 +8840,9 @@ do
         local replay = replayDataProvider:GetReplay()
         local staging = false
         if mapID then
-            replay = GetReplayForMapID(mapID, otherMapIDs)
+            if not replay or not IsReplayForMapID(replay, mapID, otherMapIDs) then
+                replay = GetReplayForMapID(mapID, otherMapIDs)
+            end
             if not timerID or not elapsedTime then
                 staging, timerID, elapsedTime, isActive = true, 1, 0, false
             end

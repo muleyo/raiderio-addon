@@ -8765,15 +8765,14 @@ do
         local mapIDs ---@type number[]?
         if not mapID then
             local temp, timer = GetKeystoneForInstance()
-            if not temp then
-                return
-            end
-            timeLimit = timer
-            if type(temp) == "table" then
-                mapID = temp[1]
-                mapIDs = temp
-            elseif type(temp) == "number" then
-                mapID = temp
+            if temp then
+                timeLimit = timer
+                if type(temp) == "table" then
+                    mapID = temp[1]
+                    mapIDs = temp
+                elseif type(temp) == "number" then
+                    mapID = temp
+                end
             end
         end
         if not mapID and config:Get("debugMode") then

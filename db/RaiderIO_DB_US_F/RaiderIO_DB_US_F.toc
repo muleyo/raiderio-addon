@@ -3,6 +3,7 @@
 ## Author: Vladinator (Vladinator-TarrenMill), Aspyr (Aspyrox-Skullcrusher) and Isak (Isak-Sargeras)
 ## Dependencies: RaiderIO
 ## DefaultState: enabled
+## IconTexture: Interface\AddOns\RaiderIO\icons\logo
 ## X-Type: Recruitment
 ## X-Region: Americas
 ## X-Faction: Both

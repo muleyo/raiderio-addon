@@ -60,6 +60,7 @@ for %%r in (
 			echo ## Author: !toc_author!>>!af!
 			echo ## Dependencies: !toc_addon!>>!af!
 			echo ## DefaultState: enabled>>!af!
+			echo ## IconTexture: Interface\AddOns\RaiderIO\icons\logo
 			echo ## X-Type: !t2!>>!af!
 			echo ## X-Region: !r2!>>!af!
 			echo ## X-Faction: Both>>!af!

@@ -194,7 +194,7 @@ do
 
     -- threshold for comparing current character's previous season score to current score
     -- meaning: once current score exceeds this fraction of previous season, then show current season
-    local PREVIOUS_SEASON_NUM_DUNGEONS = 10
+    local PREVIOUS_SEASON_NUM_DUNGEONS = 8
     local DUNGEONS = ns.DUNGEONS or ns.dungeons -- DEPRECATED: ns.dungeons
     ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9)
     ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9)

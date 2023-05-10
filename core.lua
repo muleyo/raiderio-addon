@@ -6690,8 +6690,20 @@ do
     local render = ns:GetModule("Render") ---@type RenderModule
 
     local KEYSTONE_PATTERN = "keystone:(%d+):(.-):(.-):(.-):(.-):(.-):(.-)"
-    local KEYSTONE_ITEM_PATTERN_1 = "item:(187786):.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+):(.-):(.-):(.-):(.-):(.-):(.-):(.-):(.-)"
-    local KEYSTONE_ITEM_PATTERN_2 = "item:(180653):.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+):(.-):(.-):(.-):(.-):(.-):(.-):(.-):(.-)"
+    local KEYSTONE_ITEM_PATTERN_1 = "item:(187786):(.+)"
+    local KEYSTONE_ITEM_PATTERN_2 = "item:(180653):(.+)"
+
+    local function ExtractKeystoneItemData(link, pattern)
+        local id, raw = link:match(pattern)
+        if not id then
+            return
+        end
+        local _, _, _, _, _, _, _, _, _, _, _, _, instance, _, level, _, affix1, _, affix2, _, affix3, _, affix4, _, _ = strsplit(":", raw)
+        if not instance then
+            return
+        end
+        return id, instance, level, affix1, affix2, affix3, affix4
+    end
 
     ---@type table<table, KeystoneInfo>
     local currentKeystone = {}
@@ -6699,10 +6711,10 @@ do
     local function GetKeystoneInfo(link)
         local item, instance, level, affix1, affix2, affix3, affix4, _ = link:match(KEYSTONE_PATTERN)
         if not item then
-            item, _, _, instance, _, level, _, affix1, _, affix2, _, affix3, _, affix4 = link:match(KEYSTONE_ITEM_PATTERN_1)
+            item, instance, level, affix1, affix2, affix3, affix4, _ = ExtractKeystoneItemData(link, KEYSTONE_ITEM_PATTERN_1)
         end
         if not item then
-            item, _, _, instance, _, level, _, affix1, _, affix2, _, affix3, _, affix4 = link:match(KEYSTONE_ITEM_PATTERN_2)
+            item, instance, level, affix1, affix2, affix3, affix4, _ = ExtractKeystoneItemData(link, KEYSTONE_ITEM_PATTERN_2)
         end
         if item then
             item, instance, level, affix1, affix2, affix3, affix4 = tonumber(item), tonumber(instance), tonumber(level), tonumber(affix1), tonumber(affix2), tonumber(affix3), tonumber(affix4)

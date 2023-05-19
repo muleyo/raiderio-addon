@@ -49,3 +49,6 @@ node_modules
 CHANGES.txt
 db_client_*.lua
 .env
+
+# Tool related cache we don't need to commit
+tools/exportDungeonsData/db/

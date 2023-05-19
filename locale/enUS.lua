@@ -1,6 +1,7 @@
-local ns = select(2, ...) ---@type ns @The addon namespace.
+local ns = select(2, ...) ---@class ns @The addon namespace.
 
-local L = ns:NewLocale()
+local L = ns:NewLocale() ---@class Locale
+ns.L = L
 
 L.LOCALE_NAME = "enUS"
 
@@ -171,6 +172,7 @@ L.RAID_BOSS_ATSC_8 = "Echo of Neltharion"
 L.RAID_BOSS_ATSC_9 = "Scalecommander Sarkareth"
 L.RAID_ENCOUNTERS_DEFEATED_TITLE = "Raid Encounters Defeated"
 L.RAIDING_DATA_HEADER = "Raider.IO Raid Progress"
+L.PVP_DATA_HEADER = "Raider.IO PvP Profile"
 L.CONFIG_WHERE_TO_SHOW_TOOLTIPS = "Where to Show Mythic+ and Raid Progress"
 L.MAINS_RAID_PROGRESS = "Main's Progress"
 L.HIDE_OWN_PROFILE = "Hide Personal Raider.IO Profile Tooltip"
@@ -234,5 +236,7 @@ L.GUILD_LF_PVP = "Recruiting PvP Players"
 L.TEAM_LF_MPLUS_WITH_SCORE = "Recruiting %d+ Mythic+ Players"
 L.TEAM_LF_MPLUS_DEFAULT = "Recruiting Mythic+ Players"
 L.COPY_RAIDERIO_RECRUITMENT_URL = "Copy Recruitment URL"
-
-ns.L = L
+L.REPLAY_SETTINGS_TOOLTIP = "Settings"
+L.REPLAY_STYLE_TITLE_MODERN = "Modern"
+L.REPLAY_STYLE_TITLE_MODERN_COMPACT = "Modern (Compact)"
+L.REPLAY_STYLE_TITLE_MDI = "MDI"

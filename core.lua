@@ -992,7 +992,7 @@ do
         enableWhoMessages = true,
         enableGuildTooltips = true,
         enableKeystoneTooltips = true,
-        mplusHeadlineMode = 1,
+        mplusHeadlineMode = 0,
         useEnglishAbbreviations = false,
         showMainsScore = true,
         showMainBestScore = true,

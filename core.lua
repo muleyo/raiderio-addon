@@ -8121,12 +8121,17 @@ do
 
     do
 
+        ---@class StatusBarWidgetVisualizationInfoPolyfill : StatusBarWidgetVisualizationInfo
+        ---@field textEnabledState Enum.WidgetEnabledState
+        ---@field textFontType Enum.UIWidgetFontType
+        ---@field textSizeType Enum.UIWidgetTextSizeType
+
         ---@class UIWidgetBaseTextMixin : FontString
 
         ---@class UIWidgetBaseStatusBarTemplateMixin
         ---@field public value? number
-        ---@field public SanitizeAndSetStatusBarValues fun(self: UIWidgetBaseStatusBarTemplateMixin, barInfo: StatusBarWidgetVisualizationInfo)
-        ---@field public Setup fun(self: UIWidgetBaseStatusBarTemplateMixin, widgetContainer: Region, barInfo: StatusBarWidgetVisualizationInfo)
+        ---@field public SanitizeAndSetStatusBarValues fun(self: UIWidgetBaseStatusBarTemplateMixin, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill)
+        ---@field public Setup fun(self: UIWidgetBaseStatusBarTemplateMixin, widgetContainer: Region, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill)
         ---@field public UpdateBar fun(self: UIWidgetBaseStatusBarTemplateMixin, elapsed: number)
         ---@field public DisplayBarValue fun(self: UIWidgetBaseStatusBarTemplateMixin)
         ---@field public SetBarText fun(self: UIWidgetBaseStatusBarTemplateMixin, barValue: number)
@@ -8155,8 +8160,8 @@ do
         ---@field public Label UIWidgetBaseTextMixin
 
         ---@class UIWidgetTemplateStatusBarMixin
-        ---@field public SanitizeTextureKits fun(self: UIWidgetTemplateStatusBarMixin, widgetInfo: StatusBarWidgetVisualizationInfo)
-        ---@field public Setup fun(self: UIWidgetTemplateStatusBarMixin, widgetInfo: StatusBarWidgetVisualizationInfo, widgetContainer: Region)
+        ---@field public SanitizeTextureKits fun(self: UIWidgetTemplateStatusBarMixin, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill)
+        ---@field public Setup fun(self: UIWidgetTemplateStatusBarMixin, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill, widgetContainer: Region)
         ---@field public EvaluateTutorials fun(self: UIWidgetTemplateStatusBarMixin)
         ---@field public OnReset fun(self: UIWidgetTemplateStatusBarMixin)
 
@@ -8166,7 +8171,7 @@ do
         ---@field public widgetContainer Region @Custom property assigned to be the same as the object used when calling `Setup`.
         ---@field public SetBarValue fun(self: UIWidgetTemplateStatusBar, barValue: number, barMin?: number, barMax?: number, forceUpdate?: boolean) @Custom function assigned to wrap around `Setup` for updating the bar widget.
 
-        ---@type StatusBarWidgetVisualizationInfo
+        ---@type StatusBarWidgetVisualizationInfoPolyfill
         local STATUSBAR_WIDGET_DEFAULT = {
             shownState = Enum.WidgetShownState.Shown,
             barMin = 0,
@@ -8196,12 +8201,15 @@ do
             layoutDirection = Enum.UIWidgetLayoutDirection.Horizontal,
             -- modelSceneLayer = Enum.UIWidgetModelSceneLayer.None,
             -- scriptedAnimationEffectID = 0,
+            textEnabledState = Enum.WidgetEnabledState.White,
+            textFontType = Enum.UIWidgetFontType.Shadow,
+            textSizeType = Enum.UIWidgetTextSizeType.Standard14Pt,
         }
 
         ---@param barValue number
         ---@param barMin? number
         ---@param barMax? number
-        ---@return StatusBarWidgetVisualizationInfo barWidgetInfo
+        ---@return StatusBarWidgetVisualizationInfoPolyfill barWidgetInfo
         local function GetBarInfo(barValue, barMin, barMax)
             STATUSBAR_WIDGET_DEFAULT.barValue = barValue
             if barMin and barMax then
@@ -8813,7 +8821,7 @@ do
     ---@param replay Replay
     ---@param mapID number
     ---@param otherMapIDs? number[]
-    ---@return boolean
+    ---@return boolean?
     local function IsReplayForMapID(replay, mapID, otherMapIDs)
         local dungeon = util:GetDungeonByID(replay.dungeon.id)
         if not dungeon then

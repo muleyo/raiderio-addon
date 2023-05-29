@@ -202,7 +202,7 @@ do
     -- when to prioritize showing the main's current score over their previous score. With Dragonflight
     -- seasons have changed significantly (new dungeons each patch) so we do not think showing the main's
     -- previous season score is relevant for that long into progression.
-    ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.6, 0.6)
+    ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9)
 
     ---Use `ns.CUSTOM_ICONS.FILENAME.KEY` to get the raw icon table.
     ---

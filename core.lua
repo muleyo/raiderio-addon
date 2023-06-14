@@ -194,14 +194,18 @@ do
         BEST_RUN = 2
     }
 
-    -- threshold for comparing current character's previous season score to current score
-    -- meaning: once current score exceeds this fraction of previous season, then show current season
     local PREVIOUS_SEASON_NUM_DUNGEONS = 8
     local DUNGEONS = ns.DUNGEONS or ns.dungeons -- DEPRECATED: ns.dungeons
-    ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9) -- Threshold that current season must surpass from previous season to be considered better and shown as primary in addon.
-    ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9) -- Threshold that current season current character must surpass from previous season main to be considered better and shown as primary in addon.
 
-    ---@class CustomIcons
+    -- threshold for comparing current character's previous season score to current score
+    -- meaning: once current score exceeds this fraction of previous season, then show current season
+    ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9)
+
+    -- threshold for comparing the main character's previous season score to current. This establishes
+    -- when to prioritize showing the main's current score over their previous score. With Dragonflight
+    -- seasons have changed significantly (new dungeons each patch) so we do not think showing the main's
+    -- previous season score is relevant for that long into progression.
+    ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD = min((#DUNGEONS / PREVIOUS_SEASON_NUM_DUNGEONS) * 0.9, 0.9)
 
     ---Use `ns.CUSTOM_ICONS.FILENAME.KEY` to get the raw icon table.
     ---
@@ -1085,7 +1089,7 @@ do
         enableWhoMessages = true,
         enableGuildTooltips = true,
         enableKeystoneTooltips = true,
-        mplusHeadlineMode = ns.HEADLINE_MODE.BEST_SEASON,
+        mplusHeadlineMode = 0,
         useEnglishAbbreviations = false,
         showMainsScore = true,
         showMainBestScore = true,

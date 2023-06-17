@@ -7940,12 +7940,14 @@ do
             if numCriteria then
                 for i = 1, numCriteria do
                     ---@type string?, number?, boolean?, number?, number?, number?, number?, string?, number?, number?, number?, boolean?, boolean?
-                    local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
+                    local criteriaString, criteriaType, completed, _, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
                     if criteriaString then
                         local isTrash = i == numCriteria
                         if isTrash then
-                            if liveSummary.trash ~= quantity then
-                                liveSummary.trash = quantity
+                            if quantityString then
+                                liveSummary.trash = tonumber(string.sub(quantityString, 1, string.len(quantityString) - 1)) or 0
+                            else
+                                liveSummary.trash = 0
                             end
                         else
                             local boss = liveSummary.bosses[i]

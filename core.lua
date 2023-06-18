@@ -8673,7 +8673,7 @@ do
                 self.TextBlock.TimerL:SetText("")
             end
 
-            if isRunning then
+            if isRunning and replayTimer < totalTimer then
                 self.TextBlock.TimerR:SetText(replayClock)
             else
                 self.TextBlock.TimerR:SetText(totalClock)
@@ -8691,7 +8691,7 @@ do
                 return
             end
             if isRunning then
-                self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(replayTrash - liveTrash, true), FormatPercentageAsText(livePctl))
+                self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(min(replayTrash, 100) - liveTrash, true), FormatPercentageAsText(livePctl))
             else
                 self.TextBlock.TrashL:SetText("")
             end

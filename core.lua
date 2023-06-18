@@ -7710,12 +7710,12 @@ do
     local function BossFrameOnInit(obj)
         Mixin(obj, BossFrameMixin)
         obj:SetSize(320, 32)
-        obj.Name = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+        obj.Name = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         obj.Name:SetPoint("TOPLEFT", 4, -4)
         obj.Name:SetPoint("BOTTOMRIGHT", -4 - 64, 4)
         obj.Name:SetJustifyH("LEFT")
         obj.Name:SetJustifyV("MIDDLE")
-        obj.Info = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        obj.Info = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         obj.Info:SetPoint("TOPLEFT", obj.Name, "TOPRIGHT", 0, 0)
         obj.Info:SetPoint("BOTTOMRIGHT", obj, "BOTTOMRIGHT", -4, 4)
         obj.Info:SetJustifyH("RIGHT")
@@ -8308,7 +8308,7 @@ do
                 local middleWidth = 30
                 local extraWidth = (equalWidth - middleWidth)/2 ---@type number
                 equalWidth = equalWidth + extraWidth
-                local LF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+                local LF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
                 LF:SetSize(equalWidth, self.textRowHeight)
                 if previous then
                     LF:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, 0)
@@ -8317,20 +8317,20 @@ do
                 end
                 LF:SetJustifyH("RIGHT")
                 LF:SetJustifyV("MIDDLE")
-                local MF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+                local MF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
                 MF:SetSize(middleWidth, self.textRowHeight)
                 MF:SetPoint("TOPLEFT", LF, "TOPRIGHT", 0, 0)
                 MF:SetJustifyH("CENTER")
                 MF:SetJustifyV("MIDDLE")
                 MF:SetText(middleText)
-                local RF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge2")
+                local RF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
                 RF:SetSize(equalWidth, self.textRowHeight)
                 RF:SetPoint("TOPLEFT", MF, "TOPRIGHT", 0, 0)
                 RF:SetJustifyH("LEFT")
                 RF:SetJustifyV("MIDDLE")
                 return LF, MF, RF
             end
-            self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow(nil, ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
+            self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow(nil, "") -- ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
             self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL, ns.CUSTOM_ICONS.replay.ALARM("TextureMarkup"))
             self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.SKULL("TextureMarkup"))
             self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL, ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
@@ -8425,11 +8425,13 @@ do
                 self.TextBlock.BossL:SetHeight(self.textRowHeight)
                 self.TextBlock.BossM:Show()
             elseif style == "MODERN" then
-                self.textRowCount = 4
-                self.TextBlock.BossL:SetHeight(0)
-                self.TextBlock.BossL:SetText(nil)
-                self.TextBlock.BossM:Hide()
-                self.TextBlock.BossR:SetText(nil)
+                self.textRowCount = 5
+                self.TextBlock.BossL:SetHeight(self.textRowHeight)
+                self.TextBlock.BossM:Show()
+                -- self.TextBlock.BossL:SetHeight(0)
+                -- self.TextBlock.BossL:SetText(nil)
+                -- self.TextBlock.BossM:Hide()
+                -- self.TextBlock.BossR:SetText(nil)
             elseif style == "MDI" then
                 heightOffset = 180
                 self.textRowCount = 0
@@ -8559,6 +8561,7 @@ do
         end
 
         function ReplayFrameMixin:UpdateShown()
+            local isRunning = self.isActive and self.isPlaying
             local shown = self.timerID and self.mapID and (self.isPlaying or self.isStaging)
             if shown then
                 local replayDataProvider = self:GetReplayDataProvider()
@@ -8566,8 +8569,8 @@ do
                 local liveSummary = liveDataProvider:GetSummary()
                 local elapsedKeystoneTimer = liveSummary.timer
                 local replaySummary = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
-                self:SetUITitle(liveSummary.level, liveSummary.affixes, replaySummary.level, replaySummary.affixes)
-                self:SetUIBosses(liveSummary.bosses, replaySummary.bosses)
+                self:SetUITitle(liveSummary.level, liveSummary.affixes, replaySummary.level, replaySummary.affixes, isRunning)
+                self:SetUIBosses(liveSummary.bosses, replaySummary.bosses, isRunning)
                 self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
             end
             self:SetShown(shown)
@@ -8596,23 +8599,27 @@ do
             local deathPenalty = liveDataProvider:GetDeathPenalty()
             local elapsedKeystoneTimer = liveSummary.timer
             local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
-            self:SetUITimer(ceil(liveSummary.timer / 1000), ceil(replaySummary.timer / 1000), ceil(replay.clear_time_ms / 1000), not nextReplayEvent)
-            self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces)
-            self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty)
-            self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, elapsedKeystoneTimer)
+            self:SetUITimer(ceil(liveSummary.timer / 1000), ceil((elapsedKeystoneTimer + replaySummary.deaths * 5000) / 1000), ceil(replay.clear_time_ms / 1000), not nextReplayEvent, isRunning)
+            self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces, isRunning)
+            self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
+            self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, elapsedKeystoneTimer, isRunning)
         end
 
         ---@param liveLevel number
         ---@param liveAffixes number[]
         ---@param replayLevel number
         ---@param replayAffixes number[]
-        function ReplayFrameMixin:SetUITitle(liveLevel, liveAffixes, replayLevel, replayAffixes)
+        function ReplayFrameMixin:SetUITitle(liveLevel, liveAffixes, replayLevel, replayAffixes, isRunning)
             if self:IsStyle("MDI") then
                 return
             end
             local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
             local replayAffix = util:TableContains(replayAffixes, 9) and 9 or 10
-            self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
+            if isRunning then
+                self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
+            else
+                self.TextBlock.TitleL:SetText("")
+            end
             self.TextBlock.TitleR:SetFormattedText("+%d %s", replayLevel, ns.KEYSTONE_AFFIX_TEXTURE[replayAffix])
         end
 
@@ -8620,22 +8627,32 @@ do
         ---@param replayTimer number
         ---@param totalTimer number
         ---@param replayIsCompleted boolean
-        function ReplayFrameMixin:SetUITimer(liveTimer, replayTimer, totalTimer, replayIsCompleted)
+        function ReplayFrameMixin:SetUITimer(liveTimer, replayTimer, totalTimer, replayIsCompleted, isRunning)
             local liveClock = SecondsToClock(liveTimer)
             local totalClock = SecondsToClock(totalTimer)
+            local replayClock = SecondsToClock(replayTimer)
             if self:IsStyle("MDI") then
                 self.MDI.TimerL:SetFormattedText("%s", liveClock)
                 self.MDI.TimerR:SetFormattedText("%s", totalClock)
                 return
             end
-            local delta = replayIsCompleted and 1 or (replayTimer - liveTimer - 1)
-            self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta), liveClock)
-            self.TextBlock.TimerR:SetText(totalClock)
+            if isRunning then
+                local delta = replayIsCompleted and 1 or (liveTimer - replayTimer)
+                self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta, true), liveClock)
+            else
+                self.TextBlock.TimerL:SetText("")
+            end
+
+            if isRunning then
+                self.TextBlock.TimerR:SetText(replayClock)
+            else
+                self.TextBlock.TimerR:SetText(totalClock)
+            end
         end
 
         ---@param liveTrash number
         ---@param replayTrash number
-        function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash)
+        function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash, isRunning)
             local livePctl = liveTrash / totalTrash * 100
             local replayPctl = replayTrash / totalTrash * 100
             if self:IsStyle("MDI") then
@@ -8643,14 +8660,18 @@ do
                 self.MDI.TrashRBar:SetBarValue(replayPctl)
                 return
             end
-            self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(replayTrash - liveTrash), FormatPercentageAsText(livePctl))
+            if isRunning then
+                self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(replayTrash - liveTrash, true), FormatPercentageAsText(livePctl))
+            else
+                self.TextBlock.TrashL:SetText("")
+            end
             self.TextBlock.TrashR:SetFormattedText("%s%%", FormatPercentageAsText(replayPctl))
         end
 
         ---@param liveDeaths number
         ---@param replayDeaths number
         ---@param deathPenalty number
-        function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty)
+        function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty, isRunning)
             local deltaDeaths = liveDeaths - replayDeaths
             local livePenalty = liveDeaths * deathPenalty
             local replayPenalty = replayDeaths * deathPenalty
@@ -8662,7 +8683,11 @@ do
                 self.MDI.DeathPenR:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", replayDeaths, replayPenaltyText)
                 return
             end
-            self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(deltaDeaths), liveDeaths, livePenalty)
+            if isRunning then
+                self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(deltaDeaths, true), liveDeaths, livePenalty)
+            else
+                self.TextBlock.DeathPenL:SetText("")
+            end
             self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", replayDeaths, replayPenalty)
         end
 
@@ -8692,31 +8717,36 @@ do
         ---@param liveBosses ReplayBoss[]
         ---@param replayBosses ReplayBoss[]
         ---@param timer number
-        function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer)
+        function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer, isRunning)
             local style = self:GetStyle()
-            if style ~= "MODERN" then
-                local liveCount = 0
-                local replayCount = 0
-                for _, boss in ipairs(liveBosses) do if boss.dead then liveCount = liveCount + 1 end end
-                for _, boss in ipairs(replayBosses) do if boss.killed and boss.killed <= timer then replayCount = replayCount + 1 end end
-                local totalCount = max(#liveBosses, #replayBosses)
-                if style == "MODERN_COMPACT" then
-                    self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(replayCount - liveCount), liveCount, totalCount)
-                    self.TextBlock.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
-                elseif style == "MDI" then
-                    self.MDI.BossL:SetFormattedText("%d/%d", liveCount, totalCount)
-                    self.MDI.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
+
+            local liveCount = 0
+            local replayCount = 0
+            for _, boss in ipairs(liveBosses) do if boss.dead then liveCount = liveCount + 1 end end
+            for _, boss in ipairs(replayBosses) do if boss.killed and boss.killed <= timer then replayCount = replayCount + 1 end end
+            local totalCount = max(#liveBosses, #replayBosses)
+            if style == "MODERN_COMPACT" or style == "MODERN" then
+                if isRunning then
+                    self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(replayCount - liveCount, true), liveCount, totalCount)
+                else
+                    self.TextBlock.BossL:SetText("")
                 end
-                return
+                self.TextBlock.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
+            elseif style == "MDI" then
+                self.MDI.BossL:SetFormattedText("%d/%d", liveCount, totalCount)
+                self.MDI.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
             end
-            local pool = self.BossFramePool
-            for bossFrame in pool:EnumerateActive() do
-                local i = bossFrame.index
-                local liveBoss = liveBosses[i]
-                local replayBoss = replayBosses[i]
-                local bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id)
-                if bossID and bossID == bossFrame.bossID then
-                    bossFrame:Update(liveBoss, replayBoss)
+
+            if style == "MODERN" then
+                local pool = self.BossFramePool
+                for bossFrame in pool:EnumerateActive() do
+                    local i = bossFrame.index
+                    local liveBoss = liveBosses[i]
+                    local replayBoss = replayBosses[i]
+                    local bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id)
+                    if bossID and bossID == bossFrame.bossID then
+                        bossFrame:Update(liveBoss, replayBoss)
+                    end
                 end
             end
         end
@@ -8788,7 +8818,7 @@ do
             return
         end
         local _, _, _, isChallengeMode, _, displayMythic = GetDifficultyInfo(difficultyID)
-        if not isChallengeMode then -- and not displayMythic
+        if not isChallengeMode and not displayMythic then
             return
         end
         local mapID = INSTANCE_ID_TO_CHALLENGE_MAP_ID[instanceID]

@@ -644,6 +644,7 @@ do
     ---@field public deaths? number The delta number of deaths.
     ---@field public forces? number The delta number of forces progress.
     ---@field public bosses? ReplayBossInfo[] The updated boss delta state.
+    ---@field public inBossCombat? boolean Whether we are in combat with any bosses
 
     ---@class ReplayBossInfo
     ---@field public index number
@@ -7547,6 +7548,7 @@ do
             return replayEvent._replayEventInfo
         end
         local replayEventInfo = {} ---@type ReplayEventInfo
+        local anyBossesInCombat = false
         replayEventInfo.timer = replayEvent[1]
         replayEventInfo.event = replayEvent[2]
         if replayEventInfo.event == 1 then
@@ -7559,9 +7561,13 @@ do
             bossInfo.pulls = replayEvent[4]
             bossInfo.combat = replayEvent[5]
             bossInfo.killed = replayEvent[6]
+            if bossInfo.combat then
+                anyBossesInCombat = true
+            end
             replayEventInfo.bosses = {}
             replayEventInfo.bosses[bossInfo.index] = bossInfo
         end
+        replayEventInfo.inBossCombat = anyBossesInCombat
         replayEvent._replayEventInfo = replayEventInfo
         return replayEventInfo
     end
@@ -7601,7 +7607,7 @@ do
         if delta == 0 then
             return whiteWhenZero and "FFFFFF" or "FFFF55"
         end
-        return delta <= 0 and "55FF55" or "FF5555"
+        return delta <= 0 and "66EE22" or "FF4422"
     end
 
     ---@param value number @Expected range is `0` to `100`.
@@ -7841,6 +7847,7 @@ do
             replaySummary.timer = 0
             replaySummary.deaths = 0
             replaySummary.trash = 0
+            replaySummary.inBossCombat = false
             table.wipe(replaySummary.bosses)
             local replay = self:GetReplay()
             if not replay then
@@ -7885,6 +7892,7 @@ do
                 end
                 replaySummary.index = i
                 replaySummary.timer = replayEventInfo.timer
+                replaySummary.inBossCombat = replayEventInfo.inBossCombat
                 if replayEventInfo.deaths then
                     replaySummary.deaths = replaySummary.deaths + replayEventInfo.deaths
                 end
@@ -8330,6 +8338,26 @@ do
             self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow(nil, "") -- ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
             self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL, ns.CUSTOM_ICONS.replay.ALARM("TextureMarkup"))
             self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.SKULL("TextureMarkup"))
+
+            self.TextBlock.BossCombat = self:CreateTexture(nil, "ARTWORK")
+            self.TextBlock.BossCombat:SetPoint("LEFT", self.TextBlock.BossR, "RIGHT", -44, -1)
+            self.TextBlock.BossCombat:SetSize(18, 18)
+            self.TextBlock.BossCombat:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
+            self.TextBlock.BossCombat:Hide()
+
+            local function ShowReplayRunTooltip(self)
+                local currentReplay = self.replayDataProvider:GetReplay()
+                if not currentReplay then
+                    return
+                end
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:AddLine("|cffFFFFFF" .. currentReplay.title .. "|r")
+                GameTooltip:Show()
+            end
+
+            self:SetScript("OnEnter", ShowReplayRunTooltip)
+            self:SetScript("OnLeave", GameTooltip_Hide)
+
             self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL, ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
             self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.RIP("TextureMarkup"))
             self.MDI = CreateFrame("Frame", nil, self, BackdropTemplateMixin and "BackdropTemplate") ---@class ReplayFrameMDI : Frame, BackdropTemplate
@@ -8600,6 +8628,11 @@ do
             self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces, isRunning)
             self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
             self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, elapsedKeystoneTimer, isRunning)
+            if replaySummary.inBossCombat then
+                self.TextBlock.BossCombat:Show();
+            else
+                self.TextBlock.BossCombat:Hide();
+            end
         end
 
         ---@param liveLevel number

@@ -8038,14 +8038,11 @@ do
                     local dungeon = util:GetDungeonByID(replay.dungeon.id)
                     local showDungeon = info.checked or (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
                     if showDungeon then
-                        local replayTime = util:GetTimeFromDateString(replay.date)
-                        local replayDate = date("*t", replayTime)
-                        local replayText = format("%04d-%02d-%02d @ %02d:%02d", replayDate.year, replayDate.month, replayDate.day, replayDate.hour, replayDate.min)
                         local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface\\icons\\%s:16:16|t", affix.icon) end, "")
                         local clearTime = SecondsToClock(replay.clear_time_ms / 1000)
                         local members = {strsplit(",", replay.title)} ---@type string[]
                         members = format(" - %s", util:TableMapConcat(members, function(name) return strtrim(name) end, "\n - ")) ---@diagnostic disable-line: cast-local-type
-                        info.text = format("%s - %s (%d) %s", replayText, replay.dungeon.short_name, replay.mythic_level, clearTime)
+                        info.text = replay.title
                         info.arg2 = replay
                         info.tooltipTitle = affixesText
                         info.tooltipText = format("|cffFFFFFF%s|r", members)

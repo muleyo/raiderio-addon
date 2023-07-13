@@ -212,6 +212,9 @@ do
     ---Use `ns.CUSTOM_ICONS.FILENAME.KEY("Texture")` to retrieve the `CustomIconTexture` for the icon.
     ---
     ---Use `ns.CUSTOM_ICONS.FILENAME.KEY("TextureMarkup")` to retrieve the texture markup `string` for the icon.
+
+    ---@class CustomIcons
+
     ---@class CustomIconsCollection
     ns.CUSTOM_ICONS = {
         ---@class CustomIcons_Affixes : CustomIcons
@@ -6288,8 +6291,8 @@ do
     local fallbackFrame = _G.UIParent
     local fallbackStrata = "LOW"
 
-    local tooltipAnchor
-    local tooltip
+    local tooltipAnchor ---@type Frame
+    local tooltip ---@type GameTooltip
 
     local tooltipAnchorPriority = {
         -- this entry is updated with the latest anchor from previous `profile:ShowProfile(anchor, ...)` call so that we can prioritize this anchor above all others
@@ -6474,7 +6477,7 @@ do
     end
 
     local function CreateTooltip()
-        local tooltip = CreateFrame("GameTooltip", addonName .. "_ProfileTooltip", tooltipAnchor, "GameTooltipTemplate")
+        local tooltip = CreateFrame("GameTooltip", addonName .. "_ProfileTooltip", tooltipAnchor, "GameTooltipTemplate") ---@type GameTooltip
         tooltip:SetClampedToScreen(true)
         tooltip:SetOwner(tooltipAnchor, "ANCHOR_NONE")
         tooltip:ClearAllPoints()
@@ -7475,6 +7478,7 @@ do
         "ZONE_CHANGED_NEW_AREA",
         "SCENARIO_CRITERIA_UPDATE",
         "CHALLENGE_MODE_START",
+        "CHALLENGE_MODE_RESET",
         "WORLD_STATE_TIMER_START",
         "WORLD_STATE_TIMER_STOP",
     }
@@ -7644,6 +7648,7 @@ do
     ---@field public deaths number
     ---@field public trash number
     ---@field public bosses ReplayBoss[]
+    ---@field public inBossCombat boolean
 
     ---@type Replay[]
     local replays
@@ -7653,7 +7658,8 @@ do
 
     ---@class BossFrame : Frame
     ---@field public Name FontString
-    ---@field public Info FontString
+    ---@field public InfoL FontString
+    ---@field public InfoR FontString
     ---@field public Background Texture
     ---@field public Combat Texture
 
@@ -7682,8 +7688,9 @@ do
             self.bossJournalInstanceID, ---@type number
             self.bossEncounterID, ---@type number
             self.bossInstanceID = EJ_GetEncounterInfo(bossID) ---@type number
-            self.Name:SetText(self.bossName)
-            self.Info:SetText("")
+            self.Name:SetText(self.index)
+            self.InfoL:SetText("")
+            self.InfoR:SetText("")
             self:Show()
         end
 
@@ -7691,23 +7698,32 @@ do
         ---@param liveBoss ReplayBoss
         ---@param replayBoss ReplayBoss
         function BossFrameMixin:Update(liveBoss, replayBoss)
-            local pending
-            local delta
-            local text
-            if liveBoss and liveBoss.dead then
-                pending = false
-                delta = floor((replayBoss.killed - liveBoss.killed) / 1000)
-                text = liveBoss.killedText
-            elseif replayBoss and replayBoss.killed then
-                pending = true
-                delta = floor((replayBoss.killed - replayFrame:GetKeystoneTimeMS()) / 1000)
-                text = replayBoss.killedText
+            local keystoneTimeMS = replayFrame:GetKeystoneTimeMS()
+            local isLiveBossDead = liveBoss and liveBoss.dead
+            local isReplayBossDead = replayBoss and replayBoss.killed and replayBoss.killed - keystoneTimeMS <= 0
+            if isLiveBossDead then
+                local delta = floor((replayBoss.killed - liveBoss.killed) / 1000)
+                self.InfoL:SetFormattedText("(%s) %s", SecondsDiffToTimeText(delta), liveBoss.killedText)
             end
-            if not text then
+            if isReplayBossDead then
+                self.InfoR:SetFormattedText("%s", replayBoss.killedText)
+            end
+            self.Combat:SetShown(replayBoss and replayBoss.combat)
+        end
+
+        ---@param self BossFrame
+        function BossFrameMixin:OnEnter()
+            if not self.bossName then
                 return
             end
-            self.Info:SetFormattedText("%s\n%s", text, SecondsDiffToTimeText(delta, pending))
-            self.Combat:SetShown(replayBoss.combat)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip_SetTitle(GameTooltip, self.bossName)
+            GameTooltip:Show()
+        end
+
+        ---@param self BossFrame
+        function BossFrameMixin:OnLeave()
+            GameTooltip_Hide()
         end
 
     end
@@ -7717,24 +7733,32 @@ do
         Mixin(obj, BossFrameMixin)
         obj:SetSize(320, 32)
         obj.Name = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        obj.Name:SetPoint("TOPLEFT", 4, -4)
-        obj.Name:SetPoint("BOTTOMRIGHT", -4 - 64, 4)
-        obj.Name:SetJustifyH("LEFT")
+        obj.Name:SetSize(16 + 4, 32 - 4*2)
+        obj.Name:SetPoint("CENTER")
+        obj.Name:SetJustifyH("CENTER")
         obj.Name:SetJustifyV("MIDDLE")
-        obj.Info = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        obj.Info:SetPoint("TOPLEFT", obj.Name, "TOPRIGHT", 0, 0)
-        obj.Info:SetPoint("BOTTOMRIGHT", obj, "BOTTOMRIGHT", -4, 4)
-        obj.Info:SetJustifyH("RIGHT")
-        obj.Info:SetJustifyV("MIDDLE")
+        obj.InfoL = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        obj.InfoL:SetPoint("TOPLEFT", obj, "TOPLEFT", 4, -4)
+        obj.InfoL:SetPoint("BOTTOMRIGHT", obj.Name, "BOTTOMLEFT", -4, 0)
+        obj.InfoL:SetJustifyH("LEFT")
+        obj.InfoL:SetJustifyV("MIDDLE")
+        obj.InfoR = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        obj.InfoR:SetPoint("TOPRIGHT", obj, "TOPRIGHT", -4, -4)
+        obj.InfoR:SetPoint("BOTTOMLEFT", obj.Name, "BOTTOMRIGHT", 4, 0)
+        obj.InfoR:SetJustifyH("LEFT")
+        obj.InfoR:SetJustifyV("MIDDLE")
         obj.Background = obj:CreateTexture(nil, "BACKGROUND")
         obj.Background:SetPoint("TOPLEFT", 1, -1)
         obj.Background:SetPoint("BOTTOMRIGHT", -1, 1)
         obj.Background:SetColorTexture(0, 0, 0, 0.5)
         obj.Combat = obj:CreateTexture(nil, "ARTWORK")
-        obj.Combat:SetPoint("LEFT", obj.Info, "RIGHT", -1, 0)
-        obj.Combat:SetSize(10, 10)
+        obj.Combat:SetPoint("LEFT", obj.Name, "RIGHT", 0, 0)
+        obj.Combat:SetSize(16, 16)
         obj.Combat:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
         obj.Combat:Hide()
+        obj:HookScript("OnEnter", obj.OnEnter)
+        obj:HookScript("OnLeave", obj.OnLeave)
+        obj:SetMouseClickEnabled(false)
     end
 
     ---@param self BossFramePool
@@ -7948,15 +7972,11 @@ do
             if numCriteria then
                 for i = 1, numCriteria do
                     ---@type string?, number?, boolean?, number?, number?, number?, number?, string?, number?, number?, number?, boolean?, boolean?
-                    local criteriaString, criteriaType, completed, _, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
+                    local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
                     if criteriaString then
                         local isTrash = i == numCriteria
                         if isTrash then
-                            if quantityString then
-                                liveSummary.trash = tonumber(string.sub(quantityString, 1, string.len(quantityString) - 1)) or 0
-                            else
-                                liveSummary.trash = 0
-                            end
+                            liveSummary.trash = quantityString and tonumber(strsub(quantityString, 1, strlen(quantityString) - 1)) or 0
                         else
                             local boss = liveSummary.bosses[i]
                             if not boss then
@@ -7966,7 +7986,7 @@ do
                                 boss.combat = false
                                 boss.pulls = 0
                                 boss.dead = false
-                                liveSummary.bosses[boss.index] = boss
+                                liveSummary.bosses[i] = boss
                             end
                             if completed and not boss.dead then
                                 boss.combat = false
@@ -8345,13 +8365,14 @@ do
             self.TextBlock.BossCombat:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
             self.TextBlock.BossCombat:Hide()
 
+            ---@param self ReplayFrame
             local function ShowReplayRunTooltip(self)
                 local currentReplay = self.replayDataProvider:GetReplay()
                 if not currentReplay then
                     return
                 end
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:AddLine("|cffFFFFFF" .. currentReplay.title .. "|r")
+                GameTooltip_SetTitle(GameTooltip, currentReplay.title)
                 GameTooltip:Show()
             end
 
@@ -8576,6 +8597,14 @@ do
             self:Update()
         end
 
+        function ReplayFrameMixin:Reset()
+            self:SetKeystoneTime(0)
+            self:GetReplayDataProvider():SetupSummary()
+            self.elapsedTimer = 0
+            self.elapsed = FRAME_UPDATE_INTERVAL
+            self:UpdateShown()
+        end
+
         ---@param isStaging boolean
         function ReplayFrameMixin:SetStaging(isStaging)
             self.isStaging = isStaging
@@ -8628,11 +8657,7 @@ do
             self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces, isRunning)
             self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
             self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, elapsedKeystoneTimer, isRunning)
-            if replaySummary.inBossCombat then
-                self.TextBlock.BossCombat:Show();
-            else
-                self.TextBlock.BossCombat:Hide();
-            end
+            self.TextBlock.BossCombat:SetShown(replaySummary.inBossCombat)
         end
 
         ---@param liveLevel number
@@ -8749,7 +8774,6 @@ do
         ---@param timer number
         function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer, isRunning)
             local style = self:GetStyle()
-
             local liveCount = 0
             local replayCount = 0
             for _, boss in ipairs(liveBosses) do if boss.dead then liveCount = liveCount + 1 end end
@@ -8766,7 +8790,6 @@ do
                 self.MDI.BossL:SetFormattedText("%d/%d", liveCount, totalCount)
                 self.MDI.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
             end
-
             if style == "MODERN" then
                 local pool = self.BossFramePool
                 for bossFrame in pool:EnumerateActive() do
@@ -8933,6 +8956,7 @@ do
         end
     end
 
+    ---@param event? WowEvent
     local function OnEvent(event, ...)
         local timerID, elapsedTime, isActive = GetKeystoneTimer(event == "WORLD_STATE_TIMER_STOP", ...)
         local mapID, timeLimit, otherMapIDs = GetKeystoneOrInstanceInfo()
@@ -8952,6 +8976,12 @@ do
         replayFrame:SetTimer(timerID, elapsedTime, isActive)
         replayFrame:SetKeystone(mapID, timeLimit, otherMapIDs)
         replayFrame:UpdateShown()
+        if not event then
+            return
+        end
+        if event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_RESET" then
+            replayFrame:Reset()
+        end
     end
 
     function replay:CanLoad()
@@ -11286,7 +11316,7 @@ do
             configParentFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 
             -- add widgets
-            local header = configOptions:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(GetAddOnMetadata(addonName, "Version")), configHeaderFrame)
+            local header = configOptions:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(C_AddOns.GetAddOnMetadata(addonName, "Version")), configHeaderFrame)
             header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
 
             configOptions:CreateHeadline(L.CHOOSE_HEADLINE_HEADER)

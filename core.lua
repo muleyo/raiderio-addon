@@ -9032,8 +9032,8 @@ do
             end
         end
         table.sort(replays, function(a, b)
-            local x = GetReplayWeeklyAffix(a.affixes) or 0
-            local y = GetReplayWeeklyAffix(b.affixes) or 0
+            local x = GetReplayWeeklyAffix(a) or 0
+            local y = GetReplayWeeklyAffix(b) or 0
             x = x - weeklyAffixID
             y = y - weeklyAffixID
             if x == y then

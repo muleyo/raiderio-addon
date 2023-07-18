@@ -4393,6 +4393,7 @@ do
         _G.RaiderIO_MissingCharacters = {}
         _G.RaiderIO_MissingServers = {}
         if type(_G.RaiderIO_RWF) ~= "table" then _G.RaiderIO_RWF = {} end
+        if type(_G.RaiderIO_CompletedReplays) ~= "table" then _G.RaiderIO_CompletedReplays = {} end
         callback:SendEvent("RAIDERIO_PLAYER_LOGIN")
         LoadModules()
     end
@@ -7957,10 +7958,10 @@ do
             local liveSummary = self.replaySummary
             liveSummary.timer = replayFrame:GetKeystoneTimeMS()
             local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
-            if activeKeystoneLevel then
+            if activeKeystoneLevel and activeKeystoneLevel ~= 0 then
                 liveSummary.level = activeKeystoneLevel
             end
-            if activeAffixIDs then
+            if activeAffixIDs and activeAffixIDs[1] then
                 liveSummary.affixes = activeAffixIDs
             end
             local numDeaths, timeLost = C_ChallengeMode.GetDeathCount()
@@ -7976,7 +7977,10 @@ do
                     if criteriaString then
                         local isTrash = i == numCriteria
                         if isTrash then
-                            liveSummary.trash = quantityString and tonumber(strsub(quantityString, 1, strlen(quantityString) - 1)) or 0
+                            local trash = quantityString and tonumber(strsub(quantityString, 1, strlen(quantityString) - 1)) or -1
+                            if trash >= 0 then
+                                liveSummary.trash = trash
+                            end
                         else
                             local boss = liveSummary.bosses[i]
                             if not boss then
@@ -8522,6 +8526,32 @@ do
             return self.liveDataProvider
         end
 
+        ---@class ReplayCompletedSummary
+        ---@field public replaySeason number
+        ---@field public replayRunId number
+        ---@field public character string
+        ---@field public zoneId number
+        ---@field public keyLevel number
+        ---@field public completedAt number
+        ---@field public clearTimeMS number
+
+        function ReplayFrameMixin:SaveLiveSummary()
+            local mapID = self:GetKeystone()
+            local liveDataProvider = self:GetLiveDataProvider()
+            local liveSummary = liveDataProvider:GetSummary()
+            ---@type ReplayCompletedSummary
+            local summary = {
+                replaySeason = ns.CURRENT_SEASON,
+                replayRunId = 0,
+                character = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_REALM, ns.PLAYER_NAME),
+                zoneId = mapID,
+                keyLevel = liveSummary.level,
+                completedAt = time(),
+                clearTimeMS = liveSummary.timer,
+            }
+            table.insert(_G.RaiderIO_CompletedReplays, summary)
+        end
+
         ---@param timerID? number
         ---@param elapsedTime? number
         ---@param isActive? boolean
@@ -8529,6 +8559,9 @@ do
             if not timerID then
                 self:Stop()
                 return
+            end
+            if self.isActive and not isActive then
+                self:SaveLiveSummary()
             end
             self.timerID = timerID
             self.elapsedTime = elapsedTime
@@ -8601,8 +8634,9 @@ do
             self:SetKeystoneTime(0)
             self:GetReplayDataProvider():SetupSummary()
             self.elapsedTimer = 0
-            self.elapsed = FRAME_UPDATE_INTERVAL
+            self.elapsed = 0
             self:UpdateShown()
+            self:Update()
         end
 
         ---@param isStaging boolean
@@ -8640,9 +8674,10 @@ do
 
         function ReplayFrameMixin:Update()
             local isRunning = self.isActive and self.isPlaying
-            if isRunning then
-                self:SetKeystoneTime(self.elapsedTimer + self.elapsedTime)
+            if not isRunning then
+                return
             end
+            self:SetKeystoneTime(self.elapsedTimer + self.elapsedTime)
             local replayDataProvider = self:GetReplayDataProvider()
             local replay = replayDataProvider:GetReplay()
             if not replay then
@@ -8958,7 +8993,13 @@ do
 
     ---@param event? WowEvent
     local function OnEvent(event, ...)
+        if event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_RESET" then
+            replayFrame:Reset()
+        end
         local timerID, elapsedTime, isActive = GetKeystoneTimer(event == "WORLD_STATE_TIMER_STOP", ...)
+        if not isActive then
+            replayFrame:Stop()
+        end
         local mapID, timeLimit, otherMapIDs = GetKeystoneOrInstanceInfo()
         local replayDataProvider = replayFrame:GetReplayDataProvider()
         local replay = replayDataProvider:GetReplay()
@@ -8976,12 +9017,31 @@ do
         replayFrame:SetTimer(timerID, elapsedTime, isActive)
         replayFrame:SetKeystone(mapID, timeLimit, otherMapIDs)
         replayFrame:UpdateShown()
-        if not event then
-            return
+    end
+
+    ---@param replays Replay[]
+    local function SortReplaysByWeeklyAffix(replays)
+        local weeklyAffixID = util:GetWeeklyAffix()
+        ---@param replay Replay
+        ---@return number? replayAffixID
+        local function GetReplayWeeklyAffix(replay)
+            for _, affix in ipairs(replay.affixes) do
+                if affix.id == weeklyAffixID then
+                    return affix.id
+                end
+            end
         end
-        if event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_RESET" then
-            replayFrame:Reset()
-        end
+        table.sort(replays, function(a, b)
+            local x = GetReplayWeeklyAffix(a.affixes) or 0
+            local y = GetReplayWeeklyAffix(b.affixes) or 0
+            x = x - weeklyAffixID
+            y = y - weeklyAffixID
+            if x == y then
+                x = a.mythic_level
+                y = b.mythic_level
+            end
+            return x > y
+        end)
     end
 
     function replay:CanLoad()
@@ -8991,6 +9051,7 @@ do
     function replay:OnLoad()
         replays = ns:GetReplays()
         util:TableSort(replays, "date", "keystone_run_id")
+        SortReplaysByWeeklyAffix(replays)
         replayFrame = CreateReplayFrame()
         replayFrame:SetReplayDataProvider(CreateReplayDataProvider())
         replayFrame:SetLiveDataProvider(CreateLiveDataProvider())

@@ -7704,7 +7704,7 @@ do
             local isReplayBossDead = replayBoss and replayBoss.killed and replayBoss.killed - keystoneTimeMS <= 0
             if isLiveBossDead then
                 local delta = floor((replayBoss.killed - liveBoss.killed) / 1000)
-                self.InfoL:SetFormattedText("(%s) %s", SecondsDiffToTimeText(delta), liveBoss.killedText)
+                self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsDiffToTimeText(delta))
             end
             if isReplayBossDead then
                 self.InfoR:SetFormattedText("%s", replayBoss.killedText)
@@ -7741,7 +7741,7 @@ do
         obj.InfoL = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         obj.InfoL:SetPoint("TOPLEFT", obj, "TOPLEFT", 4, -4)
         obj.InfoL:SetPoint("BOTTOMRIGHT", obj.Name, "BOTTOMLEFT", -4, 0)
-        obj.InfoL:SetJustifyH("LEFT")
+        obj.InfoL:SetJustifyH("RIGHT")
         obj.InfoL:SetJustifyV("MIDDLE")
         obj.InfoR = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         obj.InfoR:SetPoint("TOPRIGHT", obj, "TOPRIGHT", -4, -4)

@@ -7718,7 +7718,7 @@ do
                 return
             end
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip_SetTitle(GameTooltip, self.bossName)
+            GameTooltip_SetTitle(GameTooltip, self.bossName, nil, false)
             GameTooltip:Show()
         end
 
@@ -8376,7 +8376,7 @@ do
                     return
                 end
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip_SetTitle(GameTooltip, currentReplay.title)
+                GameTooltip_SetTitle(GameTooltip, currentReplay.title, nil, false)
                 GameTooltip:Show()
             end
 
@@ -8494,7 +8494,6 @@ do
             self.MDI:SetShown(not hasTextRows)
             self:SetWidth(hasTextRows and self.width or self.widthMDI)
             self:UpdateShown()
-            self:Update()
         end
 
         function ReplayFrameMixin:GetStyle()
@@ -8636,7 +8635,6 @@ do
             self.elapsedTimer = 0
             self.elapsed = 0
             self:UpdateShown()
-            self:Update()
         end
 
         ---@param isStaging boolean
@@ -8653,6 +8651,11 @@ do
             local shown = self.timerID and self.mapID and (self.isPlaying or self.isStaging)
             if shown then
                 local replayDataProvider = self:GetReplayDataProvider()
+                local replay = replayDataProvider:GetReplay()
+                if not replay then
+                    self:Hide()
+                    return
+                end
                 local liveDataProvider = self:GetLiveDataProvider()
                 local liveSummary = liveDataProvider:GetSummary()
                 local elapsedKeystoneTimer = liveSummary.timer
@@ -8660,6 +8663,7 @@ do
                 self:SetUITitle(liveSummary.level, liveSummary.affixes, replaySummary.level, replaySummary.affixes, isRunning)
                 self:SetUIBosses(liveSummary.bosses, replaySummary.bosses, isRunning)
                 self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
+                self:Update()
             end
             self:SetShown(shown)
         end
@@ -8674,10 +8678,12 @@ do
 
         function ReplayFrameMixin:Update()
             local isRunning = self.isActive and self.isPlaying
-            if not isRunning then
+            if not isRunning and not self.isStaging then
                 return
             end
-            self:SetKeystoneTime(self.elapsedTimer + self.elapsedTime)
+            if isRunning then
+                self:SetKeystoneTime(self.elapsedTimer + self.elapsedTime)
+            end
             local replayDataProvider = self:GetReplayDataProvider()
             local replay = replayDataProvider:GetReplay()
             if not replay then
@@ -8705,11 +8711,7 @@ do
             end
             local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
             local replayAffix = util:TableContains(replayAffixes, 9) and 9 or 10
-            if isRunning then
-                self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
-            else
-                self.TextBlock.TitleL:SetText("")
-            end
+            self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
             self.TextBlock.TitleR:SetFormattedText("+%d %s", replayLevel, ns.KEYSTONE_AFFIX_TEXTURE[replayAffix])
         end
 
@@ -8726,13 +8728,8 @@ do
                 self.MDI.TimerR:SetFormattedText("%s", totalClock)
                 return
             end
-            if isRunning then
-                local delta = replayIsCompleted and 1 or (liveTimer - replayTimer)
-                self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta, true), liveClock)
-            else
-                self.TextBlock.TimerL:SetText("")
-            end
-
+            local delta = replayIsCompleted and 1 or (liveTimer - replayTimer)
+            self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta, true), liveClock)
             if isRunning and replayTimer < totalTimer then
                 self.TextBlock.TimerR:SetText(replayClock)
             else
@@ -8750,11 +8747,7 @@ do
                 self.MDI.TrashRBar:SetBarValue(replayPctl)
                 return
             end
-            if isRunning then
-                self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(min(replayTrash, 100) - liveTrash, true), FormatPercentageAsText(livePctl))
-            else
-                self.TextBlock.TrashL:SetText("")
-            end
+            self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(min(replayTrash, 100) - liveTrash, true), FormatPercentageAsText(livePctl))
             self.TextBlock.TrashR:SetFormattedText("%s%%", FormatPercentageAsText(replayPctl))
         end
 
@@ -8773,11 +8766,7 @@ do
                 self.MDI.DeathPenR:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", replayDeaths, replayPenaltyText)
                 return
             end
-            if isRunning then
-                self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(deltaDeaths, true), liveDeaths, livePenalty)
-            else
-                self.TextBlock.DeathPenL:SetText("")
-            end
+            self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(deltaDeaths, true), liveDeaths, livePenalty)
             self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", replayDeaths, replayPenalty)
         end
 
@@ -8815,11 +8804,7 @@ do
             for _, boss in ipairs(replayBosses) do if boss.killed and boss.killed <= timer then replayCount = replayCount + 1 end end
             local totalCount = max(#liveBosses, #replayBosses)
             if style == "MODERN_COMPACT" or style == "MODERN" then
-                if isRunning then
-                    self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(replayCount - liveCount, true), liveCount, totalCount)
-                else
-                    self.TextBlock.BossL:SetText("")
-                end
+                self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(replayCount - liveCount, true), liveCount, totalCount)
                 self.TextBlock.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
             elseif style == "MDI" then
                 self.MDI.BossL:SetFormattedText("%d/%d", liveCount, totalCount)

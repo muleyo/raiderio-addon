@@ -607,36 +607,44 @@ do
     end
 
     ---@class ReplayDungeon
-    ---@field public id number
-    ---@field public name string
-    ---@field public short_name string
-    ---@field public total_enemy_forces number
+    ---@field public id number `9391`
+    ---@field public name string `The Underrot`
+    ---@field public slug string `the-underrot`
+    ---@field public short_name string `UNDR`
+    ---@field public total_enemy_forces number `320`
 
     ---@class ReplayAffix
-    ---@field public id number
-    ---@field public name string
-    ---@field public icon string
+    ---@field public id number `10`
+    ---@field public name string `Fortified`
+    ---@field public icon string `ability_toughness`
 
     ---@class ReplayEncounter
-    ---@field public encounter_id number
-    ---@field public journal_encounter_id number
+    ---@field public encounter_id number `2111`
+    ---@field public journal_encounter_id number `2157`
 
     ---@alias ReplayEventEnum 1|2|3|4 `PLAYER_DEATH`, `ENEMY_FORCES`, `ENCOUNTER_STARTED`, `ENCOUNTER_ENDED`
 
     ---@class ReplayEvent
     ---@field public _replayEventInfo? ReplayEventInfo Once `UnpackReplayEvent` has parsed the `ReplayEvent` the result is stored and re-used when needed.
 
+    ---@alias ReplaySource
+    ---|"guild_best_replay"
+    ---|"user_best_replay"
+    ---|"user_recent_replay"
+    ---|"watched_replay"
+
     ---@class Replay
     ---@field public format_version number `2`
-    ---@field public title string `name1, name2, name3, name4, name5`
-    ---@field public run_url string
-    ---@field public date string `2022-10-24T18:22:32.000Z`
+    ---@field public title string `|cffffbd0aGuild Best|r: UNDR |cffffcf40+|r26 Fortified (28:29)`
+    ---@field public sources ReplaySource[]
+    ---@field public run_url string `https://raider.io/mythic-plus-runs/season-df-2/15039929-26-the-underrot`
+    ---@field public date string `2023-07-18T14:33:49Z`
     ---@field public dungeon ReplayDungeon
-    ---@field public season string
-    ---@field public keystone_run_id number
-    ---@field public logged_run_id number
-    ---@field public clear_time_ms number
-    ---@field public mythic_level number
+    ---@field public season string `season-df-2`
+    ---@field public keystone_run_id number `15039929`
+    ---@field public logged_run_id number `5891446`
+    ---@field public clear_time_ms number `1709549`
+    ---@field public mythic_level number `26`
     ---@field public affixes ReplayAffix[]
     ---@field public encounters ReplayEncounter[]
     ---@field public events ReplayEvent[]
@@ -2055,6 +2063,7 @@ do
         return format("|T982414:%d:%d:0:0:64:64:0:1:0:1|t", height or 1, width)
     end
 
+    ---@param ... string
     function util:GetRaiderIOProfileUrl(...)
         local name, realm = util:GetNameRealm(...)
         local realmSlug = util:GetRealmSlug(realm, true)
@@ -2063,6 +2072,8 @@ do
         return format("https://raider.io/characters/%s/%s/%s?utm_source=addon", region, realmSlug, name), name, realm, realmSlug
     end
 
+    ---@param urlSuffix string
+    ---@param ... string
     function util:GetRaiderIORecruitmentProfileUrl(urlSuffix, ...)
         local name, realm = util:GetNameRealm(...)
         local realmSlug = util:GetRealmSlug(realm, true)
@@ -2153,6 +2164,17 @@ do
             editBox:HighlightText()
         else
             util:ShowStaticPopupDialog(COPY_PROFILE_URL_POPUP, format("%s (%s)", name, realm), url)
+        end
+    end
+
+    ---@param title string
+    ---@param url string
+    function util:ShowCopyRaiderIOReplayPopup(title, url)
+        if IsModifiedClick("CHATLINK") then
+            local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
+            editBox:HighlightText()
+        else
+            util:ShowStaticPopupDialog(COPY_PROFILE_URL_POPUP, title, url)
         end
     end
 
@@ -7949,8 +7971,17 @@ do
             self.SetReplay = nil
             self.GetReplay = nil
             self.CreateSummary = nil
-            self.SetupSummary = nil
             self.GetReplaySummaryAt = nil
+        end
+
+        function LiveDataProviderMixin:ResetSummary()
+            local liveSummary = self.replaySummary
+            liveSummary.timer = 0
+            liveSummary.level = 0
+            table.wipe(liveSummary.affixes)
+            liveSummary.deaths = 0
+            liveSummary.trash = 0
+            table.wipe(liveSummary.bosses)
         end
 
         ---@return ReplaySummary liveSummary
@@ -7978,7 +8009,7 @@ do
                         local isTrash = i == numCriteria
                         if isTrash then
                             local trash = quantityString and tonumber(strsub(quantityString, 1, strlen(quantityString) - 1)) or -1
-                            if trash >= 0 then
+                            if trash > 0 then
                                 liveSummary.trash = trash
                             end
                         else
@@ -8052,6 +8083,18 @@ do
             local info = UIDropDownMenu_CreateInfo() ---@type UIDropDownMenuInfo
             if level == 1 then
                 info.notCheckable = true
+                local replayDataProvider = replayFrame:GetReplayDataProvider()
+                local currentReplay = replayDataProvider:GetReplay()
+                if currentReplay then
+                    info.text, info.hasArrow, info.menuList = "Copy Replay URL", false, nil
+                    info.func = parent.OnCopyReplayUrlClick
+                    info.arg1 = parent
+                    info.arg2 = currentReplay
+                    UIDropDownMenu_AddButton(info, level)
+                    info.func = nil
+                    info.arg1 = nil
+                    info.arg2 = nil
+                end
                 info.text, info.hasArrow, info.menuList = "Replay", true, "replay"
                 UIDropDownMenu_AddButton(info, level)
                 info.text, info.hasArrow, info.menuList = "Style", true, "style"
@@ -8107,6 +8150,14 @@ do
                 replayDataProvider:SetReplay(replay)
                 replayFrame:UpdateShown()
             end
+            dropDownMenu:Close()
+        end
+
+        ---@param self UIDropDownMenuInfo
+        function ReplayFrameConfigButtonMixin:OnCopyReplayUrlClick()
+            local dropDownMenu = self.arg1
+            local value = self.arg2 or self.value ---@type Replay
+            util:ShowCopyRaiderIOReplayPopup(value.title, value.run_url)
             dropDownMenu:Close()
         end
 
@@ -8535,14 +8586,19 @@ do
         ---@field public clearTimeMS number
 
         function ReplayFrameMixin:SaveLiveSummary()
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if not replay then
+                return
+            end
             local mapID = self:GetKeystone()
             local liveDataProvider = self:GetLiveDataProvider()
             local liveSummary = liveDataProvider:GetSummary()
             ---@type ReplayCompletedSummary
             local summary = {
-                replaySeason = ns.CURRENT_SEASON,
-                replayRunId = 0,
-                character = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_REALM, ns.PLAYER_NAME),
+                replaySeason = replay.season,
+                replayRunId = replay.keystone_run_id,
+                character = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_NAME, ns.PLAYER_REALM_SLUG),
                 zoneId = mapID,
                 keyLevel = liveSummary.level,
                 completedAt = time(),
@@ -8631,6 +8687,7 @@ do
 
         function ReplayFrameMixin:Reset()
             self:SetKeystoneTime(0)
+            self:GetLiveDataProvider():ResetSummary()
             self:GetReplayDataProvider():SetupSummary()
             self.elapsedTimer = 0
             self.elapsed = 0
@@ -8711,7 +8768,11 @@ do
             end
             local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
             local replayAffix = util:TableContains(replayAffixes, 9) and 9 or 10
-            self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
+            if isRunning then
+                self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
+            else
+                self.TextBlock.TitleL:SetText("")
+            end
             self.TextBlock.TitleR:SetFormattedText("+%d %s", replayLevel, ns.KEYSTONE_AFFIX_TEXTURE[replayAffix])
         end
 
@@ -8728,8 +8789,12 @@ do
                 self.MDI.TimerR:SetFormattedText("%s", totalClock)
                 return
             end
-            local delta = replayIsCompleted and 1 or (liveTimer - replayTimer)
-            self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta, true), liveClock)
+            if isRunning then
+                local delta = replayIsCompleted and 1 or (liveTimer - replayTimer)
+                self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta, true), liveClock)
+            else
+                self.TextBlock.TimerL:SetText("")
+            end
             if isRunning and replayTimer < totalTimer then
                 self.TextBlock.TimerR:SetText(replayClock)
             else
@@ -8747,7 +8812,11 @@ do
                 self.MDI.TrashRBar:SetBarValue(replayPctl)
                 return
             end
-            self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(min(replayTrash, 100) - liveTrash, true), FormatPercentageAsText(livePctl))
+            if isRunning then
+                self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(min(replayTrash, 100) - liveTrash, true), FormatPercentageAsText(livePctl))
+            else
+                self.TextBlock.TrashL:SetText("")
+            end
             self.TextBlock.TrashR:SetFormattedText("%s%%", FormatPercentageAsText(replayPctl))
         end
 
@@ -8766,7 +8835,11 @@ do
                 self.MDI.DeathPenR:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", replayDeaths, replayPenaltyText)
                 return
             end
-            self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(deltaDeaths, true), liveDeaths, livePenalty)
+            if isRunning then
+                self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(deltaDeaths, true), liveDeaths, livePenalty)
+            else
+                self.TextBlock.DeathPenL:SetText("")
+            end
             self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", replayDeaths, replayPenalty)
         end
 

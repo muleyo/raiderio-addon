@@ -8086,7 +8086,7 @@ do
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
                 local currentReplay = replayDataProvider:GetReplay()
                 if currentReplay then
-                    info.text, info.hasArrow, info.menuList = "Copy Replay URL", false, nil
+                    info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_COPY_URL, false, nil
                     info.func = parent.OnCopyReplayUrlClick
                     info.arg1 = parent
                     info.arg2 = currentReplay
@@ -8095,11 +8095,11 @@ do
                     info.arg1 = nil
                     info.arg2 = nil
                 end
-                info.text, info.hasArrow, info.menuList = "Replay", true, "replay"
+                info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_REPLAY, true, "replay"
                 UIDropDownMenu_AddButton(info, level)
-                info.text, info.hasArrow, info.menuList = "Style", true, "style"
+                info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_STYLE, true, "style"
                 UIDropDownMenu_AddButton(info, level)
-                info.text, info.hasArrow = "Close", nil
+                info.text, info.hasArrow = CLOSE, nil
                 UIDropDownMenu_AddButton(info)
             elseif menuList == "replay" then
                 local replayDataProvider = replayFrame:GetReplayDataProvider()

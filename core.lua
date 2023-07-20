@@ -7690,7 +7690,8 @@ do
     ---@field public Acquire fun(self: BossFramePool): BossFrame
     ---@field public Release fun(self: BossFramePool, obj: BossFrame)
     ---@field public ReleaseAll fun(self: BossFramePool)
-    ---@field public EnumerateActive fun(): fun(table: table<BossFrame, boolean>, index?: number): BossFrame, boolean
+    ---@field public EnumerateActive fun(self: BossFramePool): fun(table: table<BossFrame, boolean>, index?: number): BossFrame, boolean
+    ---@field public GetNumActive fun(self: BossFramePool): number
 
     ---@class BossFrame
     local BossFrameMixin = {}
@@ -7698,9 +7699,11 @@ do
     do
 
         ---@param self BossFrame
+        ---@param order number
         ---@param index number
         ---@param bossID number
-        function BossFrameMixin:Setup(index, bossID)
+        function BossFrameMixin:Setup(order, index, bossID)
+            self.order = order
             self.index = index
             self.bossID = bossID
             self.bossName, ---@type string
@@ -7803,7 +7806,7 @@ do
                 bossIndex = bossIndex + 1
                 bossFrames[bossIndex] = bossFrame
             end
-            table.sort(bossFrames, function(a, b) return a.index < b.index end)
+            table.sort(bossFrames, function(a, b) return a.order < b.order end)
             local offsetX, offsetY = 0, replayFrame.contentPaddingY
             local prevBossFrame
             local bossesHeight = 0
@@ -8030,6 +8033,7 @@ do
                                 boss.dead = true
                                 boss.killed = liveSummary.timer
                                 boss.killedText = SecondsToClock(ceil(liveSummary.timer / 1000))
+                                replayFrame:OnBossKill() -- HOTFIX: the only hacky line in this module as it refers to a parent/owner object to let it know when a boss is defeated
                             end
                         end
                     end
@@ -8712,6 +8716,25 @@ do
             self:UpdateShown()
         end
 
+        function ReplayFrameMixin:OnBossKill()
+            local isRunning = self.isActive and self:IsState("PLAYING")
+            if not isRunning then
+                return
+            end
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if not replay then
+                return
+            end
+            local liveDataProvider = self:GetLiveDataProvider()
+            local liveSummary = liveDataProvider:GetSummary()
+            local elapsedKeystoneTimer = liveSummary.timer
+            local replaySummary = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
+            self:SetUIBosses(liveSummary.bosses, replaySummary.bosses, isRunning)
+            self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
+            self:Update()
+        end
+
         function ReplayFrameMixin:UpdateShown()
             local isRunning = self.isActive and self:IsState("PLAYING")
             local shown = self.timerID and self.mapID and not self:IsState("NONE")
@@ -8856,21 +8879,63 @@ do
         ---@param replayBosses ReplayBoss[]
         function ReplayFrameMixin:SetUIBosses(liveBosses, replayBosses)
             local pool = self.BossFramePool
-            pool:ReleaseAll()
             if not self:IsStyle("MODERN") then
+                pool:ReleaseAll()
                 self.bossesHeight = 0
                 return
             end
             local count = max(#liveBosses, #replayBosses)
+            if count == 0 then
+                pool:ReleaseAll()
+                self.bossesHeight = 0
+                return
+            end
+            local sortedBosses = {} ---@type ReplayBoss[][]
             for i = 1, count do
                 local liveBoss = liveBosses[i]
                 local replayBoss = replayBosses[i]
                 local bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id)
                 if bossID then
-                    local bossFrame = pool:Acquire()
-                    bossFrame:Setup(i, bossID)
-                    bossFrame:Update(liveBoss, replayBoss)
+                    sortedBosses[#sortedBosses + 1] = { liveBoss, replayBoss, bossID }
                 end
+            end
+            table.sort(sortedBosses, function(a, b)
+                local boss1 = a[1]
+                local boss2 = b[1]
+                local killed1 = boss1.killed or 0xffffffff
+                local killed2 = boss2.killed or 0xffffffff
+                if killed1 == killed2 then
+                    return boss1.index < boss2.index
+                end
+                return killed1 < killed2
+            end)
+            local isDirty = false
+            if pool:GetNumActive() ~= #sortedBosses then
+                isDirty = true
+            end
+            if not isDirty then
+                for bossFrame in pool:EnumerateActive() do
+                    local order = bossFrame.order
+                    local bossPairs = sortedBosses[order]
+                    local bossID = bossPairs[3] ---@type number
+                    if bossFrame.bossID ~= bossID then
+                        isDirty = true
+                        break
+                    end
+                end
+            end
+            if not isDirty then
+                return
+            end
+            pool:ReleaseAll()
+            for order, bossPairs in ipairs(sortedBosses) do
+                local liveBoss = bossPairs[1]
+                local replayBoss = bossPairs[2]
+                local bossID = bossPairs[3] ---@type number
+                local index = replayBoss.index or liveBoss.index
+                local bossFrame = pool:Acquire()
+                bossFrame:Setup(order, index, bossID)
+                bossFrame:Update(liveBoss, replayBoss)
             end
             self.bossesHeight = pool:UpdateLayout()
         end

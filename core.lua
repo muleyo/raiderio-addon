@@ -7855,6 +7855,7 @@ do
             end
             self.replay = replay
             self:SetupSummary()
+            replayFrame:OnReplayChange() -- HOTFIX: the only hacky line in this module as it refers to a parent/owner object to let it know when the replay is changed
         end
 
         ---@return Replay? replay
@@ -8148,7 +8149,6 @@ do
                 local replay = value ---@type Replay
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
                 replayDataProvider:SetReplay(replay)
-                replayFrame:UpdateShown()
             end
             dropDownMenu:Close()
         end
@@ -8704,9 +8704,17 @@ do
             return self.state == state
         end
 
+        function ReplayFrameMixin:OnReplayChange()
+            if self:IsState("COMPLETED") then
+                self:SetState("STAGING")
+                self:Reset()
+            end
+            self:UpdateShown()
+        end
+
         function ReplayFrameMixin:UpdateShown()
             local isRunning = self.isActive and self:IsState("PLAYING")
-            local shown = not not (self.timerID and self.mapID)
+            local shown = self.timerID and self.mapID and not self:IsState("NONE")
             if shown then
                 local replayDataProvider = self:GetReplayDataProvider()
                 local replay = replayDataProvider:GetReplay()
@@ -9074,6 +9082,9 @@ do
                 staging, timerID, elapsedTime, isActive = true, 1, 0, false
             end
         end
+        -- HOTFIX: take a look at `OnReplayChange` method as it will be called when `SetReplay` is used
+        -- this is so that when replay changes, and we are in the COMPLETED state, we force the UI to
+        -- return back to STAGING state - but the code flow makes us keep that logic in that handler
         replayDataProvider:SetReplay(replay)
         -- the UI state flow is handled in this block
         -- the state is a simple way to detect what we are doing elsewhere in the module

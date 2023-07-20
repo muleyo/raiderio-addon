@@ -8342,9 +8342,17 @@ do
             self:SetBarValue(0, 0, 100, true)
         end
 
+        ---@alias ReplayFrameState
+        ---|"NONE"
+        ---|"STAGING"
+        ---|"PLAYING"
+        ---|"COMPLETED"
+
         function ReplayFrameMixin:OnLoad()
             self:Hide()
             self:SetScript("OnUpdate", self.OnUpdate)
+
+            self.state = "NONE" ---@type ReplayFrameState
             self.elapsedTime = 0 -- the start time as provided by the WORLD_STATE_TIMER_START event
             self.elapsedTimer = 0 -- the accumulated time assigned in the OnUpdate handler
             self.elapsedKeystoneTimer = 0 -- the current keystone timer
@@ -8359,6 +8367,7 @@ do
             self.textColumnWidth = (self.width - (self.contentPaddingX * 4)) / 3 ---@type number
             self.textHeight = self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1) ---@type number
             self.bossesHeight = 0
+
             self:SetPoint("TOPRIGHT", ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
             self:SetSize(self.width, 0)
             self:SetFrameStrata("HIGH")
@@ -8368,18 +8377,24 @@ do
             self:RegisterForDrag("LeftButton")
             self:SetScript("OnDragStart", self.StartMoving)
             self:SetScript("OnDragStop", self.StopMovingOrSizing)
+
             self.ConfigButton = CreateReplayFrameConfigButton(self)
+
             self.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
             self.Background:SetAllPoints()
             self.Background:SetColorTexture(0, 0, 0, 0.5)
+
             self.BossFramePool = CreateBossFramePool(self)
+
             self.TextBlock = CreateFrame("Frame", nil, self) ---@class ReplayFrameTextBlock : Frame
             self.TextBlock:SetPoint("TOPLEFT", self, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
             self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
+
             self.TextBlock.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
             self.TextBlock.Background:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", 0, 0)
             self.TextBlock.Background:SetPoint("BOTTOMRIGHT", self.TextBlock, "BOTTOMRIGHT", 0, 0)
             self.TextBlock.Background:SetColorTexture(0, 0, 0, 0.5)
+
             ---@param previous? Region
             ---@param middleText? string
             ---@return FontString Left, FontString Middle, FontString Right
@@ -8410,6 +8425,7 @@ do
                 RF:SetJustifyV("MIDDLE")
                 return LF, MF, RF
             end
+
             self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow(nil, "") -- ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
             self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL, ns.CUSTOM_ICONS.replay.ALARM("TextureMarkup"))
             self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.SKULL("TextureMarkup"))
@@ -8436,13 +8452,16 @@ do
 
             self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL, ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
             self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.RIP("TextureMarkup"))
+
             self.MDI = CreateFrame("Frame", nil, self, BackdropTemplateMixin and "BackdropTemplate") ---@class ReplayFrameMDI : Frame, BackdropTemplate
             self.MDI:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
             self.MDI:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
+
             if self.MDI.SetBackdrop then
                 self.MDI:SetBackdrop(BACKDROP_DIALOG_32_32)
                 self.MDI:SetBackdropColor(0, 0, 0, 0.25)
             end
+
             ---@param previous Region|nil
             ---@param middlePadding number|nil
             ---@param fontObject FontObject|nil
@@ -8468,6 +8487,7 @@ do
                 RF:SetJustifyV("MIDDLE")
                 return LF, RF
             end
+
             self.MDI.TimerL, self.MDI.TimerR = CreateTextRowMDI(nil, 70)
             self.MDI.Spacer1L, self.MDI.Spacer1R = CreateTextRowMDI(self.MDI.TimerL, 0)
             self.MDI.BossL, self.MDI.BossR = CreateTextRowMDI(self.MDI.Spacer1L, 40)
@@ -8612,20 +8632,13 @@ do
         ---@param isActive? boolean
         function ReplayFrameMixin:SetTimer(timerID, elapsedTime, isActive)
             if not timerID then
-                self:Stop()
                 return
-            end
-            if self.isActive and not isActive then
-                self:SaveLiveSummary()
             end
             self.timerID = timerID
             self.elapsedTime = elapsedTime
             self.isActive = isActive
             if isActive then
                 self.elapsedTimer = 0
-                self:Start()
-            else
-                self:Stop()
             end
         end
 
@@ -8656,33 +8669,16 @@ do
         ---@param otherMapIDs? number[]
         function ReplayFrameMixin:SetKeystone(mapID, timeLimit, otherMapIDs)
             if not mapID then
-                self:Stop()
                 return
             end
             self.mapID = mapID
             self.timeLimit = timeLimit
             self.otherMapIDs = otherMapIDs
-            self:Update()
         end
 
         ---@return number? mapID, number timeLimit, number[]? otherMapIDs
         function ReplayFrameMixin:GetKeystone()
             return self.mapID, self.timeLimit, self.otherMapIDs
-        end
-
-        function ReplayFrameMixin:Start()
-            if not self.isPlaying then
-                self.isPlaying = true
-                self.elapsedTimer = 0
-            end
-            self:Update()
-        end
-
-        function ReplayFrameMixin:Stop()
-            if self.isPlaying then
-                self.isPlaying = false
-            end
-            self:Update()
         end
 
         function ReplayFrameMixin:Reset()
@@ -8694,18 +8690,23 @@ do
             self:UpdateShown()
         end
 
-        ---@param isStaging boolean
-        function ReplayFrameMixin:SetStaging(isStaging)
-            self.isStaging = isStaging
+        ---@param state ReplayFrameState
+        function ReplayFrameMixin:SetState(state)
+            self.state = state
         end
 
-        function ReplayFrameMixin:IsStaging()
-            return self.isStaging
+        function ReplayFrameMixin:GetState()
+            return self.state
+        end
+
+        ---@param state ReplayFrameState
+        function ReplayFrameMixin:IsState(state)
+            return self.state == state
         end
 
         function ReplayFrameMixin:UpdateShown()
-            local isRunning = self.isActive and self.isPlaying
-            local shown = self.timerID and self.mapID and (self.isPlaying or self.isStaging)
+            local isRunning = self.isActive and self:IsState("PLAYING")
+            local shown = not not (self.timerID and self.mapID)
             if shown then
                 local replayDataProvider = self:GetReplayDataProvider()
                 local replay = replayDataProvider:GetReplay()
@@ -8734,10 +8735,10 @@ do
         end
 
         function ReplayFrameMixin:Update()
-            local isRunning = self.isActive and self.isPlaying
-            if not isRunning and not self.isStaging then
+            if self:IsState("NONE") or self:IsState("COMPLETED") then
                 return
             end
+            local isRunning = self.isActive and self:IsState("PLAYING")
             if isRunning then
                 self:SetKeystoneTime(self.elapsedTimer + self.elapsedTime)
             end
@@ -8877,7 +8878,11 @@ do
             for _, boss in ipairs(replayBosses) do if boss.killed and boss.killed <= timer then replayCount = replayCount + 1 end end
             local totalCount = max(#liveBosses, #replayBosses)
             if style == "MODERN_COMPACT" or style == "MODERN" then
-                self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(replayCount - liveCount, true), liveCount, totalCount)
+                if isRunning then
+                    self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(replayCount - liveCount, true), liveCount, totalCount)
+                else
+                    self.TextBlock.BossL:SetText("")
+                end
                 self.TextBlock.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
             elseif style == "MDI" then
                 self.MDI.BossL:SetFormattedText("%d/%d", liveCount, totalCount)
@@ -9051,27 +9056,42 @@ do
 
     ---@param event? WowEvent
     local function OnEvent(event, ...)
-        if event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_RESET" then
-            replayFrame:Reset()
-        end
         local timerID, elapsedTime, isActive = GetKeystoneTimer(event == "WORLD_STATE_TIMER_STOP", ...)
-        if not isActive then
-            replayFrame:Stop()
-        end
         local mapID, timeLimit, otherMapIDs = GetKeystoneOrInstanceInfo()
         local replayDataProvider = replayFrame:GetReplayDataProvider()
         local replay = replayDataProvider:GetReplay()
+        -- detect the special case where we are in the instance, but we have no keystone API data because:
+        -- (1) it's still in mythic mode and the key has not been started so no data until we start the key
+        -- (2) it's in countdown state as the key is about the start, no API data is available just yet
         local staging = false
         if mapID then
+            -- if we are in a keystone map, we ensure that the replay is relevant
             if not replay or not IsReplayForMapID(replay, mapID, otherMapIDs) then
                 replay = GetReplayForMapID(mapID, otherMapIDs)
             end
+            -- if we are in a keystone map, but we are not in an active keystone, we are in staging mode
             if not timerID or not elapsedTime then
                 staging, timerID, elapsedTime, isActive = true, 1, 0, false
             end
         end
         replayDataProvider:SetReplay(replay)
-        replayFrame:SetStaging(staging)
+        -- the UI state flow is handled in this block
+        -- the state is a simple way to detect what we are doing elsewhere in the module
+        -- we can assign states and run special routines for specific events when needed
+        if event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_RESET" then
+            replayFrame:SetState("STAGING")
+            replayFrame:Reset()
+        elseif not mapID then
+            replayFrame:SetState("NONE")
+        elseif isActive then
+            replayFrame:SetState("PLAYING")
+        elseif replayFrame.isActive then
+            replayFrame:SetState("COMPLETED")
+            replayFrame:SaveLiveSummary()
+        elseif staging and not replayFrame:IsState("COMPLETED") then
+            replayFrame:SetState("STAGING")
+        end
+        -- finalize the UI by feeding the relevant methods their data and forcing an UI update
         replayFrame:SetTimer(timerID, elapsedTime, isActive)
         replayFrame:SetKeystone(mapID, timeLimit, otherMapIDs)
         replayFrame:UpdateShown()

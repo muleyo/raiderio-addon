@@ -7858,7 +7858,7 @@ do
             end
             self.replay = replay
             self:SetupSummary()
-            replayFrame:OnReplayChange() -- HOTFIX: the only hacky line in this module as it refers to a parent/owner object to let it know when the replay is changed
+            replayFrame:OnReplayChange()
         end
 
         ---@return Replay? replay
@@ -7991,6 +7991,9 @@ do
         ---@return ReplaySummary liveSummary
         function LiveDataProviderMixin:GetSummary()
             local liveSummary = self.replaySummary
+            if not replayFrame:IsState("PLAYING") then
+                return liveSummary
+            end
             liveSummary.timer = replayFrame:GetKeystoneTimeMS()
             local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
             if activeKeystoneLevel and activeKeystoneLevel ~= 0 then
@@ -8005,7 +8008,7 @@ do
             end
             ---@type string?, string?, number?
             local _, _, numCriteria = C_Scenario.GetStepInfo()
-            if numCriteria then
+            if numCriteria and numCriteria > 1 then
                 for i = 1, numCriteria do
                     ---@type string?, number?, boolean?, number?, number?, number?, number?, string?, number?, number?, number?, boolean?, boolean?
                     local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
@@ -8033,7 +8036,7 @@ do
                                 boss.dead = true
                                 boss.killed = liveSummary.timer
                                 boss.killedText = SecondsToClock(ceil(liveSummary.timer / 1000))
-                                replayFrame:OnBossKill() -- HOTFIX: the only hacky line in this module as it refers to a parent/owner object to let it know when a boss is defeated
+                                replayFrame:OnBossKill()
                             end
                         end
                     end
@@ -8610,6 +8613,9 @@ do
         ---@field public clearTimeMS number
 
         function ReplayFrameMixin:SaveLiveSummary()
+            if not self:IsState("COMPLETED") then
+                return
+            end
             local replayDataProvider = self:GetReplayDataProvider()
             local replay = replayDataProvider:GetReplay()
             if not replay then
@@ -8629,6 +8635,7 @@ do
                 clearTimeMS = liveSummary.timer,
             }
             table.insert(_G.RaiderIO_CompletedReplays, summary)
+            ns.Print(format(L.REPLAY_SUMMARY_LOGGED, addonName, summary.keyLevel, util:SecondsToTimeText(summary.clearTimeMS/1000)))
         end
 
         ---@param timerID? number
@@ -8899,9 +8906,10 @@ do
                     sortedBosses[#sortedBosses + 1] = { liveBoss, replayBoss, bossID }
                 end
             end
+            local isPlaying = self:IsState("PLAYING")
             table.sort(sortedBosses, function(a, b)
-                local boss1 = a[1]
-                local boss2 = b[1]
+                local boss1 = isPlaying and a[1] or a[2]
+                local boss2 = isPlaying and b[1] or b[2]
                 local killed1 = boss1.killed or 0xffffffff
                 local killed2 = boss2.killed or 0xffffffff
                 if killed1 == killed2 then
@@ -9162,8 +9170,11 @@ do
         elseif isActive then
             replayFrame:SetState("PLAYING")
         elseif replayFrame.isActive then
+            local wasPlaying = replayFrame:IsState("PLAYING")
             replayFrame:SetState("COMPLETED")
-            replayFrame:SaveLiveSummary()
+            if wasPlaying then
+                replayFrame:SaveLiveSummary()
+            end
         elseif staging and not replayFrame:IsState("COMPLETED") then
             replayFrame:SetState("STAGING")
         end
@@ -9171,6 +9182,19 @@ do
         replayFrame:SetTimer(timerID, elapsedTime, isActive)
         replayFrame:SetKeystone(mapID, timeLimit, otherMapIDs)
         replayFrame:UpdateShown()
+    end
+
+    local REPLAY_SUMMARY_TRIM_IF_OLDER = 86400 -- 24 hours
+
+    local function TrimHistoryFromSV()
+        local now = time()
+        local completedReplays = _G.RaiderIO_CompletedReplays ---@type ReplayCompletedSummary[]
+        for i = #completedReplays, 1, -1 do
+            local summary = completedReplays[i]
+            if not summary.completedAt or now - summary.completedAt >= REPLAY_SUMMARY_TRIM_IF_OLDER then
+                table.remove(completedReplays, i)
+            end
+        end
     end
 
     ---@param replays Replay[]
@@ -9203,6 +9227,7 @@ do
     end
 
     function replay:OnLoad()
+        TrimHistoryFromSV()
         replays = ns:GetReplays()
         util:TableSort(replays, "date", "keystone_run_id")
         SortReplaysByWeeklyAffix(replays)

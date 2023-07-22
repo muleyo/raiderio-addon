@@ -8724,6 +8724,9 @@ do
         end
 
         function ReplayFrameMixin:OnBossKill()
+            if not self:IsState("PLAYING") then
+                return
+            end
             local isRunning = self.isActive and self:IsState("PLAYING")
             if not isRunning then
                 return
@@ -8788,12 +8791,16 @@ do
             local liveDataProvider = self:GetLiveDataProvider()
             local liveSummary = liveDataProvider:GetSummary()
             local deathPenalty = liveDataProvider:GetDeathPenalty()
-            local elapsedKeystoneTimer = liveSummary.timer
-            local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
-            self:SetUITimer(ceil(liveSummary.timer / 1000), ceil((elapsedKeystoneTimer + replaySummary.deaths * 5000) / 1000), ceil(replay.clear_time_ms / 1000), not nextReplayEvent, isRunning)
+            local deathPenaltyMS = deathPenalty * 1000
+            local keystoneTimerMS = liveSummary.timer
+            local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(keystoneTimerMS)
+            local liveTimer = ceil((keystoneTimerMS + liveSummary.deaths * deathPenaltyMS) / 1000)
+            local replayTimer = ceil((keystoneTimerMS + replaySummary.deaths * deathPenaltyMS) / 1000)
+            local totalTimer = ceil(replay.clear_time_ms / 1000)
+            self:SetUITimer(liveTimer, replayTimer, totalTimer, not nextReplayEvent, isRunning)
             self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces, isRunning)
             self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
-            self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, elapsedKeystoneTimer, isRunning)
+            self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, keystoneTimerMS, isRunning)
             self.TextBlock.BossCombat:SetShown(replaySummary.inBossCombat)
         end
 
@@ -8857,6 +8864,7 @@ do
                 self.TextBlock.TrashL:SetText("")
             end
             self.TextBlock.TrashR:SetFormattedText("%s%%", FormatPercentageAsText(replayPctl))
+            -- print(liveTrash, replayTrash, "=", min(replayTrash, 100) - liveTrash, totalTrash, "=", self.TextBlock.TrashL:GetText()) -- DEBUG
         end
 
         ---@param liveDeaths number

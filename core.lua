@@ -621,6 +621,7 @@ do
     ---@class ReplayEncounter
     ---@field public encounter_id number `2111`
     ---@field public journal_encounter_id number `2157`
+    ---@field public ordinal number `0`
 
     ---@alias ReplayEventEnum 1|2|3|4 `PLAYER_DEATH`, `ENEMY_FORCES`, `ENCOUNTER_STARTED`, `ENCOUNTER_ENDED`
 
@@ -7504,6 +7505,8 @@ do
         "CHALLENGE_MODE_RESET",
         "WORLD_STATE_TIMER_START",
         "WORLD_STATE_TIMER_STOP",
+        "ENCOUNTER_START",
+        "ENCOUNTER_END",
     }
 
     ---@class InstanceIdToChallengeMapId
@@ -7568,6 +7571,9 @@ do
         [657] = 438,
     }
 
+    ---@type table<number, boolean>
+    local ActiveEncounters = {}
+
     ---@param replayEvent ReplayEvent
     ---@return ReplayEventInfo replayEventInfo
     local function UnpackReplayEvent(replayEvent)
@@ -7607,7 +7613,13 @@ do
         end
         for _, bossInfo in pairs(replayEventInfo.bosses) do
             local boss = replaySummary.bosses[bossInfo.index]
-            boss.combat = bossInfo.combat
+            if not boss.combat and bossInfo.combat then
+                boss.combat = true
+                boss.combatStart = replayEventInfo.timer
+            elseif boss.combat and not bossInfo.combat then
+                boss.combat = false
+                boss.combatStart = nil
+            end
             boss.pulls = bossInfo.pulls
             if bossInfo.killed then
                 boss.dead = true
@@ -7655,11 +7667,13 @@ do
     end
 
     ---@class ReplayBoss
+    ---@field public order number
     ---@field public index number
     ---@field public id number
     ---@field public pulls number
     ---@field public dead boolean
     ---@field public combat boolean
+    ---@field public combatStart? number
     ---@field public killed? number
     ---@field public killedText? string
 
@@ -7684,7 +7698,8 @@ do
     ---@field public InfoL FontString
     ---@field public InfoR FontString
     ---@field public Background Texture
-    ---@field public Combat Texture
+    ---@field public CombatL Texture
+    ---@field public CombatR Texture
 
     ---@class BossFramePool
     ---@field public Acquire fun(self: BossFramePool): BossFrame
@@ -7714,7 +7729,7 @@ do
             self.bossJournalInstanceID, ---@type number
             self.bossEncounterID, ---@type number
             self.bossInstanceID = EJ_GetEncounterInfo(bossID) ---@type number
-            self.Name:SetText(self.index)
+            self.Name:SetText(self.order)
             self.InfoL:SetText("")
             self.InfoR:SetText("")
             self:Show()
@@ -7730,11 +7745,22 @@ do
             if isLiveBossDead then
                 local delta = floor((replayBoss.killed - liveBoss.killed) / 1000)
                 self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsDiffToTimeText(delta))
+            elseif liveBoss and liveBoss.combatStart then
+                local delta = floor((keystoneTimeMS - liveBoss.combatStart) / 1000)
+                self.InfoL:SetText(SecondsDiffToTimeText(delta, true))
+            else
+                self.InfoL:SetText("")
             end
             if isReplayBossDead then
                 self.InfoR:SetFormattedText("%s", replayBoss.killedText)
+            elseif replayBoss and replayBoss.combatStart then
+                local delta = floor((keystoneTimeMS - replayBoss.combatStart) / 1000)
+                self.InfoR:SetText(SecondsDiffToTimeText(delta, true))
+            else
+                self.InfoR:SetText("")
             end
-            self.Combat:SetShown(replayBoss and replayBoss.combat)
+            self.CombatL:SetShown(liveBoss and liveBoss.combat)
+            self.CombatR:SetShown(replayBoss and replayBoss.combat)
         end
 
         ---@param self BossFrame
@@ -7777,11 +7803,16 @@ do
         obj.Background:SetPoint("TOPLEFT", 1, -1)
         obj.Background:SetPoint("BOTTOMRIGHT", -1, 1)
         obj.Background:SetColorTexture(0, 0, 0, 0.5)
-        obj.Combat = obj:CreateTexture(nil, "ARTWORK")
-        obj.Combat:SetPoint("LEFT", obj.Name, "RIGHT", 0, 0)
-        obj.Combat:SetSize(16, 16)
-        obj.Combat:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
-        obj.Combat:Hide()
+        obj.CombatL = obj:CreateTexture(nil, "ARTWORK")
+        obj.CombatL:SetPoint("LEFT", obj.InfoL, "LEFT", 0, 0)
+        obj.CombatL:SetSize(16, 16)
+        obj.CombatL:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
+        obj.CombatL:Hide()
+        obj.CombatR = obj:CreateTexture(nil, "ARTWORK")
+        obj.CombatR:SetPoint("RIGHT", obj.InfoR, "RIGHT", 0, 0)
+        obj.CombatR:SetSize(16, 16)
+        obj.CombatR:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
+        obj.CombatR:Hide()
         obj:HookScript("OnEnter", obj.OnEnter)
         obj:HookScript("OnLeave", obj.OnLeave)
         obj:SetMouseClickEnabled(false)
@@ -7911,6 +7942,7 @@ do
             end
             for index, encounter in ipairs(replay.encounters) do
                 local replayBoss = {} ---@type ReplayBoss
+                replayBoss.order = encounter.ordinal + 1
                 replayBoss.index = index
                 replayBoss.id = encounter.journal_encounter_id
                 replayBoss.dead = false
@@ -7971,6 +8003,21 @@ do
 
     do
 
+        ---@param ordinal number
+        ---@return ReplayEncounter? encounter
+        local function GetEncounterFromReplayByBossOrdinal(ordinal)
+            local replayDataProvider = replayFrame:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if not replay then
+                return
+            end
+            for _, encounter in ipairs(replay.encounters) do
+                if encounter.ordinal == ordinal then
+                    return encounter
+                end
+            end
+        end
+
         function LiveDataProviderMixin:OnLoad()
             self.SetReplay = nil
             self.GetReplay = nil
@@ -8022,17 +8069,32 @@ do
                         else
                             local boss = liveSummary.bosses[i]
                             if not boss then
+                                local encounter = GetEncounterFromReplayByBossOrdinal(i - 1)
+                                local ordinal = encounter and encounter.ordinal or 0
+                                local id = encounter and encounter.encounter_id or 0
                                 boss = {} ---@type ReplayBoss
+                                boss.order = ordinal + 1
                                 boss.index = i
-                                boss.id = 0 -- the journal encounter id is not available and luckily we don't need it
+                                boss.id = id
                                 boss.combat = false
                                 boss.pulls = 0
                                 boss.dead = false
                                 liveSummary.bosses[i] = boss
                             end
+                            if not completed and not boss.dead then
+                                local combat = not not ActiveEncounters[boss.id]
+                                if not boss.combat and combat then
+                                    boss.combat = true
+                                    boss.combatStart = liveSummary.timer
+                                    boss.pulls = boss.pulls + 1
+                                elseif boss.combat and not combat then
+                                    boss.combat = false
+                                    boss.combatStart = nil
+                                end
+                            end
                             if completed and not boss.dead then
                                 boss.combat = false
-                                boss.pulls = 1
+                                boss.pulls = max(1, boss.pulls)
                                 boss.dead = true
                                 boss.killed = liveSummary.timer
                                 boss.killedText = SecondsToClock(ceil(liveSummary.timer / 1000))
@@ -8859,12 +8921,11 @@ do
                 return
             end
             if isRunning then
-                self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(min(replayTrash, 100) - liveTrash, true), FormatPercentageAsText(livePctl))
+                self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(min(replayTrash, totalTrash) - liveTrash, true), FormatPercentageAsText(livePctl))
             else
                 self.TextBlock.TrashL:SetText("")
             end
             self.TextBlock.TrashR:SetFormattedText("%s%%", FormatPercentageAsText(replayPctl))
-            -- print(liveTrash, replayTrash, "=", min(replayTrash, 100) - liveTrash, totalTrash, "=", self.TextBlock.TrashL:GetText()) -- DEBUG
         end
 
         ---@param liveDeaths number
@@ -8914,16 +8975,32 @@ do
                     sortedBosses[#sortedBosses + 1] = { liveBoss, replayBoss, bossID }
                 end
             end
-            local isPlaying = self:IsState("PLAYING")
-            table.sort(sortedBosses, function(a, b)
-                local boss1 = isPlaying and a[1] or a[2]
-                local boss2 = isPlaying and b[1] or b[2]
+            ---@param boss1 ReplayBoss
+            ---@param boss2 ReplayBoss
+            local function compareBosses(boss1, boss2)
                 local killed1 = boss1.killed or 0xffffffff
                 local killed2 = boss2.killed or 0xffffffff
                 if killed1 == killed2 then
-                    return boss1.index < boss2.index
+                    return boss1.order < boss2.order
                 end
                 return killed1 < killed2
+            end
+            table.sort(sortedBosses, function(bossPairs1, bossPairs2)
+                local liveBoss1, replayBoss1 = bossPairs1[1], bossPairs1[2]
+                local liveBoss2, replayBoss2 = bossPairs2[1], bossPairs2[2]
+                if liveBoss1 and liveBoss1.killed and liveBoss2 and liveBoss2.killed then
+                    return compareBosses(liveBoss1, liveBoss2)
+                elseif liveBoss1 and liveBoss1.killed then
+                    return true
+                elseif liveBoss2 and liveBoss2.killed then
+                    return false
+                end
+                if replayBoss1 and replayBoss2 then
+                    return compareBosses(replayBoss1, replayBoss2)
+                elseif replayBoss1 then
+                    return true
+                end
+                return false
             end)
             local isDirty = false
             if pool:GetNumActive() ~= #sortedBosses then
@@ -9145,6 +9222,17 @@ do
 
     ---@param event? WowEvent
     local function OnEvent(event, ...)
+        -- handle updating the active encounter state
+        if event == "ENCOUNTER_START" or event == "ENCOUNTER_END" then
+            ---@type number, string, number, number, boolean
+            local encounterID, _, _, _, success = ...
+            if success == nil then -- it's nil when it's the start event, otherwise 0 for wipe, and 1 for success
+                ActiveEncounters[encounterID] = true
+            else
+                ActiveEncounters[encounterID] = nil
+            end
+            return
+        end
         local timerID, elapsedTime, isActive = GetKeystoneTimer(event == "WORLD_STATE_TIMER_STOP", ...)
         local mapID, timeLimit, otherMapIDs = GetKeystoneOrInstanceInfo()
         local replayDataProvider = replayFrame:GetReplayDataProvider()
@@ -9177,12 +9265,9 @@ do
             replayFrame:SetState("NONE")
         elseif isActive then
             replayFrame:SetState("PLAYING")
-        elseif replayFrame.isActive then
-            local wasPlaying = replayFrame:IsState("PLAYING")
+        elseif replayFrame.isActive and replayFrame:IsState("PLAYING") then
             replayFrame:SetState("COMPLETED")
-            if wasPlaying then
-                replayFrame:SaveLiveSummary()
-            end
+            replayFrame:SaveLiveSummary()
         elseif staging and not replayFrame:IsState("COMPLETED") then
             replayFrame:SetState("STAGING")
         end

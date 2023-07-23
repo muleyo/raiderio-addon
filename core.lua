@@ -7717,26 +7717,26 @@ do
     end
 
     ---@class ReplayBoss
-    ---@field public order number
-    ---@field public index number
-    ---@field public id number
-    ---@field public pulls number
-    ---@field public dead boolean
-    ---@field public combat boolean
-    ---@field public combatStart? number
-    ---@field public killed? number
-    ---@field public killedText? string
+    ---@field public order number `1` the order that the boss should appear in the UI
+    ---@field public index number `1` the index of the boss as seen in the scenario tracker
+    ---@field public id number `2613` the bossID from the encounter journal
+    ---@field public pulls number `1` the number of pulls that has been attempted
+    ---@field public dead boolean indicates if the boss is dead
+    ---@field public combat boolean indicates if the boss is engaged in combat
+    ---@field public combatStart? number `time()` if in combat this contains the time when combat started
+    ---@field public killed? number `timerMS` if dead this contains the timer when it happened
+    ---@field public killedText? string `01:30` if dead this contains the timer as text
 
     ---@class ReplaySummary
-    ---@field public level number
-    ---@field public affixes number[]
-    ---@field public index number
-    ---@field public timer number
-    ---@field public deaths number
-    ---@field public deathsBeforeOvertime? number
-    ---@field public trash number
+    ---@field public level number `25` the level of the keystone
+    ---@field public affixes number[] `{9}` table with numbers with the affix IDs
+    ---@field public index number `117` the index of the event from the replay log that is currently the latest event displayed
+    ---@field public timer number `1995812` the timer (live provider also adds decimals from the OnUpdate handler)
+    ---@field public deaths number the total number of deaths
+    ---@field public deathsBeforeOvertime? number the total number of deaths before the key was depleted
+    ---@field public trash number `530` the amount of enemy forces defeated
     ---@field public bosses ReplayBoss[]
-    ---@field public inBossCombat boolean
+    ---@field public inBossCombat boolean indicates if any boss is engaged in combat
 
     ---@type Replay[]
     local replays
@@ -9421,14 +9421,14 @@ do
         -- the UI state flow is handled in this block
         -- the state is a simple way to detect what we are doing elsewhere in the module
         -- we can assign states and run special routines for specific events when needed
-        if event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_RESET" then
-            replayFrame:SetState("STAGING")
+        if event == "WORLD_STATE_TIMER_START" and isActive and not replayFrame:IsState("PLAYING") then
+            replayFrame:SetState("PLAYING")
             replayFrame:Reset()
-        elseif not mapID then
+        end
+        if not mapID then
             replayFrame:SetState("NONE")
         elseif isActive then
             replayFrame:SetState("PLAYING")
-            replayFrame:Reset()
         elseif replayFrame.isActive and replayFrame:IsState("PLAYING") then
             replayFrame:SetState("COMPLETED")
             replayFrame:SaveLiveSummary()

@@ -7574,6 +7574,47 @@ do
     ---@type table<number, boolean>
     local ActiveEncounters = {}
 
+    ---@param ms number
+    ---@return number roundedSeconds
+    local function ConvertMillisecondsToSeconds(ms)
+        return floor(ms/1000 + 0.5)
+    end
+
+    ---@alias ReplaySplitStyle
+    ---|"NONE"
+    ---|"NONE_COLORLESS"
+    ---|"NONE_YELLOW"
+    ---|"PLUS_MINUS"
+    ---|"PARENTHESIS"
+
+    ---@param delta number
+    ---@param splitStyle? ReplaySplitStyle
+    ---@param forceColorless? boolean|number
+    local function SecondsToTimeText(delta, splitStyle, forceColorless)
+        local ahead = delta >= 0
+        local prefix, suffix = "", ""
+        if splitStyle == "NONE_COLORLESS" then
+            forceColorless = true
+        elseif splitStyle == "NONE_YELLOW" then
+            forceColorless = 1
+        elseif splitStyle == "PLUS_MINUS" then
+            prefix = delta == 0 and "~" or (ahead and "+" or "-")
+        elseif splitStyle == "PARENTHESIS" then
+            prefix, suffix = "(", ")"
+        end
+        local color ---@type string?
+        if not forceColorless then
+            color = ahead and "55FF55" or "FF5555"
+        elseif forceColorless == 1 then
+            color = "FFFF55"
+        end
+        local text = util:SecondsToTimeText(ahead and delta or -delta)
+        if color then
+            return format("|cff%s%s%s%s|r", color, prefix, text, suffix)
+        end
+        return format("%s%s%s", prefix, text, suffix)
+    end
+
     ---@param replayEvent ReplayEvent
     ---@return ReplayEventInfo replayEventInfo
     local function UnpackReplayEvent(replayEvent)
@@ -7625,19 +7666,10 @@ do
                 boss.dead = true
                 boss.combat = false
                 boss.killed = replayEventInfo.timer
-                boss.killedText = SecondsToClock(replayEventInfo.timer / 1000)
+                local delta = ConvertMillisecondsToSeconds(replayEventInfo.timer)
+                boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
             end
         end
-    end
-
-    ---@param delta number
-    ---@param isNeutral? boolean
-    local function SecondsDiffToTimeText(delta, isNeutral)
-        local ahead = delta >= 0
-        local prefix = isNeutral and "" or (ahead and (delta == 0 and "~" or "+") or "-")
-        local color = ahead and "55FF55" or "FF5555"
-        local text = util:SecondsToTimeText(ahead and delta or -delta)
-        return format("|cff%s%s%s|r", color, prefix, text)
     end
 
     ---@param delta number
@@ -7743,19 +7775,19 @@ do
             local isLiveBossDead = liveBoss and liveBoss.dead
             local isReplayBossDead = replayBoss and replayBoss.killed and replayBoss.killed - keystoneTimeMS <= 0
             if isLiveBossDead then
-                local delta = floor((replayBoss.killed - liveBoss.killed) / 1000)
-                self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsDiffToTimeText(delta))
+                local delta = ConvertMillisecondsToSeconds(replayBoss.killed - liveBoss.killed)
+                self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeText(delta, "PARENTHESIS"))
             elseif liveBoss and liveBoss.combatStart then
-                local delta = floor((keystoneTimeMS - liveBoss.combatStart) / 1000)
-                self.InfoL:SetText(SecondsDiffToTimeText(delta, true))
+                local delta = ConvertMillisecondsToSeconds(keystoneTimeMS - liveBoss.combatStart)
+                self.InfoL:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
             else
                 self.InfoL:SetText("")
             end
             if isReplayBossDead then
                 self.InfoR:SetFormattedText("%s", replayBoss.killedText)
             elseif replayBoss and replayBoss.combatStart then
-                local delta = floor((keystoneTimeMS - replayBoss.combatStart) / 1000)
-                self.InfoR:SetText(SecondsDiffToTimeText(delta, true))
+                local delta = ConvertMillisecondsToSeconds(keystoneTimeMS - replayBoss.combatStart)
+                self.InfoR:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
             else
                 self.InfoR:SetText("")
             end
@@ -8097,7 +8129,8 @@ do
                                 boss.pulls = max(1, boss.pulls)
                                 boss.dead = true
                                 boss.killed = liveSummary.timer
-                                boss.killedText = SecondsToClock(ceil(liveSummary.timer / 1000))
+                                local delta = ConvertMillisecondsToSeconds(liveSummary.timer)
+                                boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
                                 replayFrame:OnBossKill()
                             end
                         end
@@ -8184,7 +8217,6 @@ do
                     local showDungeon = info.checked or (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
                     if showDungeon then
                         local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface\\icons\\%s:16:16|t", affix.icon) end, "")
-                        local clearTime = SecondsToClock(replay.clear_time_ms / 1000)
                         local members = {strsplit(",", replay.title)} ---@type string[]
                         members = format(" - %s", util:TableMapConcat(members, function(name) return strtrim(name) end, "\n - ")) ---@diagnostic disable-line: cast-local-type
                         info.text = replay.title
@@ -8697,7 +8729,8 @@ do
                 clearTimeMS = liveSummary.timer,
             }
             table.insert(_G.RaiderIO_CompletedReplays, summary)
-            ns.Print(format(L.REPLAY_SUMMARY_LOGGED, addonName, summary.keyLevel, util:SecondsToTimeText(summary.clearTimeMS/1000)))
+            local delta = ConvertMillisecondsToSeconds(summary.clearTimeMS)
+            ns.Print(format(L.REPLAY_SUMMARY_LOGGED, addonName, summary.keyLevel, SecondsToTimeText(delta, "NONE_COLORLESS")))
         end
 
         ---@param timerID? number
@@ -8802,7 +8835,7 @@ do
             local liveSummary = liveDataProvider:GetSummary()
             local elapsedKeystoneTimer = liveSummary.timer
             local replaySummary = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
-            self:SetUIBosses(liveSummary.bosses, replaySummary.bosses, isRunning)
+            self:SetUIBosses(liveSummary.bosses, replaySummary.bosses)
             self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
             self:Update()
         end
@@ -8821,8 +8854,8 @@ do
                 local liveSummary = liveDataProvider:GetSummary()
                 local elapsedKeystoneTimer = liveSummary.timer
                 local replaySummary = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
-                self:SetUITitle(liveSummary.level, liveSummary.affixes, replaySummary.level, replaySummary.affixes, isRunning)
-                self:SetUIBosses(liveSummary.bosses, replaySummary.bosses, isRunning)
+                self:SetUITitle(liveSummary.level, liveSummary.affixes, replaySummary.level, replaySummary.affixes, isRunning or self:IsState("COMPLETED"))
+                self:SetUIBosses(liveSummary.bosses, replaySummary.bosses)
                 self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
                 self:Update()
             end
@@ -8856,9 +8889,9 @@ do
             local deathPenaltyMS = deathPenalty * 1000
             local keystoneTimerMS = liveSummary.timer
             local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(keystoneTimerMS)
-            local liveTimer = ceil((keystoneTimerMS + liveSummary.deaths * deathPenaltyMS) / 1000)
-            local replayTimer = ceil((keystoneTimerMS + replaySummary.deaths * deathPenaltyMS) / 1000)
-            local totalTimer = ceil(replay.clear_time_ms / 1000)
+            local liveTimer = ConvertMillisecondsToSeconds(keystoneTimerMS - liveSummary.deaths * deathPenaltyMS)
+            local replayTimer = ConvertMillisecondsToSeconds(keystoneTimerMS + replaySummary.deaths * deathPenaltyMS)
+            local totalTimer = ConvertMillisecondsToSeconds(replay.clear_time_ms)
             self:SetUITimer(liveTimer, replayTimer, totalTimer, not nextReplayEvent, isRunning)
             self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces, isRunning)
             self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
@@ -8870,17 +8903,18 @@ do
         ---@param liveAffixes number[]
         ---@param replayLevel number
         ---@param replayAffixes number[]
-        function ReplayFrameMixin:SetUITitle(liveLevel, liveAffixes, replayLevel, replayAffixes, isRunning)
+        ---@param showLiveData boolean
+        function ReplayFrameMixin:SetUITitle(liveLevel, liveAffixes, replayLevel, replayAffixes, showLiveData)
             if self:IsStyle("MDI") then
                 return
             end
-            local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
-            local replayAffix = util:TableContains(replayAffixes, 9) and 9 or 10
-            if isRunning then
+            if showLiveData then
+                local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
                 self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
             else
                 self.TextBlock.TitleL:SetText("")
             end
+            local replayAffix = util:TableContains(replayAffixes, 9) and 9 or 10
             self.TextBlock.TitleR:SetFormattedText("+%d %s", replayLevel, ns.KEYSTONE_AFFIX_TEXTURE[replayAffix])
         end
 
@@ -8888,13 +8922,14 @@ do
         ---@param replayTimer number
         ---@param totalTimer number
         ---@param replayIsCompleted boolean
+        ---@param isRunning? boolean
         function ReplayFrameMixin:SetUITimer(liveTimer, replayTimer, totalTimer, replayIsCompleted, isRunning)
-            local liveClock = SecondsToClock(liveTimer)
-            local totalClock = SecondsToClock(totalTimer)
-            local replayClock = SecondsToClock(replayTimer)
+            local liveClock = SecondsToTimeText(liveTimer, "NONE_COLORLESS")
+            local totalClock = SecondsToTimeText(totalTimer, "NONE_COLORLESS")
+            local replayClock = SecondsToTimeText(replayTimer, "NONE_COLORLESS")
             if self:IsStyle("MDI") then
-                self.MDI.TimerL:SetFormattedText("%s", liveClock)
-                self.MDI.TimerR:SetFormattedText("%s", totalClock)
+                self.MDI.TimerL:SetText(liveClock)
+                self.MDI.TimerR:SetText(totalClock)
                 return
             end
             if isRunning then
@@ -8912,6 +8947,8 @@ do
 
         ---@param liveTrash number
         ---@param replayTrash number
+        ---@param totalTrash number
+        ---@param isRunning? boolean
         function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash, isRunning)
             local livePctl = liveTrash / totalTrash * 100
             local replayPctl = replayTrash / totalTrash * 100
@@ -8931,14 +8968,15 @@ do
         ---@param liveDeaths number
         ---@param replayDeaths number
         ---@param deathPenalty number
+        ---@param isRunning? boolean
         function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty, isRunning)
             local deltaDeaths = liveDeaths - replayDeaths
             local livePenalty = liveDeaths * deathPenalty
             local replayPenalty = replayDeaths * deathPenalty
             if self:IsStyle("MDI") then
                 local redColor = "FF5555"
-                local livePenaltyText = format("|cff%s+%s|r", redColor, SecondsToClock(livePenalty))
-                local replayPenaltyText = format("|cff%s+%s|r", redColor, SecondsToClock(replayPenalty))
+                local livePenaltyText = format("|cff%s+%s|r", redColor, SecondsToTimeText(livePenalty, "NONE_COLORLESS"))
+                local replayPenaltyText = format("|cff%s+%s|r", redColor, SecondsToTimeText(replayPenalty, "NONE_COLORLESS"))
                 self.MDI.DeathPenL:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", liveDeaths, livePenaltyText)
                 self.MDI.DeathPenR:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", replayDeaths, replayPenaltyText)
                 return
@@ -9036,6 +9074,7 @@ do
         ---@param liveBosses ReplayBoss[]
         ---@param replayBosses ReplayBoss[]
         ---@param timer number
+        ---@param isRunning? boolean
         function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer, isRunning)
             local style = self:GetStyle()
             local liveCount = 0

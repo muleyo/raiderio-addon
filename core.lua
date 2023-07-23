@@ -7501,6 +7501,7 @@ do
         "LOADING_SCREEN_DISABLED",
         "ZONE_CHANGED_NEW_AREA",
         "SCENARIO_CRITERIA_UPDATE",
+        "INSTANCE_GROUP_SIZE_CHANGED",
         "CHALLENGE_MODE_START",
         "CHALLENGE_MODE_RESET",
         "CHALLENGE_MODE_DEATH_COUNT_UPDATED",
@@ -7607,7 +7608,7 @@ do
         if not forceColorless then
             color = ahead and "55FF55" or "FF5555"
         elseif forceColorless == 1 then
-            color = "FFFF55"
+            color = "FFBD00" -- "FFFF55"
         end
         local text = util:SecondsToTimeText(ahead and delta or -delta)
         if color then
@@ -7653,6 +7654,7 @@ do
         if not replayEventInfo.bosses then
             return
         end
+        local anyBossesInCombat = false
         for _, bossInfo in pairs(replayEventInfo.bosses) do
             local boss = replaySummary.bosses[bossInfo.index]
             if not boss.combat and bossInfo.combat then
@@ -7670,7 +7672,11 @@ do
                 local delta = ConvertMillisecondsToSeconds(replayEventInfo.timer)
                 boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
             end
+            if boss.combat then
+                anyBossesInCombat = true
+            end
         end
+        replaySummary.inBossCombat = anyBossesInCombat
     end
 
     ---@param delta number
@@ -7699,6 +7705,17 @@ do
         return temp
     end
 
+    ---@param timerID number
+    ---@return number? elapsedTime
+    local function GetWorldElapsedTimerForKeystone(timerID)
+        ---@type number, number, number
+        local _, elapsedTime, timerType = GetWorldElapsedTime(timerID)
+        if timerType ~= LE_WORLD_ELAPSED_TIMER_TYPE_CHALLENGE_MODE then
+            return
+        end
+        return elapsedTime
+    end
+
     ---@class ReplayBoss
     ---@field public order number
     ---@field public index number
@@ -7716,6 +7733,7 @@ do
     ---@field public index number
     ---@field public timer number
     ---@field public deaths number
+    ---@field public deathsBeforeOvertime? number
     ---@field public trash number
     ---@field public bosses ReplayBoss[]
     ---@field public inBossCombat boolean
@@ -7961,6 +7979,7 @@ do
             replaySummary.index = 0
             replaySummary.timer = 0
             replaySummary.deaths = 0
+            replaySummary.deathsBeforeOvertime = nil
             replaySummary.trash = 0
             replaySummary.inBossCombat = false
             table.wipe(replaySummary.bosses)
@@ -7999,6 +8018,7 @@ do
         function ReplayDataProviderMixin:GetReplaySummaryAt(timerMS)
             local replaySummary = self:GetSummary()
             local replay = self:GetReplay() ---@type Replay
+            local timeLimit = replayFrame:GetCurrentTimeLimit()
             local replayEvents = replay.events
             for i = replaySummary.index + 1, #replayEvents do
                 local replayEvent = replayEvents[i]
@@ -8008,8 +8028,10 @@ do
                 end
                 replaySummary.index = i
                 replaySummary.timer = replayEventInfo.timer
-                replaySummary.inBossCombat = replayEventInfo.inBossCombat
                 if replayEventInfo.deaths then
+                    if not replaySummary.deathsBeforeOvertime and timeLimit < timerMS/1000 then
+                        replaySummary.deathsBeforeOvertime = replaySummary.deaths
+                    end
                     replaySummary.deaths = replaySummary.deaths + replayEventInfo.deaths
                 end
                 if replayEventInfo.forces then
@@ -8019,7 +8041,20 @@ do
                     ApplyBossInfoToSummary(replaySummary, replayEventInfo)
                 end
             end
-            return replaySummary, replayEvents[replaySummary.index], replayEvents[replaySummary.index + 1]
+            local nextReplayEvent = replayEvents[replaySummary.index + 1]
+            local anyBossesInCombat = false
+            for i = 1, #replaySummary.bosses do
+                local boss = replaySummary.bosses[i]
+                if not nextReplayEvent then
+                    boss.combat = false
+                    boss.dead = true
+                elseif boss.combat then
+                    anyBossesInCombat = true
+                    break
+                end
+            end
+            replaySummary.inBossCombat = anyBossesInCombat
+            return replaySummary, replayEvents[replaySummary.index], nextReplayEvent
         end
 
     end
@@ -8064,6 +8099,7 @@ do
             liveSummary.level = 0
             table.wipe(liveSummary.affixes)
             liveSummary.deaths = 0
+            liveSummary.deathsBeforeOvertime = nil
             liveSummary.trash = 0
             liveSummary.inBossCombat = false
             table.wipe(liveSummary.bosses)
@@ -8085,6 +8121,10 @@ do
             end
             local numDeaths, timeLost = C_ChallengeMode.GetDeathCount()
             if numDeaths then
+                local timeLimit = replayFrame:GetCurrentTimeLimit()
+                if not liveSummary.deathsBeforeOvertime and timeLimit < liveSummary.timer/1000 then
+                    liveSummary.deathsBeforeOvertime = liveSummary.deaths
+                end
                 liveSummary.deaths = numDeaths
             end
             ---@type string?, string?, number?
@@ -8463,6 +8503,7 @@ do
             self.state = "NONE" ---@type ReplayFrameState
             self.elapsedTime = 0 -- the start time as provided by the WORLD_STATE_TIMER_START event
             self.elapsedTimer = 0 -- the accumulated time assigned in the OnUpdate handler
+            self.elapsed = 0 -- the time between OnUpdate handler calls
             self.elapsedKeystoneTimer = 0 -- the current keystone timer
             self.width = 200
             self.widthMDI = 320
@@ -8772,20 +8813,64 @@ do
         end
 
         ---@param time number
-        ---@return number time
         function ReplayFrameMixin:SetKeystoneTime(time)
             self.elapsedKeystoneTimer = time
-            return time
         end
 
+        ---@return number liveDeathsDuringTimer, number replayDeathsDuringTimer, number liveDeathsOverTimer, number replayDeathsOverTimer
+        function ReplayFrameMixin:GetCurrentDeaths()
+            local liveDataProvider = self:GetLiveDataProvider()
+            local replayDataProvider = self:GetReplayDataProvider()
+            -- HOTFIX: do not cause recursion as GetSummary relies on this method to retrieve the real timer
+            local liveSummary = liveDataProvider.replaySummary
+            local replaySummary = replayDataProvider.replaySummary
+            local liveDeathsDuringTimer = liveSummary.deaths
+            local replayDeathsDuringTimer = replaySummary.deaths
+            if liveSummary.deathsBeforeOvertime and liveSummary.deathsBeforeOvertime < liveDeathsDuringTimer then
+                liveDeathsDuringTimer = liveSummary.deathsBeforeOvertime
+            end
+            if replaySummary.deathsBeforeOvertime and replaySummary.deathsBeforeOvertime < replayDeathsDuringTimer then
+                replayDeathsDuringTimer = replaySummary.deathsBeforeOvertime
+            end
+            return liveDeathsDuringTimer or 0, replayDeathsDuringTimer or 0, liveSummary.deathsBeforeOvertime or 0, replaySummary.deathsBeforeOvertime or 0
+        end
+
+        ---@return number timeLimit
+        function ReplayFrameMixin:GetCurrentTimeLimit()
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if replay and self:IsState("STAGING") then
+                return replay.clear_time_ms/1000
+            end
+            local dungeon = replay and util:GetDungeonByID(replay.dungeon.id)
+            local timeLimit = dungeon and dungeon.timers[#dungeon.timers] or self.timeLimit
+            return timeLimit or 0
+        end
+
+        ---@param includePenalties? boolean
         ---@return number time
-        function ReplayFrameMixin:GetKeystoneTime()
-            return self.elapsedKeystoneTimer
+        function ReplayFrameMixin:GetKeystoneTime(includePenalties)
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if replay and self:IsState("STAGING") then
+                return replay.clear_time_ms/1000
+            end
+            local timeLimit = self:GetCurrentTimeLimit()
+            local timer = self.elapsedKeystoneTimer
+            if includePenalties or not timeLimit then
+                return timer
+            end
+            local liveDeathsDuringTimer = self:GetCurrentDeaths()
+            local liveDataProvider = self:GetLiveDataProvider()
+            local deathPenalty = liveDataProvider:GetDeathPenalty()
+            local timeLost = liveDeathsDuringTimer * deathPenalty
+            return timer - timeLost
         end
 
+        ---@param includePenalties? boolean
         ---@return number timeMS
-        function ReplayFrameMixin:GetKeystoneTimeMS()
-            return self.elapsedKeystoneTimer * 1000
+        function ReplayFrameMixin:GetKeystoneTimeMS(includePenalties)
+            return self:GetKeystoneTime(includePenalties) * 1000
         end
 
         ---@param mapID? number
@@ -8811,6 +8896,7 @@ do
             self:GetReplayDataProvider():SetupSummary()
             self.elapsedTimer = 0
             self.elapsed = 0
+            self:RefreshWorldElapsedTimeState()
             self:UpdateShown()
         end
 
@@ -8851,11 +8937,26 @@ do
             end
             local liveDataProvider = self:GetLiveDataProvider()
             local liveSummary = liveDataProvider:GetSummary()
-            local elapsedKeystoneTimer = liveSummary.timer
-            local replaySummary = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
+            local keystoneTimeMS = self:GetKeystoneTimeMS()
+            local replaySummary = replayDataProvider:GetReplaySummaryAt(keystoneTimeMS)
             self:SetUIBosses(liveSummary.bosses, replaySummary.bosses)
             self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
             self:Update()
+        end
+
+        function ReplayFrameMixin:RefreshWorldElapsedTimeState()
+            if not self.timerID then
+                return
+            end
+            if not self:IsState("PLAYING") then
+                return
+            end
+            local elapsedTime = GetWorldElapsedTimerForKeystone(self.timerID)
+            if not elapsedTime then
+                return
+            end
+            self.elapsedTime = elapsedTime
+            self.elapsed = 0
         end
 
         function ReplayFrameMixin:UpdateShown()
@@ -8870,8 +8971,8 @@ do
                 end
                 local liveDataProvider = self:GetLiveDataProvider()
                 local liveSummary = liveDataProvider:GetSummary()
-                local elapsedKeystoneTimer = liveSummary.timer
-                local replaySummary = replayDataProvider:GetReplaySummaryAt(elapsedKeystoneTimer)
+                local keystoneTimeMS = self:GetKeystoneTimeMS()
+                local replaySummary = replayDataProvider:GetReplaySummaryAt(keystoneTimeMS)
                 self:SetUITitle(liveSummary.level, liveSummary.affixes, replaySummary.level, replaySummary.affixes, isRunning or self:IsState("COMPLETED"))
                 self:SetUIBosses(liveSummary.bosses, replaySummary.bosses)
                 self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
@@ -8880,9 +8981,14 @@ do
             self:SetShown(shown)
         end
 
+        ---@param elapsed number
         function ReplayFrameMixin:OnUpdate(elapsed)
-            self.elapsed = (self.elapsed or 0) + (elapsed * FRAME_TIMER_SCALE)
+            self.elapsed = self.elapsed + (elapsed * FRAME_TIMER_SCALE)
             if self.elapsed < FRAME_UPDATE_INTERVAL then return end
+            -- HOTFIX: if there is a loading screen hickup that causes a surge of additional time we avoid the issue by ensuring we fetch up-to-date timer
+            if self.elapsed > FRAME_UPDATE_INTERVAL + 0.1 then
+                self:RefreshWorldElapsedTimeState()
+            end
             self.elapsedTimer = self.elapsedTimer + self.elapsed
             self.elapsed = 0
             self:Update()
@@ -8894,7 +9000,7 @@ do
             end
             local isRunning = self.isActive and self:IsState("PLAYING")
             if isRunning then
-                self:SetKeystoneTime(self.elapsedTimer + self.elapsedTime)
+                self:SetKeystoneTime(self.elapsedTime + self.elapsedTimer)
             end
             local replayDataProvider = self:GetReplayDataProvider()
             local replay = replayDataProvider:GetReplay()
@@ -8905,15 +9011,16 @@ do
             local liveSummary = liveDataProvider:GetSummary()
             local deathPenalty = liveDataProvider:GetDeathPenalty()
             local deathPenaltyMS = deathPenalty * 1000
-            local keystoneTimerMS = liveSummary.timer
-            local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(keystoneTimerMS)
-            local liveTimer = ConvertMillisecondsToSeconds(keystoneTimerMS - liveSummary.deaths * deathPenaltyMS)
-            local replayTimer = ConvertMillisecondsToSeconds(keystoneTimerMS + replaySummary.deaths * deathPenaltyMS)
+            local keystoneTimeMS = self:GetKeystoneTimeMS()
+            local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(keystoneTimeMS)
+            local liveDeathsDuringTimer, replayDeathsDuringTimer = self:GetCurrentDeaths()
+            local liveTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + liveDeathsDuringTimer * deathPenaltyMS)
+            local replayTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + replayDeathsDuringTimer * deathPenaltyMS)
             local totalTimer = ConvertMillisecondsToSeconds(replay.clear_time_ms)
             self:SetUITimer(liveTimer, replayTimer, totalTimer, not nextReplayEvent, isRunning)
             self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces, isRunning)
             self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
-            self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, keystoneTimerMS, isRunning)
+            self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, keystoneTimeMS, isRunning)
             self:UpdateUIBossesCombat(liveSummary.inBossCombat, replaySummary.inBossCombat)
         end
 
@@ -9158,17 +9265,6 @@ do
         return frame
     end
 
-    ---@param timerID number
-    ---@return number? elapsedTime
-    local function GetWorldElapsedTimerForKeystone(timerID)
-        ---@type number, number, number
-        local _, elapsedTime, timerType = GetWorldElapsedTime(timerID)
-        if timerType ~= LE_WORLD_ELAPSED_TIMER_TYPE_CHALLENGE_MODE then
-            return
-        end
-        return elapsedTime
-    end
-
     ---@param stopTimer? boolean
     ---@param stopTimerID? number
     ---@return number? timerID, number? elapsedTime, boolean? isActive
@@ -9332,6 +9428,7 @@ do
             replayFrame:SetState("NONE")
         elseif isActive then
             replayFrame:SetState("PLAYING")
+            replayFrame:Reset()
         elseif replayFrame.isActive and replayFrame:IsState("PLAYING") then
             replayFrame:SetState("COMPLETED")
             replayFrame:SaveLiveSummary()

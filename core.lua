@@ -7503,6 +7503,7 @@ do
         "SCENARIO_CRITERIA_UPDATE",
         "CHALLENGE_MODE_START",
         "CHALLENGE_MODE_RESET",
+        "CHALLENGE_MODE_DEATH_COUNT_UPDATED",
         "WORLD_STATE_TIMER_START",
         "WORLD_STATE_TIMER_STOP",
         "ENCOUNTER_START",
@@ -7836,12 +7837,12 @@ do
         obj.Background:SetPoint("BOTTOMRIGHT", -1, 1)
         obj.Background:SetColorTexture(0, 0, 0, 0.5)
         obj.CombatL = obj:CreateTexture(nil, "ARTWORK")
-        obj.CombatL:SetPoint("LEFT", obj.InfoL, "LEFT", 0, 0)
+        obj.CombatL:SetPoint("LEFT", obj.InfoL, "LEFT", 4, 0)
         obj.CombatL:SetSize(16, 16)
         obj.CombatL:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
         obj.CombatL:Hide()
         obj.CombatR = obj:CreateTexture(nil, "ARTWORK")
-        obj.CombatR:SetPoint("RIGHT", obj.InfoR, "RIGHT", 0, 0)
+        obj.CombatR:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
         obj.CombatR:SetSize(16, 16)
         obj.CombatR:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
         obj.CombatR:Hide()
@@ -8064,6 +8065,7 @@ do
             table.wipe(liveSummary.affixes)
             liveSummary.deaths = 0
             liveSummary.trash = 0
+            liveSummary.inBossCombat = false
             table.wipe(liveSummary.bosses)
         end
 
@@ -8088,6 +8090,7 @@ do
             ---@type string?, string?, number?
             local _, _, numCriteria = C_Scenario.GetStepInfo()
             if numCriteria and numCriteria > 1 then
+                local anyBossesInCombat = false
                 for i = 1, numCriteria do
                     ---@type string?, number?, boolean?, number?, number?, number?, number?, string?, number?, number?, number?, boolean?, boolean?
                     local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
@@ -8133,9 +8136,13 @@ do
                                 boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
                                 replayFrame:OnBossKill()
                             end
+                            if boss.combat then
+                                anyBossesInCombat = true
+                            end
                         end
                     end
                 end
+                liveSummary.inBossCombat = anyBossesInCombat
             end
             return liveSummary
         end
@@ -8531,11 +8538,17 @@ do
             self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL, ns.CUSTOM_ICONS.replay.ALARM("TextureMarkup"))
             self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.SKULL("TextureMarkup"))
 
-            self.TextBlock.BossCombat = self:CreateTexture(nil, "ARTWORK")
-            self.TextBlock.BossCombat:SetPoint("LEFT", self.TextBlock.BossR, "RIGHT", -44, -1)
-            self.TextBlock.BossCombat:SetSize(18, 18)
-            self.TextBlock.BossCombat:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
-            self.TextBlock.BossCombat:Hide()
+            self.TextBlock.BossCombatL = self:CreateTexture(nil, "ARTWORK")
+            self.TextBlock.BossCombatL:SetPoint("LEFT", self.TextBlock.BossL, "LEFT", 32, 0)
+            self.TextBlock.BossCombatL:SetSize(16, 16)
+            self.TextBlock.BossCombatL:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
+            self.TextBlock.BossCombatL:Hide()
+
+            self.TextBlock.BossCombatR = self:CreateTexture(nil, "ARTWORK")
+            self.TextBlock.BossCombatR:SetPoint("RIGHT", self.TextBlock.BossR, "RIGHT", -32, 0)
+            self.TextBlock.BossCombatR:SetSize(16, 16)
+            self.TextBlock.BossCombatR:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
+            self.TextBlock.BossCombatR:Hide()
 
             ---@param self ReplayFrame
             local function ShowReplayRunTooltip(self)
@@ -8606,6 +8619,11 @@ do
             self.MDI.BossM:SetPoint("LEFT", self.MDI.BossL, "RIGHT", self.edgePaddingMDI/2, 0)
             self.MDI.BossM:SetSize(40, 40)
             self.MDI.BossM:SetTexture(1015842)
+            self.MDI.BossCombat = self.MDI:CreateTexture(nil, "ARTWORK")
+            self.MDI.BossCombat:SetPoint("CENTER", self.MDI.BossM, "CENTER", 0, 0)
+            self.MDI.BossCombat:SetSize(16, 16)
+            self.MDI.BossCombat:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
+            self.MDI.BossCombat:Hide()
             self.MDI.Spacer2L:SetHeight(20)
             self.MDI.Spacer2R:SetHeight(20)
             self.MDI.TrashLBar = CreateFrame("Frame", nil, self.MDI, "UIWidgetTemplateStatusBar") ---@type UIWidgetTemplateStatusBar
@@ -8896,7 +8914,7 @@ do
             self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces, isRunning)
             self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
             self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, keystoneTimerMS, isRunning)
-            self.TextBlock.BossCombat:SetShown(replaySummary.inBossCombat)
+            self:UpdateUIBossesCombat(liveSummary.inBossCombat, replaySummary.inBossCombat)
         end
 
         ---@param liveLevel number
@@ -9105,6 +9123,16 @@ do
                     end
                 end
             end
+        end
+
+        ---@param liveInBossCombat boolean
+        ---@param replayInBossCombat boolean
+        function ReplayFrameMixin:UpdateUIBossesCombat(liveInBossCombat, replayInBossCombat)
+            local style = self:GetStyle()
+            local isModern = style == "MODERN_COMPACT" or style == "MODERN"
+            self.TextBlock.BossCombatL:SetShown(isModern and liveInBossCombat)
+            self.TextBlock.BossCombatR:SetShown(isModern and replayInBossCombat)
+            self.MDI.BossCombat:SetShown(style == "MDI" and replayInBossCombat)
         end
 
     end

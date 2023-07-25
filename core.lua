@@ -621,11 +621,11 @@ do
     ---@field public icon string `ability_toughness`
 
     ---@class ReplayEncounter
-    ---@field public encounter_id number `2093`
+    ---@field public encounter_id number `2093` for use with `ENCOUNTER_START` and `ENCOUNTER_END`
     ---@field public journal_encounter_id number `2102` for use with `EJ_GetEncounterInfo`
     ---@field public ordinal number `0`
 
-    ---@alias ReplayEventEnum 1|2|3|4 `PLAYER_DEATH`, `ENEMY_FORCES`, `ENCOUNTER_STARTED`, `ENCOUNTER_ENDED`
+    ---@alias ReplayEventEnum 1|2|3|4 `PLAYER_DEATH`, `ENEMY_FORCES`, `ENCOUNTER_START`, `ENCOUNTER_END`
 
     ---@class ReplayEvent
     ---@field public _replayEventInfo? ReplayEventInfo Once `UnpackReplayEvent` has parsed the `ReplayEvent` the result is stored and re-used when needed.
@@ -1134,6 +1134,7 @@ do
         rwfMiniPoint = { point = nil, x = 0, y = 0 }, -- NEW in 9.2
         showMedalsInsteadOfText = false, -- NEW in 9.1.5
         replayStyle = "MODERN_COMPACT", -- NEW in 10.0.7
+        enableReplay = true, -- NEW in 10.1.5
     }
 
     -- fallback metatable looks up missing keys into the fallback config table
@@ -1923,9 +1924,9 @@ do
     local SCORE_TIER_PREV_SIMPLE = ns:GetScoreTiersSimplePrevData()
     local SCORE_STATS = ns:GetScoreStatsData()
 
-    ---@param score number @the score amount we wish to get a color for.
-    ---@param isPreviousSeason? boolean @true to show colors based on the previous season color scheme, otherwise false to use this seasons color scheme.
-    ---@return number, number, number @r, g, b
+    ---@param score number the score amount we wish to get a color for
+    ---@param isPreviousSeason? boolean `true` to show colors based on the previous season color scheme, otherwise `false` to use this seasons color scheme.
+    ---@return number r, number g, number b
     function util:GetScoreColor(score, isPreviousSeason)
         -- if no or empty score or the settings do not let us color scores return white color
         if not config:IsEnabled() or not score or score == 0 or config:Get("disableScoreColors") then
@@ -5412,6 +5413,7 @@ do
     local util = ns:GetModule("Util") ---@type UtilModule
     local provider = ns:GetModule("Provider") ---@type ProviderModule
     local render = ns:GetModule("Render") ---@type RenderModule
+    local replay = ns:GetModule("Replay") ---@type ReplayModule
 
     -- TODO: we have a long road a head of us... debugstack(0)
     local function IsSafeCall()
@@ -5478,7 +5480,10 @@ do
             local base = ns.KEYSTONE_LEVEL_TO_SCORE[level]
             local average = util:GetKeystoneAverageScoreForLevel(level)
             return base, average
-        end
+        end,
+        GetCurrentReplay = function()
+            return replay:GetCurrentReplaySummary()
+        end,
     }
 
     local private = {
@@ -5512,6 +5517,12 @@ do
             end
             return pristine.GetScoreForKeystone(...)
         end,
+        GetCurrentReplay = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.GetCurrentReplay(...)
+        end,
         -- DEPRECATED: these are here just to help mitigate the transition but do avoid using these as they will probably go away during Shadowlands
         ProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
         TooltipProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
@@ -5524,10 +5535,12 @@ do
     }
 
     ---@class RaiderIOInterface
-    ---@field public AddProvider function @For internal RaiderIO use only. Please do not call this function.
-    ---@field public GetProfile function @Returns a table containing the characters profile and data from the different data providers like mythic keystones, raiding and pvp. Usage: `RaiderIO.GetProfile(name, realm, faction[, region])` or `RaiderIO.GetProfile(unit)`
-    ---@field public ShowProfile function @Returns true or false depending if the profile could be drawn on the provided tooltip. `RaiderIO.ShowProfile(tooltip, name, realm, faction[, region])` or `RaiderIO.ShowProfile(tooltip, unit, faction[, region])`
-    ---@field public GetScoreColor function @Returns the color (r, g, b) for a given score. `RaiderIO.GetScoreColor(score[, isPreviousSeason])`
+    ---@field public AddProvider fun() For internal RaiderIO use only. Please do not call this function.
+    ---@field public GetProfile fun(unit: string): profile: DataProviderCharacterProfile? Returns a table containing the characters profile and data from the different data providers like mythic keystones, raiding and pvp. Usage: `RaiderIO.GetProfile(name, realm[, region])` or `RaiderIO.GetProfile(unit)`
+    ---@field public ShowProfile fun(tooltip: GameTooltip, ...): success: boolean Returns `true` or `false` depending if the profile could be drawn on the provided tooltip. `RaiderIO.ShowProfile(tooltip, name, realm[, region])` or `RaiderIO.ShowProfile(tooltip, unit[, region])`
+    ---@field public GetScoreColor fun(score: number, isPreviousSeason?: boolean): r: number, g: number, b: number Returns the color `r, g, b` for a given score. `RaiderIO.GetScoreColor(score[, isPreviousSeason])`
+    ---@field public GetScoreForKeystone fun(level: number): base: number, average: number Returns the base and average scores for a given keystone level.
+    ---@field public GetCurrentReplay fun(): liveSummary: ReplaySummary, replaySummary: ReplaySummary Returns the current live and replay summaries for the ongoing keystone.
 
     ---@type RaiderIOInterface
     _G.RaiderIO = setmetatable({}, {
@@ -7724,7 +7737,8 @@ do
     ---@class ReplayBoss
     ---@field public order number `1` the order that the boss appears in the scenario tracker
     ---@field public index number `1` the index of the boss as seen in the replay
-    ---@field public id number `2613` the bossID from the encounter journal
+    ---@field public id number `2613` the journal encounter id (`bossID`) for use with `EJ_GetEncounterInfo`
+    ---@field public cid number `2490` the encounter id for use with `ENCOUNTER_START` and `ENCOUNTER_END`
     ---@field public pulls number `1` the number of pulls that has been attempted
     ---@field public dead boolean indicates if the boss is dead
     ---@field public combat boolean indicates if the boss is engaged in combat
@@ -7793,6 +7807,7 @@ do
             local keystoneTimeMS = replayFrame:GetKeystoneTimeMS()
             local isLiveBossDead = liveBoss and liveBoss.dead
             local isReplayBossDead = replayBoss and replayBoss.killed and replayBoss.killed - keystoneTimeMS <= 0
+            -- TODO: feedback from Dratnos and Jah about splits (read more on Discord about how to change this code)
             if isLiveBossDead then
                 local delta = ConvertMillisecondsToSeconds(replayBoss.killed - liveBoss.killed)
                 self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeText(delta, "PARENTHESIS"))
@@ -7887,11 +7902,11 @@ do
         obj.Background:SetColorTexture(0, 0, 0, 0.5)
         obj.CombatL = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
         obj.CombatL:SetPoint("LEFT", obj.InfoL, "LEFT", 4, 0)
-        obj.CombatL:SetSize(16, 16)
+        obj.CombatL:SetSize(14, 14)
         obj.CombatL:Hide()
         obj.CombatR = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
         obj.CombatR:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
-        obj.CombatR:SetSize(16, 16)
+        obj.CombatR:SetSize(14, 14)
         obj.CombatR:Hide()
         obj.RouteSwap = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.ROUTE, "ARTWORK")
         obj.RouteSwap:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
@@ -8032,6 +8047,7 @@ do
                 replayBoss.order = encounter.ordinal + 1
                 replayBoss.index = index
                 replayBoss.id = encounter.journal_encounter_id
+                replayBoss.cid = encounter.encounter_id
                 replayBoss.dead = false
                 replaySummary.bosses[index] = replayBoss
             end
@@ -8182,18 +8198,20 @@ do
                                 local encounter = GetEncounterFromReplayByBossOrdinal(i - 1)
                                 local ordinal = encounter and encounter.ordinal or 0
                                 local id = encounter and encounter.journal_encounter_id or 0
+                                local combatID = encounter and encounter.encounter_id or 0
                                 ---@type ReplayBoss
                                 boss = {} ---@diagnostic disable-line: missing-fields
                                 boss.order = ordinal + 1
                                 boss.index = i
                                 boss.id = id
+                                boss.cid = combatID
                                 boss.combat = false
                                 boss.pulls = 0
                                 boss.dead = false
                                 liveSummary.bosses[i] = boss
                             end
                             if not completed and not boss.dead then
-                                local combat = not not ActiveEncounters[boss.id]
+                                local combat = not not ActiveEncounters[boss.cid]
                                 if not boss.combat and combat then
                                     boss.combat = true
                                     boss.combatStart = liveSummary.timer
@@ -8626,16 +8644,14 @@ do
             self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL, ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
             self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.BOSS("TextureMarkup"))
 
-            self.TextBlock.BossCombatL = self:CreateTexture(nil, "ARTWORK")
+            self.TextBlock.BossCombatL = util:CreateTextureFromIcon(self, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
             self.TextBlock.BossCombatL:SetPoint("LEFT", self.TextBlock.BossL, "LEFT", 26, 0)
-            self.TextBlock.BossCombatL:SetSize(16, 16)
-            self.TextBlock.BossCombatL:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
+            self.TextBlock.BossCombatL:SetSize(14, 14)
             self.TextBlock.BossCombatL:Hide()
 
-            self.TextBlock.BossCombatR = self:CreateTexture(nil, "ARTWORK")
+            self.TextBlock.BossCombatR = util:CreateTextureFromIcon(self, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
             self.TextBlock.BossCombatR:SetPoint("RIGHT", self.TextBlock.BossR, "RIGHT", -26, 0)
-            self.TextBlock.BossCombatR:SetSize(16, 16)
-            self.TextBlock.BossCombatR:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
+            self.TextBlock.BossCombatR:SetSize(14, 14)
             self.TextBlock.BossCombatR:Hide()
 
             ---@param self ReplayFrame
@@ -9050,8 +9066,8 @@ do
                 self:SetKeystoneTime(self.elapsedTime + self.elapsedTimer)
             end
             local replayDataProvider = self:GetReplayDataProvider()
-            local replay = replayDataProvider:GetReplay()
-            if not replay then
+            local _replay = replayDataProvider:GetReplay()
+            if not _replay then
                 return
             end
             local liveDataProvider = self:GetLiveDataProvider()
@@ -9063,12 +9079,13 @@ do
             local liveDeathsDuringTimer, replayDeathsDuringTimer = self:GetCurrentDeaths()
             local liveTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + liveDeathsDuringTimer * deathPenaltyMS)
             local replayTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + replayDeathsDuringTimer * deathPenaltyMS)
-            local totalTimer = ConvertMillisecondsToSeconds(replay.clear_time_ms)
+            local totalTimer = ConvertMillisecondsToSeconds(_replay.clear_time_ms)
             self:SetUITimer(liveTimer, replayTimer, totalTimer, not nextReplayEvent, isRunning)
-            self:SetUITrash(liveSummary.trash, replaySummary.trash, replay.dungeon.total_enemy_forces, isRunning)
+            self:SetUITrash(liveSummary.trash, replaySummary.trash, _replay.dungeon.total_enemy_forces, isRunning)
             self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
             self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, keystoneTimeMS, isRunning)
             self:UpdateUIBossesCombat(liveSummary.inBossCombat, replaySummary.inBossCombat)
+            replay:SetCurrentReplaySummary(liveSummary, replaySummary)
         end
 
         ---@param liveLevel number
@@ -9508,6 +9525,14 @@ do
         end)
     end
 
+    local function OnSettingsChanged()
+        if config:Get("enableReplay") then
+            replay:Enable()
+        else
+            replay:Disable()
+        end
+    end
+
     function replay:CanLoad()
         return config:IsEnabled() and ns:GetReplays()
     end
@@ -9521,7 +9546,9 @@ do
         replayFrame:SetReplayDataProvider(CreateReplayDataProvider())
         replayFrame:SetLiveDataProvider(CreateLiveDataProvider())
         replayFrame:SetStyle(config:Get("replayStyle"))
-        self:Enable()
+        OnSettingsChanged()
+        callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")
+        callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_SAVED")
     end
 
     function replay:OnEnable()
@@ -9532,6 +9559,22 @@ do
     function replay:OnDisable()
         OnEvent()
         callback:UnregisterEvent(OnEvent, unpack(UPDATE_EVENTS))
+        replayFrame:Hide()
+    end
+
+    local currentLiveSummary ---@type ReplaySummary?
+    local currentReplaySummary ---@type ReplaySummary?
+
+    ---@param liveSummary ReplaySummary
+    ---@param replaySummary ReplaySummary
+    function replay:SetCurrentReplaySummary(liveSummary, replaySummary)
+        currentLiveSummary = liveSummary
+        currentReplaySummary = replaySummary
+    end
+
+    ---@return ReplaySummary? liveSummary, ReplaySummary? replaySummary
+    function replay:GetCurrentReplaySummary()
+        return currentLiveSummary, currentReplaySummary
     end
 
 end
@@ -11887,6 +11930,7 @@ do
             configOptions:CreateHeadline(L.RAIDERIO_CLIENT_CUSTOMIZATION)
             configOptions:CreateOptionToggle(L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS, L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS_DESC, "enableClientEnhancements", { needReload = true })
             configOptions:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest")
+            configOptions:CreateOptionToggle(L.ENABLE_REPLAY, L.ENABLE_REPLAY_DESC, "enableReplay")
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)

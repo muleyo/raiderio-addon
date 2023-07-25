@@ -235,10 +235,12 @@ do
         },
         ---@class CustomIcons_Replay : CustomIcons
         replay = {
-            ALARM = { 256, 256, 0, 0, 0/256, 64/256, 0/256, 64/256, 0, 0 },
-            SKULL = { 256, 256, 0, 0, 64/256, 128/256, 0/256, 64/256, 0, 0 },
-            TIMER = { 256, 256, 0, 0, 128/256, 192/256, 0/256, 64/256, 0, 0 },
-            RIP = { 256, 256, 0, 0, 192/256, 256/256, 0/256, 64/256, 0, 0 },
+            TIMER = { 256, 256, 0, 0, 0/256, 64/256, 0/256, 64/256, 0, 0 },
+            BOSS = { 256, 256, 0, 0, 64/256, 128/256, 0/256, 64/256, 0, 0 },
+            TRASH = { 256, 256, 0, 0, 128/256, 192/256, 0/256, 64/256, 0, 0 },
+            DEATH = { 256, 256, 0, 0, 192/256, 256/256, 0/256, 64/256, 0, 0 },
+            COMBAT = { 256, 256, 0, 0, 0/256, 64/256, 64/256, 128/256, 0, 0 },
+            ROUTE = { 256, 256, 0, 0, 64/256, 128/256, 64/256, 128/256, 0, 0 },
         },
         ---@class CustomIcons_Roles : CustomIcons
         roles = {
@@ -619,8 +621,8 @@ do
     ---@field public icon string `ability_toughness`
 
     ---@class ReplayEncounter
-    ---@field public encounter_id number `2111`
-    ---@field public journal_encounter_id number `2157`
+    ---@field public encounter_id number `2093`
+    ---@field public journal_encounter_id number `2102` for use with `EJ_GetEncounterInfo`
     ---@field public ordinal number `0`
 
     ---@alias ReplayEventEnum 1|2|3|4 `PLAYER_DEATH`, `ENEMY_FORCES`, `ENCOUNTER_STARTED`, `ENCOUNTER_ENDED`
@@ -804,7 +806,7 @@ do
     ---@field public OnDisable function @This function is executed when the module is set to disabled state. Use this for cleanup purposes.
 
     ---@type Module
-    local module = {}
+    local module = {} ---@diagnostic disable-line: missing-fields
 
     ---@return nil
     function module:SetLoaded(state)
@@ -920,7 +922,7 @@ do
         assert(type(id) == "string", "Raider.IO Module expects NewModule(id[, data]) where id is a string, data is optional table.")
         assert(not modules[id], "Raider.IO Module expects NewModule(id[, data]) where id is a string, that is unique and not already taken.")
         ---@type Module
-        local m = {}
+        local m = {} ---@diagnostic disable-line: missing-fields
         for k, v in pairs(module) do
             m[k] = v
         end
@@ -1516,7 +1518,7 @@ do
     ---@return number @A time() number
     function util:GetTimeFromDateString(dateString)
         local year, month, day, hours, minutes, seconds = dateString:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).*Z$")
-        return time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds })
+        return time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) ---@diagnostic disable-line: missing-fields
     end
 
     local REGION = ns:GetRegionData()
@@ -1803,11 +1805,10 @@ do
     ---@field dungeon Dungeon
     ---@field resultID number
 
-    ---@class LFDStatus
+    ---@class LFDStatus This object is in itself a table that is iteratable and contains LFDStatusResult objects.
     ---@field dungeon? Dungeon|DungeonRaid
     ---@field hosting boolean
     ---@field queued boolean
-    ---@field self LFDStatusResult[] @The LFDStatus itself is also a iterable table with the LFDStatusResult entries.
 
     ---@return LFDStatus?
     function util:GetLFDStatus()
@@ -2181,9 +2182,10 @@ do
 
     ---@param frame Frame
     ---@param icon CustomIcon
-    function util:CreateTextureFromIcon(frame, icon)
+    ---@param layer? DrawLayer
+    function util:CreateTextureFromIcon(frame, icon, layer)
         local info = icon("Texture") ---@type CustomIconTexture
-        local texture = frame:CreateTexture()
+        local texture = frame:CreateTexture(nil, layer)
         texture:SetTexture(info.texture)
         texture:SetTexCoord(info.texCoord[1], info.texCoord[2], info.texCoord[3], info.texCoord[4])
         return texture, info
@@ -3153,9 +3155,9 @@ do
     }
 
     ---@class DataProviderMythicKeystoneScore
-    ---@field public season number @The previous season number, otherwise nil if current season
+    ---@field public season? number @The previous season number, otherwise nil if current season
     ---@field public score number @The score amount
-    ---@field public originalScore number @If set to a number, it means we did override the score but kept a backup of the original here
+    ---@field public originalScore? number @If set to a number, it means we did override the score but kept a backup of the original here
     ---@field public roles OrderedRolesItem[] @table of roles associated with the score
 
     ---@class DataProviderMythicKeystoneProfile
@@ -3506,7 +3508,7 @@ do
     ---@param region? string
     local function UnpackMythicKeystoneData(bucket, baseOffset, encodingOrder, providerOutdated, providerBlocked, name, realm, region)
         ---@type DataProviderMythicKeystoneProfile
-        local results = { outdated = providerOutdated, hasRenderableData = false }
+        local results = { outdated = providerOutdated, hasRenderableData = false } ---@diagnostic disable-line: missing-fields
         if providerBlocked then
             if name and util:IsUnitPlayer(name, realm, region) then
                 results.softBlocked = providerBlocked
@@ -3589,11 +3591,11 @@ do
     ---@alias DataProviderRaidProgressFields "progress"|"mainProgress"|"previousProgress"
 
     ---@class SortedRaidProgress
-    ---@field public obsolete boolean If this evaluates truthy we hide it unless tooltip is expanded on purpose.
+    ---@field public obsolete? boolean If this evaluates truthy we hide it unless tooltip is expanded on purpose.
     ---@field public tier number Weighted number based on current or previous raid, difficulty and boss kill count.
-    ---@field public isProgress boolean
-    ---@field public isProgressPrev boolean
-    ---@field public isMainProgress boolean
+    ---@field public isProgress? boolean
+    ---@field public isProgressPrev? boolean
+    ---@field public isMainProgress? boolean
     ---@field public progress DataProviderRaidProgress
 
     ---@class RaidProgress
@@ -3605,9 +3607,9 @@ do
     ---@class RaidProgressGroup
     ---@field public difficulty number
     ---@field public progress RaidProgressBossInfo[]
-    ---@field public kills number
-    ---@field public cleared boolean
-    ---@field public obsolete boolean
+    ---@field public kills? number
+    ---@field public cleared? boolean
+    ---@field public obsolete? boolean
 
     ---@class RaidProgressBossInfo
     ---@field public difficulty number
@@ -3751,7 +3753,8 @@ do
     ---@param results DataProviderRaidProfile
     ---@param field DataProviderRaidProgressFields
     local function UnpackSummaryRaidProgress(bucket, raid, offset, results, field)
-        local prog = { raid = raid } ---@type DataProviderRaidProgress
+        ---@type DataProviderRaidProgress
+        local prog = { raid = raid } ---@diagnostic disable-line: missing-fields
         local bitOffset = offset
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
         prog.progressCount, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
@@ -3771,7 +3774,8 @@ do
     ---@param offset number
     ---@param results DataProviderRaidProfile
     local function UnpackFullRaidProgress(bucket, raid, offset, results)
-        local prog = { raid = raid, progressCount = 0 } ---@type DataProviderRaidProgress
+        ---@type DataProviderRaidProgress
+        local prog = { raid = raid, progressCount = 0 } ---@diagnostic disable-line: missing-fields
         local bitOffset = offset
         local value
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
@@ -3912,7 +3916,7 @@ do
     ---@param provider DataProvider
     local function UnpackRecruitmentData(bucket, baseOffset, provider)
         ---@type DataProviderRecruitmentProfile
-        local results = { outdated = provider.outdated, hasRenderableData = false }
+        local results = { outdated = provider.outdated, hasRenderableData = false } ---@diagnostic disable-line: missing-fields
         local encodingOrder = provider.encodingOrder
         local bitOffset = (baseOffset - 1) * 8
         local value
@@ -3950,10 +3954,9 @@ do
 
     ---@class DataProviderCharacterProfile
     ---@field public success boolean
-    ---@field public guid string @Unique string `region faction realm name`
+    ---@field public guid string Unique string `region realm name`
     ---@field public name string
     ---@field public realm string
-    ---@field public faction number
     ---@field public region string
     ---@field public mythicKeystoneProfile DataProviderMythicKeystoneProfile
     ---@field public raidProfile DataProviderRaidProfile
@@ -4054,7 +4057,7 @@ do
 
     local function CreateEmptyMythicKeystoneData()
         ---@type DataProviderMythicKeystoneProfile
-        local results = {
+        local results = { ---@diagnostic disable-line: missing-fields
             currentScore = 0,
             mplusCurrent = {
                 score = 0,
@@ -4111,7 +4114,7 @@ do
             return
         end
         local region = ns.PLAYER_REGION
-        local guid = region .. " " .. realm .. " " .. name
+        local guid = format("%s %s %s", region, realm, name)
         local cache = provider:GetProfile(name, realm, region)
         local mythicKeystoneProfile
         if cache and cache.success and cache.mythicKeystoneProfile and not cache.mythicKeystoneProfile.blocked and cache.mythicKeystoneProfile.hasRenderableData then
@@ -4223,7 +4226,7 @@ do
             mythicKeystoneProfile.hasRenderableData = true
         end
         if not cache then
-            cache = {
+            cache = { ---@diagnostic disable-line: missing-fields
                 guid = guid,
                 name = name,
                 realm = realm,
@@ -4245,7 +4248,7 @@ do
             return
         end
         region = region or ns.PLAYER_REGION
-        local guid = region .. " " .. realm .. " " .. name
+        local guid = format("%s %s %s", region, realm, name)
         local cache = profileCache[guid]
         if cache then
             if not cache.success then
@@ -4546,7 +4549,7 @@ do
     ---@field public UnitSmartPadding function @same as Unit, but if arg1 is set, padding flag is added, otherwise removed.
 
     ---@type RenderPreset
-    render.Preset = {
+    render.Preset = { ---@diagnostic disable-line: missing-fields
         Unit = bor(render.Flags.MYTHIC_KEYSTONE, render.Flags.RAID, render.Flags.UNIT_TOOLTIP, render.Flags.SHOW_PADDING, render.Flags.SHOW_HEADER, render.Flags.SHOW_FOOTER, render.Flags.SHOW_LFD),
         Profile = bor(render.Flags.MYTHIC_KEYSTONE, render.Flags.RAID, render.Flags.PROFILE_TOOLTIP, render.Flags.MOD_STICKY, render.Flags.SHOW_PADDING, render.Flags.SHOW_HEADER, render.Flags.SHOW_FOOTER, render.Flags.SHOW_NAME, render.Flags.SHOW_LFD),
         Keystone = bor(render.Flags.MYTHIC_KEYSTONE, render.Flags.KEYSTONE_TOOLTIP, render.Flags.SHOW_PADDING, render.Flags.SHOW_HEADER, render.Flags.SHOW_LFD),
@@ -4603,7 +4606,7 @@ do
         ---@type TooltipState
         local state = tooltipStates[tooltip]
         if not state then
-            state = {}
+            state = {} ---@diagnostic disable-line: missing-fields
             tooltipStates[tooltip] = state
         end
         return state
@@ -4710,7 +4713,7 @@ do
             local k, v = role[1], role[2]
             icons[i] = ns.ROLE_ICONS[k][v]
         end
-        return table.concat(icons, "") .. " " .. score
+        return format("%s %s", table.concat(icons, ""), score)
     end
 
     ---Takes tripples of `Dungeon, Level, Chests` args, returns the best run back.
@@ -4846,7 +4849,7 @@ do
         end
         for i = 1, index do
             local member = members[i]
-            tooltip:AddDoubleLine(UnitNameUnmodified(member.unit), util:GetNumChests(member.chests) .. member.level .. " " .. dungeon.shortNameLocale, 1, 1, 1, util:GetKeystoneChestColor(member.chests))
+            tooltip:AddDoubleLine(UnitNameUnmodified(member.unit), format("%s%s %s", util:GetNumChests(member.chests), member.level, dungeon.shortNameLocale), 1, 1, 1, util:GetKeystoneChestColor(member.chests))
         end
     end
 
@@ -5022,7 +5025,7 @@ do
         for i = 1, #raidProgress do
             local progress = raidProgress[i]
             ---@type RaidProgressExtended
-            local raidGroup = {
+            local raidGroup = { ---@diagnostic disable-line: missing-fields
                 progress = progress,
             }
             raidGroups[i] = raidGroup
@@ -5847,7 +5850,7 @@ do
         end
         local side, _, _, confidence = CompareLevelAndFractionalTime(run.level, currentRun.level, run.fractionalTime, currentRun.fractionalTime)
         ---@type DungeonDifference
-        local diff = {}
+        local diff = {} ---@diagnostic disable-line: missing-fields
         diff.confidence = confidence
         diff.levelDiff = 0
         diff.fractionalTimeDiff = 0
@@ -5936,7 +5939,7 @@ do
         if not bestRun or not bestRun.level then
             bestIsCurrentRun = true
             bestRun = CopyRun(currentRun)
-            bestUpgrade = {}
+            bestUpgrade = {} ---@diagnostic disable-line: missing-fields
         elseif bestRun == dbRun then
             bestRun = CopyRun(dbRun) ---@diagnostic disable-line: param-type-mismatch
         end
@@ -6159,7 +6162,7 @@ do
     ---@param dungeon Dungeon
     local function GetCurrentRun(dungeon, level, fractionalTime, keystoneUpgradeLevels)
         ---@type SortedDungeon
-        local run = {}
+        local run = {} ---@diagnostic disable-line: missing-fields
         run.chests = keystoneUpgradeLevels
         run.dungeon = dungeon
         run.fractionalTime = fractionalTime
@@ -6631,7 +6634,7 @@ do
     ---@field public keystoneLevel number
 
     ---@type LfgResult
-    local currentResult = {}
+    local currentResult = {} ---@diagnostic disable-line: missing-fields
 
     local hooked = {}
     local OnEnter
@@ -7023,7 +7026,7 @@ do
         end
         local keystone = currentKeystone[self]
         if not keystone then
-            keystone = {}
+            keystone = {} ---@diagnostic disable-line: missing-fields
             currentKeystone[self] = keystone
         end
         if not UpdateKeystoneInfo(keystone, link) then
@@ -7085,7 +7088,7 @@ do
     local function ConvertRunData(runInfo)
         local dungeon = util:GetDungeonByKeystoneID(runInfo.mapChallengeModeID)
         ---@type GuildMythicKeystoneRun
-        local runData = {
+        local runData = { ---@diagnostic disable-line: missing-fields
             dungeon = dungeon,
             zone_id = dungeon and dungeon.id or 0,
             level = runInfo.keystoneLevel or 0,
@@ -7094,7 +7097,7 @@ do
         }
         for i = 1, #runInfo.members do
             local member = runInfo.members[i]
-            runData.party[i] = {
+            runData.party[i] = { ---@diagnostic disable-line: missing-fields
                 name = member.name,
                 class_id = CLASS_FILENAME_TO_ID[member.classFileName] or 0
             }
@@ -7157,7 +7160,7 @@ do
     local frame
 
     ---@type GuildWeeklyFrame
-    local GuildWeeklyRunMixin = {}
+    local GuildWeeklyRunMixin = {} ---@diagnostic disable-line: missing-fields
 
     ---@param runInfo GuildMythicKeystoneRun
     ---@return boolean? @true if successfull, otherwise false if we can't display this run
@@ -7254,7 +7257,7 @@ do
     end
 
     ---@type GuildWeeklyFrame
-    local GuildWeeklyFrameMixin = {}
+    local GuildWeeklyFrameMixin = {} ---@diagnostic disable-line: missing-fields
 
     function GuildWeeklyFrameMixin:Refresh()
         local guildName = GetGuildFullName("player")
@@ -7623,7 +7626,8 @@ do
         if replayEvent._replayEventInfo then
             return replayEvent._replayEventInfo
         end
-        local replayEventInfo = {} ---@type ReplayEventInfo
+        ---@type ReplayEventInfo
+        local replayEventInfo = {} ---@diagnostic disable-line: missing-fields
         local anyBossesInCombat = false
         replayEventInfo.timer = replayEvent[1]
         replayEventInfo.event = replayEvent[2]
@@ -7632,7 +7636,8 @@ do
         elseif replayEventInfo.event == 2 then
             replayEventInfo.forces = replayEvent[3]
         elseif replayEventInfo.event == 3 or replayEventInfo.event == 4 then
-            local bossInfo = {} ---@type ReplayBossInfo
+            ---@type ReplayBossInfo
+            local bossInfo = {} ---@diagnostic disable-line: missing-fields
             bossInfo.index = replayEvent[3] + 1 -- convert to 1-based index
             bossInfo.pulls = replayEvent[4]
             bossInfo.combat = replayEvent[5]
@@ -7717,8 +7722,8 @@ do
     end
 
     ---@class ReplayBoss
-    ---@field public order number `1` the order that the boss should appear in the UI
-    ---@field public index number `1` the index of the boss as seen in the scenario tracker
+    ---@field public order number `1` the order that the boss appears in the scenario tracker
+    ---@field public index number `1` the index of the boss as seen in the replay
     ---@field public id number `2613` the bossID from the encounter journal
     ---@field public pulls number `1` the number of pulls that has been attempted
     ---@field public dead boolean indicates if the boss is dead
@@ -7751,6 +7756,7 @@ do
     ---@field public Background Texture
     ---@field public CombatL Texture
     ---@field public CombatR Texture
+    ---@field public RouteSwap Texture
 
     ---@class BossFramePool
     ---@field public Acquire fun(self: BossFramePool): BossFrame
@@ -7765,31 +7771,25 @@ do
     do
 
         ---@param self BossFrame
-        ---@param order number
         ---@param index number
-        ---@param bossID number
-        function BossFrameMixin:Setup(order, index, bossID)
-            self.order = order
+        ---@param liveBoss ReplayBoss
+        ---@param replayBoss ReplayBoss
+        function BossFrameMixin:Setup(index, liveBoss, replayBoss)
             self.index = index
-            self.bossID = bossID
-            self.bossName, ---@type string
-            self.bossDescription, ---@type string
-            self.bossJournalEncounterID, ---@type number
-            self.bossSectionID, ---@type number
-            self.bossLink, ---@type string
-            self.bossJournalInstanceID, ---@type number
-            self.bossEncounterID, ---@type number
-            self.bossInstanceID = EJ_GetEncounterInfo(bossID) ---@type number
-            self.Name:SetText(self.order)
+            self.liveBoss = liveBoss
+            self.replayBoss = replayBoss
+            self.bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id) or 0
+            self.Name:SetText(self.index)
             self.InfoL:SetText("")
             self.InfoR:SetText("")
             self:Show()
+            self:Update()
         end
 
         ---@param self BossFrame
-        ---@param liveBoss ReplayBoss
-        ---@param replayBoss ReplayBoss
-        function BossFrameMixin:Update(liveBoss, replayBoss)
+        function BossFrameMixin:Update()
+            local liveBoss = self.liveBoss
+            local replayBoss = self.replayBoss
             local keystoneTimeMS = replayFrame:GetKeystoneTimeMS()
             local isLiveBossDead = liveBoss and liveBoss.dead
             local isReplayBossDead = replayBoss and replayBoss.killed and replayBoss.killed - keystoneTimeMS <= 0
@@ -7812,15 +7812,46 @@ do
             end
             self.CombatL:SetShown(liveBoss and liveBoss.combat)
             self.CombatR:SetShown(replayBoss and replayBoss.combat)
+            self.RouteSwap:SetShown(not not self:HasDifferentBosses())
+        end
+
+        function BossFrameMixin:HasDifferentBosses()
+            if not self.liveBoss or not self.replayBoss then
+                return
+            end
+            if not self.liveBoss.killed then
+                return
+            end
+            return self.liveBoss.id ~= self.replayBoss.id
+        end
+
+        function BossFrameMixin:GetTooltipText()
+            local text ---@type string?
+            if self:HasDifferentBosses() then
+                local liveBoss = self.liveBoss
+                local replayBoss = self.replayBoss
+                local liveBossID = liveBoss and liveBoss.id
+                local replayBossID = replayBoss and replayBoss.id
+                local liveBossName = liveBossID and EJ_GetEncounterInfo(liveBossID)
+                local replayBossName = replayBossID and EJ_GetEncounterInfo(replayBossID)
+                if liveBossName and replayBossName then
+                    text = format("%s • %s", liveBossName, replayBossName)
+                elseif liveBossName then
+                    text = liveBossName
+                else
+                    text = replayBossName
+                end
+            else
+                text = EJ_GetEncounterInfo(self.bossID) ---@type string
+            end
+            return text
         end
 
         ---@param self BossFrame
         function BossFrameMixin:OnEnter()
-            if not self.bossName then
-                return
-            end
+            local text = self:GetTooltipText()
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip_SetTitle(GameTooltip, self.bossName, nil, false)
+            GameTooltip_SetTitle(GameTooltip, text, nil, false)
             GameTooltip:Show()
         end
 
@@ -7854,16 +7885,18 @@ do
         obj.Background:SetPoint("TOPLEFT", 1, -1)
         obj.Background:SetPoint("BOTTOMRIGHT", -1, 1)
         obj.Background:SetColorTexture(0, 0, 0, 0.5)
-        obj.CombatL = obj:CreateTexture(nil, "ARTWORK")
+        obj.CombatL = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
         obj.CombatL:SetPoint("LEFT", obj.InfoL, "LEFT", 4, 0)
         obj.CombatL:SetSize(16, 16)
-        obj.CombatL:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
         obj.CombatL:Hide()
-        obj.CombatR = obj:CreateTexture(nil, "ARTWORK")
+        obj.CombatR = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
         obj.CombatR:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
         obj.CombatR:SetSize(16, 16)
-        obj.CombatR:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
         obj.CombatR:Hide()
+        obj.RouteSwap = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.ROUTE, "ARTWORK")
+        obj.RouteSwap:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
+        obj.RouteSwap:SetSize(16, 16)
+        obj.RouteSwap:Hide()
         obj:HookScript("OnEnter", obj.OnEnter)
         obj:HookScript("OnLeave", obj.OnLeave)
         obj:SetMouseClickEnabled(false)
@@ -7888,7 +7921,7 @@ do
                 bossIndex = bossIndex + 1
                 bossFrames[bossIndex] = bossFrame
             end
-            table.sort(bossFrames, function(a, b) return a.order < b.order end)
+            table.sort(bossFrames, function(a, b) return a.index < b.index end)
             local offsetX, offsetY = 0, replayFrame.contentPaddingY
             local prevBossFrame
             local bossesHeight = 0
@@ -7969,6 +8002,7 @@ do
                 deaths = 0,
                 trash = 0,
                 bosses = {},
+                inBossCombat = false,
             }
             return replaySummary
         end
@@ -7993,7 +8027,8 @@ do
                 replaySummary.affixes[index] = affix.id
             end
             for index, encounter in ipairs(replay.encounters) do
-                local replayBoss = {} ---@type ReplayBoss
+                ---@type ReplayBoss
+                local replayBoss = {} ---@diagnostic disable-line: missing-fields
                 replayBoss.order = encounter.ordinal + 1
                 replayBoss.index = index
                 replayBoss.id = encounter.journal_encounter_id
@@ -8079,7 +8114,7 @@ do
             if not replay then
                 return
             end
-            for _, encounter in ipairs(replay.encounters) do
+            for index, encounter in ipairs(replay.encounters) do
                 if encounter.ordinal == ordinal then
                     return encounter
                 end
@@ -8146,8 +8181,9 @@ do
                             if not boss then
                                 local encounter = GetEncounterFromReplayByBossOrdinal(i - 1)
                                 local ordinal = encounter and encounter.ordinal or 0
-                                local id = encounter and encounter.encounter_id or 0
-                                boss = {} ---@type ReplayBoss
+                                local id = encounter and encounter.journal_encounter_id or 0
+                                ---@type ReplayBoss
+                                boss = {} ---@diagnostic disable-line: missing-fields
                                 boss.order = ordinal + 1
                                 boss.index = i
                                 boss.id = id
@@ -8490,6 +8526,17 @@ do
             self:SetBarValue(0, 0, 100, true)
         end
 
+        ---@param boss1 ReplayBoss
+        ---@param boss2 ReplayBoss
+        local function SortBosses(boss1, boss2)
+            local killed1 = boss1.killed or 0xffffffff
+            local killed2 = boss2.killed or 0xffffffff
+            if killed1 == killed2 then
+                return boss1.index < boss2.index
+            end
+            return killed1 < killed2
+        end
+
         ---@alias ReplayFrameState
         ---|"NONE"
         ---|"STAGING"
@@ -8519,7 +8566,7 @@ do
 
             self:SetPoint("TOPRIGHT", ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
             self:SetSize(self.width, 0)
-            self:SetFrameStrata("HIGH")
+            self:SetFrameStrata("LOW")
             self:SetClampedToScreen(true)
             self:EnableMouse(true)
             self:SetMovable(true)
@@ -8576,17 +8623,17 @@ do
             end
 
             self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow(nil, "") -- ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
-            self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL, ns.CUSTOM_ICONS.replay.ALARM("TextureMarkup"))
-            self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.SKULL("TextureMarkup"))
+            self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL, ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
+            self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.BOSS("TextureMarkup"))
 
             self.TextBlock.BossCombatL = self:CreateTexture(nil, "ARTWORK")
-            self.TextBlock.BossCombatL:SetPoint("LEFT", self.TextBlock.BossL, "LEFT", 32, 0)
+            self.TextBlock.BossCombatL:SetPoint("LEFT", self.TextBlock.BossL, "LEFT", 26, 0)
             self.TextBlock.BossCombatL:SetSize(16, 16)
             self.TextBlock.BossCombatL:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
             self.TextBlock.BossCombatL:Hide()
 
             self.TextBlock.BossCombatR = self:CreateTexture(nil, "ARTWORK")
-            self.TextBlock.BossCombatR:SetPoint("RIGHT", self.TextBlock.BossR, "RIGHT", -32, 0)
+            self.TextBlock.BossCombatR:SetPoint("RIGHT", self.TextBlock.BossR, "RIGHT", -26, 0)
             self.TextBlock.BossCombatR:SetSize(16, 16)
             self.TextBlock.BossCombatR:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
             self.TextBlock.BossCombatR:Hide()
@@ -8605,8 +8652,8 @@ do
             self:SetScript("OnEnter", ShowReplayRunTooltip)
             self:SetScript("OnLeave", GameTooltip_Hide)
 
-            self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL, ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
-            self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.RIP("TextureMarkup"))
+            self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL, ns.CUSTOM_ICONS.replay.TRASH("TextureMarkup"))
+            self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.DEATH("TextureMarkup"))
 
             self.MDI = CreateFrame("Frame", nil, self, BackdropTemplateMixin and "BackdropTemplate") ---@class ReplayFrameMDI : Frame, BackdropTemplate
             self.MDI:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
@@ -8939,7 +8986,7 @@ do
             local liveSummary = liveDataProvider:GetSummary()
             local keystoneTimeMS = self:GetKeystoneTimeMS()
             local replaySummary = replayDataProvider:GetReplaySummaryAt(keystoneTimeMS)
-            self:SetUIBosses(liveSummary.bosses, replaySummary.bosses)
+            self:SetUIBosses(liveSummary.bosses, replaySummary.bosses, true)
             self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
             self:Update()
         end
@@ -9116,7 +9163,8 @@ do
 
         ---@param liveBosses ReplayBoss[]
         ---@param replayBosses ReplayBoss[]
-        function ReplayFrameMixin:SetUIBosses(liveBosses, replayBosses)
+        ---@param forceUpdate? boolean
+        function ReplayFrameMixin:SetUIBosses(liveBosses, replayBosses, forceUpdate)
             local pool = self.BossFramePool
             if not self:IsStyle("MODERN") then
                 pool:ReleaseAll()
@@ -9129,52 +9177,36 @@ do
                 self.bossesHeight = 0
                 return
             end
-            local sortedBosses = {} ---@type ReplayBoss[][]
-            for i = 1, count do
-                local liveBoss = liveBosses[i]
-                local replayBoss = replayBosses[i]
-                local bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id)
-                if bossID then
-                    sortedBosses[#sortedBosses + 1] = { liveBoss, replayBoss, bossID }
+            local sortedLiveBosses = util:TableCopy(liveBosses)
+            local sortedReplayBosses = util:TableCopy(replayBosses)
+            table.sort(sortedLiveBosses, SortBosses)
+            table.sort(sortedReplayBosses, SortBosses)
+            local isDirty = forceUpdate
+            if not isDirty then
+                if count ~= pool:GetNumActive() then
+                    isDirty = true
                 end
-            end
-            ---@param boss1 ReplayBoss
-            ---@param boss2 ReplayBoss
-            local function compareBosses(boss1, boss2)
-                local killed1 = boss1.killed or 0xffffffff
-                local killed2 = boss2.killed or 0xffffffff
-                if killed1 == killed2 then
-                    return boss1.order < boss2.order
-                end
-                return killed1 < killed2
-            end
-            table.sort(sortedBosses, function(bossPairs1, bossPairs2)
-                local liveBoss1, replayBoss1 = bossPairs1[1], bossPairs1[2]
-                local liveBoss2, replayBoss2 = bossPairs2[1], bossPairs2[2]
-                if liveBoss1 and liveBoss1.killed and liveBoss2 and liveBoss2.killed then
-                    return compareBosses(liveBoss1, liveBoss2)
-                elseif liveBoss1 and liveBoss1.killed then
-                    return true
-                elseif liveBoss2 and liveBoss2.killed then
-                    return false
-                end
-                if replayBoss1 and replayBoss2 then
-                    return compareBosses(replayBoss1, replayBoss2)
-                elseif replayBoss1 then
-                    return true
-                end
-                return false
-            end)
-            local isDirty = false
-            if pool:GetNumActive() ~= #sortedBosses then
-                isDirty = true
             end
             if not isDirty then
                 for bossFrame in pool:EnumerateActive() do
-                    local order = bossFrame.order
-                    local bossPairs = sortedBosses[order]
-                    local bossID = bossPairs[3] ---@type number
-                    if bossFrame.bossID ~= bossID then
+                    local index = bossFrame.index
+                    local liveBoss = sortedLiveBosses[index]
+                    local replayBoss = sortedReplayBosses[index]
+                    local oldLiveBossIndex = liveBoss and liveBoss.index
+                    local oldReplayBossIndex = replayBoss and replayBoss.index
+                    if index ~= oldLiveBossIndex or index ~= oldReplayBossIndex then
+                        isDirty = true
+                        break
+                    end
+                    local newLiveBossID = liveBoss and liveBoss.id
+                    local oldLiveBossID = bossFrame.liveBoss and bossFrame.liveBoss.id
+                    if newLiveBossID ~= oldLiveBossID then
+                        isDirty = true
+                        break
+                    end
+                    local newReplayBossID = replayBoss and replayBoss.id
+                    local oldReplayBossID = bossFrame.replayBoss and bossFrame.replayBoss.id
+                    if newReplayBossID ~= oldReplayBossID then
                         isDirty = true
                         break
                     end
@@ -9184,14 +9216,17 @@ do
                 return
             end
             pool:ReleaseAll()
-            for order, bossPairs in ipairs(sortedBosses) do
-                local liveBoss = bossPairs[1]
-                local replayBoss = bossPairs[2]
-                local bossID = bossPairs[3] ---@type number
-                local index = replayBoss.index or liveBoss.index
+            for index = 1, count do
+                local liveBoss = sortedLiveBosses[index]
+                local replayBoss = sortedReplayBosses[index]
+                if liveBoss then
+                    liveBoss.index = index
+                end
+                if replayBoss then
+                    replayBoss.index = index
+                end
                 local bossFrame = pool:Acquire()
-                bossFrame:Setup(order, index, bossID)
-                bossFrame:Update(liveBoss, replayBoss)
+                bossFrame:Setup(index, liveBoss, replayBoss)
             end
             self.bossesHeight = pool:UpdateLayout()
         end
@@ -9221,13 +9256,7 @@ do
             if style == "MODERN" then
                 local pool = self.BossFramePool
                 for bossFrame in pool:EnumerateActive() do
-                    local i = bossFrame.index
-                    local liveBoss = liveBosses[i]
-                    local replayBoss = replayBosses[i]
-                    local bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id)
-                    if bossID and bossID == bossFrame.bossID then
-                        bossFrame:Update(liveBoss, replayBoss)
-                    end
+                    bossFrame:Update()
                 end
             end
         end
@@ -10173,7 +10202,7 @@ do
     function dropdown:OnLoad()
         self:Enable()
         unitOptions = {
-            {
+            { ---@diagnostic disable-line: missing-fields
                 text = L.COPY_RAIDERIO_PROFILE_URL,
                 func = function()
                     if DropDownOptionModifiedClickHandler() then
@@ -10182,7 +10211,7 @@ do
                     util:ShowCopyRaiderIOProfilePopup(selectedName, selectedRealm)
                 end
             },
-            {
+            { ---@diagnostic disable-line: missing-fields
                 text = L.COPY_RAIDERIO_RECRUITMENT_URL,
                 func = function()
                     if DropDownOptionModifiedClickHandler() then
@@ -12323,16 +12352,16 @@ do
     local provider = ns:GetModule("Provider") ---@type ProviderModule
 
     ---@class TestData @This can either be a `table` object with the structure as described in the class, or a `function` we call that returns `status` and `explanation` if there is something to report.
-    ---@field public skip boolean @Set `true` to skip this test.
+    ---@field public skip? boolean @Set `true` to skip this test.
     ---@field public region string @`eu`, `us`, etc.
     ---@field public realm string @The character realm same format as the whisper friendly `GetNormalizedRealmName()` format.
     ---@field public name string @The character name.
-    ---@field public success boolean @Set `true` if the profile exists and contains data, otherwise `false` to ensure it is empty or missing.
-    ---@field public exists boolean @Set `true` if the test expects the profile to exist, otherwise `false` to ensure it doesn't exist
+    ---@field public success? boolean @Set `true` if the profile exists and contains data, otherwise `false` to ensure it is empty or missing.
+    ---@field public exists? boolean @Set `true` if the test expects the profile to exist, otherwise `false` to ensure it doesn't exist
     -- private fields
-    ---@field public profile DataProviderCharacterProfile @Private. Set internally once the test runs and the profile is attempted retrieved.
-    ---@field public status boolean @Private. Set internally to `true` if the test passed, otherwise `false` if something went wrong.
-    ---@field public explanation string @Private. Set internally to describe what went wrong, or what went right depending on the test.
+    ---@field public profile? DataProviderCharacterProfile @Private. Set internally once the test runs and the profile is attempted retrieved.
+    ---@field public status? boolean @Private. Set internally to `true` if the test passed, otherwise `false` if something went wrong.
+    ---@field public explanation? string @Private. Set internally to describe what went wrong, or what went right depending on the test.
 
     ---@param guid1 any
     ---@param guid2 any

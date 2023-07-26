@@ -7995,6 +7995,17 @@ do
             end
         end
 
+        local ReplayBossLiveMetatable = {
+            ---@param self ReplayBoss
+            ---@param key string
+            __index = function(self, key)
+                if key ~= "encounter" then
+                    return
+                end
+                return GetEncounterFromReplayByBossOrdinal(self.index - 1)
+            end,
+        }
+
         function LiveDataProviderMixin:OnLoad()
             self.SetReplay = nil
             self.GetReplay = nil
@@ -8054,8 +8065,7 @@ do
                             local boss = liveSummary.bosses[i]
                             if not boss then
                                 ---@type ReplayBoss
-                                boss = {} ---@diagnostic disable-line: missing-fields
-                                boss.encounter = GetEncounterFromReplayByBossOrdinal(i - 1)
+                                boss = setmetatable({}, ReplayBossLiveMetatable) ---@diagnostic disable-line: missing-fields
                                 boss.index = i
                                 boss.order = i
                                 boss.combat = false
@@ -8404,7 +8414,9 @@ do
             local killed1 = boss1.killed or 0xffffffff
             local killed2 = boss2.killed or 0xffffffff
             if killed1 == killed2 then
-                return boss1.order < boss2.order
+                local order1 = boss1.order or boss1.index
+                local order2 = boss2.order or boss2.index
+                return order1 < order2
             end
             return killed1 < killed2
         end
@@ -9071,12 +9083,30 @@ do
             end
             if not isDirty then
                 for bossFrame in pool:EnumerateActive() do
-                    local index = bossFrame.index
-                    local liveBoss = sortedLiveBosses[index]
-                    local replayBoss = sortedReplayBosses[index]
-                    if bossFrame.index ~= index
-                    or bossFrame.liveBoss ~= liveBoss
-                    or bossFrame.replayBoss ~= replayBoss then
+                    local frameIndex = bossFrame.index
+                    local frameLiveBoss = bossFrame.liveBoss
+                    local frameReplayBoss = bossFrame.replayBoss
+                    local liveBoss = sortedLiveBosses[frameIndex]
+                    local replayBoss = sortedReplayBosses[frameIndex]
+                    if (frameLiveBoss ~= liveBoss)
+                    or (frameLiveBoss and not liveBoss)
+                    or (not frameLiveBoss and liveBoss)
+                    or (frameReplayBoss ~= replayBoss)
+                    or (frameReplayBoss and not replayBoss)
+                    or (not frameReplayBoss and replayBoss) then
+                        isDirty = true
+                        break
+                    end
+                    local frameLiveEncounter = frameLiveBoss and frameLiveBoss.encounter
+                    local frameReplayEncounter = frameReplayBoss and frameReplayBoss.encounter
+                    local liveEncounter = liveBoss and liveBoss.encounter
+                    local replayEncounter = replayBoss and replayBoss.encounter
+                    if (frameLiveEncounter ~= liveEncounter)
+                    or (frameLiveEncounter and not liveEncounter)
+                    or (not frameLiveEncounter and liveEncounter)
+                    or (frameReplayEncounter ~= replayEncounter)
+                    or (frameReplayEncounter and not replayEncounter)
+                    or (not frameReplayEncounter and replayEncounter) then
                         isDirty = true
                         break
                     end
@@ -9089,10 +9119,14 @@ do
             for index = 1, count do
                 local liveBoss = sortedLiveBosses[index]
                 local replayBoss = sortedReplayBosses[index]
-                if liveBoss then liveBoss.order = index end
-                if replayBoss then replayBoss.order = index end
-                local bossFrame = pool:Acquire()
-                bossFrame:Setup(index, liveBoss, replayBoss)
+                if replayBoss then
+                    if liveBoss then
+                        liveBoss.order = index
+                    end
+                    replayBoss.order = index
+                    local bossFrame = pool:Acquire()
+                    bossFrame:Setup(index, liveBoss, replayBoss)
+                end
             end
             self.bossesHeight = pool:UpdateLayout()
         end

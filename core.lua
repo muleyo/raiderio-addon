@@ -7580,16 +7580,15 @@ do
     end
 
     ---@class ReplayBoss
-    ---@field public order number `1` the order that the boss appears in the scenario tracker
+    ---@field public order number `1` sorting number based on the keystone run boss order (usually same as `index` but might be different and used when sorting)
     ---@field public index number `1` the index of the boss as seen in the replay
-    ---@field public id number `2613` the journal encounter id (`bossID`) for use with `EJ_GetEncounterInfo`
-    ---@field public cid number `2490` the encounter id for use with `ENCOUNTER_START` and `ENCOUNTER_END`
     ---@field public pulls number `1` the number of pulls that has been attempted
     ---@field public dead boolean indicates if the boss is dead
     ---@field public combat boolean indicates if the boss is engaged in combat
     ---@field public combatStart? number `time()` if in combat this contains the time when combat started
     ---@field public killed? number `timerMS` if dead this contains the timer when it happened
     ---@field public killedText? string `01:30` if dead this contains the timer as text
+    ---@field public encounter? ReplayEncounter the replay encounter object related to this boss
 
     ---@class ReplaySummary
     ---@field public level number `25` the level of the keystone
@@ -7637,7 +7636,6 @@ do
             self.index = index
             self.liveBoss = liveBoss
             self.replayBoss = replayBoss
-            self.bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id) or 0
             self.Name:SetText(self.index)
             self.InfoL:SetText("")
             self.InfoR:SetText("")
@@ -7682,18 +7680,34 @@ do
             if not self.liveBoss.killed then
                 return
             end
-            return self.liveBoss.id ~= self.replayBoss.id
+            return self.liveBoss.encounter.journal_encounter_id ~= self.replayBoss.encounter.journal_encounter_id
+        end
+
+        ---@param boss ReplayBoss
+        local function GetBossID(boss)
+            if not boss then
+                return
+            end
+            local encounter = boss.encounter
+            if not encounter then
+                return
+            end
+            return encounter.journal_encounter_id
+        end
+
+        ---@return number bossID, number? liveBossID, number? replayBossID
+        function BossFrameMixin:GetBossID()
+            local liveBossID = GetBossID(self.liveBoss)
+            local replayBossID = GetBossID(self.replayBoss)
+            return liveBossID or replayBossID or 0, liveBossID, replayBossID
         end
 
         function BossFrameMixin:GetTooltipText()
+            local bossID, liveBossID, replayBossID = self:GetBossID()
             local text ---@type string?
             if self:HasDifferentBosses() then
-                local liveBoss = self.liveBoss
-                local replayBoss = self.replayBoss
-                local liveBossID = liveBoss and liveBoss.id
-                local replayBossID = replayBoss and replayBoss.id
-                local liveBossName = liveBossID and EJ_GetEncounterInfo(liveBossID)
-                local replayBossName = replayBossID and EJ_GetEncounterInfo(replayBossID)
+                local liveBossName = liveBossID and EJ_GetEncounterInfo(liveBossID) ---@type string?
+                local replayBossName = replayBossID and EJ_GetEncounterInfo(replayBossID) ---@type string?
                 if liveBossName and replayBossName then
                     text = format("%s • %s", liveBossName, replayBossName)
                 elseif liveBossName then
@@ -7702,7 +7716,7 @@ do
                     text = replayBossName
                 end
             else
-                text = EJ_GetEncounterInfo(self.bossID) ---@type string
+                text = EJ_GetEncounterInfo(bossID) ---@type string
             end
             return text
         end
@@ -7888,13 +7902,12 @@ do
             end
             for index, encounter in ipairs(replay.encounters) do
                 ---@type ReplayBoss
-                local replayBoss = {} ---@diagnostic disable-line: missing-fields
-                replayBoss.order = encounter.ordinal + 1
-                replayBoss.index = index
-                replayBoss.id = encounter.journal_encounter_id
-                replayBoss.cid = encounter.encounter_id
-                replayBoss.dead = false
-                replaySummary.bosses[index] = replayBoss
+                local boss = {} ---@diagnostic disable-line: missing-fields
+                boss.encounter = encounter
+                boss.index = index
+                boss.order = index
+                boss.dead = false
+                replaySummary.bosses[index] = boss
             end
             for _, replayEvent in ipairs(replay.events) do
                 local replayEventInfo = UnpackReplayEvent(replayEvent)
@@ -7975,7 +7988,7 @@ do
             if not replay then
                 return
             end
-            for index, encounter in ipairs(replay.encounters) do
+            for _, encounter in ipairs(replay.encounters) do
                 if encounter.ordinal == ordinal then
                     return encounter
                 end
@@ -8040,23 +8053,19 @@ do
                         else
                             local boss = liveSummary.bosses[i]
                             if not boss then
-                                local encounter = GetEncounterFromReplayByBossOrdinal(i - 1)
-                                local ordinal = encounter and encounter.ordinal or 0
-                                local id = encounter and encounter.journal_encounter_id or 0
-                                local combatID = encounter and encounter.encounter_id or 0
                                 ---@type ReplayBoss
                                 boss = {} ---@diagnostic disable-line: missing-fields
-                                boss.order = ordinal + 1
+                                boss.encounter = GetEncounterFromReplayByBossOrdinal(i - 1)
                                 boss.index = i
-                                boss.id = id
-                                boss.cid = combatID
+                                boss.order = i
                                 boss.combat = false
                                 boss.pulls = 0
                                 boss.dead = false
                                 liveSummary.bosses[i] = boss
                             end
                             if not completed and not boss.dead then
-                                local combat = not not ActiveEncounters[boss.cid]
+                                local encounterID = boss.encounter and boss.encounter.encounter_id or 0
+                                local combat = not not ActiveEncounters[encounterID]
                                 if not boss.combat and combat then
                                     boss.combat = true
                                     boss.combatStart = liveSummary.timer
@@ -8395,7 +8404,7 @@ do
             local killed1 = boss1.killed or 0xffffffff
             local killed2 = boss2.killed or 0xffffffff
             if killed1 == killed2 then
-                return boss1.index < boss2.index
+                return boss1.order < boss2.order
             end
             return killed1 < killed2
         end
@@ -9039,10 +9048,21 @@ do
                 self.bossesHeight = 0
                 return
             end
-            local sortedLiveBosses = util:TableCopy(liveBosses)
             local sortedReplayBosses = util:TableCopy(replayBosses)
-            table.sort(sortedLiveBosses, SortBosses)
+            local sortedLiveBosses = util:TableCopy(liveBosses)
             table.sort(sortedReplayBosses, SortBosses)
+            local encounterOrder = {} ---@type table<ReplayEncounter, number>
+            for index, boss in ipairs(sortedReplayBosses) do
+                if boss.encounter then
+                    encounterOrder[boss.encounter.journal_encounter_id] = index
+                end
+            end
+            for _, boss in ipairs(sortedLiveBosses) do
+                if boss.encounter then
+                    boss.order = encounterOrder[boss.encounter.journal_encounter_id]
+                end
+            end
+            table.sort(sortedLiveBosses, SortBosses)
             local isDirty = forceUpdate
             if not isDirty then
                 if count ~= pool:GetNumActive() then
@@ -9054,21 +9074,9 @@ do
                     local index = bossFrame.index
                     local liveBoss = sortedLiveBosses[index]
                     local replayBoss = sortedReplayBosses[index]
-                    local oldLiveBossIndex = liveBoss and liveBoss.index
-                    local oldReplayBossIndex = replayBoss and replayBoss.index
-                    if index ~= oldLiveBossIndex or index ~= oldReplayBossIndex then
-                        isDirty = true
-                        break
-                    end
-                    local newLiveBossID = liveBoss and liveBoss.id
-                    local oldLiveBossID = bossFrame.liveBoss and bossFrame.liveBoss.id
-                    if newLiveBossID ~= oldLiveBossID then
-                        isDirty = true
-                        break
-                    end
-                    local newReplayBossID = replayBoss and replayBoss.id
-                    local oldReplayBossID = bossFrame.replayBoss and bossFrame.replayBoss.id
-                    if newReplayBossID ~= oldReplayBossID then
+                    if bossFrame.index ~= index
+                    or bossFrame.liveBoss ~= liveBoss
+                    or bossFrame.replayBoss ~= replayBoss then
                         isDirty = true
                         break
                     end
@@ -9081,12 +9089,8 @@ do
             for index = 1, count do
                 local liveBoss = sortedLiveBosses[index]
                 local replayBoss = sortedReplayBosses[index]
-                if liveBoss then
-                    liveBoss.index = index
-                end
-                if replayBoss then
-                    replayBoss.index = index
-                end
+                if liveBoss then liveBoss.order = index end
+                if replayBoss then replayBoss.order = index end
                 local bossFrame = pool:Acquire()
                 bossFrame:Setup(index, liveBoss, replayBoss)
             end

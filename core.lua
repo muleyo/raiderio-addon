@@ -5406,2253 +5406,6 @@ do
 
 end
 
--- replay.lua
--- dependencies: module, callback, config, util
-do
-
-    ---@class ReplayModule : Module
-    local replay = ns:NewModule("Replay") ---@type ReplayModule
-    local callback = ns:GetModule("Callback") ---@type CallbackModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-
-    ---@alias ReplayFrameStyle "MODERN"|"MODERN_COMPACT"|"MDI"
-
-    ---@class ReplayFrameStyles
-    local ReplayFrameStyles = {
-        MODERN = "MODERN",
-        MODERN_COMPACT = "MODERN_COMPACT",
-        --MDI = "MDI",
-        [1] = "MODERN",
-        [2] = "MODERN_COMPACT",
-        --[3] = "MDI",
-    }
-
-    local FRAME_UPDATE_INTERVAL = 0.5
-    local FRAME_TIMER_SCALE = 1 -- always 1 for production
-
-    local UPDATE_EVENTS = {
-        "PLAYER_ENTERING_WORLD",
-        "LOADING_SCREEN_DISABLED",
-        "ZONE_CHANGED_NEW_AREA",
-        "SCENARIO_CRITERIA_UPDATE",
-        "INSTANCE_GROUP_SIZE_CHANGED",
-        "CHALLENGE_MODE_START",
-        "CHALLENGE_MODE_RESET",
-        "CHALLENGE_MODE_DEATH_COUNT_UPDATED",
-        "WORLD_STATE_TIMER_START",
-        "WORLD_STATE_TIMER_STOP",
-        "ENCOUNTER_START",
-        "ENCOUNTER_END",
-    }
-
-    ---@class InstanceIdToChallengeMapId
-    local INSTANCE_ID_TO_CHALLENGE_MAP_ID = {
-        [960] = 2,
-        [961] = 56,
-        [962] = 57,
-        [959] = 58,
-        [1011] = 59,
-        [994] = 60,
-        [1007] = 76,
-        [1001] = 77,
-        [1004] = 78,
-        [1209] = 161,
-        [1175] = 163,
-        [1182] = 164,
-        [1176] = 165,
-        [1208] = 166,
-        [1358] = 167,
-        [1279] = 168,
-        [1195] = 169,
-        [1456] = 197,
-        [1466] = 198,
-        [1501] = 199,
-        [1477] = 200,
-        [1458] = 206,
-        [1493] = 207,
-        [1492] = 208,
-        [1516] = 209,
-        [1571] = 210,
-        [1651] = { 227, 234 },
-        [1677] = 233,
-        [1753] = 239,
-        [1763] = 244,
-        [1754] = 245,
-        [1771] = 246,
-        [1594] = 247,
-        [1862] = 248,
-        [1762] = 249,
-        [1877] = 250,
-        [1841] = 251,
-        [1864] = 252,
-        [1822] = 353,
-        [2097] = { 369, 370 },
-        [2290] = 375,
-        [2286] = 376,
-        [2291] = 377,
-        [2287] = 378,
-        [2289] = 379,
-        [2284] = 380,
-        [2285] = 381,
-        [2293] = 382,
-        [2441] = { 391, 392 },
-        [2521] = 399,
-        [2516] = 400,
-        [2515] = 401,
-        [2526] = 402,
-        [2451] = 403,
-        [2519] = 404,
-        [2520] = 405,
-        [2527] = 406,
-        [657] = 438,
-    }
-
-    ---@type table<number, boolean>
-    local ActiveEncounters = {}
-
-    ---@param ms number
-    ---@return number roundedSeconds
-    local function ConvertMillisecondsToSeconds(ms)
-        return floor(ms/1000 + 0.5)
-    end
-
-    ---@alias ReplaySplitStyle
-    ---|"NONE"
-    ---|"NONE_COLORLESS"
-    ---|"NONE_YELLOW"
-    ---|"PLUS_MINUS"
-    ---|"PARENTHESIS"
-
-    ---@param delta number
-    ---@param splitStyle? ReplaySplitStyle
-    ---@param forceColorless? boolean|number
-    local function SecondsToTimeText(delta, splitStyle, forceColorless)
-        local ahead = delta >= 0
-        local prefix, suffix = "", ""
-        if splitStyle == "NONE_COLORLESS" then
-            forceColorless = true
-        elseif splitStyle == "NONE_YELLOW" then
-            forceColorless = 1
-        elseif splitStyle == "PLUS_MINUS" then
-            prefix = delta == 0 and "~" or (ahead and "+" or "-")
-        elseif splitStyle == "PARENTHESIS" then
-            prefix, suffix = "(", ")"
-        end
-        local color ---@type string?
-        if not forceColorless then
-            color = ahead and "55FF55" or "FF5555"
-        elseif forceColorless == 1 then
-            color = "FFBD00" -- "FFFF55"
-        end
-        local text = util:SecondsToTimeText(ahead and delta or -delta)
-        if color then
-            return format("|cff%s%s%s%s|r", color, prefix, text, suffix)
-        end
-        return format("%s%s%s", prefix, text, suffix)
-    end
-
-    ---@param replayEvent ReplayEvent
-    ---@return ReplayEventInfo replayEventInfo
-    local function UnpackReplayEvent(replayEvent)
-        if replayEvent._replayEventInfo then
-            return replayEvent._replayEventInfo
-        end
-        ---@type ReplayEventInfo
-        local replayEventInfo = {} ---@diagnostic disable-line: missing-fields
-        local anyBossesInCombat = false
-        replayEventInfo.timer = replayEvent[1]
-        replayEventInfo.event = replayEvent[2]
-        if replayEventInfo.event == 1 then
-            replayEventInfo.deaths = replayEvent[3]
-        elseif replayEventInfo.event == 2 then
-            replayEventInfo.forces = replayEvent[3]
-        elseif replayEventInfo.event == 3 or replayEventInfo.event == 4 then
-            ---@type ReplayBossInfo
-            local bossInfo = {} ---@diagnostic disable-line: missing-fields
-            bossInfo.index = replayEvent[3] + 1 -- convert to 1-based index
-            bossInfo.pulls = replayEvent[4]
-            bossInfo.combat = replayEvent[5]
-            bossInfo.killed = replayEvent[6]
-            if bossInfo.combat then
-                anyBossesInCombat = true
-            end
-            replayEventInfo.bosses = {}
-            replayEventInfo.bosses[bossInfo.index] = bossInfo
-        end
-        replayEventInfo.inBossCombat = anyBossesInCombat
-        replayEvent._replayEventInfo = replayEventInfo
-        return replayEventInfo
-    end
-
-    ---@param replaySummary ReplaySummary
-    ---@param replayEventInfo ReplayEventInfo
-    local function ApplyBossInfoToSummary(replaySummary, replayEventInfo)
-        if not replayEventInfo.bosses then
-            return
-        end
-        local anyBossesInCombat = false
-        for _, bossInfo in pairs(replayEventInfo.bosses) do
-            local boss = replaySummary.bosses[bossInfo.index]
-            if not boss.combat and bossInfo.combat then
-                boss.combat = true
-                boss.combatStart = replayEventInfo.timer
-            elseif boss.combat and not bossInfo.combat then
-                boss.combat = false
-                boss.combatStart = nil
-            end
-            boss.pulls = bossInfo.pulls
-            if bossInfo.killed then
-                boss.dead = true
-                boss.combat = false
-                boss.killed = replayEventInfo.timer
-                local delta = ConvertMillisecondsToSeconds(replayEventInfo.timer)
-                boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
-            end
-            if boss.combat then
-                anyBossesInCombat = true
-            end
-        end
-        replaySummary.inBossCombat = anyBossesInCombat
-    end
-
-    ---@param delta number
-    ---@param whiteWhenZero? boolean
-    local function AheadColor(delta, whiteWhenZero)
-        if delta == 0 then
-            return whiteWhenZero and "FFFFFF" or "FFFF55"
-        end
-        return delta <= 0 and "66EE22" or "FF4422"
-    end
-
-    ---@param value number @Expected range is `0` to `100`.
-    ---@param tryHandleZero? boolean
-    ---@return string percentageText @Naturally rounded percentage strings like `90%`, `95.59%`, `99.5%`, `100%`
-    local function FormatPercentageAsText(value, tryHandleZero)
-        local rounded = floor(value * 100 + 0.5) / 100
-        local temp = tostring(rounded)
-        if strsub(temp, -3) == ".00" then
-            temp = strsub(temp, 1, -4)
-        elseif strsub(temp, -2) == ".0" then
-            temp = strsub(temp, 1, -2)
-        end
-        if tryHandleZero and temp == "0" then
-            return format("%.3f", value)
-        end
-        return temp
-    end
-
-    ---@param timerID number
-    ---@return number? elapsedTime
-    local function GetWorldElapsedTimerForKeystone(timerID)
-        ---@type number, number, number
-        local _, elapsedTime, timerType = GetWorldElapsedTime(timerID)
-        if timerType ~= LE_WORLD_ELAPSED_TIMER_TYPE_CHALLENGE_MODE then
-            return
-        end
-        return elapsedTime
-    end
-
-    ---@class ReplayBoss
-    ---@field public order number `1` the order that the boss appears in the scenario tracker
-    ---@field public index number `1` the index of the boss as seen in the replay
-    ---@field public id number `2613` the journal encounter id (`bossID`) for use with `EJ_GetEncounterInfo`
-    ---@field public cid number `2490` the encounter id for use with `ENCOUNTER_START` and `ENCOUNTER_END`
-    ---@field public pulls number `1` the number of pulls that has been attempted
-    ---@field public dead boolean indicates if the boss is dead
-    ---@field public combat boolean indicates if the boss is engaged in combat
-    ---@field public combatStart? number `time()` if in combat this contains the time when combat started
-    ---@field public killed? number `timerMS` if dead this contains the timer when it happened
-    ---@field public killedText? string `01:30` if dead this contains the timer as text
-
-    ---@class ReplaySummary
-    ---@field public level number `25` the level of the keystone
-    ---@field public affixes number[] `{9}` table with numbers with the affix IDs
-    ---@field public index number `117` the index of the event from the replay log that is currently the latest event displayed
-    ---@field public timer number `1995812` the timer (live provider also adds decimals from the OnUpdate handler)
-    ---@field public deaths number the total number of deaths
-    ---@field public deathsBeforeOvertime? number the total number of deaths before the key was depleted
-    ---@field public trash number `530` the amount of enemy forces defeated
-    ---@field public bosses ReplayBoss[]
-    ---@field public inBossCombat boolean indicates if any boss is engaged in combat
-
-    ---@type Replay[]
-    local replays
-
-    ---@class ReplayFrame : Frame
-    local replayFrame
-
-    ---@class BossFrame : Frame
-    ---@field public Name FontString
-    ---@field public InfoL FontString
-    ---@field public InfoR FontString
-    ---@field public Background Texture
-    ---@field public CombatL Texture
-    ---@field public CombatR Texture
-    ---@field public RouteSwap Texture
-
-    ---@class BossFramePool
-    ---@field public Acquire fun(self: BossFramePool): BossFrame
-    ---@field public Release fun(self: BossFramePool, obj: BossFrame)
-    ---@field public ReleaseAll fun(self: BossFramePool)
-    ---@field public EnumerateActive fun(self: BossFramePool): fun(table: table<BossFrame, boolean>, index?: number): BossFrame, boolean
-    ---@field public GetNumActive fun(self: BossFramePool): number
-
-    ---@class BossFrame
-    local BossFrameMixin = {}
-
-    do
-
-        ---@param self BossFrame
-        ---@param index number
-        ---@param liveBoss ReplayBoss
-        ---@param replayBoss ReplayBoss
-        function BossFrameMixin:Setup(index, liveBoss, replayBoss)
-            self.index = index
-            self.liveBoss = liveBoss
-            self.replayBoss = replayBoss
-            self.bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id) or 0
-            self.Name:SetText(self.index)
-            self.InfoL:SetText("")
-            self.InfoR:SetText("")
-            self:Show()
-            self:Update()
-        end
-
-        ---@param self BossFrame
-        function BossFrameMixin:Update()
-            local liveBoss = self.liveBoss
-            local replayBoss = self.replayBoss
-            local keystoneTimeMS = replayFrame:GetKeystoneTimeMS()
-            local isLiveBossDead = liveBoss and liveBoss.dead
-            local isReplayBossDead = replayBoss and replayBoss.killed and replayBoss.killed - keystoneTimeMS <= 0
-            -- TODO: feedback from Dratnos and Jah about splits (read more on Discord about how to change this code)
-            if isLiveBossDead then
-                local delta = ConvertMillisecondsToSeconds(replayBoss.killed - liveBoss.killed)
-                self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeText(delta, "PARENTHESIS"))
-            elseif liveBoss and liveBoss.combatStart then
-                local delta = ConvertMillisecondsToSeconds(keystoneTimeMS - liveBoss.combatStart)
-                self.InfoL:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
-            else
-                self.InfoL:SetText("")
-            end
-            if isReplayBossDead then
-                self.InfoR:SetFormattedText("%s", replayBoss.killedText)
-            elseif replayBoss and replayBoss.combatStart then
-                local delta = ConvertMillisecondsToSeconds(keystoneTimeMS - replayBoss.combatStart)
-                self.InfoR:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
-            else
-                self.InfoR:SetText("")
-            end
-            self.CombatL:SetShown(liveBoss and liveBoss.combat)
-            self.CombatR:SetShown(replayBoss and replayBoss.combat)
-            self.RouteSwap:SetShown(not not self:HasDifferentBosses())
-        end
-
-        function BossFrameMixin:HasDifferentBosses()
-            if not self.liveBoss or not self.replayBoss then
-                return
-            end
-            if not self.liveBoss.killed then
-                return
-            end
-            return self.liveBoss.id ~= self.replayBoss.id
-        end
-
-        function BossFrameMixin:GetTooltipText()
-            local text ---@type string?
-            if self:HasDifferentBosses() then
-                local liveBoss = self.liveBoss
-                local replayBoss = self.replayBoss
-                local liveBossID = liveBoss and liveBoss.id
-                local replayBossID = replayBoss and replayBoss.id
-                local liveBossName = liveBossID and EJ_GetEncounterInfo(liveBossID)
-                local replayBossName = replayBossID and EJ_GetEncounterInfo(replayBossID)
-                if liveBossName and replayBossName then
-                    text = format("%s • %s", liveBossName, replayBossName)
-                elseif liveBossName then
-                    text = liveBossName
-                else
-                    text = replayBossName
-                end
-            else
-                text = EJ_GetEncounterInfo(self.bossID) ---@type string
-            end
-            return text
-        end
-
-        ---@param self BossFrame
-        function BossFrameMixin:OnEnter()
-            local text = self:GetTooltipText()
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip_SetTitle(GameTooltip, text, nil, false)
-            GameTooltip:Show()
-        end
-
-        ---@param self BossFrame
-        function BossFrameMixin:OnLeave()
-            GameTooltip_Hide()
-        end
-
-    end
-
-    ---@param obj BossFrame
-    local function BossFrameOnInit(obj)
-        Mixin(obj, BossFrameMixin)
-        obj:SetSize(320, 32)
-        obj.Name = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        obj.Name:SetSize(16 + 4, 32 - 4*2)
-        obj.Name:SetPoint("CENTER")
-        obj.Name:SetJustifyH("CENTER")
-        obj.Name:SetJustifyV("MIDDLE")
-        obj.InfoL = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        obj.InfoL:SetPoint("TOPLEFT", obj, "TOPLEFT", 4, -4)
-        obj.InfoL:SetPoint("BOTTOMRIGHT", obj.Name, "BOTTOMLEFT", -4, 0)
-        obj.InfoL:SetJustifyH("RIGHT")
-        obj.InfoL:SetJustifyV("MIDDLE")
-        obj.InfoR = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        obj.InfoR:SetPoint("TOPRIGHT", obj, "TOPRIGHT", -4, -4)
-        obj.InfoR:SetPoint("BOTTOMLEFT", obj.Name, "BOTTOMRIGHT", 4, 0)
-        obj.InfoR:SetJustifyH("LEFT")
-        obj.InfoR:SetJustifyV("MIDDLE")
-        obj.Background = obj:CreateTexture(nil, "BACKGROUND")
-        obj.Background:SetPoint("TOPLEFT", 1, -1)
-        obj.Background:SetPoint("BOTTOMRIGHT", -1, 1)
-        obj.Background:SetColorTexture(0, 0, 0, 0.5)
-        obj.CombatL = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
-        obj.CombatL:SetPoint("LEFT", obj.InfoL, "LEFT", 4, 0)
-        obj.CombatL:SetSize(14, 14)
-        obj.CombatL:Hide()
-        obj.CombatR = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
-        obj.CombatR:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
-        obj.CombatR:SetSize(14, 14)
-        obj.CombatR:Hide()
-        obj.RouteSwap = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.ROUTE, "ARTWORK")
-        obj.RouteSwap:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
-        obj.RouteSwap:SetSize(16, 16)
-        obj.RouteSwap:Hide()
-        obj:HookScript("OnEnter", obj.OnEnter)
-        obj:HookScript("OnLeave", obj.OnLeave)
-        obj:SetMouseClickEnabled(false)
-    end
-
-    ---@param self BossFramePool
-    ---@param obj BossFrame
-    local function BossFrameOnReset(self, obj)
-        obj:Hide()
-    end
-
-    ---@class BossFramePool
-    local BossFramePoolMixin = {}
-
-    do
-
-        ---@return number bossesHeight
-        function BossFramePoolMixin:UpdateLayout()
-            local bossIndex = 0
-            local bossFrames = {} ---@type BossFrame[]
-            for bossFrame in self:EnumerateActive() do
-                bossIndex = bossIndex + 1
-                bossFrames[bossIndex] = bossFrame
-            end
-            table.sort(bossFrames, function(a, b) return a.index < b.index end)
-            local offsetX, offsetY = 0, replayFrame.contentPaddingY
-            local prevBossFrame
-            local bossesHeight = 0
-            for _, bossFrame in ipairs(bossFrames) do
-                local height = bossFrame:GetHeight()
-                bossesHeight = bossesHeight + height
-                bossFrame:ClearAllPoints()
-                if prevBossFrame then
-                    bossFrame:SetPoint("TOPLEFT", prevBossFrame, "BOTTOMLEFT", 0, 0)
-                    bossFrame:SetPoint("BOTTOMRIGHT", prevBossFrame, "BOTTOMRIGHT", 0, -height)
-                else
-                    bossFrame:SetPoint("TOPLEFT", replayFrame.TextBlock, "BOTTOMLEFT", offsetX, -offsetY)
-                    bossFrame:SetPoint("BOTTOMRIGHT", replayFrame.TextBlock, "BOTTOMRIGHT", -offsetX, -height-offsetY)
-                end
-                prevBossFrame = bossFrame
-            end
-            if bossesHeight > 0 then
-                bossesHeight = bossesHeight + replayFrame.contentPaddingY
-            end
-            return bossesHeight
-        end
-
-    end
-
-    ---@param parent ReplayFrame
-    ---@return BossFramePool
-    local function CreateBossFramePool(parent)
-        local bossFramePool = CreateFramePool("Frame", parent, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@class BossFramePool
-        Mixin(bossFramePool, BossFramePoolMixin)
-        return bossFramePool
-    end
-
-    local DEATH_PENALTY = 5
-
-    ---@class ReplayDataProvider
-    local ReplayDataProviderMixin = {}
-
-    do
-
-        function ReplayDataProviderMixin:OnLoad()
-            self.replaySummary = self:CreateSummary()
-            self:SetDeathPenalty(DEATH_PENALTY)
-        end
-
-        ---@param replay? Replay
-        function ReplayDataProviderMixin:SetReplay(replay)
-            if self.replay == replay then
-                return
-            end
-            self.replay = replay
-            self:SetupSummary()
-            replayFrame:OnReplayChange()
-        end
-
-        ---@return Replay? replay
-        function ReplayDataProviderMixin:GetReplay()
-            return self.replay
-        end
-
-        ---@param seconds number
-        function ReplayDataProviderMixin:SetDeathPenalty(seconds)
-            self.deathPenalty = seconds
-        end
-
-        ---@return number deathPenalty
-        function ReplayDataProviderMixin:GetDeathPenalty()
-            return self.deathPenalty
-        end
-
-        ---@return ReplaySummary replaySummary
-        function ReplayDataProviderMixin:CreateSummary()
-            ---@type ReplaySummary
-            local replaySummary = {
-                level = 0,
-                affixes = {},
-                index = 0,
-                timer = 0,
-                deaths = 0,
-                trash = 0,
-                bosses = {},
-                inBossCombat = false,
-            }
-            return replaySummary
-        end
-
-        function ReplayDataProviderMixin:SetupSummary()
-            local replaySummary = self.replaySummary
-            replaySummary.level = 0
-            replaySummary.index = 0
-            replaySummary.timer = 0
-            replaySummary.deaths = 0
-            replaySummary.deathsBeforeOvertime = nil
-            replaySummary.trash = 0
-            replaySummary.inBossCombat = false
-            table.wipe(replaySummary.bosses)
-            local replay = self:GetReplay()
-            if not replay then
-                return
-            end
-            replaySummary.level = replay.mythic_level
-            replaySummary.affixes = {}
-            for index, affix in ipairs(replay.affixes) do
-                replaySummary.affixes[index] = affix.id
-            end
-            for index, encounter in ipairs(replay.encounters) do
-                ---@type ReplayBoss
-                local replayBoss = {} ---@diagnostic disable-line: missing-fields
-                replayBoss.order = encounter.ordinal + 1
-                replayBoss.index = index
-                replayBoss.id = encounter.journal_encounter_id
-                replayBoss.cid = encounter.encounter_id
-                replayBoss.dead = false
-                replaySummary.bosses[index] = replayBoss
-            end
-            for _, replayEvent in ipairs(replay.events) do
-                local replayEventInfo = UnpackReplayEvent(replayEvent)
-                if replayEventInfo.bosses then
-                    ApplyBossInfoToSummary(replaySummary, replayEventInfo)
-                end
-            end
-        end
-
-        ---@return ReplaySummary replaySummary
-        function ReplayDataProviderMixin:GetSummary()
-            return self.replaySummary
-        end
-
-        ---@param timerMS number
-        ---@return ReplaySummary replaySummary, ReplayEvent currentReplayEvent, ReplayEvent? nextReplayEvent
-        function ReplayDataProviderMixin:GetReplaySummaryAt(timerMS)
-            local replaySummary = self:GetSummary()
-            local replay = self:GetReplay() ---@type Replay
-            local timeLimit = replayFrame:GetCurrentTimeLimit()
-            local replayEvents = replay.events
-            for i = replaySummary.index + 1, #replayEvents do
-                local replayEvent = replayEvents[i]
-                local replayEventInfo = UnpackReplayEvent(replayEvent)
-                if replayEventInfo.timer > timerMS then
-                    break
-                end
-                replaySummary.index = i
-                replaySummary.timer = replayEventInfo.timer
-                if replayEventInfo.deaths then
-                    if not replaySummary.deathsBeforeOvertime and timeLimit < timerMS/1000 then
-                        replaySummary.deathsBeforeOvertime = replaySummary.deaths
-                    end
-                    replaySummary.deaths = replaySummary.deaths + replayEventInfo.deaths
-                end
-                if replayEventInfo.forces then
-                    replaySummary.trash = replaySummary.trash + replayEventInfo.forces
-                end
-                if replayEventInfo.bosses then
-                    ApplyBossInfoToSummary(replaySummary, replayEventInfo)
-                end
-            end
-            local nextReplayEvent = replayEvents[replaySummary.index + 1]
-            local anyBossesInCombat = false
-            for i = 1, #replaySummary.bosses do
-                local boss = replaySummary.bosses[i]
-                if not nextReplayEvent then
-                    boss.combat = false
-                    boss.dead = true
-                elseif boss.combat then
-                    anyBossesInCombat = true
-                    break
-                end
-            end
-            replaySummary.inBossCombat = anyBossesInCombat
-            return replaySummary, replayEvents[replaySummary.index], nextReplayEvent
-        end
-
-    end
-
-    ---@class LiveDataProvider : ReplayDataProvider
-    ---@field public SetReplay nil
-    ---@field public GetReplay nil
-    ---@field public CreateSummary nil
-    ---@field public SetupSummary nil
-    ---@field public GetReplaySummaryAt nil
-
-    ---@class LiveDataProvider
-    local LiveDataProviderMixin = {}
-
-    do
-
-        ---@param ordinal number
-        ---@return ReplayEncounter? encounter
-        local function GetEncounterFromReplayByBossOrdinal(ordinal)
-            local replayDataProvider = replayFrame:GetReplayDataProvider()
-            local replay = replayDataProvider:GetReplay()
-            if not replay then
-                return
-            end
-            for index, encounter in ipairs(replay.encounters) do
-                if encounter.ordinal == ordinal then
-                    return encounter
-                end
-            end
-        end
-
-        function LiveDataProviderMixin:OnLoad()
-            self.SetReplay = nil
-            self.GetReplay = nil
-            self.CreateSummary = nil
-            self.GetReplaySummaryAt = nil
-        end
-
-        function LiveDataProviderMixin:ResetSummary()
-            local liveSummary = self.replaySummary
-            liveSummary.timer = 0
-            liveSummary.level = 0
-            table.wipe(liveSummary.affixes)
-            liveSummary.deaths = 0
-            liveSummary.deathsBeforeOvertime = nil
-            liveSummary.trash = 0
-            liveSummary.inBossCombat = false
-            table.wipe(liveSummary.bosses)
-        end
-
-        ---@return ReplaySummary liveSummary
-        function LiveDataProviderMixin:GetSummary()
-            local liveSummary = self.replaySummary
-            if not replayFrame:IsState("PLAYING") then
-                return liveSummary
-            end
-            liveSummary.timer = replayFrame:GetKeystoneTimeMS()
-            local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
-            if activeKeystoneLevel and activeKeystoneLevel ~= 0 then
-                liveSummary.level = activeKeystoneLevel
-            end
-            if activeAffixIDs and activeAffixIDs[1] then
-                liveSummary.affixes = activeAffixIDs
-            end
-            local numDeaths, timeLost = C_ChallengeMode.GetDeathCount()
-            if numDeaths then
-                local timeLimit = replayFrame:GetCurrentTimeLimit()
-                if not liveSummary.deathsBeforeOvertime and timeLimit < liveSummary.timer/1000 then
-                    liveSummary.deathsBeforeOvertime = liveSummary.deaths
-                end
-                liveSummary.deaths = numDeaths
-            end
-            ---@type string?, string?, number?
-            local _, _, numCriteria = C_Scenario.GetStepInfo()
-            if numCriteria and numCriteria > 1 then
-                local anyBossesInCombat = false
-                for i = 1, numCriteria do
-                    ---@type string?, number?, boolean?, number?, number?, number?, number?, string?, number?, number?, number?, boolean?, boolean?
-                    local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
-                    if criteriaString then
-                        local isTrash = i == numCriteria
-                        if isTrash then
-                            local trash = quantityString and tonumber(strsub(quantityString, 1, strlen(quantityString) - 1)) or -1
-                            if trash > 0 then
-                                liveSummary.trash = trash
-                            end
-                        else
-                            local boss = liveSummary.bosses[i]
-                            if not boss then
-                                local encounter = GetEncounterFromReplayByBossOrdinal(i - 1)
-                                local ordinal = encounter and encounter.ordinal or 0
-                                local id = encounter and encounter.journal_encounter_id or 0
-                                local combatID = encounter and encounter.encounter_id or 0
-                                ---@type ReplayBoss
-                                boss = {} ---@diagnostic disable-line: missing-fields
-                                boss.order = ordinal + 1
-                                boss.index = i
-                                boss.id = id
-                                boss.cid = combatID
-                                boss.combat = false
-                                boss.pulls = 0
-                                boss.dead = false
-                                liveSummary.bosses[i] = boss
-                            end
-                            if not completed and not boss.dead then
-                                local combat = not not ActiveEncounters[boss.cid]
-                                if not boss.combat and combat then
-                                    boss.combat = true
-                                    boss.combatStart = liveSummary.timer
-                                    boss.pulls = boss.pulls + 1
-                                elseif boss.combat and not combat then
-                                    boss.combat = false
-                                    boss.combatStart = nil
-                                end
-                            end
-                            if completed and not boss.dead then
-                                boss.combat = false
-                                boss.pulls = max(1, boss.pulls)
-                                boss.dead = true
-                                boss.killed = liveSummary.timer
-                                local delta = ConvertMillisecondsToSeconds(liveSummary.timer)
-                                boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
-                                replayFrame:OnBossKill()
-                            end
-                            if boss.combat then
-                                anyBossesInCombat = true
-                            end
-                        end
-                    end
-                end
-                liveSummary.inBossCombat = anyBossesInCombat
-            end
-            return liveSummary
-        end
-
-    end
-
-    ---@class ReplayFrameConfigButton : Button
-    local ReplayFrameConfigButtonMixin = {}
-
-    do
-
-        ---@alias ReplayFrameDropDownMenuList "replay"|"style"
-
-        ---@class UIDropDownMenuTemplate : Frame
-
-        ---@class UIDropDownMenuInfo
-        ---@field public checked boolean
-        ---@field public text string
-        ---@field public hasArrow boolean
-        ---@field public menuList ReplayFrameDropDownMenuList
-        ---@field public arg1 ReplayFrameConfigButton
-        ---@field public arg2 Replay|ReplayFrameStyle
-        ---@field public value Replay|ReplayFrameStyle
-        ---@field public tooltipTitle? string
-        ---@field public tooltipText? string
-        ---@field public tooltipOnButton? boolean
-
-        function ReplayFrameConfigButtonMixin:OnLoad()
-            local parent = self:GetParent() ---@type ReplayFrame
-            self:SetSize(16, 16)
-            self:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
-            self:RegisterForClicks("LeftButtonUp")
-            self:SetScript("OnClick", self.OnClick)
-            -- self:SetScript("OnEnter", self.OnEnter)
-            -- self:SetScript("OnLeave", self.OnLeave)
-            self.Texture = self:CreateTexture(nil, "ARTWORK")
-            self.Texture:SetAllPoints()
-            self.Texture:SetTexture(851903)
-            self.DropDownMenu = CreateFrame("Frame", nil, self, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
-            UIDropDownMenu_Initialize(self.DropDownMenu, self.Initialize, "MENU")
-        end
-
-        ---@param self UIDropDownMenuTemplate
-        ---@param level number
-        ---@param menuList? ReplayFrameDropDownMenuList
-        function ReplayFrameConfigButtonMixin:Initialize(level, menuList)
-            local parent = self:GetParent() ---@type ReplayFrameConfigButton
-            local info = UIDropDownMenu_CreateInfo() ---@type UIDropDownMenuInfo
-            if level == 1 then
-                info.notCheckable = true
-                local replayDataProvider = replayFrame:GetReplayDataProvider()
-                local currentReplay = replayDataProvider:GetReplay()
-                if currentReplay then
-                    info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_COPY_URL, false, nil
-                    info.func = parent.OnCopyReplayUrlClick
-                    info.arg1 = parent
-                    info.arg2 = currentReplay
-                    UIDropDownMenu_AddButton(info, level)
-                    info.func = nil
-                    info.arg1 = nil
-                    info.arg2 = nil
-                end
-                info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_REPLAY, true, "replay"
-                UIDropDownMenu_AddButton(info, level)
-                info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_STYLE, true, "style"
-                UIDropDownMenu_AddButton(info, level)
-                info.text, info.hasArrow = CLOSE, nil
-                UIDropDownMenu_AddButton(info)
-            elseif menuList == "replay" then
-                local replayDataProvider = replayFrame:GetReplayDataProvider()
-                local currentReplay = replayDataProvider:GetReplay()
-                local mapID, _, otherMapIDs = replayFrame:GetKeystone()
-                info.func = parent.OnOptionClick
-                info.arg1 = parent
-                info.tooltipOnButton = true
-                for _, replay in ipairs(replays) do
-                    info.checked = replay == currentReplay
-                    local dungeon = util:GetDungeonByID(replay.dungeon.id)
-                    local showDungeon = info.checked or (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
-                    if showDungeon then
-                        local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface\\icons\\%s:16:16|t", affix.icon) end, "")
-                        local members = {strsplit(",", replay.title)} ---@type string[]
-                        members = format(" - %s", util:TableMapConcat(members, function(name) return strtrim(name) end, "\n - ")) ---@diagnostic disable-line: cast-local-type
-                        info.text = replay.title
-                        info.arg2 = replay
-                        info.tooltipTitle = affixesText
-                        info.tooltipText = format("|cffFFFFFF%s|r", members)
-                        UIDropDownMenu_AddButton(info, level)
-                    end
-                end
-            elseif menuList == "style" then
-                local currentStyle = replayFrame:GetStyle()
-                info.func = parent.OnOptionClick
-                info.arg1 = parent
-                for _, style in ipairs(ReplayFrameStyles) do
-                    info.checked = style == currentStyle
-                    info.text = L[format("REPLAY_STYLE_TITLE_%s", style)]
-                    info.arg2 = style
-                    UIDropDownMenu_AddButton(info, level)
-                end
-            end
-        end
-
-        ---@param self UIDropDownMenuInfo
-        function ReplayFrameConfigButtonMixin:OnOptionClick()
-            local dropDownMenu = self.arg1
-            local value = self.arg2 or self.value
-            if value and type(value) == "string" then
-                local style = value ---@type ReplayFrameStyle
-                replayFrame:SetStyle(style, true)
-            else
-                local replay = value ---@type Replay
-                local replayDataProvider = replayFrame:GetReplayDataProvider()
-                replayDataProvider:SetReplay(replay)
-            end
-            dropDownMenu:Close()
-        end
-
-        ---@param self UIDropDownMenuInfo
-        function ReplayFrameConfigButtonMixin:OnCopyReplayUrlClick()
-            local dropDownMenu = self.arg1
-            local value = self.arg2 or self.value ---@type Replay
-            util:ShowCopyRaiderIOReplayPopup(value.title, value.run_url)
-            dropDownMenu:Close()
-        end
-
-        function ReplayFrameConfigButtonMixin:Open()
-            ToggleDropDownMenu(1, nil, self.DropDownMenu, "cursor", 2, 2)
-        end
-
-        function ReplayFrameConfigButtonMixin:Close()
-            CloseDropDownMenus()
-        end
-
-        function ReplayFrameConfigButtonMixin:Toggle()
-            if DropDownList1:IsShown() and DropDownList1.dropdown == self.DropDownMenu then
-                self:Close()
-            else
-                self:Open()
-            end
-        end
-
-        function ReplayFrameConfigButtonMixin:OnClick()
-            PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
-            self:Toggle()
-        end
-
-        function ReplayFrameConfigButtonMixin:OnEnter()
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip_SetTitle(GameTooltip, L.REPLAY_SETTINGS_TOOLTIP)
-            GameTooltip:Show()
-        end
-
-        function ReplayFrameConfigButtonMixin:OnLeave()
-            GameTooltip:Hide()
-        end
-
-    end
-
-    ---@param parent ReplayFrame
-    local function CreateReplayFrameConfigButton(parent)
-        local frame = CreateFrame("Button", nil, parent) ---@class ReplayFrameConfigButton
-        Mixin(frame, ReplayFrameConfigButtonMixin)
-        frame:OnLoad()
-        return frame
-    end
-
-    ---@class ReplayFrame : Frame
-    local ReplayFrameMixin = {}
-
-    do
-
-        ---@class StatusBarWidgetVisualizationInfoPolyfill : StatusBarWidgetVisualizationInfo
-        ---@field textEnabledState Enum.WidgetEnabledState
-        ---@field textFontType Enum.UIWidgetFontType
-        ---@field textSizeType Enum.UIWidgetTextSizeType
-
-        ---@class UIWidgetBaseTextMixin : FontString
-
-        ---@class UIWidgetBaseStatusBarTemplateMixin
-        ---@field public value? number
-        ---@field public SanitizeAndSetStatusBarValues fun(self: UIWidgetBaseStatusBarTemplateMixin, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill)
-        ---@field public Setup fun(self: UIWidgetBaseStatusBarTemplateMixin, widgetContainer: Region, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill)
-        ---@field public UpdateBar fun(self: UIWidgetBaseStatusBarTemplateMixin, elapsed: number)
-        ---@field public DisplayBarValue fun(self: UIWidgetBaseStatusBarTemplateMixin)
-        ---@field public SetBarText fun(self: UIWidgetBaseStatusBarTemplateMixin, barValue: number)
-        ---@field public GetMaxTimeCount fun(self: UIWidgetBaseStatusBarTemplateMixin): number
-        ---@field public OnEnter fun(self: UIWidgetBaseStatusBarTemplateMixin)
-        ---@field public OnLeave fun(self: UIWidgetBaseStatusBarTemplateMixin)
-        ---@field public UpdateLabel fun(self: UIWidgetBaseStatusBarTemplateMixin)
-        ---@field public SetMouse fun(self: UIWidgetBaseStatusBarTemplateMixin, disableMouse: boolean)
-        ---@field public InitPartitions fun(self: UIWidgetBaseStatusBarTemplateMixin, partitionValues: number[], textureKit: string|number)
-        ---@field public UpdatePartitions fun(self: UIWidgetBaseStatusBarTemplateMixin, barValue: number)
-        ---@field public OnReset fun(self: UIWidgetBaseStatusBarTemplateMixin)
-
-        ---@class UIWidgetBaseStatusBarTemplate : StatusBar, UIWidgetBaseStatusBarTemplateMixin
-        ---@field public BackgroundGlow Texture
-        ---@field public BGLeft Texture
-        ---@field public BGRight Texture
-        ---@field public BGCenter Texture
-        ---@field public GlowLeft Texture
-        ---@field public GlowRight Texture
-        ---@field public GlowCenter Texture
-        ---@field public BorderLeft Texture
-        ---@field public BorderRight Texture
-        ---@field public BorderCenter Texture
-        ---@field public Spark Texture
-        ---@field public SparkMask Texture
-        ---@field public Label UIWidgetBaseTextMixin
-
-        ---@class UIWidgetTemplateStatusBarMixin
-        ---@field public SanitizeTextureKits fun(self: UIWidgetTemplateStatusBarMixin, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill)
-        ---@field public Setup fun(self: UIWidgetTemplateStatusBarMixin, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill, widgetContainer: Region)
-        ---@field public EvaluateTutorials fun(self: UIWidgetTemplateStatusBarMixin)
-        ---@field public OnReset fun(self: UIWidgetTemplateStatusBarMixin)
-
-        ---@class UIWidgetTemplateStatusBar : Frame, UIWidgetTemplateStatusBarMixin
-        ---@field public Bar UIWidgetBaseStatusBarTemplate
-        ---@field public Label FontString
-        ---@field public widgetContainer Region @Custom property assigned to be the same as the object used when calling `Setup`.
-        ---@field public SetBarValue fun(self: UIWidgetTemplateStatusBar, barValue: number, barMin?: number, barMax?: number, forceUpdate?: boolean) @Custom function assigned to wrap around `Setup` for updating the bar widget.
-
-        ---@type StatusBarWidgetVisualizationInfoPolyfill
-        local STATUSBAR_WIDGET_DEFAULT = {
-            shownState = Enum.WidgetShownState.Shown,
-            barMin = 0,
-            barMax = 100,
-            barValue = 0,
-            -- text = "text",
-            -- tooltip = "tooltip",
-            barValueTextType = Enum.StatusBarValueTextType.Percentage,
-            -- overrideBarText = "0/500 (500)",
-            overrideBarTextShownType = Enum.StatusBarOverrideBarTextShownType.OnlyOnMouseover,
-            colorTint = Enum.StatusBarColorTintValue.Blue,
-            -- partitionValues = {},
-            tooltipLoc = Enum.UIWidgetTooltipLocation.BottomLeft,
-            fillMotionType = Enum.UIWidgetMotionType.Smooth,
-            barTextEnabledState = Enum.WidgetEnabledState.White,
-            barTextFontType = Enum.UIWidgetFontType.Shadow,
-            barTextSizeType = Enum.UIWidgetTextSizeType.Standard14Pt,
-            widgetSizeSetting = 120,
-            frameTextureKit = "widgetstatusbar", -- "ui-frame-bar" | "widgetstatusbar" | "cosmic-bar"
-            textureKit = "white", -- "blue" | "green" | "red" | "white" | "yellow"
-            -- hasTimer = false,
-            orderIndex = 0,
-            -- widgetTag = "",
-            -- inAnimType = Enum.WidgetAnimationType.Fade,
-            -- outAnimType = Enum.WidgetAnimationType.Fade,
-            widgetScale = Enum.UIWidgetScale.OneHundred,
-            layoutDirection = Enum.UIWidgetLayoutDirection.Horizontal,
-            -- modelSceneLayer = Enum.UIWidgetModelSceneLayer.None,
-            -- scriptedAnimationEffectID = 0,
-            textEnabledState = Enum.WidgetEnabledState.White,
-            textFontType = Enum.UIWidgetFontType.Shadow,
-            textSizeType = Enum.UIWidgetTextSizeType.Standard14Pt,
-        }
-
-        ---@param barValue number
-        ---@param barMin? number
-        ---@param barMax? number
-        ---@return StatusBarWidgetVisualizationInfoPolyfill barWidgetInfo
-        local function GetBarInfo(barValue, barMin, barMax)
-            STATUSBAR_WIDGET_DEFAULT.barValue = barValue
-            if barMin and barMax then
-                STATUSBAR_WIDGET_DEFAULT.barMin = barMin
-                STATUSBAR_WIDGET_DEFAULT.barMax = barMax
-            end
-            barMin = STATUSBAR_WIDGET_DEFAULT.barMin
-            barMax = STATUSBAR_WIDGET_DEFAULT.barMax
-            local remaining = barMax - barValue
-            if remaining == 0 then
-                STATUSBAR_WIDGET_DEFAULT.colorTint = Enum.StatusBarColorTintValue.Green
-                STATUSBAR_WIDGET_DEFAULT.barValueTextType = Enum.StatusBarValueTextType.Percentage
-                STATUSBAR_WIDGET_DEFAULT.overrideBarText = nil
-            elseif remaining < 0 then
-                STATUSBAR_WIDGET_DEFAULT.colorTint = Enum.StatusBarColorTintValue.Purple
-                STATUSBAR_WIDGET_DEFAULT.barValueTextType = Enum.StatusBarValueTextType.Value
-                STATUSBAR_WIDGET_DEFAULT.overrideBarText = format("> %s", FormatPercentageAsText(-remaining, true))
-            else
-                STATUSBAR_WIDGET_DEFAULT.colorTint = Enum.StatusBarColorTintValue.Blue
-                STATUSBAR_WIDGET_DEFAULT.barValueTextType = Enum.StatusBarValueTextType.Value
-                STATUSBAR_WIDGET_DEFAULT.overrideBarText = format("%s/%s (%s)", FormatPercentageAsText(barValue), barMax, FormatPercentageAsText(remaining))
-            end
-            return STATUSBAR_WIDGET_DEFAULT
-        end
-
-        ---@param self UIWidgetTemplateStatusBar
-        ---@param barValue number
-        ---@param barMin? number
-        ---@param barMax? number
-        ---@param forceUpdate? boolean
-        local function SetBarValue(self, barValue, barMin, barMax, forceUpdate)
-            local barWidgetInfo = GetBarInfo(barValue, barMin, barMax)
-            if not forceUpdate and barValue == self.Bar.value then
-                return
-            end
-            self:Setup(barWidgetInfo, self.widgetContainer)
-        end
-
-        ---@param self UIWidgetTemplateStatusBar
-        ---@param widgetContainer Region
-        local function InitBar(self, widgetContainer)
-            self.widgetContainer = widgetContainer
-            self.SetBarValue = SetBarValue
-            self:SetBarValue(0, 0, 100, true)
-        end
-
-        ---@param boss1 ReplayBoss
-        ---@param boss2 ReplayBoss
-        local function SortBosses(boss1, boss2)
-            local killed1 = boss1.killed or 0xffffffff
-            local killed2 = boss2.killed or 0xffffffff
-            if killed1 == killed2 then
-                return boss1.index < boss2.index
-            end
-            return killed1 < killed2
-        end
-
-        ---@alias ReplayFrameState
-        ---|"NONE"
-        ---|"STAGING"
-        ---|"PLAYING"
-        ---|"COMPLETED"
-
-        function ReplayFrameMixin:OnLoad()
-            self:Hide()
-            self:SetScript("OnUpdate", self.OnUpdate)
-
-            self.state = "NONE" ---@type ReplayFrameState
-            self.elapsedTime = 0 -- the start time as provided by the WORLD_STATE_TIMER_START event
-            self.elapsedTimer = 0 -- the accumulated time assigned in the OnUpdate handler
-            self.elapsed = 0 -- the time between OnUpdate handler calls
-            self.elapsedKeystoneTimer = 0 -- the current keystone timer
-            self.width = 200
-            self.widthMDI = 320
-            self.edgePaddingMDI = 16
-            self.contentPaddingX = 5
-            self.contentPaddingY = 5
-            self.textRowCount = 4
-            self.textRowHeight = 25
-            self.textRowHeightMDI = 30
-            self.textColumnWidth = (self.width - (self.contentPaddingX * 4)) / 3 ---@type number
-            self.textHeight = self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1) ---@type number
-            self.bossesHeight = 0
-
-            self:SetPoint("TOPRIGHT", ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
-            self:SetSize(self.width, 0)
-            self:SetFrameStrata("LOW")
-            self:SetClampedToScreen(true)
-            self:EnableMouse(true)
-            self:SetMovable(true)
-            self:RegisterForDrag("LeftButton")
-            self:SetScript("OnDragStart", self.StartMoving)
-            self:SetScript("OnDragStop", self.StopMovingOrSizing)
-
-            self.ConfigButton = CreateReplayFrameConfigButton(self)
-
-            self.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
-            self.Background:SetAllPoints()
-            self.Background:SetColorTexture(0, 0, 0, 0.5)
-
-            self.BossFramePool = CreateBossFramePool(self)
-
-            self.TextBlock = CreateFrame("Frame", nil, self) ---@class ReplayFrameTextBlock : Frame
-            self.TextBlock:SetPoint("TOPLEFT", self, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
-            self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
-
-            self.TextBlock.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
-            self.TextBlock.Background:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", 0, 0)
-            self.TextBlock.Background:SetPoint("BOTTOMRIGHT", self.TextBlock, "BOTTOMRIGHT", 0, 0)
-            self.TextBlock.Background:SetColorTexture(0, 0, 0, 0.5)
-
-            ---@param previous? Region
-            ---@param middleText? string
-            ---@return FontString Left, FontString Middle, FontString Right
-            local function CreateTextRow(previous, middleText)
-                local equalWidth = self.textColumnWidth
-                local middleWidth = 30
-                local extraWidth = (equalWidth - middleWidth)/2 ---@type number
-                equalWidth = equalWidth + extraWidth
-                local LF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-                LF:SetSize(equalWidth, self.textRowHeight)
-                if previous then
-                    LF:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, 0)
-                else
-                    LF:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
-                end
-                LF:SetJustifyH("RIGHT")
-                LF:SetJustifyV("MIDDLE")
-                local MF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-                MF:SetSize(middleWidth, self.textRowHeight)
-                MF:SetPoint("TOPLEFT", LF, "TOPRIGHT", 0, 0)
-                MF:SetJustifyH("CENTER")
-                MF:SetJustifyV("MIDDLE")
-                MF:SetText(middleText)
-                local RF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-                RF:SetSize(equalWidth, self.textRowHeight)
-                RF:SetPoint("TOPLEFT", MF, "TOPRIGHT", 0, 0)
-                RF:SetJustifyH("LEFT")
-                RF:SetJustifyV("MIDDLE")
-                return LF, MF, RF
-            end
-
-            self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow(nil, "") -- ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
-            self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL, ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
-            self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.BOSS("TextureMarkup"))
-
-            self.TextBlock.BossCombatL = util:CreateTextureFromIcon(self, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
-            self.TextBlock.BossCombatL:SetPoint("LEFT", self.TextBlock.BossL, "LEFT", 26, 0)
-            self.TextBlock.BossCombatL:SetSize(14, 14)
-            self.TextBlock.BossCombatL:Hide()
-
-            self.TextBlock.BossCombatR = util:CreateTextureFromIcon(self, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
-            self.TextBlock.BossCombatR:SetPoint("RIGHT", self.TextBlock.BossR, "RIGHT", -26, 0)
-            self.TextBlock.BossCombatR:SetSize(14, 14)
-            self.TextBlock.BossCombatR:Hide()
-
-            ---@param self ReplayFrame
-            local function ShowReplayRunTooltip(self)
-                local currentReplay = self.replayDataProvider:GetReplay()
-                if not currentReplay then
-                    return
-                end
-                GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip_SetTitle(GameTooltip, currentReplay.title, nil, false)
-                GameTooltip:Show()
-            end
-
-            self:SetScript("OnEnter", ShowReplayRunTooltip)
-            self:SetScript("OnLeave", GameTooltip_Hide)
-
-            self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL, ns.CUSTOM_ICONS.replay.TRASH("TextureMarkup"))
-            self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.DEATH("TextureMarkup"))
-
-            self.MDI = CreateFrame("Frame", nil, self, BackdropTemplateMixin and "BackdropTemplate") ---@class ReplayFrameMDI : Frame, BackdropTemplate
-            self.MDI:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
-            self.MDI:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
-
-            if self.MDI.SetBackdrop then
-                self.MDI:SetBackdrop(BACKDROP_DIALOG_32_32)
-                self.MDI:SetBackdropColor(0, 0, 0, 0.25)
-            end
-
-            ---@param previous Region|nil
-            ---@param middlePadding number|nil
-            ---@param fontObject FontObject|nil
-            local function CreateTextRowMDI(previous, middlePadding, fontObject)
-                middlePadding = middlePadding or 0
-                fontObject = fontObject or "GameFontNormalHuge4"
-                local equalWidth = (self.widthMDI - (self.contentPaddingX * 2)) / 2 - (self.edgePaddingMDI * 3 / 2) - (middlePadding / 2)
-                local LF = self.MDI:CreateFontString(nil, "ARTWORK", fontObject)
-                LF:SetTextColor(1, 1, 1)
-                LF:SetSize(equalWidth, self.textRowHeightMDI)
-                if previous then
-                    LF:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, 0)
-                else
-                    LF:SetPoint("TOPLEFT", self.MDI, "TOPLEFT", self.contentPaddingX + self.edgePaddingMDI, -self.contentPaddingY - self.edgePaddingMDI)
-                end
-                LF:SetJustifyH("RIGHT")
-                LF:SetJustifyV("MIDDLE")
-                local RF = self.MDI:CreateFontString(nil, "ARTWORK", fontObject)
-                RF:SetTextColor(1, 1, 1)
-                RF:SetSize(equalWidth, self.textRowHeightMDI)
-                RF:SetPoint("TOPLEFT", LF, "TOPRIGHT", self.edgePaddingMDI + middlePadding, 0)
-                RF:SetJustifyH("LEFT")
-                RF:SetJustifyV("MIDDLE")
-                return LF, RF
-            end
-
-            self.MDI.TimerL, self.MDI.TimerR = CreateTextRowMDI(nil, 70)
-            self.MDI.Spacer1L, self.MDI.Spacer1R = CreateTextRowMDI(self.MDI.TimerL, 0)
-            self.MDI.BossL, self.MDI.BossR = CreateTextRowMDI(self.MDI.Spacer1L, 40)
-            self.MDI.Spacer2L, self.MDI.Spacer2R = CreateTextRowMDI(self.MDI.BossL, 0)
-            self.MDI.TrashL, self.MDI.TrashR = CreateTextRowMDI(self.MDI.Spacer2L, 0)
-            self.MDI.TimerLine = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
-            self.MDI.TimerLine:SetPoint("LEFT", self.MDI.Spacer1L, "LEFT", -self.edgePaddingMDI, 2)
-            self.MDI.TimerLine:SetPoint("RIGHT", self.MDI.Spacer1R, "RIGHT", self.edgePaddingMDI, 2)
-            self.MDI.TimerLine:SetColorTexture(0.5, 0.5, 0.5)
-            self.MDI.TimerSplit = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
-            self.MDI.TimerSplit:SetPoint("TOP", self.MDI, "TOP", 2, -self.edgePaddingMDI/2)
-            self.MDI.TimerSplit:SetPoint("BOTTOM", self.MDI.TimerLine, "TOP", 0, 0)
-            self.MDI.TimerSplit:SetColorTexture(0.5, 0.5, 0.5)
-            self.MDI.BossM = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
-            self.MDI.BossM:SetPoint("LEFT", self.MDI.BossL, "RIGHT", self.edgePaddingMDI/2, 0)
-            self.MDI.BossM:SetSize(40, 40)
-            self.MDI.BossM:SetTexture(1015842)
-            self.MDI.BossCombat = self.MDI:CreateTexture(nil, "ARTWORK")
-            self.MDI.BossCombat:SetPoint("CENTER", self.MDI.BossM, "CENTER", 0, 0)
-            self.MDI.BossCombat:SetSize(16, 16)
-            self.MDI.BossCombat:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
-            self.MDI.BossCombat:Hide()
-            self.MDI.Spacer2L:SetHeight(20)
-            self.MDI.Spacer2R:SetHeight(20)
-            self.MDI.TrashLBar = CreateFrame("Frame", nil, self.MDI, "UIWidgetTemplateStatusBar") ---@type UIWidgetTemplateStatusBar
-            InitBar(self.MDI.TrashLBar, self.MDI)
-            self.MDI.TrashLBar:SetAllPoints(self.MDI.TrashL)
-            self.MDI.TrashRBar = CreateFrame("Frame", nil, self.MDI, "UIWidgetTemplateStatusBar") ---@type UIWidgetTemplateStatusBar
-            InitBar(self.MDI.TrashRBar, self.MDI)
-            self.MDI.TrashRBar:SetAllPoints(self.MDI.TrashR)
-            self.MDI.DeathPenL, self.MDI.DeathPenR = CreateTextRowMDI(nil, 120, "GameFontHighlightLarge2")
-            self.MDI.DeathPenL:ClearAllPoints()
-            self.MDI.DeathPenL:SetPoint("TOPLEFT", self.MDI.TimerLine, "BOTTOMLEFT", self.contentPaddingX + self.edgePaddingMDI/2, -self.contentPaddingY - self.edgePaddingMDI/2)
-            self.MDI.DeathPenL:SetJustifyH("CENTER")
-            self.MDI.DeathPenL:SetHeight(50)
-            self.MDI.DeathPenL.Background = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
-            self.MDI.DeathPenL.Background:SetAllPoints(self.MDI.DeathPenL)
-            self.MDI.DeathPenL.Background:SetColorTexture(0, 0, 0, 0.85)
-            self.MDI.DeathPenR:ClearAllPoints()
-            self.MDI.DeathPenR:SetPoint("TOPRIGHT", self.MDI.TimerLine, "BOTTOMRIGHT", -self.contentPaddingX - self.edgePaddingMDI/2, -self.contentPaddingY - self.edgePaddingMDI/2)
-            self.MDI.DeathPenR:SetJustifyH("CENTER")
-            self.MDI.DeathPenR:SetHeight(50)
-            self.MDI.DeathPenR.Background = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
-            self.MDI.DeathPenR.Background:SetAllPoints(self.MDI.DeathPenR)
-            self.MDI.DeathPenR.Background:SetColorTexture(0, 0, 0, 0.85)
-        end
-
-        ---@param style ReplayFrameStyle
-        ---@param save? boolean
-        function ReplayFrameMixin:SetStyle(style, save)
-            if not style or not ReplayFrameStyles[style] then
-                style = config:GetDefault("replayStyle") ---@type ReplayFrameStyle
-            end
-            if save then
-                config:Set("replayStyle", style)
-            end
-            local heightOffset = 0
-            self.style = style
-            if style == "MODERN_COMPACT" then
-                self.textRowCount = 5
-                self.TextBlock.BossL:SetHeight(self.textRowHeight)
-                self.TextBlock.BossM:Show()
-            elseif style == "MODERN" then
-                self.textRowCount = 5
-                self.TextBlock.BossL:SetHeight(self.textRowHeight)
-                self.TextBlock.BossM:Show()
-                -- self.TextBlock.BossL:SetHeight(0)
-                -- self.TextBlock.BossL:SetText(nil)
-                -- self.TextBlock.BossM:Hide()
-                -- self.TextBlock.BossR:SetText(nil)
-            elseif style == "MDI" then
-                heightOffset = 180
-                self.textRowCount = 0
-            end
-            local hasTextRows = self.textRowCount > 0
-            self.textHeight = heightOffset + self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1)
-            self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
-            self.Background:SetShown(hasTextRows)
-            self.TextBlock:SetShown(hasTextRows)
-            self.MDI:SetShown(not hasTextRows)
-            self:SetWidth(hasTextRows and self.width or self.widthMDI)
-            self:UpdateShown()
-        end
-
-        function ReplayFrameMixin:GetStyle()
-            return self.style
-        end
-
-        ---@param style ReplayFrameStyle
-        function ReplayFrameMixin:IsStyle(style)
-            return self.style == style
-        end
-
-        ---@param replayDataProvider ReplayDataProvider
-        function ReplayFrameMixin:SetReplayDataProvider(replayDataProvider)
-            self.replayDataProvider = replayDataProvider
-        end
-
-        ---@return ReplayDataProvider replayDataProvider
-        function ReplayFrameMixin:GetReplayDataProvider()
-            return self.replayDataProvider
-        end
-
-        ---@param liveDataProvider LiveDataProvider
-        function ReplayFrameMixin:SetLiveDataProvider(liveDataProvider)
-            self.liveDataProvider = liveDataProvider
-        end
-
-        ---@return LiveDataProvider liveDataProvider
-        function ReplayFrameMixin:GetLiveDataProvider()
-            return self.liveDataProvider
-        end
-
-        ---@class ReplayCompletedSummary
-        ---@field public replaySeason number
-        ---@field public replayRunId number
-        ---@field public character string
-        ---@field public zoneId number
-        ---@field public keyLevel number
-        ---@field public completedAt number
-        ---@field public clearTimeMS number
-
-        function ReplayFrameMixin:SaveLiveSummary()
-            if not self:IsState("COMPLETED") then
-                return
-            end
-            local replayDataProvider = self:GetReplayDataProvider()
-            local replay = replayDataProvider:GetReplay()
-            if not replay then
-                return
-            end
-            local mapID = self:GetKeystone()
-            local liveDataProvider = self:GetLiveDataProvider()
-            local liveSummary = liveDataProvider:GetSummary()
-            ---@type ReplayCompletedSummary
-            local summary = {
-                replaySeason = replay.season,
-                replayRunId = replay.keystone_run_id,
-                character = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_NAME, ns.PLAYER_REALM_SLUG),
-                zoneId = mapID,
-                keyLevel = liveSummary.level,
-                completedAt = time(),
-                clearTimeMS = liveSummary.timer,
-            }
-            table.insert(_G.RaiderIO_CompletedReplays, summary)
-            local delta = ConvertMillisecondsToSeconds(summary.clearTimeMS)
-            ns.Print(format(L.REPLAY_SUMMARY_LOGGED, addonName, summary.keyLevel, SecondsToTimeText(delta, "NONE_COLORLESS")))
-        end
-
-        ---@param timerID? number
-        ---@param elapsedTime? number
-        ---@param isActive? boolean
-        function ReplayFrameMixin:SetTimer(timerID, elapsedTime, isActive)
-            if not timerID then
-                return
-            end
-            self.timerID = timerID
-            self.elapsedTime = elapsedTime
-            self.isActive = isActive
-            if isActive then
-                self.elapsedTimer = 0
-            end
-        end
-
-        ---@return number? timerID, number elapsedTime, boolean isActive
-        function ReplayFrameMixin:GetTimer()
-            return self.timerID, self.elapsedTime, self.isActive
-        end
-
-        ---@param time number
-        function ReplayFrameMixin:SetKeystoneTime(time)
-            self.elapsedKeystoneTimer = time
-        end
-
-        ---@return number liveDeathsDuringTimer, number replayDeathsDuringTimer, number liveDeathsOverTimer, number replayDeathsOverTimer
-        function ReplayFrameMixin:GetCurrentDeaths()
-            local liveDataProvider = self:GetLiveDataProvider()
-            local replayDataProvider = self:GetReplayDataProvider()
-            -- HOTFIX: do not cause recursion as GetSummary relies on this method to retrieve the real timer
-            local liveSummary = liveDataProvider.replaySummary
-            local replaySummary = replayDataProvider.replaySummary
-            local liveDeathsDuringTimer = liveSummary.deaths
-            local replayDeathsDuringTimer = replaySummary.deaths
-            if liveSummary.deathsBeforeOvertime and liveSummary.deathsBeforeOvertime < liveDeathsDuringTimer then
-                liveDeathsDuringTimer = liveSummary.deathsBeforeOvertime
-            end
-            if replaySummary.deathsBeforeOvertime and replaySummary.deathsBeforeOvertime < replayDeathsDuringTimer then
-                replayDeathsDuringTimer = replaySummary.deathsBeforeOvertime
-            end
-            return liveDeathsDuringTimer or 0, replayDeathsDuringTimer or 0, liveSummary.deathsBeforeOvertime or 0, replaySummary.deathsBeforeOvertime or 0
-        end
-
-        ---@return number timeLimit
-        function ReplayFrameMixin:GetCurrentTimeLimit()
-            local replayDataProvider = self:GetReplayDataProvider()
-            local replay = replayDataProvider:GetReplay()
-            if replay and self:IsState("STAGING") then
-                return replay.clear_time_ms/1000
-            end
-            local dungeon = replay and util:GetDungeonByID(replay.dungeon.id)
-            local timeLimit = dungeon and dungeon.timers[#dungeon.timers] or self.timeLimit
-            return timeLimit or 0
-        end
-
-        ---@param includePenalties? boolean
-        ---@return number time
-        function ReplayFrameMixin:GetKeystoneTime(includePenalties)
-            local replayDataProvider = self:GetReplayDataProvider()
-            local replay = replayDataProvider:GetReplay()
-            if replay and self:IsState("STAGING") then
-                return replay.clear_time_ms/1000
-            end
-            local timeLimit = self:GetCurrentTimeLimit()
-            local timer = self.elapsedKeystoneTimer
-            if includePenalties or not timeLimit then
-                return timer
-            end
-            local liveDeathsDuringTimer = self:GetCurrentDeaths()
-            local liveDataProvider = self:GetLiveDataProvider()
-            local deathPenalty = liveDataProvider:GetDeathPenalty()
-            local timeLost = liveDeathsDuringTimer * deathPenalty
-            return timer - timeLost
-        end
-
-        ---@param includePenalties? boolean
-        ---@return number timeMS
-        function ReplayFrameMixin:GetKeystoneTimeMS(includePenalties)
-            return self:GetKeystoneTime(includePenalties) * 1000
-        end
-
-        ---@param mapID? number
-        ---@param timeLimit? number
-        ---@param otherMapIDs? number[]
-        function ReplayFrameMixin:SetKeystone(mapID, timeLimit, otherMapIDs)
-            if not mapID then
-                return
-            end
-            self.mapID = mapID
-            self.timeLimit = timeLimit
-            self.otherMapIDs = otherMapIDs
-        end
-
-        ---@return number? mapID, number timeLimit, number[]? otherMapIDs
-        function ReplayFrameMixin:GetKeystone()
-            return self.mapID, self.timeLimit, self.otherMapIDs
-        end
-
-        function ReplayFrameMixin:Reset()
-            self:SetKeystoneTime(0)
-            self:GetLiveDataProvider():ResetSummary()
-            self:GetReplayDataProvider():SetupSummary()
-            self.elapsedTimer = 0
-            self.elapsed = 0
-            self:RefreshWorldElapsedTimeState()
-            self:UpdateShown()
-        end
-
-        ---@param state ReplayFrameState
-        function ReplayFrameMixin:SetState(state)
-            self.state = state
-        end
-
-        function ReplayFrameMixin:GetState()
-            return self.state
-        end
-
-        ---@param state ReplayFrameState
-        function ReplayFrameMixin:IsState(state)
-            return self.state == state
-        end
-
-        function ReplayFrameMixin:OnReplayChange()
-            if self:IsState("COMPLETED") then
-                self:SetState("STAGING")
-                self:Reset()
-            end
-            self:UpdateShown()
-        end
-
-        function ReplayFrameMixin:OnBossKill()
-            if not self:IsState("PLAYING") then
-                return
-            end
-            local isRunning = self.isActive and self:IsState("PLAYING")
-            if not isRunning then
-                return
-            end
-            local replayDataProvider = self:GetReplayDataProvider()
-            local replay = replayDataProvider:GetReplay()
-            if not replay then
-                return
-            end
-            local liveDataProvider = self:GetLiveDataProvider()
-            local liveSummary = liveDataProvider:GetSummary()
-            local keystoneTimeMS = self:GetKeystoneTimeMS()
-            local replaySummary = replayDataProvider:GetReplaySummaryAt(keystoneTimeMS)
-            self:SetUIBosses(liveSummary.bosses, replaySummary.bosses, true)
-            self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
-            self:Update()
-        end
-
-        function ReplayFrameMixin:RefreshWorldElapsedTimeState()
-            if not self.timerID then
-                return
-            end
-            if not self:IsState("PLAYING") then
-                return
-            end
-            local elapsedTime = GetWorldElapsedTimerForKeystone(self.timerID)
-            if not elapsedTime then
-                return
-            end
-            self.elapsedTime = elapsedTime
-            self.elapsed = 0
-        end
-
-        function ReplayFrameMixin:UpdateShown()
-            local isRunning = self.isActive and self:IsState("PLAYING")
-            local shown = self.timerID and self.mapID and not self:IsState("NONE")
-            if shown then
-                local replayDataProvider = self:GetReplayDataProvider()
-                local replay = replayDataProvider:GetReplay()
-                if not replay then
-                    self:Hide()
-                    return
-                end
-                local liveDataProvider = self:GetLiveDataProvider()
-                local liveSummary = liveDataProvider:GetSummary()
-                local keystoneTimeMS = self:GetKeystoneTimeMS()
-                local replaySummary = replayDataProvider:GetReplaySummaryAt(keystoneTimeMS)
-                self:SetUITitle(liveSummary.level, liveSummary.affixes, replaySummary.level, replaySummary.affixes, isRunning or self:IsState("COMPLETED"))
-                self:SetUIBosses(liveSummary.bosses, replaySummary.bosses)
-                self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
-                self:Update()
-            end
-            self:SetShown(shown)
-        end
-
-        ---@param elapsed number
-        function ReplayFrameMixin:OnUpdate(elapsed)
-            self.elapsed = self.elapsed + (elapsed * FRAME_TIMER_SCALE)
-            if self.elapsed < FRAME_UPDATE_INTERVAL then return end
-            -- HOTFIX: if there is a loading screen hickup that causes a surge of additional time we avoid the issue by ensuring we fetch up-to-date timer
-            if self.elapsed > FRAME_UPDATE_INTERVAL + 0.1 then
-                self:RefreshWorldElapsedTimeState()
-            end
-            self.elapsedTimer = self.elapsedTimer + self.elapsed
-            self.elapsed = 0
-            self:Update()
-        end
-
-        function ReplayFrameMixin:Update()
-            if self:IsState("NONE") or self:IsState("COMPLETED") then
-                return
-            end
-            local isRunning = self.isActive and self:IsState("PLAYING")
-            if isRunning then
-                self:SetKeystoneTime(self.elapsedTime + self.elapsedTimer)
-            end
-            local replayDataProvider = self:GetReplayDataProvider()
-            local _replay = replayDataProvider:GetReplay()
-            if not _replay then
-                return
-            end
-            local liveDataProvider = self:GetLiveDataProvider()
-            local liveSummary = liveDataProvider:GetSummary()
-            local deathPenalty = liveDataProvider:GetDeathPenalty()
-            local deathPenaltyMS = deathPenalty * 1000
-            local keystoneTimeMS = self:GetKeystoneTimeMS()
-            local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(keystoneTimeMS)
-            local liveDeathsDuringTimer, replayDeathsDuringTimer = self:GetCurrentDeaths()
-            local liveTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + liveDeathsDuringTimer * deathPenaltyMS)
-            local replayTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + replayDeathsDuringTimer * deathPenaltyMS)
-            local totalTimer = ConvertMillisecondsToSeconds(_replay.clear_time_ms)
-            self:SetUITimer(liveTimer, replayTimer, totalTimer, not nextReplayEvent, isRunning)
-            self:SetUITrash(liveSummary.trash, replaySummary.trash, _replay.dungeon.total_enemy_forces, isRunning)
-            self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
-            self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, keystoneTimeMS, isRunning)
-            self:UpdateUIBossesCombat(liveSummary.inBossCombat, replaySummary.inBossCombat)
-            replay:SetCurrentReplaySummary(liveSummary, replaySummary)
-        end
-
-        ---@param liveLevel number
-        ---@param liveAffixes number[]
-        ---@param replayLevel number
-        ---@param replayAffixes number[]
-        ---@param showLiveData boolean
-        function ReplayFrameMixin:SetUITitle(liveLevel, liveAffixes, replayLevel, replayAffixes, showLiveData)
-            if self:IsStyle("MDI") then
-                return
-            end
-            if showLiveData then
-                local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
-                self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
-            else
-                self.TextBlock.TitleL:SetText("")
-            end
-            local replayAffix = util:TableContains(replayAffixes, 9) and 9 or 10
-            self.TextBlock.TitleR:SetFormattedText("+%d %s", replayLevel, ns.KEYSTONE_AFFIX_TEXTURE[replayAffix])
-        end
-
-        ---@param liveTimer number
-        ---@param replayTimer number
-        ---@param totalTimer number
-        ---@param replayIsCompleted boolean
-        ---@param isRunning? boolean
-        function ReplayFrameMixin:SetUITimer(liveTimer, replayTimer, totalTimer, replayIsCompleted, isRunning)
-            local liveClock = SecondsToTimeText(liveTimer, "NONE_COLORLESS")
-            local totalClock = SecondsToTimeText(totalTimer, "NONE_COLORLESS")
-            local replayClock = SecondsToTimeText(replayTimer, "NONE_COLORLESS")
-            if self:IsStyle("MDI") then
-                self.MDI.TimerL:SetText(liveClock)
-                self.MDI.TimerR:SetText(totalClock)
-                return
-            end
-            if isRunning then
-                local delta = replayIsCompleted and 1 or (liveTimer - replayTimer)
-                self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta, true), liveClock)
-            else
-                self.TextBlock.TimerL:SetText("")
-            end
-            if isRunning and replayTimer < totalTimer then
-                self.TextBlock.TimerR:SetText(replayClock)
-            else
-                self.TextBlock.TimerR:SetText(totalClock)
-            end
-        end
-
-        ---@param liveTrash number
-        ---@param replayTrash number
-        ---@param totalTrash number
-        ---@param isRunning? boolean
-        function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash, isRunning)
-            local livePctl = liveTrash / totalTrash * 100
-            local replayPctl = replayTrash / totalTrash * 100
-            if self:IsStyle("MDI") then
-                self.MDI.TrashLBar:SetBarValue(livePctl)
-                self.MDI.TrashRBar:SetBarValue(replayPctl)
-                return
-            end
-            if isRunning then
-                self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(min(replayTrash, totalTrash) - liveTrash, true), FormatPercentageAsText(livePctl))
-            else
-                self.TextBlock.TrashL:SetText("")
-            end
-            self.TextBlock.TrashR:SetFormattedText("%s%%", FormatPercentageAsText(replayPctl))
-        end
-
-        ---@param liveDeaths number
-        ---@param replayDeaths number
-        ---@param deathPenalty number
-        ---@param isRunning? boolean
-        function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty, isRunning)
-            local deltaDeaths = liveDeaths - replayDeaths
-            local livePenalty = liveDeaths * deathPenalty
-            local replayPenalty = replayDeaths * deathPenalty
-            if self:IsStyle("MDI") then
-                local redColor = "FF5555"
-                local livePenaltyText = format("|cff%s+%s|r", redColor, SecondsToTimeText(livePenalty, "NONE_COLORLESS"))
-                local replayPenaltyText = format("|cff%s+%s|r", redColor, SecondsToTimeText(replayPenalty, "NONE_COLORLESS"))
-                self.MDI.DeathPenL:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", liveDeaths, livePenaltyText)
-                self.MDI.DeathPenR:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", replayDeaths, replayPenaltyText)
-                return
-            end
-            if isRunning then
-                self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(deltaDeaths, true), liveDeaths, livePenalty)
-            else
-                self.TextBlock.DeathPenL:SetText("")
-            end
-            self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", replayDeaths, replayPenalty)
-        end
-
-        ---@param liveBosses ReplayBoss[]
-        ---@param replayBosses ReplayBoss[]
-        ---@param forceUpdate? boolean
-        function ReplayFrameMixin:SetUIBosses(liveBosses, replayBosses, forceUpdate)
-            local pool = self.BossFramePool
-            if not self:IsStyle("MODERN") then
-                pool:ReleaseAll()
-                self.bossesHeight = 0
-                return
-            end
-            local count = max(#liveBosses, #replayBosses)
-            if count == 0 then
-                pool:ReleaseAll()
-                self.bossesHeight = 0
-                return
-            end
-            local sortedLiveBosses = util:TableCopy(liveBosses)
-            local sortedReplayBosses = util:TableCopy(replayBosses)
-            table.sort(sortedLiveBosses, SortBosses)
-            table.sort(sortedReplayBosses, SortBosses)
-            local isDirty = forceUpdate
-            if not isDirty then
-                if count ~= pool:GetNumActive() then
-                    isDirty = true
-                end
-            end
-            if not isDirty then
-                for bossFrame in pool:EnumerateActive() do
-                    local index = bossFrame.index
-                    local liveBoss = sortedLiveBosses[index]
-                    local replayBoss = sortedReplayBosses[index]
-                    local oldLiveBossIndex = liveBoss and liveBoss.index
-                    local oldReplayBossIndex = replayBoss and replayBoss.index
-                    if index ~= oldLiveBossIndex or index ~= oldReplayBossIndex then
-                        isDirty = true
-                        break
-                    end
-                    local newLiveBossID = liveBoss and liveBoss.id
-                    local oldLiveBossID = bossFrame.liveBoss and bossFrame.liveBoss.id
-                    if newLiveBossID ~= oldLiveBossID then
-                        isDirty = true
-                        break
-                    end
-                    local newReplayBossID = replayBoss and replayBoss.id
-                    local oldReplayBossID = bossFrame.replayBoss and bossFrame.replayBoss.id
-                    if newReplayBossID ~= oldReplayBossID then
-                        isDirty = true
-                        break
-                    end
-                end
-            end
-            if not isDirty then
-                return
-            end
-            pool:ReleaseAll()
-            for index = 1, count do
-                local liveBoss = sortedLiveBosses[index]
-                local replayBoss = sortedReplayBosses[index]
-                if liveBoss then
-                    liveBoss.index = index
-                end
-                if replayBoss then
-                    replayBoss.index = index
-                end
-                local bossFrame = pool:Acquire()
-                bossFrame:Setup(index, liveBoss, replayBoss)
-            end
-            self.bossesHeight = pool:UpdateLayout()
-        end
-
-        ---@param liveBosses ReplayBoss[]
-        ---@param replayBosses ReplayBoss[]
-        ---@param timer number
-        ---@param isRunning? boolean
-        function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer, isRunning)
-            local style = self:GetStyle()
-            local liveCount = 0
-            local replayCount = 0
-            for _, boss in ipairs(liveBosses) do if boss.dead then liveCount = liveCount + 1 end end
-            for _, boss in ipairs(replayBosses) do if boss.killed and boss.killed <= timer then replayCount = replayCount + 1 end end
-            local totalCount = max(#liveBosses, #replayBosses)
-            if style == "MODERN_COMPACT" or style == "MODERN" then
-                if isRunning then
-                    self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(replayCount - liveCount, true), liveCount, totalCount)
-                else
-                    self.TextBlock.BossL:SetText("")
-                end
-                self.TextBlock.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
-            elseif style == "MDI" then
-                self.MDI.BossL:SetFormattedText("%d/%d", liveCount, totalCount)
-                self.MDI.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
-            end
-            if style == "MODERN" then
-                local pool = self.BossFramePool
-                for bossFrame in pool:EnumerateActive() do
-                    bossFrame:Update()
-                end
-            end
-        end
-
-        ---@param liveInBossCombat boolean
-        ---@param replayInBossCombat boolean
-        function ReplayFrameMixin:UpdateUIBossesCombat(liveInBossCombat, replayInBossCombat)
-            local style = self:GetStyle()
-            local isModern = style == "MODERN_COMPACT" or style == "MODERN"
-            self.TextBlock.BossCombatL:SetShown(isModern and liveInBossCombat)
-            self.TextBlock.BossCombatR:SetShown(isModern and replayInBossCombat)
-            self.MDI.BossCombat:SetShown(style == "MDI" and replayInBossCombat)
-        end
-
-    end
-
-    local function CreateReplayDataProvider()
-        local dataProvider = {} ---@class ReplayDataProvider
-        Mixin(dataProvider, ReplayDataProviderMixin)
-        dataProvider:OnLoad()
-        return dataProvider
-    end
-
-    local function CreateLiveDataProvider()
-        local dataProvider = CreateReplayDataProvider() ---@class LiveDataProvider
-        Mixin(dataProvider, LiveDataProviderMixin)
-        dataProvider:OnLoad()
-        return dataProvider
-    end
-
-    local function CreateReplayFrame()
-        local frame = CreateFrame("Frame", addonName .. "_ReplayFrame", UIParent) ---@class ReplayFrame
-        Mixin(frame, ReplayFrameMixin)
-        frame:OnLoad()
-        return frame
-    end
-
-    ---@param stopTimer? boolean
-    ---@param stopTimerID? number
-    ---@return number? timerID, number? elapsedTime, boolean? isActive
-    local function GetKeystoneTimer(stopTimer, stopTimerID)
-        local timerIDs = {GetWorldElapsedTimers()} ---@type number[]
-        for _, timerID in ipairs(timerIDs) do
-            local elapsedTime = GetWorldElapsedTimerForKeystone(timerID)
-            if elapsedTime then
-                return timerID, elapsedTime, not stopTimer or stopTimerID ~= timerID
-            end
-        end
-        if config:Get("debugMode") then
-            return 1, 0, true
-        end
-    end
-
-    ---@return number? mapID, number? timeLimit
-    local function GetKeystoneInfo()
-        local mapID = C_ChallengeMode.GetActiveChallengeMapID()
-        if not mapID then
-            return
-        end
-        local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapID)
-        return mapID, timeLimit
-    end
-
-    ---@return (number|number[])? mapID, number? timeLimit
-    local function GetKeystoneForInstance()
-        local _, _, difficultyID, _, _, _, _, instanceID = GetInstanceInfo()
-        if not difficultyID then
-            return
-        end
-        local _, _, _, isChallengeMode, _, displayMythic = GetDifficultyInfo(difficultyID)
-        if not isChallengeMode and not displayMythic then
-            return
-        end
-        local mapID = INSTANCE_ID_TO_CHALLENGE_MAP_ID[instanceID]
-        if not mapID then
-            return
-        end
-        local firstMapID = type(mapID) == "table" and mapID[1] or mapID ---@type number
-        local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(firstMapID)
-        return mapID, timeLimit
-    end
-
-    ---@return number? mapID, number? timeLimit, number[]? otherMapIDs
-    local function GetKeystoneOrInstanceInfo()
-        local mapID, timeLimit = GetKeystoneInfo()
-        local mapIDs ---@type number[]?
-        if not mapID then
-            local temp, timer = GetKeystoneForInstance()
-            if temp then
-                timeLimit = timer
-                if type(temp) == "table" then
-                    mapID = temp[1]
-                    mapIDs = temp
-                elseif type(temp) == "number" then
-                    mapID = temp
-                end
-            end
-        end
-        if not mapID and config:Get("debugMode") then
-            local dungeons = ns:GetDungeonData()
-            local dungeon = dungeons[1]
-            mapID, timeLimit = dungeon.instance_map_id, dungeon.timers[3]
-        end
-        return mapID, timeLimit, mapIDs
-    end
-
-    ---@param replay Replay
-    ---@param mapID number
-    ---@param otherMapIDs? number[]
-    ---@return boolean?
-    local function IsReplayForMapID(replay, mapID, otherMapIDs)
-        local dungeon = util:GetDungeonByID(replay.dungeon.id)
-        if not dungeon then
-            return
-        end
-        if dungeon.keystone_instance == mapID then
-            return true
-        end
-        if otherMapIDs then
-            for _, otherMapID in ipairs(otherMapIDs) do
-                if dungeon.keystone_instance == otherMapID then
-                    return true
-                end
-            end
-        end
-        return false
-    end
-
-    ---@param mapID number
-    ---@param otherMapIDs? number[]
-    ---@return Replay? replay
-    local function GetReplayForMapID(mapID, otherMapIDs)
-        for _, replay in ipairs(replays) do
-            local dungeon = util:GetDungeonByID(replay.dungeon.id)
-            if dungeon and dungeon.keystone_instance == mapID then
-                return replay
-            end
-        end
-        if otherMapIDs then
-            for _, replay in ipairs(replays) do
-                local dungeon = util:GetDungeonByID(replay.dungeon.id)
-                if dungeon then
-                    for _, otherMapID in ipairs(otherMapIDs) do
-                        if dungeon.keystone_instance == otherMapID then
-                            return replay
-                        end
-                    end
-                end
-            end
-        end
-        if config:Get("debugMode") then
-            return replays[1]
-        end
-    end
-
-    ---@param event? WowEvent
-    local function OnEvent(event, ...)
-        -- handle updating the active encounter state
-        if event == "ENCOUNTER_START" or event == "ENCOUNTER_END" then
-            ---@type number, string, number, number, boolean
-            local encounterID, _, _, _, success = ...
-            if success == nil then -- it's nil when it's the start event, otherwise 0 for wipe, and 1 for success
-                ActiveEncounters[encounterID] = true
-            else
-                ActiveEncounters[encounterID] = nil
-            end
-            return
-        end
-        local timerID, elapsedTime, isActive = GetKeystoneTimer(event == "WORLD_STATE_TIMER_STOP", ...)
-        local mapID, timeLimit, otherMapIDs = GetKeystoneOrInstanceInfo()
-        local replayDataProvider = replayFrame:GetReplayDataProvider()
-        local replay = replayDataProvider:GetReplay()
-        -- detect the special case where we are in the instance, but we have no keystone API data because:
-        -- (1) it's still in mythic mode and the key has not been started so no data until we start the key
-        -- (2) it's in countdown state as the key is about the start, no API data is available just yet
-        local staging = false
-        if mapID then
-            -- if we are in a keystone map, we ensure that the replay is relevant
-            if not replay or not IsReplayForMapID(replay, mapID, otherMapIDs) then
-                replay = GetReplayForMapID(mapID, otherMapIDs)
-            end
-            -- if we are in a keystone map, but we are not in an active keystone, we are in staging mode
-            if not timerID or not elapsedTime then
-                staging, timerID, elapsedTime, isActive = true, 1, 0, false
-            end
-        end
-        -- HOTFIX: take a look at `OnReplayChange` method as it will be called when `SetReplay` is used
-        -- this is so that when replay changes, and we are in the COMPLETED state, we force the UI to
-        -- return back to STAGING state - but the code flow makes us keep that logic in that handler
-        replayDataProvider:SetReplay(replay)
-        -- the UI state flow is handled in this block
-        -- the state is a simple way to detect what we are doing elsewhere in the module
-        -- we can assign states and run special routines for specific events when needed
-        if event == "WORLD_STATE_TIMER_START" and isActive and not replayFrame:IsState("PLAYING") then
-            replayFrame:SetState("PLAYING")
-            replayFrame:Reset()
-        end
-        if not mapID then
-            replayFrame:SetState("NONE")
-        elseif isActive then
-            replayFrame:SetState("PLAYING")
-        elseif replayFrame.isActive and replayFrame:IsState("PLAYING") then
-            replayFrame:SetState("COMPLETED")
-            replayFrame:SaveLiveSummary()
-        elseif staging and not replayFrame:IsState("COMPLETED") then
-            replayFrame:SetState("STAGING")
-        end
-        -- finalize the UI by feeding the relevant methods their data and forcing an UI update
-        replayFrame:SetTimer(timerID, elapsedTime, isActive)
-        replayFrame:SetKeystone(mapID, timeLimit, otherMapIDs)
-        replayFrame:UpdateShown()
-    end
-
-    local REPLAY_SUMMARY_TRIM_IF_OLDER = 86400 -- 24 hours
-
-    local function TrimHistoryFromSV()
-        local now = time()
-        local completedReplays = _G.RaiderIO_CompletedReplays ---@type ReplayCompletedSummary[]
-        for i = #completedReplays, 1, -1 do
-            local summary = completedReplays[i]
-            if not summary.completedAt or now - summary.completedAt >= REPLAY_SUMMARY_TRIM_IF_OLDER then
-                table.remove(completedReplays, i)
-            end
-        end
-    end
-
-    ---@param replays Replay[]
-    local function SortReplaysByWeeklyAffix(replays)
-        local weeklyAffixID = util:GetWeeklyAffix()
-        ---@param replay Replay
-        ---@return number? replayAffixID
-        local function GetReplayWeeklyAffix(replay)
-            for _, affix in ipairs(replay.affixes) do
-                if affix.id == weeklyAffixID then
-                    return affix.id
-                end
-            end
-        end
-        table.sort(replays, function(a, b)
-            local x = GetReplayWeeklyAffix(a) or 0
-            local y = GetReplayWeeklyAffix(b) or 0
-            x = x - weeklyAffixID
-            y = y - weeklyAffixID
-            if x == y then
-                x = a.mythic_level
-                y = b.mythic_level
-            end
-            return x > y
-        end)
-    end
-
-    local function OnSettingsChanged()
-        if config:Get("enableReplay") then
-            replay:Enable()
-        else
-            replay:Disable()
-        end
-    end
-
-    function replay:CanLoad()
-        return config:IsEnabled() and ns:GetReplays()
-    end
-
-    function replay:OnLoad()
-        TrimHistoryFromSV()
-        replays = ns:GetReplays()
-        util:TableSort(replays, "date", "keystone_run_id")
-        SortReplaysByWeeklyAffix(replays)
-        replayFrame = CreateReplayFrame()
-        replayFrame:SetReplayDataProvider(CreateReplayDataProvider())
-        replayFrame:SetLiveDataProvider(CreateLiveDataProvider())
-        replayFrame:SetStyle(config:Get("replayStyle"))
-        OnSettingsChanged()
-        callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")
-        callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_SAVED")
-    end
-
-    function replay:OnEnable()
-        OnEvent()
-        callback:RegisterEvent(OnEvent, unpack(UPDATE_EVENTS))
-    end
-
-    function replay:OnDisable()
-        OnEvent()
-        callback:UnregisterEvent(OnEvent, unpack(UPDATE_EVENTS))
-        replayFrame:Hide()
-    end
-
-    local currentLiveSummary ---@type ReplaySummary?
-    local currentReplaySummary ---@type ReplaySummary?
-
-    ---@param liveSummary ReplaySummary
-    ---@param replaySummary ReplaySummary
-    function replay:SetCurrentReplaySummary(liveSummary, replaySummary)
-        currentLiveSummary = liveSummary
-        currentReplaySummary = replaySummary
-    end
-
-    ---@return ReplaySummary? liveSummary, ReplaySummary? replaySummary
-    function replay:GetCurrentReplaySummary()
-        return currentLiveSummary, currentReplaySummary
-    end
-
-end
-
--- public.lua (global)
--- dependencies: module, util, provider, render
-do
-
-    local util = ns:GetModule("Util") ---@type UtilModule
-    local provider = ns:GetModule("Provider") ---@type ProviderModule
-    local render = ns:GetModule("Render") ---@type RenderModule
-    local replay = ns:GetModule("Replay") ---@type ReplayModule
-
-    -- TODO: we have a long road a head of us... debugstack(0)
-    local function IsSafeCall()
-        return true
-    end
-
-    local unsafe = false
-
-    local function IsSafe()
-        if unsafe then
-            return false
-        end
-        if not IsSafeCall() then
-            unsafe = true
-            ns.Print("Error: Another AddOn has modified Raider.IO and is most likely forcing it to return invalid data. Please disable other addons until this message disappears.")
-            return false
-        end
-        return true
-    end
-
-    local function IsReady()
-        return ns.PLAYER_REGION ~= nil -- GetProfile will fail if called too early before the player info is properly loaded so we avoid doing that by safely checking if we're loaded ready
-    end
-
-    local pristine = {
-        AddProvider = function(...)
-            return provider:AddProvider(...)
-        end,
-        GetProfile = function(arg1, arg2, ...)
-            if not IsReady() then
-                return
-            end
-            local name, realm = arg1, arg2
-            local _, _, unitIsPlayer = util:IsUnit(arg1, arg2)
-            if unitIsPlayer then
-                name, realm = util:GetNameRealm(arg1)
-            elseif type(arg1) == "string" then
-                if arg1:find("-", nil, true) then
-                    name, realm = util:GetNameRealm(arg1)
-                    return provider:GetProfile(name, realm, ...)
-                else
-                    name, realm = util:GetNameRealm(arg1, arg2)
-                end
-            end
-            return provider:GetProfile(name, realm, ...)
-        end,
-        ShowProfile = function(tooltip, ...)
-            if not IsReady() then
-                return
-            end
-            if type(tooltip) ~= "table" or type(tooltip.GetObjectType) ~= "function" or tooltip:GetObjectType() ~= "GameTooltip" then
-                return
-            end
-            return render:ShowProfile(tooltip, ...)
-        end,
-        GetScoreColor = function(score, ...)
-            if type(score) ~= "number" then
-                score = 0
-            end
-            return util:GetScoreColor(score, ...)
-        end,
-        GetScoreForKeystone = function(level)
-            if not level then return end
-            local base = ns.KEYSTONE_LEVEL_TO_SCORE[level]
-            local average = util:GetKeystoneAverageScoreForLevel(level)
-            return base, average
-        end,
-        GetCurrentReplay = function()
-            return replay:GetCurrentReplaySummary()
-        end,
-    }
-
-    local private = {
-        AddProvider = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.AddProvider(...)
-        end,
-        GetProfile = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.GetProfile(...)
-        end,
-        ShowProfile = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.ShowProfile(...)
-        end,
-        GetScoreColor = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.GetScoreColor(...)
-        end,
-        GetScoreForKeystone = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.GetScoreForKeystone(...)
-        end,
-        GetCurrentReplay = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.GetCurrentReplay(...)
-        end,
-        -- DEPRECATED: these are here just to help mitigate the transition but do avoid using these as they will probably go away during Shadowlands
-        ProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
-        TooltipProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
-        DataProvider = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
-        HasPlayerProfile = function(...) return _G.RaiderIO.GetProfile(...) end, -- passes the request to the GetProfile API (if its there then it exists)
-        GetPlayerProfile = function(mask, ...) return _G.RaiderIO.GetProfile(...) end, -- skips the mask and passes the rest to the GetProfile API
-        ShowTooltip = function(tooltip, mask, ...) return _G.RaiderIO.ShowProfile(tooltip, ...) end, -- skips the mask and passes the rest to the ShowProfile API
-        GetRaidDifficultyColor = function(difficulty) local rd = ns.RAID_DIFFICULTY[difficulty] local t if rd then t = { rd.color[1], rd.color[2], rd.color[3], rd.color.hex } end return t end, -- returns the color table for the queried raid difficulty
-        GetScore = function() end, -- deprecated early BfA so we just return nothing
-    }
-
-    ---@class RaiderIOInterface
-    ---@field public AddProvider fun() For internal RaiderIO use only. Please do not call this function.
-    ---@field public GetProfile fun(unit: string): profile: DataProviderCharacterProfile? Returns a table containing the characters profile and data from the different data providers like mythic keystones, raiding and pvp. Usage: `RaiderIO.GetProfile(name, realm[, region])` or `RaiderIO.GetProfile(unit)`
-    ---@field public ShowProfile fun(tooltip: GameTooltip, ...): success: boolean Returns `true` or `false` depending if the profile could be drawn on the provided tooltip. `RaiderIO.ShowProfile(tooltip, name, realm[, region])` or `RaiderIO.ShowProfile(tooltip, unit[, region])`
-    ---@field public GetScoreColor fun(score: number, isPreviousSeason?: boolean): r: number, g: number, b: number Returns the color `r, g, b` for a given score. `RaiderIO.GetScoreColor(score[, isPreviousSeason])`
-    ---@field public GetScoreForKeystone fun(level: number): base: number, average: number Returns the base and average scores for a given keystone level.
-    ---@field public GetCurrentReplay fun(): liveSummary: ReplaySummary, replaySummary: ReplaySummary Returns the current live and replay summaries for the ongoing keystone.
-
-    ---@type RaiderIOInterface
-    _G.RaiderIO = setmetatable({}, {
-        __metatable = false,
-        __newindex = function()
-        end,
-        __index = function(self, key)
-            return private[key]
-        end,
-        __call = function(self, key, ...)
-            local func = pristine[key]
-            if not func then
-                return
-            end
-            return func(...)
-        end
-    })
-
-end
-
 -- gametooltip.lua
 -- dependencies: module, config, util, provider, render
 do
@@ -9575,6 +7328,2134 @@ do
         PVEFrame:HookScript("OnShow", UpdateShown)
         ChallengesFrame:HookScript("OnShow", UpdateShown)
         callback:RegisterEvent(UpdateShown, "CHALLENGE_MODE_LEADERS_UPDATE")
+    end
+
+end
+
+-- replay.lua
+-- dependencies: module, callback, config, util
+do
+
+    ---@class ReplayModule : Module
+    local replay = ns:NewModule("Replay") ---@type ReplayModule
+    local callback = ns:GetModule("Callback") ---@type CallbackModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+
+    ---@alias ReplayFrameStyle "MODERN"|"MODERN_COMPACT"|"MDI"
+
+    ---@class ReplayFrameStyles
+    local ReplayFrameStyles = {
+        MODERN = "MODERN",
+        MODERN_COMPACT = "MODERN_COMPACT",
+        MDI = "MDI",
+        [1] = "MODERN",
+        [2] = "MODERN_COMPACT",
+        -- [3] = "MDI",
+    }
+
+    local FRAME_UPDATE_INTERVAL = 0.5
+    local FRAME_TIMER_SCALE = 1 -- always 1 for production
+
+    local UPDATE_EVENTS = {
+        "PLAYER_ENTERING_WORLD",
+        "LOADING_SCREEN_DISABLED",
+        "ZONE_CHANGED_NEW_AREA",
+        "SCENARIO_CRITERIA_UPDATE",
+        "INSTANCE_GROUP_SIZE_CHANGED",
+        "CHALLENGE_MODE_START",
+        "CHALLENGE_MODE_RESET",
+        "CHALLENGE_MODE_DEATH_COUNT_UPDATED",
+        "WORLD_STATE_TIMER_START",
+        "WORLD_STATE_TIMER_STOP",
+        "ENCOUNTER_START",
+        "ENCOUNTER_END",
+    }
+
+    ---@class InstanceIdToChallengeMapId
+    local INSTANCE_ID_TO_CHALLENGE_MAP_ID = {
+        [960] = 2,
+        [961] = 56,
+        [962] = 57,
+        [959] = 58,
+        [1011] = 59,
+        [994] = 60,
+        [1007] = 76,
+        [1001] = 77,
+        [1004] = 78,
+        [1209] = 161,
+        [1175] = 163,
+        [1182] = 164,
+        [1176] = 165,
+        [1208] = 166,
+        [1358] = 167,
+        [1279] = 168,
+        [1195] = 169,
+        [1456] = 197,
+        [1466] = 198,
+        [1501] = 199,
+        [1477] = 200,
+        [1458] = 206,
+        [1493] = 207,
+        [1492] = 208,
+        [1516] = 209,
+        [1571] = 210,
+        [1651] = { 227, 234 },
+        [1677] = 233,
+        [1753] = 239,
+        [1763] = 244,
+        [1754] = 245,
+        [1771] = 246,
+        [1594] = 247,
+        [1862] = 248,
+        [1762] = 249,
+        [1877] = 250,
+        [1841] = 251,
+        [1864] = 252,
+        [1822] = 353,
+        [2097] = { 369, 370 },
+        [2290] = 375,
+        [2286] = 376,
+        [2291] = 377,
+        [2287] = 378,
+        [2289] = 379,
+        [2284] = 380,
+        [2285] = 381,
+        [2293] = 382,
+        [2441] = { 391, 392 },
+        [2521] = 399,
+        [2516] = 400,
+        [2515] = 401,
+        [2526] = 402,
+        [2451] = 403,
+        [2519] = 404,
+        [2520] = 405,
+        [2527] = 406,
+        [657] = 438,
+    }
+
+    ---@type table<number, boolean>
+    local ActiveEncounters = {}
+
+    ---@param ms number
+    ---@return number roundedSeconds
+    local function ConvertMillisecondsToSeconds(ms)
+        return floor(ms/1000 + 0.5)
+    end
+
+    ---@alias ReplaySplitStyle
+    ---|"NONE"
+    ---|"NONE_COLORLESS"
+    ---|"NONE_YELLOW"
+    ---|"PLUS_MINUS"
+    ---|"PARENTHESIS"
+
+    ---@param delta number
+    ---@param splitStyle? ReplaySplitStyle
+    ---@param forceColorless? boolean|number
+    local function SecondsToTimeText(delta, splitStyle, forceColorless)
+        local ahead = delta >= 0
+        local prefix, suffix = "", ""
+        if splitStyle == "NONE_COLORLESS" then
+            forceColorless = true
+        elseif splitStyle == "NONE_YELLOW" then
+            forceColorless = 1
+        elseif splitStyle == "PLUS_MINUS" then
+            prefix = delta == 0 and "~" or (ahead and "+" or "-")
+        elseif splitStyle == "PARENTHESIS" then
+            prefix, suffix = "(", ")"
+        end
+        local color ---@type string?
+        if not forceColorless then
+            color = ahead and "55FF55" or "FF5555"
+        elseif forceColorless == 1 then
+            color = "FFBD00" -- "FFFF55"
+        end
+        local text = util:SecondsToTimeText(ahead and delta or -delta)
+        if color then
+            return format("|cff%s%s%s%s|r", color, prefix, text, suffix)
+        end
+        return format("%s%s%s", prefix, text, suffix)
+    end
+
+    ---@param replayEvent ReplayEvent
+    ---@return ReplayEventInfo replayEventInfo
+    local function UnpackReplayEvent(replayEvent)
+        if replayEvent._replayEventInfo then
+            return replayEvent._replayEventInfo
+        end
+        ---@type ReplayEventInfo
+        local replayEventInfo = {} ---@diagnostic disable-line: missing-fields
+        local anyBossesInCombat = false
+        replayEventInfo.timer = replayEvent[1]
+        replayEventInfo.event = replayEvent[2]
+        if replayEventInfo.event == 1 then
+            replayEventInfo.deaths = replayEvent[3]
+        elseif replayEventInfo.event == 2 then
+            replayEventInfo.forces = replayEvent[3]
+        elseif replayEventInfo.event == 3 or replayEventInfo.event == 4 then
+            ---@type ReplayBossInfo
+            local bossInfo = {} ---@diagnostic disable-line: missing-fields
+            bossInfo.index = replayEvent[3] + 1 -- convert to 1-based index
+            bossInfo.pulls = replayEvent[4]
+            bossInfo.combat = replayEvent[5]
+            bossInfo.killed = replayEvent[6]
+            if bossInfo.combat then
+                anyBossesInCombat = true
+            end
+            replayEventInfo.bosses = {}
+            replayEventInfo.bosses[bossInfo.index] = bossInfo
+        end
+        replayEventInfo.inBossCombat = anyBossesInCombat
+        replayEvent._replayEventInfo = replayEventInfo
+        return replayEventInfo
+    end
+
+    ---@param replaySummary ReplaySummary
+    ---@param replayEventInfo ReplayEventInfo
+    local function ApplyBossInfoToSummary(replaySummary, replayEventInfo)
+        if not replayEventInfo.bosses then
+            return
+        end
+        local anyBossesInCombat = false
+        for _, bossInfo in pairs(replayEventInfo.bosses) do
+            local boss = replaySummary.bosses[bossInfo.index]
+            if not boss.combat and bossInfo.combat then
+                boss.combat = true
+                boss.combatStart = replayEventInfo.timer
+            elseif boss.combat and not bossInfo.combat then
+                boss.combat = false
+                boss.combatStart = nil
+            end
+            boss.pulls = bossInfo.pulls
+            if bossInfo.killed then
+                boss.dead = true
+                boss.combat = false
+                boss.killed = replayEventInfo.timer
+                local delta = ConvertMillisecondsToSeconds(replayEventInfo.timer)
+                boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
+            end
+            if boss.combat then
+                anyBossesInCombat = true
+            end
+        end
+        replaySummary.inBossCombat = anyBossesInCombat
+    end
+
+    ---@param delta number
+    ---@param whiteWhenZero? boolean
+    local function AheadColor(delta, whiteWhenZero)
+        if delta == 0 then
+            return whiteWhenZero and "FFFFFF" or "FFFF55"
+        end
+        return delta <= 0 and "66EE22" or "FF4422"
+    end
+
+    ---@param value number @Expected range is `0` to `100`.
+    ---@param tryHandleZero? boolean
+    ---@return string percentageText @Naturally rounded percentage strings like `90%`, `95.59%`, `99.5%`, `100%`
+    local function FormatPercentageAsText(value, tryHandleZero)
+        local rounded = floor(value * 100 + 0.5) / 100
+        local temp = tostring(rounded)
+        if strsub(temp, -3) == ".00" then
+            temp = strsub(temp, 1, -4)
+        elseif strsub(temp, -2) == ".0" then
+            temp = strsub(temp, 1, -2)
+        end
+        if tryHandleZero and temp == "0" then
+            return format("%.3f", value)
+        end
+        return temp
+    end
+
+    ---@param timerID number
+    ---@return number? elapsedTime
+    local function GetWorldElapsedTimerForKeystone(timerID)
+        ---@type number, number, number
+        local _, elapsedTime, timerType = GetWorldElapsedTime(timerID)
+        if timerType ~= LE_WORLD_ELAPSED_TIMER_TYPE_CHALLENGE_MODE then
+            return
+        end
+        return elapsedTime
+    end
+
+    ---@class ReplayBoss
+    ---@field public order number `1` the order that the boss appears in the scenario tracker
+    ---@field public index number `1` the index of the boss as seen in the replay
+    ---@field public id number `2613` the journal encounter id (`bossID`) for use with `EJ_GetEncounterInfo`
+    ---@field public cid number `2490` the encounter id for use with `ENCOUNTER_START` and `ENCOUNTER_END`
+    ---@field public pulls number `1` the number of pulls that has been attempted
+    ---@field public dead boolean indicates if the boss is dead
+    ---@field public combat boolean indicates if the boss is engaged in combat
+    ---@field public combatStart? number `time()` if in combat this contains the time when combat started
+    ---@field public killed? number `timerMS` if dead this contains the timer when it happened
+    ---@field public killedText? string `01:30` if dead this contains the timer as text
+
+    ---@class ReplaySummary
+    ---@field public level number `25` the level of the keystone
+    ---@field public affixes number[] `{9}` table with numbers with the affix IDs
+    ---@field public index number `117` the index of the event from the replay log that is currently the latest event displayed
+    ---@field public timer number `1995812` the timer (live provider also adds decimals from the OnUpdate handler)
+    ---@field public deaths number the total number of deaths
+    ---@field public deathsBeforeOvertime? number the total number of deaths before the key was depleted
+    ---@field public trash number `530` the amount of enemy forces defeated
+    ---@field public bosses ReplayBoss[]
+    ---@field public inBossCombat boolean indicates if any boss is engaged in combat
+
+    ---@type Replay[]
+    local replays
+
+    ---@class ReplayFrame : Frame
+    local replayFrame
+
+    ---@class BossFrame : Frame
+    ---@field public Name FontString
+    ---@field public InfoL FontString
+    ---@field public InfoR FontString
+    ---@field public Background Texture
+    ---@field public CombatL Texture
+    ---@field public CombatR Texture
+    ---@field public RouteSwap Texture
+
+    ---@class BossFramePool
+    ---@field public Acquire fun(self: BossFramePool): BossFrame
+    ---@field public Release fun(self: BossFramePool, obj: BossFrame)
+    ---@field public ReleaseAll fun(self: BossFramePool)
+    ---@field public EnumerateActive fun(self: BossFramePool): fun(table: table<BossFrame, boolean>, index?: number): BossFrame, boolean
+    ---@field public GetNumActive fun(self: BossFramePool): number
+
+    ---@class BossFrame
+    local BossFrameMixin = {}
+
+    do
+
+        ---@param self BossFrame
+        ---@param index number
+        ---@param liveBoss ReplayBoss
+        ---@param replayBoss ReplayBoss
+        function BossFrameMixin:Setup(index, liveBoss, replayBoss)
+            self.index = index
+            self.liveBoss = liveBoss
+            self.replayBoss = replayBoss
+            self.bossID = (replayBoss and replayBoss.id) or (liveBoss and liveBoss.id) or 0
+            self.Name:SetText(self.index)
+            self.InfoL:SetText("")
+            self.InfoR:SetText("")
+            self:Show()
+            self:Update()
+        end
+
+        ---@param self BossFrame
+        function BossFrameMixin:Update()
+            local liveBoss = self.liveBoss
+            local replayBoss = self.replayBoss
+            local keystoneTimeMS = replayFrame:GetKeystoneTimeMS()
+            local isLiveBossDead = liveBoss and liveBoss.dead
+            local isReplayBossDead = replayBoss and replayBoss.killed and replayBoss.killed - keystoneTimeMS <= 0
+            -- TODO: feedback from Dratnos and Jah about splits (read more on Discord about how to change this code)
+            if isLiveBossDead then
+                local delta = ConvertMillisecondsToSeconds(replayBoss.killed - liveBoss.killed)
+                self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeText(delta, "PARENTHESIS"))
+            elseif liveBoss and liveBoss.combatStart then
+                local delta = ConvertMillisecondsToSeconds(keystoneTimeMS - liveBoss.combatStart)
+                self.InfoL:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
+            else
+                self.InfoL:SetText("")
+            end
+            if isReplayBossDead then
+                self.InfoR:SetFormattedText("%s", replayBoss.killedText)
+            elseif replayBoss and replayBoss.combatStart then
+                local delta = ConvertMillisecondsToSeconds(keystoneTimeMS - replayBoss.combatStart)
+                self.InfoR:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
+            else
+                self.InfoR:SetText("")
+            end
+            self.CombatL:SetShown(liveBoss and liveBoss.combat)
+            self.CombatR:SetShown(replayBoss and replayBoss.combat)
+            self.RouteSwap:SetShown(not not self:HasDifferentBosses())
+        end
+
+        function BossFrameMixin:HasDifferentBosses()
+            if not self.liveBoss or not self.replayBoss then
+                return
+            end
+            if not self.liveBoss.killed then
+                return
+            end
+            return self.liveBoss.id ~= self.replayBoss.id
+        end
+
+        function BossFrameMixin:GetTooltipText()
+            local text ---@type string?
+            if self:HasDifferentBosses() then
+                local liveBoss = self.liveBoss
+                local replayBoss = self.replayBoss
+                local liveBossID = liveBoss and liveBoss.id
+                local replayBossID = replayBoss and replayBoss.id
+                local liveBossName = liveBossID and EJ_GetEncounterInfo(liveBossID)
+                local replayBossName = replayBossID and EJ_GetEncounterInfo(replayBossID)
+                if liveBossName and replayBossName then
+                    text = format("%s • %s", liveBossName, replayBossName)
+                elseif liveBossName then
+                    text = liveBossName
+                else
+                    text = replayBossName
+                end
+            else
+                text = EJ_GetEncounterInfo(self.bossID) ---@type string
+            end
+            return text
+        end
+
+        ---@param self BossFrame
+        function BossFrameMixin:OnEnter()
+            local text = self:GetTooltipText()
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip_SetTitle(GameTooltip, text, nil, false)
+            GameTooltip:Show()
+        end
+
+        ---@param self BossFrame
+        function BossFrameMixin:OnLeave()
+            GameTooltip_Hide()
+        end
+
+    end
+
+    ---@param obj BossFrame
+    local function BossFrameOnInit(obj)
+        Mixin(obj, BossFrameMixin)
+        obj:SetSize(320, 32)
+        obj.Name = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        obj.Name:SetSize(16 + 4, 32 - 4*2)
+        obj.Name:SetPoint("CENTER")
+        obj.Name:SetJustifyH("CENTER")
+        obj.Name:SetJustifyV("MIDDLE")
+        obj.InfoL = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        obj.InfoL:SetPoint("TOPLEFT", obj, "TOPLEFT", 4, -4)
+        obj.InfoL:SetPoint("BOTTOMRIGHT", obj.Name, "BOTTOMLEFT", -4, 0)
+        obj.InfoL:SetJustifyH("RIGHT")
+        obj.InfoL:SetJustifyV("MIDDLE")
+        obj.InfoR = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        obj.InfoR:SetPoint("TOPRIGHT", obj, "TOPRIGHT", -4, -4)
+        obj.InfoR:SetPoint("BOTTOMLEFT", obj.Name, "BOTTOMRIGHT", 4, 0)
+        obj.InfoR:SetJustifyH("LEFT")
+        obj.InfoR:SetJustifyV("MIDDLE")
+        obj.Background = obj:CreateTexture(nil, "BACKGROUND")
+        obj.Background:SetPoint("TOPLEFT", 1, -1)
+        obj.Background:SetPoint("BOTTOMRIGHT", -1, 1)
+        obj.Background:SetColorTexture(0, 0, 0, 0.5)
+        obj.CombatL = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
+        obj.CombatL:SetPoint("LEFT", obj.InfoL, "LEFT", 4, 0)
+        obj.CombatL:SetSize(14, 14)
+        obj.CombatL:Hide()
+        obj.CombatR = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
+        obj.CombatR:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
+        obj.CombatR:SetSize(14, 14)
+        obj.CombatR:Hide()
+        obj.RouteSwap = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.ROUTE, "ARTWORK")
+        obj.RouteSwap:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
+        obj.RouteSwap:SetSize(16, 16)
+        obj.RouteSwap:Hide()
+        obj:HookScript("OnEnter", obj.OnEnter)
+        obj:HookScript("OnLeave", obj.OnLeave)
+        obj:SetMouseClickEnabled(false)
+    end
+
+    ---@param self BossFramePool
+    ---@param obj BossFrame
+    local function BossFrameOnReset(self, obj)
+        obj:Hide()
+    end
+
+    ---@class BossFramePool
+    local BossFramePoolMixin = {}
+
+    do
+
+        ---@return number bossesHeight
+        function BossFramePoolMixin:UpdateLayout()
+            local bossIndex = 0
+            local bossFrames = {} ---@type BossFrame[]
+            for bossFrame in self:EnumerateActive() do
+                bossIndex = bossIndex + 1
+                bossFrames[bossIndex] = bossFrame
+            end
+            table.sort(bossFrames, function(a, b) return a.index < b.index end)
+            local offsetX, offsetY = 0, replayFrame.contentPaddingY
+            local prevBossFrame
+            local bossesHeight = 0
+            for _, bossFrame in ipairs(bossFrames) do
+                local height = bossFrame:GetHeight()
+                bossesHeight = bossesHeight + height
+                bossFrame:ClearAllPoints()
+                if prevBossFrame then
+                    bossFrame:SetPoint("TOPLEFT", prevBossFrame, "BOTTOMLEFT", 0, 0)
+                    bossFrame:SetPoint("BOTTOMRIGHT", prevBossFrame, "BOTTOMRIGHT", 0, -height)
+                else
+                    bossFrame:SetPoint("TOPLEFT", replayFrame.TextBlock, "BOTTOMLEFT", offsetX, -offsetY)
+                    bossFrame:SetPoint("BOTTOMRIGHT", replayFrame.TextBlock, "BOTTOMRIGHT", -offsetX, -height-offsetY)
+                end
+                prevBossFrame = bossFrame
+            end
+            if bossesHeight > 0 then
+                bossesHeight = bossesHeight + replayFrame.contentPaddingY
+            end
+            return bossesHeight
+        end
+
+    end
+
+    ---@param parent ReplayFrame
+    ---@return BossFramePool
+    local function CreateBossFramePool(parent)
+        local bossFramePool = CreateFramePool("Frame", parent, nil, BossFrameOnReset, nil, BossFrameOnInit) ---@class BossFramePool
+        Mixin(bossFramePool, BossFramePoolMixin)
+        return bossFramePool
+    end
+
+    local DEATH_PENALTY = 5
+
+    ---@class ReplayDataProvider
+    local ReplayDataProviderMixin = {}
+
+    do
+
+        function ReplayDataProviderMixin:OnLoad()
+            self.replaySummary = self:CreateSummary()
+            self:SetDeathPenalty(DEATH_PENALTY)
+        end
+
+        ---@param replay? Replay
+        function ReplayDataProviderMixin:SetReplay(replay)
+            if self.replay == replay then
+                return
+            end
+            self.replay = replay
+            self:SetupSummary()
+            replayFrame:OnReplayChange()
+        end
+
+        ---@return Replay? replay
+        function ReplayDataProviderMixin:GetReplay()
+            return self.replay
+        end
+
+        ---@param seconds number
+        function ReplayDataProviderMixin:SetDeathPenalty(seconds)
+            self.deathPenalty = seconds
+        end
+
+        ---@return number deathPenalty
+        function ReplayDataProviderMixin:GetDeathPenalty()
+            return self.deathPenalty
+        end
+
+        ---@return ReplaySummary replaySummary
+        function ReplayDataProviderMixin:CreateSummary()
+            ---@type ReplaySummary
+            local replaySummary = {
+                level = 0,
+                affixes = {},
+                index = 0,
+                timer = 0,
+                deaths = 0,
+                trash = 0,
+                bosses = {},
+                inBossCombat = false,
+            }
+            return replaySummary
+        end
+
+        function ReplayDataProviderMixin:SetupSummary()
+            local replaySummary = self.replaySummary
+            replaySummary.level = 0
+            replaySummary.index = 0
+            replaySummary.timer = 0
+            replaySummary.deaths = 0
+            replaySummary.deathsBeforeOvertime = nil
+            replaySummary.trash = 0
+            replaySummary.inBossCombat = false
+            table.wipe(replaySummary.bosses)
+            local replay = self:GetReplay()
+            if not replay then
+                return
+            end
+            replaySummary.level = replay.mythic_level
+            replaySummary.affixes = {}
+            for index, affix in ipairs(replay.affixes) do
+                replaySummary.affixes[index] = affix.id
+            end
+            for index, encounter in ipairs(replay.encounters) do
+                ---@type ReplayBoss
+                local replayBoss = {} ---@diagnostic disable-line: missing-fields
+                replayBoss.order = encounter.ordinal + 1
+                replayBoss.index = index
+                replayBoss.id = encounter.journal_encounter_id
+                replayBoss.cid = encounter.encounter_id
+                replayBoss.dead = false
+                replaySummary.bosses[index] = replayBoss
+            end
+            for _, replayEvent in ipairs(replay.events) do
+                local replayEventInfo = UnpackReplayEvent(replayEvent)
+                if replayEventInfo.bosses then
+                    ApplyBossInfoToSummary(replaySummary, replayEventInfo)
+                end
+            end
+        end
+
+        ---@return ReplaySummary replaySummary
+        function ReplayDataProviderMixin:GetSummary()
+            return self.replaySummary
+        end
+
+        ---@param timerMS number
+        ---@return ReplaySummary replaySummary, ReplayEvent currentReplayEvent, ReplayEvent? nextReplayEvent
+        function ReplayDataProviderMixin:GetReplaySummaryAt(timerMS)
+            local replaySummary = self:GetSummary()
+            local replay = self:GetReplay() ---@type Replay
+            local timeLimit = replayFrame:GetCurrentTimeLimit()
+            local replayEvents = replay.events
+            for i = replaySummary.index + 1, #replayEvents do
+                local replayEvent = replayEvents[i]
+                local replayEventInfo = UnpackReplayEvent(replayEvent)
+                if replayEventInfo.timer > timerMS then
+                    break
+                end
+                replaySummary.index = i
+                replaySummary.timer = replayEventInfo.timer
+                if replayEventInfo.deaths then
+                    if not replaySummary.deathsBeforeOvertime and timeLimit < timerMS/1000 then
+                        replaySummary.deathsBeforeOvertime = replaySummary.deaths
+                    end
+                    replaySummary.deaths = replaySummary.deaths + replayEventInfo.deaths
+                end
+                if replayEventInfo.forces then
+                    replaySummary.trash = replaySummary.trash + replayEventInfo.forces
+                end
+                if replayEventInfo.bosses then
+                    ApplyBossInfoToSummary(replaySummary, replayEventInfo)
+                end
+            end
+            local nextReplayEvent = replayEvents[replaySummary.index + 1]
+            local anyBossesInCombat = false
+            for i = 1, #replaySummary.bosses do
+                local boss = replaySummary.bosses[i]
+                if not nextReplayEvent then
+                    boss.combat = false
+                    boss.dead = true
+                elseif boss.combat then
+                    anyBossesInCombat = true
+                    break
+                end
+            end
+            replaySummary.inBossCombat = anyBossesInCombat
+            return replaySummary, replayEvents[replaySummary.index], nextReplayEvent
+        end
+
+    end
+
+    ---@class LiveDataProvider : ReplayDataProvider
+    ---@field public SetReplay nil
+    ---@field public GetReplay nil
+    ---@field public CreateSummary nil
+    ---@field public SetupSummary nil
+    ---@field public GetReplaySummaryAt nil
+
+    ---@class LiveDataProvider
+    local LiveDataProviderMixin = {}
+
+    do
+
+        ---@param ordinal number
+        ---@return ReplayEncounter? encounter
+        local function GetEncounterFromReplayByBossOrdinal(ordinal)
+            local replayDataProvider = replayFrame:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if not replay then
+                return
+            end
+            for index, encounter in ipairs(replay.encounters) do
+                if encounter.ordinal == ordinal then
+                    return encounter
+                end
+            end
+        end
+
+        function LiveDataProviderMixin:OnLoad()
+            self.SetReplay = nil
+            self.GetReplay = nil
+            self.CreateSummary = nil
+            self.GetReplaySummaryAt = nil
+        end
+
+        function LiveDataProviderMixin:ResetSummary()
+            local liveSummary = self.replaySummary
+            liveSummary.timer = 0
+            liveSummary.level = 0
+            table.wipe(liveSummary.affixes)
+            liveSummary.deaths = 0
+            liveSummary.deathsBeforeOvertime = nil
+            liveSummary.trash = 0
+            liveSummary.inBossCombat = false
+            table.wipe(liveSummary.bosses)
+        end
+
+        ---@return ReplaySummary liveSummary
+        function LiveDataProviderMixin:GetSummary()
+            local liveSummary = self.replaySummary
+            if not replayFrame:IsState("PLAYING") then
+                return liveSummary
+            end
+            liveSummary.timer = replayFrame:GetKeystoneTimeMS()
+            local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
+            if activeKeystoneLevel and activeKeystoneLevel ~= 0 then
+                liveSummary.level = activeKeystoneLevel
+            end
+            if activeAffixIDs and activeAffixIDs[1] then
+                liveSummary.affixes = activeAffixIDs
+            end
+            local numDeaths, timeLost = C_ChallengeMode.GetDeathCount()
+            if numDeaths then
+                local timeLimit = replayFrame:GetCurrentTimeLimit()
+                if not liveSummary.deathsBeforeOvertime and timeLimit < liveSummary.timer/1000 then
+                    liveSummary.deathsBeforeOvertime = liveSummary.deaths
+                end
+                liveSummary.deaths = numDeaths
+            end
+            ---@type string?, string?, number?
+            local _, _, numCriteria = C_Scenario.GetStepInfo()
+            if numCriteria and numCriteria > 1 then
+                local anyBossesInCombat = false
+                for i = 1, numCriteria do
+                    ---@type string?, number?, boolean?, number?, number?, number?, number?, string?, number?, number?, number?, boolean?, boolean?
+                    local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
+                    if criteriaString then
+                        local isTrash = i == numCriteria
+                        if isTrash then
+                            local trash = quantityString and tonumber(strsub(quantityString, 1, strlen(quantityString) - 1)) or -1
+                            if trash > 0 then
+                                liveSummary.trash = trash
+                            end
+                        else
+                            local boss = liveSummary.bosses[i]
+                            if not boss then
+                                local encounter = GetEncounterFromReplayByBossOrdinal(i - 1)
+                                local ordinal = encounter and encounter.ordinal or 0
+                                local id = encounter and encounter.journal_encounter_id or 0
+                                local combatID = encounter and encounter.encounter_id or 0
+                                ---@type ReplayBoss
+                                boss = {} ---@diagnostic disable-line: missing-fields
+                                boss.order = ordinal + 1
+                                boss.index = i
+                                boss.id = id
+                                boss.cid = combatID
+                                boss.combat = false
+                                boss.pulls = 0
+                                boss.dead = false
+                                liveSummary.bosses[i] = boss
+                            end
+                            if not completed and not boss.dead then
+                                local combat = not not ActiveEncounters[boss.cid]
+                                if not boss.combat and combat then
+                                    boss.combat = true
+                                    boss.combatStart = liveSummary.timer
+                                    boss.pulls = boss.pulls + 1
+                                elseif boss.combat and not combat then
+                                    boss.combat = false
+                                    boss.combatStart = nil
+                                end
+                            end
+                            if completed and not boss.dead then
+                                boss.combat = false
+                                boss.pulls = max(1, boss.pulls)
+                                boss.dead = true
+                                boss.killed = liveSummary.timer
+                                local delta = ConvertMillisecondsToSeconds(liveSummary.timer)
+                                boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
+                                replayFrame:OnBossKill()
+                            end
+                            if boss.combat then
+                                anyBossesInCombat = true
+                            end
+                        end
+                    end
+                end
+                liveSummary.inBossCombat = anyBossesInCombat
+            end
+            return liveSummary
+        end
+
+    end
+
+    ---@class ReplayFrameConfigButton : Button
+    local ReplayFrameConfigButtonMixin = {}
+
+    do
+
+        ---@alias ReplayFrameDropDownMenuList "replay"|"style"
+
+        ---@class UIDropDownMenuTemplate : Frame
+
+        ---@class UIDropDownMenuInfo
+        ---@field public checked boolean
+        ---@field public text string
+        ---@field public hasArrow boolean
+        ---@field public menuList ReplayFrameDropDownMenuList
+        ---@field public arg1 ReplayFrameConfigButton
+        ---@field public arg2 Replay|ReplayFrameStyle
+        ---@field public value Replay|ReplayFrameStyle
+        ---@field public tooltipTitle? string
+        ---@field public tooltipText? string
+        ---@field public tooltipOnButton? boolean
+
+        function ReplayFrameConfigButtonMixin:OnLoad()
+            local parent = self:GetParent() ---@type ReplayFrame
+            self:SetSize(16, 16)
+            self:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+            self:RegisterForClicks("LeftButtonUp")
+            self:SetScript("OnClick", self.OnClick)
+            -- self:SetScript("OnEnter", self.OnEnter)
+            -- self:SetScript("OnLeave", self.OnLeave)
+            self.Texture = self:CreateTexture(nil, "ARTWORK")
+            self.Texture:SetAllPoints()
+            self.Texture:SetTexture(851903)
+            self.DropDownMenu = CreateFrame("Frame", nil, self, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
+            UIDropDownMenu_Initialize(self.DropDownMenu, self.Initialize, "MENU")
+        end
+
+        ---@param self UIDropDownMenuTemplate
+        ---@param level number
+        ---@param menuList? ReplayFrameDropDownMenuList
+        function ReplayFrameConfigButtonMixin:Initialize(level, menuList)
+            local parent = self:GetParent() ---@type ReplayFrameConfigButton
+            local info = UIDropDownMenu_CreateInfo() ---@type UIDropDownMenuInfo
+            if level == 1 then
+                info.notCheckable = true
+                local replayDataProvider = replayFrame:GetReplayDataProvider()
+                local currentReplay = replayDataProvider:GetReplay()
+                if currentReplay then
+                    info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_COPY_URL, false, nil
+                    info.func = parent.OnCopyReplayUrlClick
+                    info.arg1 = parent
+                    info.arg2 = currentReplay
+                    UIDropDownMenu_AddButton(info, level)
+                    info.func = nil
+                    info.arg1 = nil
+                    info.arg2 = nil
+                end
+                info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_REPLAY, true, "replay"
+                UIDropDownMenu_AddButton(info, level)
+                info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_STYLE, true, "style"
+                UIDropDownMenu_AddButton(info, level)
+                info.text, info.hasArrow = CLOSE, nil
+                UIDropDownMenu_AddButton(info)
+            elseif menuList == "replay" then
+                local replayDataProvider = replayFrame:GetReplayDataProvider()
+                local currentReplay = replayDataProvider:GetReplay()
+                local mapID, _, otherMapIDs = replayFrame:GetKeystone()
+                info.func = parent.OnOptionClick
+                info.arg1 = parent
+                info.tooltipOnButton = true
+                for _, replay in ipairs(replays) do
+                    info.checked = replay == currentReplay
+                    local dungeon = util:GetDungeonByID(replay.dungeon.id)
+                    local showDungeon = info.checked or (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
+                    if showDungeon then
+                        local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface\\icons\\%s:16:16|t", affix.icon) end, "")
+                        local members = {strsplit(",", replay.title)} ---@type string[]
+                        members = format(" - %s", util:TableMapConcat(members, function(name) return strtrim(name) end, "\n - ")) ---@diagnostic disable-line: cast-local-type
+                        info.text = replay.title
+                        info.arg2 = replay
+                        info.tooltipTitle = affixesText
+                        info.tooltipText = format("|cffFFFFFF%s|r", members)
+                        UIDropDownMenu_AddButton(info, level)
+                    end
+                end
+            elseif menuList == "style" then
+                local currentStyle = replayFrame:GetStyle()
+                info.func = parent.OnOptionClick
+                info.arg1 = parent
+                for _, style in ipairs(ReplayFrameStyles) do
+                    info.checked = style == currentStyle
+                    info.text = L[format("REPLAY_STYLE_TITLE_%s", style)]
+                    info.arg2 = style
+                    UIDropDownMenu_AddButton(info, level)
+                end
+            end
+        end
+
+        ---@param self UIDropDownMenuInfo
+        function ReplayFrameConfigButtonMixin:OnOptionClick()
+            local dropDownMenu = self.arg1
+            local value = self.arg2 or self.value
+            if value and type(value) == "string" then
+                local style = value ---@type ReplayFrameStyle
+                replayFrame:SetStyle(style, true)
+            else
+                local replay = value ---@type Replay
+                local replayDataProvider = replayFrame:GetReplayDataProvider()
+                replayDataProvider:SetReplay(replay)
+            end
+            dropDownMenu:Close()
+        end
+
+        ---@param self UIDropDownMenuInfo
+        function ReplayFrameConfigButtonMixin:OnCopyReplayUrlClick()
+            local dropDownMenu = self.arg1
+            local value = self.arg2 or self.value ---@type Replay
+            util:ShowCopyRaiderIOReplayPopup(value.title, value.run_url)
+            dropDownMenu:Close()
+        end
+
+        function ReplayFrameConfigButtonMixin:Open()
+            ToggleDropDownMenu(1, nil, self.DropDownMenu, "cursor", 2, 2)
+        end
+
+        function ReplayFrameConfigButtonMixin:Close()
+            CloseDropDownMenus()
+        end
+
+        function ReplayFrameConfigButtonMixin:Toggle()
+            if DropDownList1:IsShown() and DropDownList1.dropdown == self.DropDownMenu then
+                self:Close()
+            else
+                self:Open()
+            end
+        end
+
+        function ReplayFrameConfigButtonMixin:OnClick()
+            PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+            self:Toggle()
+        end
+
+        function ReplayFrameConfigButtonMixin:OnEnter()
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip_SetTitle(GameTooltip, L.REPLAY_SETTINGS_TOOLTIP)
+            GameTooltip:Show()
+        end
+
+        function ReplayFrameConfigButtonMixin:OnLeave()
+            GameTooltip:Hide()
+        end
+
+    end
+
+    ---@param parent ReplayFrame
+    local function CreateReplayFrameConfigButton(parent)
+        local frame = CreateFrame("Button", nil, parent) ---@class ReplayFrameConfigButton
+        Mixin(frame, ReplayFrameConfigButtonMixin)
+        frame:OnLoad()
+        return frame
+    end
+
+    ---@class ReplayFrame : Frame
+    local ReplayFrameMixin = {}
+
+    do
+
+        ---@class StatusBarWidgetVisualizationInfoPolyfill : StatusBarWidgetVisualizationInfo
+        ---@field textEnabledState Enum.WidgetEnabledState
+        ---@field textFontType Enum.UIWidgetFontType
+        ---@field textSizeType Enum.UIWidgetTextSizeType
+
+        ---@class UIWidgetBaseTextMixin : FontString
+
+        ---@class UIWidgetBaseStatusBarTemplateMixin
+        ---@field public value? number
+        ---@field public SanitizeAndSetStatusBarValues fun(self: UIWidgetBaseStatusBarTemplateMixin, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill)
+        ---@field public Setup fun(self: UIWidgetBaseStatusBarTemplateMixin, widgetContainer: Region, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill)
+        ---@field public UpdateBar fun(self: UIWidgetBaseStatusBarTemplateMixin, elapsed: number)
+        ---@field public DisplayBarValue fun(self: UIWidgetBaseStatusBarTemplateMixin)
+        ---@field public SetBarText fun(self: UIWidgetBaseStatusBarTemplateMixin, barValue: number)
+        ---@field public GetMaxTimeCount fun(self: UIWidgetBaseStatusBarTemplateMixin): number
+        ---@field public OnEnter fun(self: UIWidgetBaseStatusBarTemplateMixin)
+        ---@field public OnLeave fun(self: UIWidgetBaseStatusBarTemplateMixin)
+        ---@field public UpdateLabel fun(self: UIWidgetBaseStatusBarTemplateMixin)
+        ---@field public SetMouse fun(self: UIWidgetBaseStatusBarTemplateMixin, disableMouse: boolean)
+        ---@field public InitPartitions fun(self: UIWidgetBaseStatusBarTemplateMixin, partitionValues: number[], textureKit: string|number)
+        ---@field public UpdatePartitions fun(self: UIWidgetBaseStatusBarTemplateMixin, barValue: number)
+        ---@field public OnReset fun(self: UIWidgetBaseStatusBarTemplateMixin)
+
+        ---@class UIWidgetBaseStatusBarTemplate : StatusBar, UIWidgetBaseStatusBarTemplateMixin
+        ---@field public BackgroundGlow Texture
+        ---@field public BGLeft Texture
+        ---@field public BGRight Texture
+        ---@field public BGCenter Texture
+        ---@field public GlowLeft Texture
+        ---@field public GlowRight Texture
+        ---@field public GlowCenter Texture
+        ---@field public BorderLeft Texture
+        ---@field public BorderRight Texture
+        ---@field public BorderCenter Texture
+        ---@field public Spark Texture
+        ---@field public SparkMask Texture
+        ---@field public Label UIWidgetBaseTextMixin
+
+        ---@class UIWidgetTemplateStatusBarMixin
+        ---@field public SanitizeTextureKits fun(self: UIWidgetTemplateStatusBarMixin, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill)
+        ---@field public Setup fun(self: UIWidgetTemplateStatusBarMixin, widgetInfo: StatusBarWidgetVisualizationInfoPolyfill, widgetContainer: Region)
+        ---@field public EvaluateTutorials fun(self: UIWidgetTemplateStatusBarMixin)
+        ---@field public OnReset fun(self: UIWidgetTemplateStatusBarMixin)
+
+        ---@class UIWidgetTemplateStatusBar : Frame, UIWidgetTemplateStatusBarMixin
+        ---@field public Bar UIWidgetBaseStatusBarTemplate
+        ---@field public Label FontString
+        ---@field public widgetContainer Region @Custom property assigned to be the same as the object used when calling `Setup`.
+        ---@field public SetBarValue fun(self: UIWidgetTemplateStatusBar, barValue: number, barMin?: number, barMax?: number, forceUpdate?: boolean) @Custom function assigned to wrap around `Setup` for updating the bar widget.
+
+        ---@type StatusBarWidgetVisualizationInfoPolyfill
+        local STATUSBAR_WIDGET_DEFAULT = {
+            shownState = Enum.WidgetShownState.Shown,
+            barMin = 0,
+            barMax = 100,
+            barValue = 0,
+            -- text = "text",
+            -- tooltip = "tooltip",
+            barValueTextType = Enum.StatusBarValueTextType.Percentage,
+            -- overrideBarText = "0/500 (500)",
+            overrideBarTextShownType = Enum.StatusBarOverrideBarTextShownType.OnlyOnMouseover,
+            colorTint = Enum.StatusBarColorTintValue.Blue,
+            -- partitionValues = {},
+            tooltipLoc = Enum.UIWidgetTooltipLocation.BottomLeft,
+            fillMotionType = Enum.UIWidgetMotionType.Smooth,
+            barTextEnabledState = Enum.WidgetEnabledState.White,
+            barTextFontType = Enum.UIWidgetFontType.Shadow,
+            barTextSizeType = Enum.UIWidgetTextSizeType.Standard14Pt,
+            widgetSizeSetting = 120,
+            frameTextureKit = "widgetstatusbar", -- "ui-frame-bar" | "widgetstatusbar" | "cosmic-bar"
+            textureKit = "white", -- "blue" | "green" | "red" | "white" | "yellow"
+            -- hasTimer = false,
+            orderIndex = 0,
+            -- widgetTag = "",
+            -- inAnimType = Enum.WidgetAnimationType.Fade,
+            -- outAnimType = Enum.WidgetAnimationType.Fade,
+            widgetScale = Enum.UIWidgetScale.OneHundred,
+            layoutDirection = Enum.UIWidgetLayoutDirection.Horizontal,
+            -- modelSceneLayer = Enum.UIWidgetModelSceneLayer.None,
+            -- scriptedAnimationEffectID = 0,
+            textEnabledState = Enum.WidgetEnabledState.White,
+            textFontType = Enum.UIWidgetFontType.Shadow,
+            textSizeType = Enum.UIWidgetTextSizeType.Standard14Pt,
+        }
+
+        ---@param barValue number
+        ---@param barMin? number
+        ---@param barMax? number
+        ---@return StatusBarWidgetVisualizationInfoPolyfill barWidgetInfo
+        local function GetBarInfo(barValue, barMin, barMax)
+            STATUSBAR_WIDGET_DEFAULT.barValue = barValue
+            if barMin and barMax then
+                STATUSBAR_WIDGET_DEFAULT.barMin = barMin
+                STATUSBAR_WIDGET_DEFAULT.barMax = barMax
+            end
+            barMin = STATUSBAR_WIDGET_DEFAULT.barMin
+            barMax = STATUSBAR_WIDGET_DEFAULT.barMax
+            local remaining = barMax - barValue
+            if remaining == 0 then
+                STATUSBAR_WIDGET_DEFAULT.colorTint = Enum.StatusBarColorTintValue.Green
+                STATUSBAR_WIDGET_DEFAULT.barValueTextType = Enum.StatusBarValueTextType.Percentage
+                STATUSBAR_WIDGET_DEFAULT.overrideBarText = nil
+            elseif remaining < 0 then
+                STATUSBAR_WIDGET_DEFAULT.colorTint = Enum.StatusBarColorTintValue.Purple
+                STATUSBAR_WIDGET_DEFAULT.barValueTextType = Enum.StatusBarValueTextType.Value
+                STATUSBAR_WIDGET_DEFAULT.overrideBarText = format("> %s", FormatPercentageAsText(-remaining, true))
+            else
+                STATUSBAR_WIDGET_DEFAULT.colorTint = Enum.StatusBarColorTintValue.Blue
+                STATUSBAR_WIDGET_DEFAULT.barValueTextType = Enum.StatusBarValueTextType.Value
+                STATUSBAR_WIDGET_DEFAULT.overrideBarText = format("%s/%s (%s)", FormatPercentageAsText(barValue), barMax, FormatPercentageAsText(remaining))
+            end
+            return STATUSBAR_WIDGET_DEFAULT
+        end
+
+        ---@param self UIWidgetTemplateStatusBar
+        ---@param barValue number
+        ---@param barMin? number
+        ---@param barMax? number
+        ---@param forceUpdate? boolean
+        local function SetBarValue(self, barValue, barMin, barMax, forceUpdate)
+            local barWidgetInfo = GetBarInfo(barValue, barMin, barMax)
+            if not forceUpdate and barValue == self.Bar.value then
+                return
+            end
+            self:Setup(barWidgetInfo, self.widgetContainer)
+        end
+
+        ---@param self UIWidgetTemplateStatusBar
+        ---@param widgetContainer Region
+        local function InitBar(self, widgetContainer)
+            self.widgetContainer = widgetContainer
+            self.SetBarValue = SetBarValue
+            self:SetBarValue(0, 0, 100, true)
+        end
+
+        ---@param boss1 ReplayBoss
+        ---@param boss2 ReplayBoss
+        local function SortBosses(boss1, boss2)
+            local killed1 = boss1.killed or 0xffffffff
+            local killed2 = boss2.killed or 0xffffffff
+            if killed1 == killed2 then
+                return boss1.index < boss2.index
+            end
+            return killed1 < killed2
+        end
+
+        ---@alias ReplayFrameState
+        ---|"NONE"
+        ---|"STAGING"
+        ---|"PLAYING"
+        ---|"COMPLETED"
+
+        function ReplayFrameMixin:OnLoad()
+            self:Hide()
+            self:SetScript("OnUpdate", self.OnUpdate)
+
+            self.state = "NONE" ---@type ReplayFrameState
+            self.elapsedTime = 0 -- the start time as provided by the WORLD_STATE_TIMER_START event
+            self.elapsedTimer = 0 -- the accumulated time assigned in the OnUpdate handler
+            self.elapsed = 0 -- the time between OnUpdate handler calls
+            self.elapsedKeystoneTimer = 0 -- the current keystone timer
+            self.width = 200
+            self.widthMDI = 320
+            self.edgePaddingMDI = 16
+            self.contentPaddingX = 5
+            self.contentPaddingY = 5
+            self.textRowCount = 4
+            self.textRowHeight = 25
+            self.textRowHeightMDI = 30
+            self.textColumnWidth = (self.width - (self.contentPaddingX * 4)) / 3 ---@type number
+            self.textHeight = self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1) ---@type number
+            self.bossesHeight = 0
+
+            self:SetPoint("TOPRIGHT", ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
+            self:SetSize(self.width, 0)
+            self:SetFrameStrata("LOW")
+            self:SetClampedToScreen(true)
+            self:EnableMouse(true)
+            self:SetMovable(true)
+            self:RegisterForDrag("LeftButton")
+            self:SetScript("OnDragStart", self.StartMoving)
+            self:SetScript("OnDragStop", self.StopMovingOrSizing)
+
+            self.ConfigButton = CreateReplayFrameConfigButton(self)
+
+            self.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.Background:SetAllPoints()
+            self.Background:SetColorTexture(0, 0, 0, 0.5)
+
+            self.BossFramePool = CreateBossFramePool(self)
+
+            self.TextBlock = CreateFrame("Frame", nil, self) ---@class ReplayFrameTextBlock : Frame
+            self.TextBlock:SetPoint("TOPLEFT", self, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
+            self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
+
+            self.TextBlock.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.TextBlock.Background:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", 0, 0)
+            self.TextBlock.Background:SetPoint("BOTTOMRIGHT", self.TextBlock, "BOTTOMRIGHT", 0, 0)
+            self.TextBlock.Background:SetColorTexture(0, 0, 0, 0.5)
+
+            ---@param previous? Region
+            ---@param middleText? string
+            ---@return FontString Left, FontString Middle, FontString Right
+            local function CreateTextRow(previous, middleText)
+                local equalWidth = self.textColumnWidth
+                local middleWidth = 30
+                local extraWidth = (equalWidth - middleWidth)/2 ---@type number
+                equalWidth = equalWidth + extraWidth
+                local LF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+                LF:SetSize(equalWidth, self.textRowHeight)
+                if previous then
+                    LF:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, 0)
+                else
+                    LF:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", self.contentPaddingX, -self.contentPaddingY)
+                end
+                LF:SetJustifyH("RIGHT")
+                LF:SetJustifyV("MIDDLE")
+                local MF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+                MF:SetSize(middleWidth, self.textRowHeight)
+                MF:SetPoint("TOPLEFT", LF, "TOPRIGHT", 0, 0)
+                MF:SetJustifyH("CENTER")
+                MF:SetJustifyV("MIDDLE")
+                MF:SetText(middleText)
+                local RF = self.TextBlock:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+                RF:SetSize(equalWidth, self.textRowHeight)
+                RF:SetPoint("TOPLEFT", MF, "TOPRIGHT", 0, 0)
+                RF:SetJustifyH("LEFT")
+                RF:SetJustifyV("MIDDLE")
+                return LF, MF, RF
+            end
+
+            self.TextBlock.TitleL, self.TextBlock.TitleM, self.TextBlock.TitleR = CreateTextRow(nil, "") -- ns.CUSTOM_ICONS.icons.RAIDERIO_COLOR_CIRCLE("TextureMarkup"))
+            self.TextBlock.TimerL, self.TextBlock.TimerM, self.TextBlock.TimerR = CreateTextRow(self.TextBlock.TitleL, ns.CUSTOM_ICONS.replay.TIMER("TextureMarkup"))
+            self.TextBlock.BossL, self.TextBlock.BossM, self.TextBlock.BossR = CreateTextRow(self.TextBlock.TimerL, ns.CUSTOM_ICONS.replay.BOSS("TextureMarkup"))
+
+            self.TextBlock.BossCombatL = util:CreateTextureFromIcon(self, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
+            self.TextBlock.BossCombatL:SetPoint("LEFT", self.TextBlock.BossL, "LEFT", 26, 0)
+            self.TextBlock.BossCombatL:SetSize(14, 14)
+            self.TextBlock.BossCombatL:Hide()
+
+            self.TextBlock.BossCombatR = util:CreateTextureFromIcon(self, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
+            self.TextBlock.BossCombatR:SetPoint("RIGHT", self.TextBlock.BossR, "RIGHT", -26, 0)
+            self.TextBlock.BossCombatR:SetSize(14, 14)
+            self.TextBlock.BossCombatR:Hide()
+
+            ---@param self ReplayFrame
+            local function ShowReplayRunTooltip(self)
+                local currentReplay = self.replayDataProvider:GetReplay()
+                if not currentReplay then
+                    return
+                end
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip_SetTitle(GameTooltip, currentReplay.title, nil, false)
+                GameTooltip:Show()
+            end
+
+            self:SetScript("OnEnter", ShowReplayRunTooltip)
+            self:SetScript("OnLeave", GameTooltip_Hide)
+
+            self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL, ns.CUSTOM_ICONS.replay.TRASH("TextureMarkup"))
+            self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.DEATH("TextureMarkup"))
+
+            self.MDI = CreateFrame("Frame", nil, self, BackdropTemplateMixin and "BackdropTemplate") ---@class ReplayFrameMDI : Frame, BackdropTemplate
+            self.MDI:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
+            self.MDI:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
+
+            if self.MDI.SetBackdrop then
+                self.MDI:SetBackdrop(BACKDROP_DIALOG_32_32)
+                self.MDI:SetBackdropColor(0, 0, 0, 0.25)
+            end
+
+            ---@param previous Region|nil
+            ---@param middlePadding number|nil
+            ---@param fontObject FontObject|nil
+            local function CreateTextRowMDI(previous, middlePadding, fontObject)
+                middlePadding = middlePadding or 0
+                fontObject = fontObject or "GameFontNormalHuge4"
+                local equalWidth = (self.widthMDI - (self.contentPaddingX * 2)) / 2 - (self.edgePaddingMDI * 3 / 2) - (middlePadding / 2)
+                local LF = self.MDI:CreateFontString(nil, "ARTWORK", fontObject)
+                LF:SetTextColor(1, 1, 1)
+                LF:SetSize(equalWidth, self.textRowHeightMDI)
+                if previous then
+                    LF:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, 0)
+                else
+                    LF:SetPoint("TOPLEFT", self.MDI, "TOPLEFT", self.contentPaddingX + self.edgePaddingMDI, -self.contentPaddingY - self.edgePaddingMDI)
+                end
+                LF:SetJustifyH("RIGHT")
+                LF:SetJustifyV("MIDDLE")
+                local RF = self.MDI:CreateFontString(nil, "ARTWORK", fontObject)
+                RF:SetTextColor(1, 1, 1)
+                RF:SetSize(equalWidth, self.textRowHeightMDI)
+                RF:SetPoint("TOPLEFT", LF, "TOPRIGHT", self.edgePaddingMDI + middlePadding, 0)
+                RF:SetJustifyH("LEFT")
+                RF:SetJustifyV("MIDDLE")
+                return LF, RF
+            end
+
+            self.MDI.TimerL, self.MDI.TimerR = CreateTextRowMDI(nil, 70)
+            self.MDI.Spacer1L, self.MDI.Spacer1R = CreateTextRowMDI(self.MDI.TimerL, 0)
+            self.MDI.BossL, self.MDI.BossR = CreateTextRowMDI(self.MDI.Spacer1L, 40)
+            self.MDI.Spacer2L, self.MDI.Spacer2R = CreateTextRowMDI(self.MDI.BossL, 0)
+            self.MDI.TrashL, self.MDI.TrashR = CreateTextRowMDI(self.MDI.Spacer2L, 0)
+            self.MDI.TimerLine = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.MDI.TimerLine:SetPoint("LEFT", self.MDI.Spacer1L, "LEFT", -self.edgePaddingMDI, 2)
+            self.MDI.TimerLine:SetPoint("RIGHT", self.MDI.Spacer1R, "RIGHT", self.edgePaddingMDI, 2)
+            self.MDI.TimerLine:SetColorTexture(0.5, 0.5, 0.5)
+            self.MDI.TimerSplit = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.MDI.TimerSplit:SetPoint("TOP", self.MDI, "TOP", 2, -self.edgePaddingMDI/2)
+            self.MDI.TimerSplit:SetPoint("BOTTOM", self.MDI.TimerLine, "TOP", 0, 0)
+            self.MDI.TimerSplit:SetColorTexture(0.5, 0.5, 0.5)
+            self.MDI.BossM = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.MDI.BossM:SetPoint("LEFT", self.MDI.BossL, "RIGHT", self.edgePaddingMDI/2, 0)
+            self.MDI.BossM:SetSize(40, 40)
+            self.MDI.BossM:SetTexture(1015842)
+            self.MDI.BossCombat = self.MDI:CreateTexture(nil, "ARTWORK")
+            self.MDI.BossCombat:SetPoint("CENTER", self.MDI.BossM, "CENTER", 0, 0)
+            self.MDI.BossCombat:SetSize(16, 16)
+            self.MDI.BossCombat:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon")
+            self.MDI.BossCombat:Hide()
+            self.MDI.Spacer2L:SetHeight(20)
+            self.MDI.Spacer2R:SetHeight(20)
+            self.MDI.TrashLBar = CreateFrame("Frame", nil, self.MDI, "UIWidgetTemplateStatusBar") ---@type UIWidgetTemplateStatusBar
+            InitBar(self.MDI.TrashLBar, self.MDI)
+            self.MDI.TrashLBar:SetAllPoints(self.MDI.TrashL)
+            self.MDI.TrashRBar = CreateFrame("Frame", nil, self.MDI, "UIWidgetTemplateStatusBar") ---@type UIWidgetTemplateStatusBar
+            InitBar(self.MDI.TrashRBar, self.MDI)
+            self.MDI.TrashRBar:SetAllPoints(self.MDI.TrashR)
+            self.MDI.DeathPenL, self.MDI.DeathPenR = CreateTextRowMDI(nil, 120, "GameFontHighlightLarge2")
+            self.MDI.DeathPenL:ClearAllPoints()
+            self.MDI.DeathPenL:SetPoint("TOPLEFT", self.MDI.TimerLine, "BOTTOMLEFT", self.contentPaddingX + self.edgePaddingMDI/2, -self.contentPaddingY - self.edgePaddingMDI/2)
+            self.MDI.DeathPenL:SetJustifyH("CENTER")
+            self.MDI.DeathPenL:SetHeight(50)
+            self.MDI.DeathPenL.Background = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.MDI.DeathPenL.Background:SetAllPoints(self.MDI.DeathPenL)
+            self.MDI.DeathPenL.Background:SetColorTexture(0, 0, 0, 0.85)
+            self.MDI.DeathPenR:ClearAllPoints()
+            self.MDI.DeathPenR:SetPoint("TOPRIGHT", self.MDI.TimerLine, "BOTTOMRIGHT", -self.contentPaddingX - self.edgePaddingMDI/2, -self.contentPaddingY - self.edgePaddingMDI/2)
+            self.MDI.DeathPenR:SetJustifyH("CENTER")
+            self.MDI.DeathPenR:SetHeight(50)
+            self.MDI.DeathPenR.Background = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
+            self.MDI.DeathPenR.Background:SetAllPoints(self.MDI.DeathPenR)
+            self.MDI.DeathPenR.Background:SetColorTexture(0, 0, 0, 0.85)
+        end
+
+        ---@param style ReplayFrameStyle
+        ---@param save? boolean
+        function ReplayFrameMixin:SetStyle(style, save)
+            if not style or not ReplayFrameStyles[style] then
+                style = config:GetDefault("replayStyle") ---@type ReplayFrameStyle
+            end
+            if save then
+                config:Set("replayStyle", style)
+            end
+            local heightOffset = 0
+            self.style = style
+            if style == "MODERN_COMPACT" then
+                self.textRowCount = 5
+                self.TextBlock.BossL:SetHeight(self.textRowHeight)
+                self.TextBlock.BossM:Show()
+            elseif style == "MODERN" then
+                self.textRowCount = 5
+                self.TextBlock.BossL:SetHeight(self.textRowHeight)
+                self.TextBlock.BossM:Show()
+                -- self.TextBlock.BossL:SetHeight(0)
+                -- self.TextBlock.BossL:SetText(nil)
+                -- self.TextBlock.BossM:Hide()
+                -- self.TextBlock.BossR:SetText(nil)
+            elseif style == "MDI" then
+                heightOffset = 180
+                self.textRowCount = 0
+            end
+            local hasTextRows = self.textRowCount > 0
+            self.textHeight = heightOffset + self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1)
+            self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
+            self.Background:SetShown(hasTextRows)
+            self.TextBlock:SetShown(hasTextRows)
+            self.MDI:SetShown(not hasTextRows)
+            self:SetWidth(hasTextRows and self.width or self.widthMDI)
+            self:UpdateShown()
+        end
+
+        function ReplayFrameMixin:GetStyle()
+            return self.style
+        end
+
+        ---@param style ReplayFrameStyle
+        function ReplayFrameMixin:IsStyle(style)
+            return self.style == style
+        end
+
+        ---@param replayDataProvider ReplayDataProvider
+        function ReplayFrameMixin:SetReplayDataProvider(replayDataProvider)
+            self.replayDataProvider = replayDataProvider
+        end
+
+        ---@return ReplayDataProvider replayDataProvider
+        function ReplayFrameMixin:GetReplayDataProvider()
+            return self.replayDataProvider
+        end
+
+        ---@param liveDataProvider LiveDataProvider
+        function ReplayFrameMixin:SetLiveDataProvider(liveDataProvider)
+            self.liveDataProvider = liveDataProvider
+        end
+
+        ---@return LiveDataProvider liveDataProvider
+        function ReplayFrameMixin:GetLiveDataProvider()
+            return self.liveDataProvider
+        end
+
+        ---@class ReplayCompletedSummary
+        ---@field public replaySeason number
+        ---@field public replayRunId number
+        ---@field public character string
+        ---@field public zoneId number
+        ---@field public keyLevel number
+        ---@field public completedAt number
+        ---@field public clearTimeMS number
+
+        function ReplayFrameMixin:SaveLiveSummary()
+            if not self:IsState("COMPLETED") then
+                return
+            end
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if not replay then
+                return
+            end
+            local mapID = self:GetKeystone()
+            local liveDataProvider = self:GetLiveDataProvider()
+            local liveSummary = liveDataProvider:GetSummary()
+            ---@type ReplayCompletedSummary
+            local summary = {
+                replaySeason = replay.season,
+                replayRunId = replay.keystone_run_id,
+                character = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_NAME, ns.PLAYER_REALM_SLUG),
+                zoneId = mapID,
+                keyLevel = liveSummary.level,
+                completedAt = time(),
+                clearTimeMS = liveSummary.timer,
+            }
+            table.insert(_G.RaiderIO_CompletedReplays, summary)
+            local delta = ConvertMillisecondsToSeconds(summary.clearTimeMS)
+            ns.Print(format(L.REPLAY_SUMMARY_LOGGED, addonName, summary.keyLevel, SecondsToTimeText(delta, "NONE_COLORLESS")))
+        end
+
+        ---@param timerID? number
+        ---@param elapsedTime? number
+        ---@param isActive? boolean
+        function ReplayFrameMixin:SetTimer(timerID, elapsedTime, isActive)
+            if not timerID then
+                return
+            end
+            self.timerID = timerID
+            self.elapsedTime = elapsedTime
+            self.isActive = isActive
+            if isActive then
+                self.elapsedTimer = 0
+            end
+        end
+
+        ---@return number? timerID, number elapsedTime, boolean isActive
+        function ReplayFrameMixin:GetTimer()
+            return self.timerID, self.elapsedTime, self.isActive
+        end
+
+        ---@param time number
+        function ReplayFrameMixin:SetKeystoneTime(time)
+            self.elapsedKeystoneTimer = time
+        end
+
+        ---@return number liveDeathsDuringTimer, number replayDeathsDuringTimer, number liveDeathsOverTimer, number replayDeathsOverTimer
+        function ReplayFrameMixin:GetCurrentDeaths()
+            local liveDataProvider = self:GetLiveDataProvider()
+            local replayDataProvider = self:GetReplayDataProvider()
+            -- HOTFIX: do not cause recursion as GetSummary relies on this method to retrieve the real timer
+            local liveSummary = liveDataProvider.replaySummary
+            local replaySummary = replayDataProvider.replaySummary
+            local liveDeathsDuringTimer = liveSummary.deaths
+            local replayDeathsDuringTimer = replaySummary.deaths
+            if liveSummary.deathsBeforeOvertime and liveSummary.deathsBeforeOvertime < liveDeathsDuringTimer then
+                liveDeathsDuringTimer = liveSummary.deathsBeforeOvertime
+            end
+            if replaySummary.deathsBeforeOvertime and replaySummary.deathsBeforeOvertime < replayDeathsDuringTimer then
+                replayDeathsDuringTimer = replaySummary.deathsBeforeOvertime
+            end
+            return liveDeathsDuringTimer or 0, replayDeathsDuringTimer or 0, liveSummary.deathsBeforeOvertime or 0, replaySummary.deathsBeforeOvertime or 0
+        end
+
+        ---@return number timeLimit
+        function ReplayFrameMixin:GetCurrentTimeLimit()
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if replay and self:IsState("STAGING") then
+                return replay.clear_time_ms/1000
+            end
+            local dungeon = replay and util:GetDungeonByID(replay.dungeon.id)
+            local timeLimit = dungeon and dungeon.timers[#dungeon.timers] or self.timeLimit
+            return timeLimit or 0
+        end
+
+        ---@param includePenalties? boolean
+        ---@return number time
+        function ReplayFrameMixin:GetKeystoneTime(includePenalties)
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if replay and self:IsState("STAGING") then
+                return replay.clear_time_ms/1000
+            end
+            local timeLimit = self:GetCurrentTimeLimit()
+            local timer = self.elapsedKeystoneTimer
+            if includePenalties or not timeLimit then
+                return timer
+            end
+            local liveDeathsDuringTimer = self:GetCurrentDeaths()
+            local liveDataProvider = self:GetLiveDataProvider()
+            local deathPenalty = liveDataProvider:GetDeathPenalty()
+            local timeLost = liveDeathsDuringTimer * deathPenalty
+            return timer - timeLost
+        end
+
+        ---@param includePenalties? boolean
+        ---@return number timeMS
+        function ReplayFrameMixin:GetKeystoneTimeMS(includePenalties)
+            return self:GetKeystoneTime(includePenalties) * 1000
+        end
+
+        ---@param mapID? number
+        ---@param timeLimit? number
+        ---@param otherMapIDs? number[]
+        function ReplayFrameMixin:SetKeystone(mapID, timeLimit, otherMapIDs)
+            if not mapID then
+                return
+            end
+            self.mapID = mapID
+            self.timeLimit = timeLimit
+            self.otherMapIDs = otherMapIDs
+        end
+
+        ---@return number? mapID, number timeLimit, number[]? otherMapIDs
+        function ReplayFrameMixin:GetKeystone()
+            return self.mapID, self.timeLimit, self.otherMapIDs
+        end
+
+        function ReplayFrameMixin:Reset()
+            self:SetKeystoneTime(0)
+            self:GetLiveDataProvider():ResetSummary()
+            self:GetReplayDataProvider():SetupSummary()
+            self.elapsedTimer = 0
+            self.elapsed = 0
+            self:RefreshWorldElapsedTimeState()
+            self:UpdateShown()
+        end
+
+        ---@param state ReplayFrameState
+        function ReplayFrameMixin:SetState(state)
+            self.state = state
+        end
+
+        function ReplayFrameMixin:GetState()
+            return self.state
+        end
+
+        ---@param state ReplayFrameState
+        function ReplayFrameMixin:IsState(state)
+            return self.state == state
+        end
+
+        function ReplayFrameMixin:OnReplayChange()
+            if self:IsState("COMPLETED") then
+                self:SetState("STAGING")
+                self:Reset()
+            end
+            self:UpdateShown()
+        end
+
+        function ReplayFrameMixin:OnBossKill()
+            if not self:IsState("PLAYING") then
+                return
+            end
+            local isRunning = self.isActive and self:IsState("PLAYING")
+            if not isRunning then
+                return
+            end
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if not replay then
+                return
+            end
+            local liveDataProvider = self:GetLiveDataProvider()
+            local liveSummary = liveDataProvider:GetSummary()
+            local keystoneTimeMS = self:GetKeystoneTimeMS()
+            local replaySummary = replayDataProvider:GetReplaySummaryAt(keystoneTimeMS)
+            self:SetUIBosses(liveSummary.bosses, replaySummary.bosses, true)
+            self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
+            self:Update()
+        end
+
+        function ReplayFrameMixin:RefreshWorldElapsedTimeState()
+            if not self.timerID then
+                return
+            end
+            if not self:IsState("PLAYING") then
+                return
+            end
+            local elapsedTime = GetWorldElapsedTimerForKeystone(self.timerID)
+            if not elapsedTime then
+                return
+            end
+            self.elapsedTime = elapsedTime
+            self.elapsed = 0
+        end
+
+        function ReplayFrameMixin:UpdateShown()
+            local isRunning = self.isActive and self:IsState("PLAYING")
+            local shown = self.timerID and self.mapID and not self:IsState("NONE")
+            if shown then
+                local replayDataProvider = self:GetReplayDataProvider()
+                local replay = replayDataProvider:GetReplay()
+                if not replay then
+                    self:Hide()
+                    return
+                end
+                local liveDataProvider = self:GetLiveDataProvider()
+                local liveSummary = liveDataProvider:GetSummary()
+                local keystoneTimeMS = self:GetKeystoneTimeMS()
+                local replaySummary = replayDataProvider:GetReplaySummaryAt(keystoneTimeMS)
+                self:SetUITitle(liveSummary.level, liveSummary.affixes, replaySummary.level, replaySummary.affixes, isRunning or self:IsState("COMPLETED"))
+                self:SetUIBosses(liveSummary.bosses, replaySummary.bosses)
+                self:SetHeight(self.textHeight + self.bossesHeight + self.contentPaddingY)
+                self:Update()
+            end
+            self:SetShown(shown)
+        end
+
+        ---@param elapsed number
+        function ReplayFrameMixin:OnUpdate(elapsed)
+            self.elapsed = self.elapsed + (elapsed * FRAME_TIMER_SCALE)
+            if self.elapsed < FRAME_UPDATE_INTERVAL then return end
+            -- HOTFIX: if there is a loading screen hickup that causes a surge of additional time we avoid the issue by ensuring we fetch up-to-date timer
+            if self.elapsed > FRAME_UPDATE_INTERVAL + 0.1 then
+                self:RefreshWorldElapsedTimeState()
+            end
+            self.elapsedTimer = self.elapsedTimer + self.elapsed
+            self.elapsed = 0
+            self:Update()
+        end
+
+        function ReplayFrameMixin:Update()
+            if self:IsState("NONE") or self:IsState("COMPLETED") then
+                return
+            end
+            local isRunning = self.isActive and self:IsState("PLAYING")
+            if isRunning then
+                self:SetKeystoneTime(self.elapsedTime + self.elapsedTimer)
+            end
+            local replayDataProvider = self:GetReplayDataProvider()
+            local _replay = replayDataProvider:GetReplay()
+            if not _replay then
+                return
+            end
+            local liveDataProvider = self:GetLiveDataProvider()
+            local liveSummary = liveDataProvider:GetSummary()
+            local deathPenalty = liveDataProvider:GetDeathPenalty()
+            local deathPenaltyMS = deathPenalty * 1000
+            local keystoneTimeMS = self:GetKeystoneTimeMS()
+            local replaySummary, _, nextReplayEvent = replayDataProvider:GetReplaySummaryAt(keystoneTimeMS)
+            local liveDeathsDuringTimer, replayDeathsDuringTimer = self:GetCurrentDeaths()
+            local liveTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + liveDeathsDuringTimer * deathPenaltyMS)
+            local replayTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + replayDeathsDuringTimer * deathPenaltyMS)
+            local totalTimer = ConvertMillisecondsToSeconds(_replay.clear_time_ms)
+            self:SetUITimer(liveTimer, replayTimer, totalTimer, not nextReplayEvent, isRunning)
+            self:SetUITrash(liveSummary.trash, replaySummary.trash, _replay.dungeon.total_enemy_forces, isRunning)
+            self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
+            self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, keystoneTimeMS, isRunning)
+            self:UpdateUIBossesCombat(liveSummary.inBossCombat, replaySummary.inBossCombat)
+            replay:SetCurrentReplaySummary(_replay, liveSummary, replaySummary)
+        end
+
+        ---@param liveLevel number
+        ---@param liveAffixes number[]
+        ---@param replayLevel number
+        ---@param replayAffixes number[]
+        ---@param showLiveData boolean
+        function ReplayFrameMixin:SetUITitle(liveLevel, liveAffixes, replayLevel, replayAffixes, showLiveData)
+            if self:IsStyle("MDI") then
+                return
+            end
+            if showLiveData then
+                local liveAffix = util:TableContains(liveAffixes, 9) and 9 or 10
+                self.TextBlock.TitleL:SetFormattedText("+%d %s", liveLevel, ns.KEYSTONE_AFFIX_TEXTURE[liveAffix])
+            else
+                self.TextBlock.TitleL:SetText("")
+            end
+            local replayAffix = util:TableContains(replayAffixes, 9) and 9 or 10
+            self.TextBlock.TitleR:SetFormattedText("+%d %s", replayLevel, ns.KEYSTONE_AFFIX_TEXTURE[replayAffix])
+        end
+
+        ---@param liveTimer number
+        ---@param replayTimer number
+        ---@param totalTimer number
+        ---@param replayIsCompleted boolean
+        ---@param isRunning? boolean
+        function ReplayFrameMixin:SetUITimer(liveTimer, replayTimer, totalTimer, replayIsCompleted, isRunning)
+            local liveClock = SecondsToTimeText(liveTimer, "NONE_COLORLESS")
+            local totalClock = SecondsToTimeText(totalTimer, "NONE_COLORLESS")
+            local replayClock = SecondsToTimeText(replayTimer, "NONE_COLORLESS")
+            if self:IsStyle("MDI") then
+                self.MDI.TimerL:SetText(liveClock)
+                self.MDI.TimerR:SetText(totalClock)
+                return
+            end
+            if isRunning then
+                local delta = replayIsCompleted and 1 or (liveTimer - replayTimer)
+                self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta, true), liveClock)
+            else
+                self.TextBlock.TimerL:SetText("")
+            end
+            if isRunning and replayTimer < totalTimer then
+                self.TextBlock.TimerR:SetText(replayClock)
+            else
+                self.TextBlock.TimerR:SetText(totalClock)
+            end
+        end
+
+        ---@param liveTrash number
+        ---@param replayTrash number
+        ---@param totalTrash number
+        ---@param isRunning? boolean
+        function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash, isRunning)
+            local livePctl = liveTrash / totalTrash * 100
+            local replayPctl = replayTrash / totalTrash * 100
+            if self:IsStyle("MDI") then
+                self.MDI.TrashLBar:SetBarValue(livePctl)
+                self.MDI.TrashRBar:SetBarValue(replayPctl)
+                return
+            end
+            if isRunning then
+                self.TextBlock.TrashL:SetFormattedText("|cff%s%s%%|r", AheadColor(min(replayTrash, totalTrash) - liveTrash, true), FormatPercentageAsText(livePctl))
+            else
+                self.TextBlock.TrashL:SetText("")
+            end
+            self.TextBlock.TrashR:SetFormattedText("%s%%", FormatPercentageAsText(replayPctl))
+        end
+
+        ---@param liveDeaths number
+        ---@param replayDeaths number
+        ---@param deathPenalty number
+        ---@param isRunning? boolean
+        function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty, isRunning)
+            local deltaDeaths = liveDeaths - replayDeaths
+            local livePenalty = liveDeaths * deathPenalty
+            local replayPenalty = replayDeaths * deathPenalty
+            if self:IsStyle("MDI") then
+                local redColor = "FF5555"
+                local livePenaltyText = format("|cff%s+%s|r", redColor, SecondsToTimeText(livePenalty, "NONE_COLORLESS"))
+                local replayPenaltyText = format("|cff%s+%s|r", redColor, SecondsToTimeText(replayPenalty, "NONE_COLORLESS"))
+                self.MDI.DeathPenL:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", liveDeaths, livePenaltyText)
+                self.MDI.DeathPenR:SetFormattedText("|A:poi-graveyard-neutral:12:9|ax%d\n%s", replayDeaths, replayPenaltyText)
+                return
+            end
+            if isRunning then
+                self.TextBlock.DeathPenL:SetFormattedText("|cff%s%d (%ds)|r", AheadColor(deltaDeaths, true), liveDeaths, livePenalty)
+            else
+                self.TextBlock.DeathPenL:SetText("")
+            end
+            self.TextBlock.DeathPenR:SetFormattedText("%d (%ds)", replayDeaths, replayPenalty)
+        end
+
+        ---@param liveBosses ReplayBoss[]
+        ---@param replayBosses ReplayBoss[]
+        ---@param forceUpdate? boolean
+        function ReplayFrameMixin:SetUIBosses(liveBosses, replayBosses, forceUpdate)
+            local pool = self.BossFramePool
+            if not self:IsStyle("MODERN") then
+                pool:ReleaseAll()
+                self.bossesHeight = 0
+                return
+            end
+            local count = max(#liveBosses, #replayBosses)
+            if count == 0 then
+                pool:ReleaseAll()
+                self.bossesHeight = 0
+                return
+            end
+            local sortedLiveBosses = util:TableCopy(liveBosses)
+            local sortedReplayBosses = util:TableCopy(replayBosses)
+            table.sort(sortedLiveBosses, SortBosses)
+            table.sort(sortedReplayBosses, SortBosses)
+            local isDirty = forceUpdate
+            if not isDirty then
+                if count ~= pool:GetNumActive() then
+                    isDirty = true
+                end
+            end
+            if not isDirty then
+                for bossFrame in pool:EnumerateActive() do
+                    local index = bossFrame.index
+                    local liveBoss = sortedLiveBosses[index]
+                    local replayBoss = sortedReplayBosses[index]
+                    local oldLiveBossIndex = liveBoss and liveBoss.index
+                    local oldReplayBossIndex = replayBoss and replayBoss.index
+                    if index ~= oldLiveBossIndex or index ~= oldReplayBossIndex then
+                        isDirty = true
+                        break
+                    end
+                    local newLiveBossID = liveBoss and liveBoss.id
+                    local oldLiveBossID = bossFrame.liveBoss and bossFrame.liveBoss.id
+                    if newLiveBossID ~= oldLiveBossID then
+                        isDirty = true
+                        break
+                    end
+                    local newReplayBossID = replayBoss and replayBoss.id
+                    local oldReplayBossID = bossFrame.replayBoss and bossFrame.replayBoss.id
+                    if newReplayBossID ~= oldReplayBossID then
+                        isDirty = true
+                        break
+                    end
+                end
+            end
+            if not isDirty then
+                return
+            end
+            pool:ReleaseAll()
+            for index = 1, count do
+                local liveBoss = sortedLiveBosses[index]
+                local replayBoss = sortedReplayBosses[index]
+                if liveBoss then
+                    liveBoss.index = index
+                end
+                if replayBoss then
+                    replayBoss.index = index
+                end
+                local bossFrame = pool:Acquire()
+                bossFrame:Setup(index, liveBoss, replayBoss)
+            end
+            self.bossesHeight = pool:UpdateLayout()
+        end
+
+        ---@param liveBosses ReplayBoss[]
+        ---@param replayBosses ReplayBoss[]
+        ---@param timer number
+        ---@param isRunning? boolean
+        function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer, isRunning)
+            local style = self:GetStyle()
+            local liveCount = 0
+            local replayCount = 0
+            for _, boss in ipairs(liveBosses) do if boss.dead then liveCount = liveCount + 1 end end
+            for _, boss in ipairs(replayBosses) do if boss.killed and boss.killed <= timer then replayCount = replayCount + 1 end end
+            local totalCount = max(#liveBosses, #replayBosses)
+            if style == "MODERN_COMPACT" or style == "MODERN" then
+                if isRunning then
+                    self.TextBlock.BossL:SetFormattedText("|cff%s%d/%d|r", AheadColor(replayCount - liveCount, true), liveCount, totalCount)
+                else
+                    self.TextBlock.BossL:SetText("")
+                end
+                self.TextBlock.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
+            elseif style == "MDI" then
+                self.MDI.BossL:SetFormattedText("%d/%d", liveCount, totalCount)
+                self.MDI.BossR:SetFormattedText("%d/%d", replayCount, totalCount)
+            end
+            if style == "MODERN" then
+                local pool = self.BossFramePool
+                for bossFrame in pool:EnumerateActive() do
+                    bossFrame:Update()
+                end
+            end
+        end
+
+        ---@param liveInBossCombat boolean
+        ---@param replayInBossCombat boolean
+        function ReplayFrameMixin:UpdateUIBossesCombat(liveInBossCombat, replayInBossCombat)
+            local style = self:GetStyle()
+            local isModern = style == "MODERN_COMPACT" or style == "MODERN"
+            self.TextBlock.BossCombatL:SetShown(isModern and liveInBossCombat)
+            self.TextBlock.BossCombatR:SetShown(isModern and replayInBossCombat)
+            self.MDI.BossCombat:SetShown(style == "MDI" and replayInBossCombat)
+        end
+
+    end
+
+    local function CreateReplayDataProvider()
+        local dataProvider = {} ---@class ReplayDataProvider
+        Mixin(dataProvider, ReplayDataProviderMixin)
+        dataProvider:OnLoad()
+        return dataProvider
+    end
+
+    local function CreateLiveDataProvider()
+        local dataProvider = CreateReplayDataProvider() ---@class LiveDataProvider
+        Mixin(dataProvider, LiveDataProviderMixin)
+        dataProvider:OnLoad()
+        return dataProvider
+    end
+
+    local function CreateReplayFrame()
+        local frame = CreateFrame("Frame", addonName .. "_ReplayFrame", UIParent) ---@class ReplayFrame
+        Mixin(frame, ReplayFrameMixin)
+        frame:OnLoad()
+        return frame
+    end
+
+    ---@param stopTimer? boolean
+    ---@param stopTimerID? number
+    ---@return number? timerID, number? elapsedTime, boolean? isActive
+    local function GetKeystoneTimer(stopTimer, stopTimerID)
+        local timerIDs = {GetWorldElapsedTimers()} ---@type number[]
+        for _, timerID in ipairs(timerIDs) do
+            local elapsedTime = GetWorldElapsedTimerForKeystone(timerID)
+            if elapsedTime then
+                return timerID, elapsedTime, not stopTimer or stopTimerID ~= timerID
+            end
+        end
+        if config:Get("debugMode") then
+            return 1, 0, true
+        end
+    end
+
+    ---@return number? mapID, number? timeLimit
+    local function GetKeystoneInfo()
+        local mapID = C_ChallengeMode.GetActiveChallengeMapID()
+        if not mapID then
+            return
+        end
+        local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapID)
+        return mapID, timeLimit
+    end
+
+    ---@return (number|number[])? mapID, number? timeLimit
+    local function GetKeystoneForInstance()
+        local _, _, difficultyID, _, _, _, _, instanceID = GetInstanceInfo()
+        if not difficultyID then
+            return
+        end
+        local _, _, _, isChallengeMode, _, displayMythic = GetDifficultyInfo(difficultyID)
+        if not isChallengeMode and not displayMythic then
+            return
+        end
+        local mapID = INSTANCE_ID_TO_CHALLENGE_MAP_ID[instanceID]
+        if not mapID then
+            return
+        end
+        local firstMapID = type(mapID) == "table" and mapID[1] or mapID ---@type number
+        local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(firstMapID)
+        return mapID, timeLimit
+    end
+
+    ---@return number? mapID, number? timeLimit, number[]? otherMapIDs
+    local function GetKeystoneOrInstanceInfo()
+        local mapID, timeLimit = GetKeystoneInfo()
+        local mapIDs ---@type number[]?
+        if not mapID then
+            local temp, timer = GetKeystoneForInstance()
+            if temp then
+                timeLimit = timer
+                if type(temp) == "table" then
+                    mapID = temp[1]
+                    mapIDs = temp
+                elseif type(temp) == "number" then
+                    mapID = temp
+                end
+            end
+        end
+        if not mapID and config:Get("debugMode") then
+            local dungeons = ns:GetDungeonData()
+            local dungeon = dungeons[1]
+            mapID, timeLimit = dungeon.instance_map_id, dungeon.timers[3]
+        end
+        return mapID, timeLimit, mapIDs
+    end
+
+    ---@param replay Replay
+    ---@param mapID number
+    ---@param otherMapIDs? number[]
+    ---@return boolean?
+    local function IsReplayForMapID(replay, mapID, otherMapIDs)
+        local dungeon = util:GetDungeonByID(replay.dungeon.id)
+        if not dungeon then
+            return
+        end
+        if dungeon.keystone_instance == mapID then
+            return true
+        end
+        if otherMapIDs then
+            for _, otherMapID in ipairs(otherMapIDs) do
+                if dungeon.keystone_instance == otherMapID then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    ---@param mapID number
+    ---@param otherMapIDs? number[]
+    ---@return Replay? replay
+    local function GetReplayForMapID(mapID, otherMapIDs)
+        for _, replay in ipairs(replays) do
+            local dungeon = util:GetDungeonByID(replay.dungeon.id)
+            if dungeon and dungeon.keystone_instance == mapID then
+                return replay
+            end
+        end
+        if otherMapIDs then
+            for _, replay in ipairs(replays) do
+                local dungeon = util:GetDungeonByID(replay.dungeon.id)
+                if dungeon then
+                    for _, otherMapID in ipairs(otherMapIDs) do
+                        if dungeon.keystone_instance == otherMapID then
+                            return replay
+                        end
+                    end
+                end
+            end
+        end
+        if config:Get("debugMode") then
+            return replays[1]
+        end
+    end
+
+    ---@param event? WowEvent
+    local function OnEvent(event, ...)
+        -- handle updating the active encounter state
+        if event == "ENCOUNTER_START" or event == "ENCOUNTER_END" then
+            ---@type number, string, number, number, boolean
+            local encounterID, _, _, _, success = ...
+            if success == nil then -- it's nil when it's the start event, otherwise 0 for wipe, and 1 for success
+                ActiveEncounters[encounterID] = true
+            else
+                ActiveEncounters[encounterID] = nil
+            end
+            return
+        end
+        local timerID, elapsedTime, isActive = GetKeystoneTimer(event == "WORLD_STATE_TIMER_STOP", ...)
+        local mapID, timeLimit, otherMapIDs = GetKeystoneOrInstanceInfo()
+        local replayDataProvider = replayFrame:GetReplayDataProvider()
+        local replay = replayDataProvider:GetReplay()
+        -- detect the special case where we are in the instance, but we have no keystone API data because:
+        -- (1) it's still in mythic mode and the key has not been started so no data until we start the key
+        -- (2) it's in countdown state as the key is about the start, no API data is available just yet
+        local staging = false
+        if mapID then
+            -- if we are in a keystone map, we ensure that the replay is relevant
+            if not replay or not IsReplayForMapID(replay, mapID, otherMapIDs) then
+                replay = GetReplayForMapID(mapID, otherMapIDs)
+            end
+            -- if we are in a keystone map, but we are not in an active keystone, we are in staging mode
+            if not timerID or not elapsedTime then
+                staging, timerID, elapsedTime, isActive = true, 1, 0, false
+            end
+        end
+        -- HOTFIX: take a look at `OnReplayChange` method as it will be called when `SetReplay` is used
+        -- this is so that when replay changes, and we are in the COMPLETED state, we force the UI to
+        -- return back to STAGING state - but the code flow makes us keep that logic in that handler
+        replayDataProvider:SetReplay(replay)
+        -- the UI state flow is handled in this block
+        -- the state is a simple way to detect what we are doing elsewhere in the module
+        -- we can assign states and run special routines for specific events when needed
+        if event == "WORLD_STATE_TIMER_START" and isActive and not replayFrame:IsState("PLAYING") then
+            replayFrame:SetState("PLAYING")
+            replayFrame:Reset()
+        end
+        if not mapID then
+            replayFrame:SetState("NONE")
+        elseif isActive then
+            replayFrame:SetState("PLAYING")
+        elseif replayFrame.isActive and replayFrame:IsState("PLAYING") then
+            replayFrame:SetState("COMPLETED")
+            replayFrame:SaveLiveSummary()
+        elseif staging and not replayFrame:IsState("COMPLETED") then
+            replayFrame:SetState("STAGING")
+        end
+        -- finalize the UI by feeding the relevant methods their data and forcing an UI update
+        replayFrame:SetTimer(timerID, elapsedTime, isActive)
+        replayFrame:SetKeystone(mapID, timeLimit, otherMapIDs)
+        replayFrame:UpdateShown()
+    end
+
+    local REPLAY_SUMMARY_TRIM_IF_OLDER = 86400 -- 24 hours
+
+    local function TrimHistoryFromSV()
+        local now = time()
+        local completedReplays = _G.RaiderIO_CompletedReplays ---@type ReplayCompletedSummary[]
+        for i = #completedReplays, 1, -1 do
+            local summary = completedReplays[i]
+            if not summary.completedAt or now - summary.completedAt >= REPLAY_SUMMARY_TRIM_IF_OLDER then
+                table.remove(completedReplays, i)
+            end
+        end
+    end
+
+    ---@param replays Replay[]
+    local function SortReplaysByWeeklyAffix(replays)
+        local weeklyAffixID = util:GetWeeklyAffix()
+        ---@param replay Replay
+        ---@return number? replayAffixID
+        local function GetReplayWeeklyAffix(replay)
+            for _, affix in ipairs(replay.affixes) do
+                if affix.id == weeklyAffixID then
+                    return affix.id
+                end
+            end
+        end
+        table.sort(replays, function(a, b)
+            local x = GetReplayWeeklyAffix(a) or 0
+            local y = GetReplayWeeklyAffix(b) or 0
+            x = x - weeklyAffixID
+            y = y - weeklyAffixID
+            if x == y then
+                x = a.mythic_level
+                y = b.mythic_level
+            end
+            return x > y
+        end)
+    end
+
+    local function OnSettingsChanged()
+        if config:Get("enableReplay") then
+            replay:Enable()
+        else
+            replay:Disable()
+        end
+    end
+
+    function replay:CanLoad()
+        return config:IsEnabled() and ns:GetReplays()
+    end
+
+    function replay:OnLoad()
+        TrimHistoryFromSV()
+        replays = ns:GetReplays()
+        util:TableSort(replays, "date", "keystone_run_id")
+        SortReplaysByWeeklyAffix(replays)
+        replayFrame = CreateReplayFrame()
+        replayFrame:SetReplayDataProvider(CreateReplayDataProvider())
+        replayFrame:SetLiveDataProvider(CreateLiveDataProvider())
+        replayFrame:SetStyle(config:Get("replayStyle"))
+        OnSettingsChanged()
+        callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")
+        callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_SAVED")
+    end
+
+    function replay:OnEnable()
+        OnEvent()
+        callback:RegisterEvent(OnEvent, unpack(UPDATE_EVENTS))
+    end
+
+    function replay:OnDisable()
+        OnEvent()
+        callback:UnregisterEvent(OnEvent, unpack(UPDATE_EVENTS))
+        replayFrame:Hide()
+    end
+
+    ---@class PublicReplaySummary : ReplaySummary
+    ---@field public run_url string?
+    ---@field public clear_time_ms number?
+    ---@field public dungeon_id number?
+    ---@field public dungeon_total_enemy_forces number?
+    ---@field public dungeon_short_name string?
+    ---@field public dungeon_name string?
+
+    local currentReplay ---@type Replay?
+    local currentLiveSummary ---@type ReplaySummary?
+    local currentReplaySummary ---@type ReplaySummary?
+    local publicLiveSummary ---@type PublicReplaySummary?
+    local publicReplaySummary ---@type PublicReplaySummary?
+
+    ---@param publicSummary PublicReplaySummary?
+    ---@param privateSummary ReplaySummary?
+    local function UpdatePublicSummary(publicSummary, privateSummary)
+        if not privateSummary then
+            return
+        end
+        if not publicSummary or publicSummary.timer ~= privateSummary.timer then
+            publicSummary = util:TableCopy(privateSummary) ---@type PublicReplaySummary
+            publicSummary.affixes = util:TableCopy(privateSummary.affixes)
+            publicSummary.bosses = util:TableCopy(privateSummary.bosses)
+            if currentReplay then
+                publicSummary.run_url = currentReplay.run_url
+                publicSummary.clear_time_ms = currentReplay.clear_time_ms
+                publicSummary.dungeon_id = currentReplay.dungeon.id
+                publicSummary.dungeon_total_enemy_forces = currentReplay.dungeon.total_enemy_forces
+                publicSummary.dungeon_short_name = currentReplay.dungeon.short_name
+                publicSummary.dungeon_name = currentReplay.dungeon.name
+            end
+        end
+        return publicSummary
+    end
+
+    ---@param liveSummary ReplaySummary
+    ---@param replaySummary ReplaySummary
+    function replay:SetCurrentReplaySummary(keystoneReplay, liveSummary, replaySummary)
+        currentReplay = keystoneReplay
+        currentLiveSummary = liveSummary
+        currentReplaySummary = replaySummary
+    end
+
+    ---@return PublicReplaySummary? liveSummary, PublicReplaySummary? replaySummary
+    function replay:GetCurrentReplaySummary()
+        publicLiveSummary = UpdatePublicSummary(publicLiveSummary, currentLiveSummary)
+        publicReplaySummary = UpdatePublicSummary(publicReplaySummary, currentReplaySummary)
+        return publicLiveSummary, publicReplaySummary
     end
 
 end
@@ -12701,5 +12582,160 @@ do
         provider:WipeCache()
         -- AppendTestsFromProviders(OnAppendProviderTestsCompleted, OnAppendProviderTestsProgress) -- DEBUG: excessive testing so we might wanna comment this out when it's not required
     end
+
+end
+
+-- public.lua (global)
+-- dependencies: module, util, provider, render, replay
+do
+
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local provider = ns:GetModule("Provider") ---@type ProviderModule
+    local render = ns:GetModule("Render") ---@type RenderModule
+    local replay = ns:GetModule("Replay") ---@type ReplayModule
+
+    -- TODO: we have a long road a head of us... debugstack(0)
+    local function IsSafeCall()
+        return true
+    end
+
+    local unsafe = false
+
+    local function IsSafe()
+        if unsafe then
+            return false
+        end
+        if not IsSafeCall() then
+            unsafe = true
+            ns.Print("Error: Another AddOn has modified Raider.IO and is most likely forcing it to return invalid data. Please disable other addons until this message disappears.")
+            return false
+        end
+        return true
+    end
+
+    local function IsReady()
+        return ns.PLAYER_REGION ~= nil -- GetProfile will fail if called too early before the player info is properly loaded so we avoid doing that by safely checking if we're loaded ready
+    end
+
+    local pristine = {
+        AddProvider = function(...)
+            return provider:AddProvider(...)
+        end,
+        GetProfile = function(arg1, arg2, ...)
+            if not IsReady() then
+                return
+            end
+            local name, realm = arg1, arg2
+            local _, _, unitIsPlayer = util:IsUnit(arg1, arg2)
+            if unitIsPlayer then
+                name, realm = util:GetNameRealm(arg1)
+            elseif type(arg1) == "string" then
+                if arg1:find("-", nil, true) then
+                    name, realm = util:GetNameRealm(arg1)
+                    return provider:GetProfile(name, realm, ...)
+                else
+                    name, realm = util:GetNameRealm(arg1, arg2)
+                end
+            end
+            return provider:GetProfile(name, realm, ...)
+        end,
+        ShowProfile = function(tooltip, ...)
+            if not IsReady() then
+                return
+            end
+            if type(tooltip) ~= "table" or type(tooltip.GetObjectType) ~= "function" or tooltip:GetObjectType() ~= "GameTooltip" then
+                return
+            end
+            return render:ShowProfile(tooltip, ...)
+        end,
+        GetScoreColor = function(score, ...)
+            if type(score) ~= "number" then
+                score = 0
+            end
+            return util:GetScoreColor(score, ...)
+        end,
+        GetScoreForKeystone = function(level)
+            if not level then return end
+            local base = ns.KEYSTONE_LEVEL_TO_SCORE[level]
+            local average = util:GetKeystoneAverageScoreForLevel(level)
+            return base, average
+        end,
+        GetCurrentReplay = function()
+            return replay:GetCurrentReplaySummary()
+        end,
+    }
+
+    local private = {
+        AddProvider = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.AddProvider(...)
+        end,
+        GetProfile = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.GetProfile(...)
+        end,
+        ShowProfile = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.ShowProfile(...)
+        end,
+        GetScoreColor = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.GetScoreColor(...)
+        end,
+        GetScoreForKeystone = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.GetScoreForKeystone(...)
+        end,
+        GetCurrentReplay = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.GetCurrentReplay(...)
+        end,
+        -- DEPRECATED: these are here just to help mitigate the transition but do avoid using these as they will probably go away during Shadowlands
+        ProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
+        TooltipProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
+        DataProvider = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
+        HasPlayerProfile = function(...) return _G.RaiderIO.GetProfile(...) end, -- passes the request to the GetProfile API (if its there then it exists)
+        GetPlayerProfile = function(mask, ...) return _G.RaiderIO.GetProfile(...) end, -- skips the mask and passes the rest to the GetProfile API
+        ShowTooltip = function(tooltip, mask, ...) return _G.RaiderIO.ShowProfile(tooltip, ...) end, -- skips the mask and passes the rest to the ShowProfile API
+        GetRaidDifficultyColor = function(difficulty) local rd = ns.RAID_DIFFICULTY[difficulty] local t if rd then t = { rd.color[1], rd.color[2], rd.color[3], rd.color.hex } end return t end, -- returns the color table for the queried raid difficulty
+        GetScore = function() end, -- deprecated early BfA so we just return nothing
+    }
+
+    ---@class RaiderIOInterface
+    ---@field public AddProvider fun() For internal RaiderIO use only. Please do not call this function.
+    ---@field public GetProfile fun(unit: string): profile: DataProviderCharacterProfile? Returns a table containing the characters profile and data from the different data providers like mythic keystones, raiding and pvp. Usage: `RaiderIO.GetProfile(name, realm[, region])` or `RaiderIO.GetProfile(unit)`
+    ---@field public ShowProfile fun(tooltip: GameTooltip, ...): success: boolean Returns `true` or `false` depending if the profile could be drawn on the provided tooltip. `RaiderIO.ShowProfile(tooltip, name, realm[, region])` or `RaiderIO.ShowProfile(tooltip, unit[, region])`
+    ---@field public GetScoreColor fun(score: number, isPreviousSeason?: boolean): r: number, g: number, b: number Returns the color `r, g, b` for a given score. `RaiderIO.GetScoreColor(score[, isPreviousSeason])`
+    ---@field public GetScoreForKeystone fun(level: number): base: number, average: number Returns the base and average scores for a given keystone level.
+    ---@field public GetCurrentReplay fun(): liveSummary: ReplaySummary, replaySummary: ReplaySummary Returns the current live and replay summaries for the ongoing keystone.
+
+    ---@type RaiderIOInterface
+    _G.RaiderIO = setmetatable({}, {
+        __metatable = false,
+        __newindex = function()
+        end,
+        __index = function(self, key)
+            return private[key]
+        end,
+        __call = function(self, key, ...)
+            local func = pristine[key]
+            if not func then
+                return
+            end
+            return func(...)
+        end
+    })
 
 end

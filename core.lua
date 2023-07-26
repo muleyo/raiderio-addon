@@ -5406,2087 +5406,6 @@ do
 
 end
 
--- public.lua (global)
--- dependencies: module, util, provider, render
-do
-
-    local util = ns:GetModule("Util") ---@type UtilModule
-    local provider = ns:GetModule("Provider") ---@type ProviderModule
-    local render = ns:GetModule("Render") ---@type RenderModule
-    local replay = ns:GetModule("Replay") ---@type ReplayModule
-
-    -- TODO: we have a long road a head of us... debugstack(0)
-    local function IsSafeCall()
-        return true
-    end
-
-    local unsafe = false
-
-    local function IsSafe()
-        if unsafe then
-            return false
-        end
-        if not IsSafeCall() then
-            unsafe = true
-            ns.Print("Error: Another AddOn has modified Raider.IO and is most likely forcing it to return invalid data. Please disable other addons until this message disappears.")
-            return false
-        end
-        return true
-    end
-
-    local function IsReady()
-        return ns.PLAYER_REGION ~= nil -- GetProfile will fail if called too early before the player info is properly loaded so we avoid doing that by safely checking if we're loaded ready
-    end
-
-    local pristine = {
-        AddProvider = function(...)
-            return provider:AddProvider(...)
-        end,
-        GetProfile = function(arg1, arg2, ...)
-            if not IsReady() then
-                return
-            end
-            local name, realm = arg1, arg2
-            local _, _, unitIsPlayer = util:IsUnit(arg1, arg2)
-            if unitIsPlayer then
-                name, realm = util:GetNameRealm(arg1)
-            elseif type(arg1) == "string" then
-                if arg1:find("-", nil, true) then
-                    name, realm = util:GetNameRealm(arg1)
-                    return provider:GetProfile(name, realm, ...)
-                else
-                    name, realm = util:GetNameRealm(arg1, arg2)
-                end
-            end
-            return provider:GetProfile(name, realm, ...)
-        end,
-        ShowProfile = function(tooltip, ...)
-            if not IsReady() then
-                return
-            end
-            if type(tooltip) ~= "table" or type(tooltip.GetObjectType) ~= "function" or tooltip:GetObjectType() ~= "GameTooltip" then
-                return
-            end
-            return render:ShowProfile(tooltip, ...)
-        end,
-        GetScoreColor = function(score, ...)
-            if type(score) ~= "number" then
-                score = 0
-            end
-            return util:GetScoreColor(score, ...)
-        end,
-        GetScoreForKeystone = function(level)
-            if not level then return end
-            local base = ns.KEYSTONE_LEVEL_TO_SCORE[level]
-            local average = util:GetKeystoneAverageScoreForLevel(level)
-            return base, average
-        end,
-        GetCurrentReplay = function()
-            return replay:GetCurrentReplaySummary()
-        end,
-    }
-
-    local private = {
-        AddProvider = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.AddProvider(...)
-        end,
-        GetProfile = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.GetProfile(...)
-        end,
-        ShowProfile = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.ShowProfile(...)
-        end,
-        GetScoreColor = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.GetScoreColor(...)
-        end,
-        GetScoreForKeystone = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.GetScoreForKeystone(...)
-        end,
-        GetCurrentReplay = function(...)
-            if not IsSafe() then
-                return
-            end
-            return pristine.GetCurrentReplay(...)
-        end,
-        -- DEPRECATED: these are here just to help mitigate the transition but do avoid using these as they will probably go away during Shadowlands
-        ProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
-        TooltipProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
-        DataProvider = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
-        HasPlayerProfile = function(...) return _G.RaiderIO.GetProfile(...) end, -- passes the request to the GetProfile API (if its there then it exists)
-        GetPlayerProfile = function(mask, ...) return _G.RaiderIO.GetProfile(...) end, -- skips the mask and passes the rest to the GetProfile API
-        ShowTooltip = function(tooltip, mask, ...) return _G.RaiderIO.ShowProfile(tooltip, ...) end, -- skips the mask and passes the rest to the ShowProfile API
-        GetRaidDifficultyColor = function(difficulty) local rd = ns.RAID_DIFFICULTY[difficulty] local t if rd then t = { rd.color[1], rd.color[2], rd.color[3], rd.color.hex } end return t end, -- returns the color table for the queried raid difficulty
-        GetScore = function() end, -- deprecated early BfA so we just return nothing
-    }
-
-    ---@class RaiderIOInterface
-    ---@field public AddProvider fun() For internal RaiderIO use only. Please do not call this function.
-    ---@field public GetProfile fun(unit: string): profile: DataProviderCharacterProfile? Returns a table containing the characters profile and data from the different data providers like mythic keystones, raiding and pvp. Usage: `RaiderIO.GetProfile(name, realm[, region])` or `RaiderIO.GetProfile(unit)`
-    ---@field public ShowProfile fun(tooltip: GameTooltip, ...): success: boolean Returns `true` or `false` depending if the profile could be drawn on the provided tooltip. `RaiderIO.ShowProfile(tooltip, name, realm[, region])` or `RaiderIO.ShowProfile(tooltip, unit[, region])`
-    ---@field public GetScoreColor fun(score: number, isPreviousSeason?: boolean): r: number, g: number, b: number Returns the color `r, g, b` for a given score. `RaiderIO.GetScoreColor(score[, isPreviousSeason])`
-    ---@field public GetScoreForKeystone fun(level: number): base: number, average: number Returns the base and average scores for a given keystone level.
-    ---@field public GetCurrentReplay fun(): liveSummary: ReplaySummary, replaySummary: ReplaySummary Returns the current live and replay summaries for the ongoing keystone.
-
-    ---@type RaiderIOInterface
-    _G.RaiderIO = setmetatable({}, {
-        __metatable = false,
-        __newindex = function()
-        end,
-        __index = function(self, key)
-            return private[key]
-        end,
-        __call = function(self, key, ...)
-            local func = pristine[key]
-            if not func then
-                return
-            end
-            return func(...)
-        end
-    })
-
-end
-
--- gametooltip.lua
--- dependencies: module, config, util, provider, render
-do
-
-    ---@class GameTooltipModule : Module
-    local tooltip = ns:NewModule("GameTooltip") ---@type GameTooltipModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-    local provider = ns:GetModule("Provider") ---@type ProviderModule
-    local render = ns:GetModule("Render") ---@type RenderModule
-
-    local function OnTooltipSetUnit(self)
-        if self ~= GameTooltip or not tooltip:IsEnabled() or not config:Get("enableUnitTooltips") then
-            return
-        end
-        if (config:Get("showScoreModifier") and not IsModifierKeyDown()) or (not config:Get("showScoreModifier") and not config:Get("showScoreInCombat") and InCombatLockdown()) then
-            return
-        end
-        local _, unit = self:GetUnit()
-        if not unit or not UnitIsPlayer(unit) then
-            return
-        end
-        if util:IsUnitMaxLevel(unit) then
-            local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary(unit)
-            if bioSummary and bioSummary.currentSeasonScore then
-                local name, realm = util:GetNameRealm(unit)
-                provider:OverrideProfile(name, realm, bioSummary.currentSeasonScore, bioSummary.runs)
-            end
-            render:ShowProfile(self, unit)
-        end
-    end
-
-    local function OnTooltipCleared(self)
-        render:ClearTooltip(self)
-    end
-
-    local function OnHide(self)
-        render:HideTooltip(self)
-    end
-
-    function tooltip:CanLoad()
-        return config:IsEnabled()
-    end
-
-    function tooltip:OnLoad()
-        self:Enable()
-        if TooltipDataProcessor then -- TODO: DF
-            TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnTooltipSetUnit)
-        else
-            GameTooltip:HookScript("OnTooltipSetUnit", OnTooltipSetUnit)
-        end
-        GameTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
-        GameTooltip:HookScript("OnHide", OnHide)
-    end
-
-end
-
--- friendtooltip.lua
--- dependencies: module, config, util, render
-do
-
-    ---@class FriendTooltipModule : Module
-    local tooltip = ns:NewModule("FriendTooltip") ---@type FriendTooltipModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-    local render = ns:GetModule("Render") ---@type RenderModule
-
-    local function FriendsTooltip_Show(self)
-        if not tooltip:IsEnabled() or not config:Get("enableFriendsTooltips") then
-            return
-        end
-        local button = self.button
-        local fullName, faction, level
-        if button.buttonType == FRIENDS_BUTTON_TYPE_BNET then
-            local bnetIDAccountInfo = C_BattleNet.GetFriendAccountInfo(button.id)
-            if bnetIDAccountInfo then
-                fullName, faction, level = util:GetNameRealmForBNetFriend(bnetIDAccountInfo.bnetAccountID)
-            end
-        elseif button.buttonType == FRIENDS_BUTTON_TYPE_WOW then
-            local friendInfo = C_FriendList.GetFriendInfoByIndex(button.id)
-            if friendInfo then
-                fullName, level = friendInfo.name, friendInfo.level
-                faction = ns.PLAYER_FACTION
-            end
-        end
-        if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
-            return
-        end
-        local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
-        -- HOTFIX: attempt to fix the issue with a bnet friend with a notification causes the update to be called each frame without a proper hide event and this makes it so we append an empty line due to the smart padding check
-        do
-            local firstText = GameTooltipTextLeft1:GetText()
-            if not firstText or firstText == "" or firstText == " " then
-                ownerExisted = false
-            end
-        end
-        if render:ShowProfile(GameTooltip, fullName, render.Preset.UnitSmartPadding(ownerExisted)) then
-            return
-        end
-        if ownerSet and not ownerExisted and ownerSetSame then
-            GameTooltip:Hide()
-        end
-    end
-
-    local function FriendsTooltip_Hide()
-        if not tooltip:IsEnabled() or not config:Get("enableFriendsTooltips") then
-            return
-        end
-        GameTooltip:Hide()
-    end
-
-    function tooltip:OnLoad()
-        self:Enable()
-        hooksecurefunc(FriendsTooltip, "Show", FriendsTooltip_Show)
-        hooksecurefunc(FriendsTooltip, "Hide", FriendsTooltip_Hide)
-    end
-
-end
-
--- whotooltip.lua
--- dependencies: module, config, util, render
-do
-
-    ---@class WhoTooltipModule : Module
-    local tooltip = ns:NewModule("WhoTooltip") ---@type WhoTooltipModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-    local render = ns:GetModule("Render") ---@type RenderModule
-
-    local function OnEnter(self)
-        if not self.index or not config:Get("enableWhoTooltips") then
-            return
-        end
-        local info = C_FriendList.GetWhoInfo(self.index)
-        if not info or not info.fullName or not util:IsMaxLevel(info.level) then
-            return
-        end
-        local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_LEFT")
-        if render:ShowProfile(GameTooltip, info.fullName, render.Preset.UnitSmartPadding(ownerExisted)) then
-            return
-        end
-        if ownerSet and not ownerExisted and ownerSetSame then
-            GameTooltip:Hide()
-        end
-    end
-
-    local function OnLeave(self)
-        if not self.index or not config:Get("enableWhoTooltips") then
-            return
-        end
-        GameTooltip:Hide()
-    end
-
-    local function OnScroll()
-        if not config:Get("enableWhoTooltips") then
-            return
-        end
-        GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
-    end
-
-    function tooltip:OnLoad()
-        self:Enable()
-        local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
-        ScrollBoxUtil:OnViewFramesChanged(WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(WhoFrame.ScrollBox, OnScroll)
-    end
-
-end
-
--- whochatframe.lua
--- dependencies: module, config, util, provider
-do
-
-    ---@class WhoChatFrameModule : Module
-    local chatframe = ns:NewModule("WhoChatFrame") ---@type WhoChatFrameModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-    local provider = ns:GetModule("Provider") ---@type ProviderModule
-
-    local RAIDERIO_MP_SCORE = L.RAIDERIO_MP_SCORE:gsub("%.", "|cffffffff|r.") -- TODO: make it part of the locale file like L.RAIDERIO_MP_SCORE_WHOCHAT
-
-    local FORMAT_GUILD = "^" .. util:FormatToPattern(WHO_LIST_GUILD_FORMAT) .. "$"
-    local FORMAT = "^" .. util:FormatToPattern(WHO_LIST_FORMAT) .. "$"
-
-    ---@param profile DataProviderCharacterProfile
-    local function GetScore(profile)
-        local keystoneProfile = profile.mythicKeystoneProfile
-        if not keystoneProfile or keystoneProfile.blocked then
-            return
-        end
-        local currentScore = keystoneProfile.mplusCurrent.score
-        local mainCurrentScore = keystoneProfile.mplusMainCurrent.score
-        local text
-        if currentScore > 0 then
-            text = RAIDERIO_MP_SCORE .. ": " .. currentScore .. ". "
-        end
-        if mainCurrentScore > currentScore and config:Get("showMainsScore") then
-            text = (text or "") .. "(" .. L.MAINS_SCORE .. ": " .. mainCurrentScore .. "). "
-        end
-        return text
-    end
-
-    local function EventFilter(self, event, text, ...)
-        if event ~= "CHAT_MSG_SYSTEM" or not config:Get("enableWhoMessages") then
-            return false
-        end
-        local nameLink, name, level, race, class, guild, zone = text:match(FORMAT_GUILD)
-        if not nameLink then
-            return false
-        end
-        if not zone then
-            guild = nil
-            nameLink, name, level, race, class, zone = text:match(FORMAT)
-        end
-        if not nameLink or not level or not util:IsMaxLevel(tonumber(level)) then ---@diagnostic disable-line: param-type-mismatch
-            return false
-        end
-        local name, realm = util:GetNameRealm(nameLink)
-        local profile = provider:GetProfile(name, realm)
-        if not profile or not profile.mythicKeystoneProfile or profile.mythicKeystoneProfile.blocked then
-            return false
-        end
-        local score = GetScore(profile)
-        if not score then
-            return false
-        end
-        return false, text .. " - " .. score, ...
-    end
-
-    function chatframe:CanLoad()
-        return config:IsEnabled()
-    end
-
-    function chatframe:OnLoad()
-        self:Enable()
-        ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", EventFilter)
-    end
-
-end
-
--- fanfare.lua (requires debug mode)
--- dependencies: module, config, util, provider
-do
-
-    ---@class FanfareModule : Module
-    local fanfare = ns:NewModule("Fanfare") ---@type FanfareModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-    local provider = ns:GetModule("Provider") ---@type ProviderModule
-
-    local KEYSTONE_DATE
-
-    local function GetGroupMembers()
-        ---@type DataProviderCharacterProfile[]
-        local profiles = {}
-        local index = 0
-        local fromIndex, toIndex = IsInRaid() and 1 or 0, GetNumGroupMembers()
-        for i = fromIndex, toIndex do
-            local unit = i == 0 and "player" or (IsInRaid() and "raid" or "party") .. i
-            if UnitExists(unit) then
-                local name, realm = util:GetNameRealm(unit)
-                if name then
-                    index = index + 1
-                    profiles[index] = provider:GetProfile(name, realm) or false ---@diagnostic disable-line: assign-type-mismatch
-                end
-            end
-        end
-        return profiles
-    end
-
-    ---@class DungeonDifference
-    ---@field public member DataProviderCharacterProfile
-    ---@field public confidence number @The confidence score for this prediction. 1 = guaranteed, 2 = possibly (should check website), 3 = must check website
-    ---@field public levelDiff number @The difference between current and the latest run
-    ---@field public fractionalTimeDiff number @The difference between current and the latest run
-    ---@field public isUpgrade boolean @If this diff is an improvement in score
-
-    ---@param level1 number
-    ---@param level2 number
-    ---@param fractionalTime1 number
-    ---@param fractionalTime2 number
-    ---@return number, number, number, number @`arg1 = 1=left/2=right`, `arg2 = level`, `arg3 = fractionalTime`, `arg4 = confidence`
-    local function CompareLevelAndFractionalTime(level1, level2, fractionalTime1, fractionalTime2)
-        if not level1 or not fractionalTime1 then
-            return 2, level2, fractionalTime2, 3
-        elseif not level2 or not fractionalTime2 then
-            return 1, level1, fractionalTime1, 3
-        elseif (level1 == level2 and fractionalTime1 < fractionalTime2) or (level1 > level2 and fractionalTime1 <= (1 + (level1 - level2) * 0.1)) then
-            return 1, level1, fractionalTime1, level1 == level2 and 1 or 2
-        end
-        return 2, level2, fractionalTime2, level1 == level2 and 1 or 2
-    end
-
-    ---@param run? SortedDungeon
-    ---@param currentRun? SortedDungeon
-    local function GetDungeonUpgrade(run, currentRun)
-        if not run or not currentRun then
-            return
-        end
-        local side, _, _, confidence = CompareLevelAndFractionalTime(run.level, currentRun.level, run.fractionalTime, currentRun.fractionalTime)
-        ---@type DungeonDifference
-        local diff = {} ---@diagnostic disable-line: missing-fields
-        diff.confidence = confidence
-        diff.levelDiff = 0
-        diff.fractionalTimeDiff = 0
-        if side == 1 then
-            diff.levelDiff = currentRun.level - run.level
-            diff.fractionalTimeDiff = currentRun.fractionalTime - run.fractionalTime
-        end
-        diff.isUpgrade = diff.levelDiff > 0 or (diff.levelDiff == 0 and diff.fractionalTimeDiff < 0)
-        return diff
-    end
-
-    ---@param run1? SortedDungeon
-    ---@param diff1? DungeonDifference
-    ---@param run2? SortedDungeon
-    ---@param diff2? DungeonDifference
-    ---@return SortedDungeon?, DungeonDifference?
-    local function CompareDungeonUpgrades(run1, diff1, run2, diff2)
-        if not run2 then
-            if not run1 or not run1.level then
-                return
-            end
-            return run1, diff1
-        elseif not run1 then
-            if not run2 or not run2.level then
-                return
-            end
-            return run2, diff2
-        end
-        local side = CompareLevelAndFractionalTime(run1.level, run2.level, run1.fractionalTime, run2.fractionalTime)
-        if side == 1 then
-            return run1, diff1
-        end
-        return run2, diff2
-    end
-
-    ---@param member DataProviderCharacterProfile
-    ---@param dungeon Dungeon
-    local function GetSortedDungeonForMember(member, dungeon)
-        for i = 1, #member.mythicKeystoneProfile.sortedDungeons do
-            local sortedDungeon = member.mythicKeystoneProfile.sortedDungeons[i]
-            if sortedDungeon.dungeon == dungeon then
-                if sortedDungeon.level > 0 then
-                    return sortedDungeon
-                end
-                return
-            end
-        end
-    end
-
-    ---@param run SortedDungeon
-    local function CopyRun(run)
-        local r = {}
-        r.dungeon = run.dungeon
-        r.chests = run.chests
-        r.level = run.level
-        r.fractionalTime = run.fractionalTime
-        return r
-    end
-
-    ---@param member DataProviderCharacterProfile
-    ---@param currentRun SortedDungeon
-    ---@return SortedDungeon, DungeonDifference @`arg1 = isUpgrade`, `arg2 = SortedDungeon`, `arg3 = DungeonDifference`
-    local function GetCachedRunAndUpgrade(member, currentRun)
-        local cachedRuns = _G.RaiderIO_CachedRuns
-        if not cachedRuns then
-            cachedRuns = {}
-            _G.RaiderIO_CachedRuns = cachedRuns
-        end
-        if not cachedRuns.date then
-            cachedRuns.date = KEYSTONE_DATE
-        end
-        if KEYSTONE_DATE > cachedRuns.date then
-            table.wipe(cachedRuns)
-        end
-        local memberCachedRuns = cachedRuns[member.guid]
-        if not memberCachedRuns then
-            memberCachedRuns = {}
-            cachedRuns[member.guid] = memberCachedRuns
-        end
-        local dbRun = GetSortedDungeonForMember(member, currentRun.dungeon)
-        local dbRunUpgrade = GetDungeonUpgrade(dbRun, currentRun)
-        local cacheRun = memberCachedRuns[currentRun.dungeon.index] ---@type SortedDungeon
-        local cacheUpgrade = GetDungeonUpgrade(cacheRun, currentRun)
-        local bestRun, bestUpgrade = CompareDungeonUpgrades(dbRun, dbRunUpgrade, cacheRun, cacheUpgrade)
-        local bestIsCurrentRun
-        if not bestRun or not bestRun.level then
-            bestIsCurrentRun = true
-            bestRun = CopyRun(currentRun)
-            bestUpgrade = {} ---@diagnostic disable-line: missing-fields
-        elseif bestRun == dbRun then
-            bestRun = CopyRun(dbRun) ---@diagnostic disable-line: param-type-mismatch
-        end
-        memberCachedRuns[currentRun.dungeon.index] = bestRun
-        local side = CompareLevelAndFractionalTime(bestRun.level, currentRun.level, bestRun.fractionalTime, currentRun.fractionalTime)
-        if bestIsCurrentRun or side == 2 then
-            bestUpgrade.confidence = 1
-            if bestIsCurrentRun then
-                bestUpgrade.levelDiff = currentRun.level
-                bestUpgrade.fractionalTimeDiff = -currentRun.fractionalTime
-            else
-                bestUpgrade.levelDiff = currentRun.level - bestRun.level
-                bestUpgrade.fractionalTimeDiff = currentRun.fractionalTime - bestRun.fractionalTime
-            end
-            bestUpgrade.isUpgrade = bestIsCurrentRun or bestUpgrade.levelDiff > 0 or (bestUpgrade.levelDiff == 0 and bestUpgrade.fractionalTimeDiff < 0) ---@diagnostic disable-line: need-check-nil
-            bestRun.chests = currentRun.chests
-            bestRun.level = currentRun.level
-            bestRun.fractionalTime = currentRun.fractionalTime
-        end
-        return bestRun, bestUpgrade ---@diagnostic disable-line: return-type-mismatch
-    end
-
-    ---@param members DataProviderCharacterProfile[] @Table of group member profiles
-    ---@param currentRun SortedDungeon
-    local function GetDungeonUpgrades(members, currentRun)
-        ---@type DungeonDifference[]
-        local upgrades = {}
-        local index = 0
-        local hasAnyUpgrades
-        for i = 1, #members do
-            local member = members[i]
-            if member and member.mythicKeystoneProfile and not member.mythicKeystoneProfile.blocked then
-                local run, upgrade = GetCachedRunAndUpgrade(member, currentRun)
-                hasAnyUpgrades = hasAnyUpgrades or upgrade.isUpgrade
-                upgrade.member = member
-                index = index + 1
-                upgrades[index] = upgrade
-            end
-        end
-        return upgrades, hasAnyUpgrades
-    end
-
-    local LEVEL_UP_EFFECT = {
-        yellow = 166464, -- spells/levelup/levelup.m2 (yellow)
-        green = 166698, -- spells/reputationlevelup.m2 (green)
-        red = 240947, -- spells/levelup_red.m2 (red)
-        blue = 340883, -- spells/levelup_blue.m2 (blue)
-        x = -18,
-        y = 0,
-        z = -10,
-        facing = 0,
-        duration = 1.5
-    }
-
-    local function DecorationFrame_OnShow(self)
-        self:SetAlpha(0)
-        self.AnimIn:Play()
-        if self.model then
-            self.Sparks:Show()
-            self.Sparks:SetModel(self.model)
-        end
-    end
-
-    local function DecorationFrame_OnHide(self)
-        self.AnimIn:Stop()
-        self.Sparks:Hide()
-    end
-
-    local function DecorationFrame_AnimIn_Sparks_OnFinished(self)
-        self.frame.Sparks:Hide()
-    end
-
-    local PERCENTILE_LOWEST = 0.01 -- 0.01%
-    local PERCENTILE_LOWEST_DECIMAL = PERCENTILE_LOWEST/100 -- % to decimal
-
-    ---@param upgrade DungeonDifference
-    local function DecorationFrame_SetUp(self, upgrade)
-        if upgrade.isUpgrade then
-            if not upgrade.confidence or upgrade.confidence > 1 then
-                self.model = LEVEL_UP_EFFECT.yellow
-                self.Texture:SetAtlas("loottoast-arrow-orange")
-            else
-                self.model = LEVEL_UP_EFFECT.green
-                self.Texture:SetAtlas("loottoast-arrow-green")
-            end
-            --[=[
-            if upgrade.levelDiff and upgrade.levelDiff > 0 then
-                self.Text:SetText(upgrade.levelDiff .. (upgrade.levelDiff > 1 and " levels" or " level") .. " higher") -- TODO: locale
-            elseif upgrade.fractionalTimeDiff and upgrade.fractionalTimeDiff < 0 then
-                local p = floor(upgrade.fractionalTimeDiff * -10000) / 100
-                if p > 0 then
-                    self.Text:SetText(p .. "% faster") -- TODO: locale
-                else
-                    self.Text:SetText("~" .. PERCENTILE_LOWEST .. "% faster") -- TODO: locale
-                end
-            else
-                self.Text:SetText()
-            end
-            --]=]
-        else
-            self.model = nil
-            self.Texture:SetTexture()
-            --[=[
-            if upgrade.levelDiff and upgrade.levelDiff < 0 then
-                self.Text:SetText((-upgrade.levelDiff) .. (upgrade.levelDiff > 1 and " levels" or " level") .. " lower") -- TODO: locale
-            elseif upgrade.levelDiff == 0 and upgrade.fractionalTimeDiff and upgrade.fractionalTimeDiff > 0 then
-                local p = floor(upgrade.fractionalTimeDiff * 10000) / 100
-                if p > 0 then
-                    self.Text:SetText(p .. "% slower") -- TODO: locale
-                else
-                    self.Text:SetText("~" .. PERCENTILE_LOWEST .. "% slower") -- TODO: locale
-                end
-            elseif upgrade.levelDiff == 0 and upgrade.fractionalTimeDiff and upgrade.fractionalTimeDiff <= PERCENTILE_LOWEST_DECIMAL then
-                self.Text:SetText("No change") -- TODO: locale
-            else
-                self.Text:SetText()
-            end
-            --]=]
-        end
-    end
-
-    ---@class ScalePolyfill
-    ---@field public SetScaleFrom fun(x, y)
-    ---@field public SetScaleTo fun(x, y)
-
-    local function CreateDecorationFrame()
-        local frame = CreateFrame("Frame")
-        frame:Hide()
-        frame:SetScript("OnShow", DecorationFrame_OnShow)
-        frame:SetScript("OnHide", DecorationFrame_OnHide)
-        frame.SetUp = DecorationFrame_SetUp
-        do
-            frame.Texture = frame:CreateTexture(nil, "ARTWORK")
-            frame.Texture:SetPoint("CENTER")
-            frame.Texture:SetSize(32, 32)
-            frame.Texture:SetTexture(nil) ---@diagnostic disable-line: param-type-mismatch
-        end
-        do
-            frame.Text = frame:CreateFontString(nil, "ARTWORK", "ChatFontNormal")
-            frame.Text:SetAllPoints()
-            frame.Text:SetJustifyH("CENTER")
-            frame.Text:SetJustifyV("MIDDLE")
-            frame.Text:SetText()
-        end
-        do
-            frame.Sparks = CreateFrame("PlayerModel", nil, frame)
-            frame.Sparks:Hide()
-            frame.Sparks:SetAllPoints()
-            frame.Sparks:SetModel(LEVEL_UP_EFFECT.yellow)
-            frame.Sparks:SetPortraitZoom(1)
-            frame.Sparks:ClearTransform()
-            frame.Sparks:SetPosition(LEVEL_UP_EFFECT.x, LEVEL_UP_EFFECT.y, LEVEL_UP_EFFECT.z)
-            frame.Sparks:SetFacing(LEVEL_UP_EFFECT.facing)
-        end
-        do
-            frame.AnimIn = frame:CreateAnimationGroup()
-            frame.AnimIn:SetToFinalAlpha(true)
-            local alpha = frame.AnimIn:CreateAnimation("Alpha")
-            alpha:SetOrder(1)
-            alpha:SetStartDelay(0.2)
-            alpha:SetDuration(0.25)
-            alpha:SetFromAlpha(0)
-            alpha:SetToAlpha(1)
-            local scale = frame.AnimIn:CreateAnimation("Scale") ---@type Animation|Scale|ScalePolyfill
-            scale:SetOrder(1)
-            scale:SetStartDelay(0.2)
-            scale:SetDuration(0.25)
-            scale:SetScaleFrom(5, 5)
-            scale:SetScaleTo(1, 1)
-            local sparks = frame.AnimIn:CreateAnimation("Scale") ---@type Animation|Scale|ScalePolyfill
-            sparks:SetOrder(1)
-            sparks:SetStartDelay(0)
-            sparks:SetDuration(LEVEL_UP_EFFECT.duration)
-            sparks:SetScaleFrom(1, 1)
-            sparks:SetScaleTo(1, 1)
-            sparks.frame = frame
-            sparks:SetScript("OnFinished", DecorationFrame_AnimIn_Sparks_OnFinished)
-        end
-        return frame
-    end
-
-    local frameHooks = {}
-    local frames = {}
-
-    local function OnFrameHidden()
-        for _, frame in pairs(frames) do
-            frame:Hide()
-        end
-    end
-
-    ---@param upgrade DungeonDifference
-    local function DecoratePartyMember(partyMember, upgrade)
-        if not partyMember then
-            return
-        end
-        local frame = frames[partyMember]
-        if not frame then
-            frame = CreateDecorationFrame()
-            frame:SetParent(partyMember)
-            frame:SetAllPoints()
-            frames[partyMember] = frame
-        end
-        frame:SetUp(upgrade)
-        frame:Show()
-    end
-
-    ---@param upgrade DungeonDifference
-    local function ShowUpgrade(frame, upgrade)
-        local sortedUnitTokens = frame:GetSortedPartyMembers()
-        for i = 1, #sortedUnitTokens do
-            local unit = sortedUnitTokens[i]
-            local name, realm = util:GetNameRealm(unit)
-            if name and name == upgrade.member.name and realm == upgrade.member.realm then
-                DecoratePartyMember(frame.PartyMembers[i], upgrade)
-                break
-            end
-        end
-    end
-
-    ---@param dungeon Dungeon
-    local function GetCurrentRun(dungeon, level, fractionalTime, keystoneUpgradeLevels)
-        ---@type SortedDungeon
-        local run = {} ---@diagnostic disable-line: missing-fields
-        run.chests = keystoneUpgradeLevels
-        run.dungeon = dungeon
-        run.fractionalTime = fractionalTime
-        run.level = level
-        return run
-    end
-
-    ---@class ChallengeModeCompleteBannerData
-    ---@field public mapID number @Keystone instance ID
-    ---@field public level number @Keystone level
-    ---@field public time number @Run duration in seconds
-    ---@field public onTime number @true if on time, otherwise false if depleted
-    ---@field public keystoneUpgradeLevels number @The amount of chests/level upgrades
-    ---@field public oldDungeonScore number
-    ---@field public newDungeonScore number
-    ---@field public isAffixRecord boolean
-    ---@field public isMapRecord boolean
-    ---@field public primaryAffix number
-    ---@field public isEligibleForScore boolean
-    ---@field public upgradeMembers ChallengeModeCompletionMemberInfo[]
-
-    ---@param bannerData ChallengeModeCompleteBannerData
-    local function OnChallengeModeCompleteBannerPlay(frame, bannerData)
-        if not KEYSTONE_DATE or not bannerData or not bannerData.mapID or not bannerData.time or not bannerData.level then
-            return
-        end
-        if not fanfare:IsEnabled() then
-            return
-        end
-        local dungeon = util:GetDungeonByKeystoneID(bannerData.mapID)
-        if not dungeon then
-            return
-        end
-        local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(bannerData.mapID)
-        if not timeLimit or timeLimit == 0 then
-            return
-        end
-        local fractionalTime = bannerData.time/timeLimit
-        local members = GetGroupMembers()
-        local currentRun = GetCurrentRun(dungeon, bannerData.level, fractionalTime, bannerData.keystoneUpgradeLevels)
-        local upgrades, hasAnyUpgrades = GetDungeonUpgrades(members, currentRun)
-        if not frameHooks[frame] then
-            frameHooks[frame] = true
-            frame:HookScript("OnHide", OnFrameHidden)
-        end
-        for i = 1, #upgrades do
-            ShowUpgrade(frame, upgrades[i])
-        end
-    end
-
-    local hooked
-
-    local function TopBannerManager_Show(self)
-        if hooked then
-            return
-        end
-        local frame = ChallengeModeCompleteBanner ---@type Frame?
-        if not frame or frame ~= self then
-            return
-        end
-        hooked = true
-        hooksecurefunc(frame, "PlayBanner", OnChallengeModeCompleteBannerPlay)
-        local mapID, level, time, onTime, keystoneUpgradeLevels, practiceRun, oldDungeonScore, newDungeonScore, isAffixRecord, isMapRecord, primaryAffix, isEligibleForScore, upgradeMembers = C_ChallengeMode.GetCompletionInfo()
-        if not practiceRun then
-            local bannerData = { mapID = mapID, level = level, time = time, onTime = onTime, keystoneUpgradeLevels = keystoneUpgradeLevels or 0, oldDungeonScore = oldDungeonScore, newDungeonScore = newDungeonScore, isAffixRecord = isAffixRecord, isMapRecord = isMapRecord, primaryAffix = primaryAffix, isEligibleForScore = isEligibleForScore, upgradeMembers = upgradeMembers } ---@type ChallengeModeCompleteBannerData
-            OnChallengeModeCompleteBannerPlay(frame, bannerData)
-        end
-    end
-
-    local function CheckCachedData()
-        local cachedRuns = _G.RaiderIO_CachedRuns
-        if not cachedRuns then
-            return
-        end
-        if KEYSTONE_DATE and cachedRuns.date and KEYSTONE_DATE > cachedRuns.date then
-            table.wipe(cachedRuns)
-            return
-        end
-        local dungeons = ns:GetDungeonData()
-        for _, memberCachedRuns in pairs(cachedRuns) do
-            if type(memberCachedRuns) == "table" then
-                for i = 1, #dungeons do
-                    ---@type SortedDungeon
-                    local cachedRun = memberCachedRuns[i]
-                    if cachedRun then
-                        cachedRun.dungeon = dungeons[i]
-                    end
-                end
-            end
-        end
-    end
-
-    function fanfare:CanLoad()
-        return config:IsEnabled() and config:Get("debugMode") -- TODO: do not load this module by default (it's not yet tested well enough) but we do load it if debug mode is enabled
-    end
-
-    function fanfare:OnLoad()
-        self:Enable()
-        KEYSTONE_DATE = provider:GetProvidersDates()
-        CheckCachedData()
-        hooksecurefunc("TopBannerManager_Show", TopBannerManager_Show)
-    end
-
-    -- DEBUG: force show the end screen for MIST+15 (1800/1440/1080 is the timer)
-    -- /run wipe(RaiderIO_CachedRuns)
-    -- /run C_ChallengeMode.GetCompletionInfo=function()return 375, 15, 1800, true, 1, false, 123, 234, true, true, 9, nil end
-    -- /run for _,f in ipairs({GetFramesRegisteredForEvent("CHALLENGE_MODE_COMPLETED")})do f:GetScript("OnEvent")(f,"CHALLENGE_MODE_COMPLETED")end
-
-end
-
--- profile.lua
--- dependencies: module, callback, config, render
-do
-
-    ---@class ProfileModule : Module
-    local profile = ns:NewModule("Profile") ---@type ProfileModule
-    local callback = ns:GetModule("Callback") ---@type CallbackModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local render = ns:GetModule("Render") ---@type RenderModule
-
-    local function IsFrame(widget)
-        return type(widget) == "table" and type(widget.GetObjectType) == "function" and widget
-    end
-
-    local STRATA_MAP = {
-        "TOOLTIP",
-        "FULLSCREEN_DIALOG",
-        "FULLSCREEN",
-        "DIALOG",
-        "HIGH",
-        "MEDIUM",
-        "LOW",
-        "BACKGROUND",
-    }
-
-    for k, v in ipairs(STRATA_MAP) do
-        STRATA_MAP[v] = k
-    end
-
-    local function GetHighestStrata(...)
-        local s, o
-        for _, v in ipairs({...}) do
-            if type(v) == "string" then
-                local c = STRATA_MAP[v]
-                if not o or o > c then
-                    s, o = v, c
-                end
-            end
-        end
-        return s
-    end
-
-    local fallbackFrame = _G.UIParent
-    local fallbackStrata = "LOW"
-
-    local tooltipAnchor ---@type Frame
-    local tooltip ---@type GameTooltip
-
-    local tooltipAnchorPriority = {
-        -- this entry is updated with the latest anchor from previous `profile:ShowProfile(anchor, ...)` call so that we can prioritize this anchor above all others
-        {
-            name = nil,
-            strata = "TOOLTIP",
-        },
-        -- overrides the default PVEFrame anchor behavior when Premade Groups Filter is loaded
-        {
-            name = "PremadeGroupsFilterDialog",
-            hook = function(anchor, frame, updatePosition)
-                if not anchor.toggleHooked and IsFrame(frame.MoveableToggle) then
-                    anchor.toggleHooked = true
-                    frame.MoveableToggle:HookScript("OnClick", updatePosition)
-                end
-            end,
-            usable = function(anchor, frame)
-                return frame:IsShown() and (not frame.MoveableToggle or not frame.MoveableToggle:GetChecked())
-            end,
-        },
-        -- the default PVEFrame player profile and anchor behavior
-        {
-            name = "PVEFrame",
-            show = function(anchor, frame)
-                if not frame:IsShown() or not config:Get("showRaiderIOProfile") then
-                    return
-                end
-                profile:ShowProfile(false, "player")
-            end,
-            hide = function()
-                profile:HideProfile()
-            end,
-        },
-    }
-
-    local hookedFrames = {}
-
-    local function Eval(o, f, ...)
-        if type(o) == "function" then
-            return o(...)
-        end
-        return o or f
-    end
-
-    local function GetAnchorPoint(anchor, frame)
-        return
-            Eval(anchor.point, "TOPLEFT", anchor, frame),
-            Eval(anchor.rpoint, "TOPRIGHT", anchor, frame),
-            Eval(anchor.x, -16, anchor, frame),
-            Eval(anchor.y, 0, anchor, frame),
-            Eval(anchor.strata, fallbackStrata, anchor, frame)
-    end
-
-    ---@return Frame? frame, string? strata Returns the used frame and strata after logical checks have been performed on the provided frame and strata values.
-    local function SetAnchor()
-        for _, anchor in ipairs(tooltipAnchorPriority) do
-            local frame = anchor.name
-            if frame then
-                frame = IsFrame(frame) or IsFrame(_G[frame])
-                if frame then
-                    local usable = anchor.usable
-                    if usable == nil then
-                        usable = true
-                    elseif type(usable) == "function" then
-                        usable = anchor.usable(anchor, frame)
-                    end
-                    if usable then
-                        local p, rp, x, y, strata = GetAnchorPoint(anchor, frame)
-                        strata = GetHighestStrata(strata, frame:GetFrameStrata())
-                        tooltipAnchor:SetParent(frame)
-                        tooltipAnchor:ClearAllPoints()
-                        tooltipAnchor:SetPoint(p, frame, rp, x, y)
-                        tooltipAnchor:SetFrameStrata(strata)
-                        tooltip:SetFrameStrata(strata)
-                        return frame, strata
-                    end
-                end
-            end
-        end
-    end
-
-    ---@class ConfigProfilePoint
-    ---@field public point string|nil
-    ---@field public x number|nil
-    ---@field public y number|nil
-
-    ---@return Frame frame, string strata Returns the used frame and strata after logical checks have been performed on the provided frame and strata values.
-    local function SetUserAnchor()
-        local profilePoint = config:Get("profilePoint") ---@type ConfigProfilePoint
-        local p = profilePoint.point or "CENTER"
-        local x = profilePoint.x or 0
-        local y = profilePoint.y or 0
-        tooltipAnchor:SetParent(fallbackFrame)
-        tooltipAnchor:ClearAllPoints()
-        tooltipAnchor:SetPoint(p, fallbackFrame, p, x, y)
-        tooltipAnchor:SetFrameStrata(fallbackStrata)
-        tooltip:SetFrameStrata(fallbackStrata)
-        return fallbackFrame, fallbackStrata
-    end
-
-    ---@param isDraggable boolean
-    ---@return boolean @true if frame is draggable, otherwise false.
-    local function SetDraggable(self, isDraggable)
-        self:EnableMouse(isDraggable)
-        self:SetMovable(isDraggable)
-        self.Indicator:SetShown(isDraggable)
-        self.Icon:SetShown(isDraggable)
-        return isDraggable
-    end
-
-    ---@return boolean isAutoPosition, Frame? frame, string? strata @arg1 returns true if position is automatic, otherwise false. `arg2+` are the same as returned from `SetAnchor` or `SetUserAnchor`.
-    local function UpdatePosition(anchor, frame)
-        if anchor and frame then
-            if frame:IsShown() and anchor.show and type(anchor.show) == "function" then
-                anchor.show(anchor, frame)
-            elseif not frame:IsShown() and anchor.hide and type(anchor.hide) == "function" then
-                anchor.hide(anchor, frame)
-            end
-        end
-        SetDraggable(tooltipAnchor, not config:Get("positionProfileAuto") and not config:Get("lockProfile"))
-        if config:Get("positionProfileAuto") then
-            return true, SetAnchor()
-        else
-            return false, SetUserAnchor()
-        end
-    end
-
-    local function UpdateAnchorHooks()
-        for _, anchor in ipairs(tooltipAnchorPriority) do
-            local frame = anchor.name
-            if frame then
-                frame = IsFrame(frame) or IsFrame(_G[frame])
-                if frame and not hookedFrames[frame] then
-                    hookedFrames[frame] = true
-                    local function updatePosition() return UpdatePosition(anchor, frame) end
-                    frame:HookScript("OnShow", updatePosition)
-                    frame:HookScript("OnHide", updatePosition)
-                    if anchor.hook and type(anchor.hook) == "function" then
-                        anchor.hook(anchor, frame, updatePosition)
-                    end
-                end
-            end
-        end
-    end
-
-    local function OnDragStart(self)
-        self:StartMoving()
-    end
-
-    local function OnDragStop(self)
-        self:StopMovingOrSizing()
-        local point, _, _, x, y = self:GetPoint() -- TODO: improve this to store a corner so that when the tip is resized the corner is the anchor point and not the center as that makes it very wobbly and unpleasant to look at
-        local profilePoint = config:Get("profilePoint") ---@type ConfigProfilePoint
-        config:Set("profilePoint", profilePoint)
-        profilePoint.point, profilePoint.x, profilePoint.y = point, x, y
-    end
-
-    local function CreateTooltipAnchor()
-        local frame = CreateFrame("Frame", addonName .. "_ProfileTooltipAnchor", fallbackFrame)
-        frame:SetFrameStrata(fallbackStrata)
-        frame:SetFrameLevel(100)
-        frame:SetClampedToScreen(true)
-        frame:RegisterForDrag("LeftButton")
-        frame:SetScript("OnDragStart", OnDragStart)
-        frame:SetScript("OnDragStop", OnDragStop)
-        frame:SetSize(16, 16)
-        frame.Indicator = frame:CreateTexture(nil, "BACKGROUND")
-        frame.Indicator:SetAllPoints()
-        frame.Indicator:SetColorTexture(0.3, 0.3, 0.3)
-        frame.Icon = frame:CreateTexture(nil, "ARTWORK")
-        frame.Icon:SetAllPoints()
-        frame.Icon:SetTexture(386863)
-        frame:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(L.PROFILE_TOOLTIP_ANCHOR_TOOLTIP, 1, 1, 1)
-            GameTooltip:Show()
-        end)
-        frame:SetScript("OnLeave", function()
-            GameTooltip:Hide()
-        end)
-        return frame
-    end
-
-    local function CreateTooltip()
-        local tooltip = CreateFrame("GameTooltip", addonName .. "_ProfileTooltip", tooltipAnchor, "GameTooltipTemplate") ---@type GameTooltip
-        tooltip:SetClampedToScreen(true)
-        tooltip:SetOwner(tooltipAnchor, "ANCHOR_NONE")
-        tooltip:ClearAllPoints()
-        tooltip:SetPoint("TOPLEFT", tooltipAnchor, "TOPRIGHT", 0, 0)
-        tooltip:SetFrameStrata(fallbackStrata)
-        tooltip:SetFrameLevel(100)
-        return tooltip
-    end
-
-    local function OnSettingsSaved()
-        if not profile:IsEnabled() then
-            return
-        end
-        UpdatePosition()
-    end
-
-    local showProfileArgs
-
-    local function OnModifierStateChanged()
-        if not showProfileArgs or not showProfileArgs[1] or not showProfileArgs[2] then
-            return
-        end
-        return profile:ShowProfile(unpack(showProfileArgs))
-    end
-
-    function profile:CanLoad()
-        return not tooltip and config:IsEnabled() and PVEFrame
-    end
-
-    function profile:OnLoad()
-        self:Enable()
-        tooltipAnchor = CreateTooltipAnchor()
-        tooltip = CreateTooltip()
-        UpdateAnchorHooks()
-        UpdatePosition()
-        callback:RegisterEvent(OnSettingsSaved, "RAIDERIO_SETTINGS_SAVED")
-        callback:RegisterEvent(UpdateAnchorHooks, "ADDON_LOADED")
-        callback:RegisterEvent(OnModifierStateChanged, "MODIFIER_STATE_CHANGED")
-    end
-
-    ---@return boolean, boolean? @arg1 is true if the toggle was successfull, otherwise false if we can't toggle right now. arg2 is set to true if the frame is now draggable, otherwise false for locked.
-    function profile:ToggleDrag()
-        if not profile:IsEnabled() then
-            return false
-        end
-        if config:Get("positionProfileAuto") then
-            ns.Print(L.WARNING_LOCK_POSITION_FRAME_AUTO)
-            return false
-        end
-        local isLocking = not config:Get("lockProfile")
-        config:Set("lockProfile", isLocking)
-        if isLocking then
-            ns.Print(L.LOCKING_PROFILE_FRAME)
-        else
-            ns.Print(L.UNLOCKING_PROFILE_FRAME)
-        end
-        return true, SetDraggable(tooltipAnchor, not isLocking)
-    end
-
-    local function IsPlayer(unit, name, realm, region)
-        if unit and UnitExists(unit) then
-            return UnitIsUnit(unit, "player")
-        end
-        return name == ns.PLAYER_NAME and realm == ns.PLAYER_REALM and (not region or region == ns.PLAYER_REGION)
-    end
-
-    ---@return boolean
-    function profile:ShowProfile(anchor, ...)
-        if not profile:IsEnabled() or not config:Get("showRaiderIOProfile") then
-            return ---@diagnostic disable-line: missing-return-value
-        end
-        showProfileArgs = { anchor, ... }
-        tooltipAnchorPriority[1].name = anchor
-        UpdateAnchorHooks()
-        UpdatePosition()
-        local unit, name, realm, _, options, args, region = render.GetQuery(...)
-        options = options or render.Preset.Profile()
-        local isPlayer = IsPlayer(unit, name, realm, region)
-        if not isPlayer and config:Get("enableProfileModifier") and band(options, render.Flags.IGNORE_MOD) ~= render.Flags.IGNORE_MOD then
-            if config:Get("inverseProfileModifier") == (config:Get("alwaysExtendTooltip") or band(options, render.Flags.MOD) == render.Flags.MOD) then
-                unit, name, realm = "player", nil, nil ---@diagnostic disable-line: cast-local-type
-            end
-        end
-        tooltip:SetOwner(tooltipAnchor, "ANCHOR_NONE")
-        tooltip:SetPoint("TOPLEFT", tooltipAnchor, "TOPRIGHT", 0, 0)
-        local success
-        if not isPlayer or not config:Get("hidePersonalRaiderIOProfile") then
-            if unit and UnitExists(unit) then
-                success = render:ShowProfile(tooltip, unit, options, args, region)
-            else
-                success = render:ShowProfile(tooltip, name, realm, options, args, region)
-            end
-        end
-        if not success then
-            profile:HideProfile()
-        end
-        return success
-    end
-
-    function profile:HideProfile()
-        if not profile:IsEnabled() then
-            return
-        end
-        if showProfileArgs then
-            table.wipe(showProfileArgs)
-        end
-        render:HideTooltip(tooltip)
-    end
-
-end
-
--- lfgtooltip.lua
--- dependencies: module, config, util, render, profile
-do
-
-    ---@class LfgTooltipModule : Module
-    local tooltip = ns:NewModule("LfgTooltip") ---@type LfgTooltipModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-    local render = ns:GetModule("Render") ---@type RenderModule
-    local profile = ns:GetModule("Profile") ---@type ProfileModule
-    local provider = ns:GetModule("Provider") ---@type ProviderModule
-
-    ---@class LfgResult
-    ---@field public activityID number|nil
-    ---@field public leaderName string
-    ---@field public keystoneLevel number
-
-    ---@type LfgResult
-    local currentResult = {} ---@diagnostic disable-line: missing-fields
-
-    local hooked = {}
-    local OnEnter
-    local OnLeave
-    local cleanupPending
-
-    local function SetSearchEntry(tooltip, resultID, autoAcceptOption)
-        if not config:Get("enableLFGTooltips") then
-            return
-        end
-        local entry = C_LFGList.GetSearchResultInfo(resultID)
-        if not entry or not entry.leaderName then
-            table.wipe(currentResult)
-            return
-        end
-        local leaderFaction = util:FactionGroupToFactionId(entry.leaderFactionGroup)
-        local activityInfo = C_LFGList.GetActivityInfoTable(entry.activityID, nil, entry.isWarMode)
-        if activityInfo and activityInfo.isMythicPlusActivity and entry.leaderOverallDungeonScore then
-            local leaderName, leaderRealm = util:GetNameRealm(entry.leaderName)
-            provider:OverrideProfile(leaderName, leaderRealm, entry.leaderOverallDungeonScore)
-        end
-        currentResult.activityID = entry.activityID
-        currentResult.leaderName = entry.leaderName
-        currentResult.leaderFaction = leaderFaction
-        currentResult.keystoneLevel = util:GetKeystoneLevelFromText(entry.name) or util:GetKeystoneLevelFromText(entry.comment) or 0
-        local success1 = render:ShowProfile(tooltip, currentResult.leaderName, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult)
-        local success2 = profile:ShowProfile(tooltip, currentResult.leaderName, currentResult)
-        if success1 or success2 then
-            if not hooked[tooltip] then
-                hooked[tooltip] = true
-                tooltip:HookScript("OnHide", function()
-                    if not cleanupPending then
-                        return
-                    end
-                    cleanupPending = nil
-                    OnLeave()
-                end)
-            end
-            cleanupPending = true
-        end
-    end
-
-    local function HookApplicantButtons(buttons)
-        for _, button in pairs(buttons) do
-            if not hooked[button] then
-                hooked[button] = true
-                button:HookScript("OnEnter", OnEnter)
-                button:HookScript("OnLeave", OnLeave)
-            end
-        end
-    end
-
-    local function ShowApplicantProfile(parent, applicantID, memberIdx)
-        local fullName, _, _, _, _, _, _, _, _, _, _, dungeonScore, _, factionGroup = C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
-        if not fullName then
-            return false
-        end
-        if dungeonScore then
-            local name, realm = util:GetNameRealm(fullName)
-            provider:OverrideProfile(name, realm, dungeonScore)
-        end
-        local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, parent, "ANCHOR_NONE", 0, 0)
-        if render:ShowProfile(GameTooltip, fullName, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult) then
-            return true, fullName
-        end
-        if ownerSet and not ownerExisted and ownerSetSame then
-            GameTooltip:Hide()
-        end
-        return false
-    end
-
-    local function OnScroll()
-        GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
-    end
-
-    function OnEnter(self)
-        local entry = C_LFGList.GetActiveEntryInfo()
-        if entry then
-            currentResult.activityID = entry.activityID
-        end
-        if not currentResult.activityID or not config:Get("enableLFGTooltips") then
-            return
-        end
-        if self.applicantID and self.Members then
-            HookApplicantButtons(self.Members)
-        elseif self.memberIdx then
-            local shown, fullName = ShowApplicantProfile(self, self:GetParent().applicantID, self.memberIdx)
-            local success
-            if shown then
-                success = profile:ShowProfile(GameTooltip, fullName, currentResult)
-            else
-                success = profile:ShowProfile(false, "player", currentResult)
-            end
-            if not success then
-                profile:HideProfile()
-            end
-        end
-    end
-
-    function OnLeave(self)
-        GameTooltip:Hide()
-        profile:HideProfile()
-        profile:ShowProfile(false, "player")
-    end
-
-    function tooltip:CanLoad()
-        return profile:IsEnabled() and LFGListFrame and LFGListFrame.SearchPanel and LFGListFrame.ApplicationViewer
-    end
-
-    function tooltip:OnLoad()
-        self:Enable()
-        -- the player looking at groups
-        hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntry)
-        local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
-        ScrollBoxUtil:OnViewFramesChanged(LFGListFrame.SearchPanel.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(LFGListFrame.SearchPanel.ScrollBox, OnScroll)
-        -- the player hosting a group looking at applicants
-        ScrollBoxUtil:OnViewFramesChanged(LFGListFrame.ApplicationViewer.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(LFGListFrame.ApplicationViewer.ScrollBox, OnScroll)
-        -- remove the shroud and allow hovering over people even when not the group leader
-        do
-            local f = LFGListFrame.ApplicationViewer.UnempoweredCover
-            f:EnableMouse(false)
-            f:EnableMouseWheel(false)
-            f:SetToplevel(false)
-        end
-    end
-
-end
-
--- guildtooltip.lua
--- dependencies: module, config, util, render
-do
-
-    ---@class GuildTooltipModule : Module
-    local tooltip = ns:NewModule("GuildTooltip") ---@type GuildTooltipModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-    local render = ns:GetModule("Render") ---@type RenderModule
-
-    local function OnEnter(self)
-        if not self.guildIndex or not config:Get("enableGuildTooltips") then
-            return
-        end
-        local fullName, _, _, level = GetGuildRosterInfo(self.guildIndex)
-        if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
-            return
-        end
-        local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_TOPLEFT", 0, 0)
-        if render:ShowProfile(GameTooltip, fullName, render.Preset.UnitSmartPadding(ownerExisted)) then
-            return
-        end
-        if ownerSet and not ownerExisted and ownerSetSame then
-            GameTooltip:Hide()
-        end
-    end
-
-    local function OnLeave(self)
-        if not self.guildIndex or not config:Get("enableGuildTooltips") then
-            return
-        end
-        GameTooltip:Hide()
-    end
-
-    local function OnScroll()
-        if not config:Get("enableGuildTooltips") then
-            return
-        end
-        GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
-    end
-
-    function tooltip:CanLoad()
-        return GuildRosterContainer
-    end
-
-    function tooltip:OnLoad()
-        self:Enable()
-        local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
-        ScrollBoxUtil:OnViewFramesChanged(GuildRosterContainer, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(GuildRosterContainer, OnScroll)
-    end
-
-end
-
--- communitytooltip.lua
--- dependencies: module, config, util, render
-do
-
-    ---@class CommunityTooltipModule : Module
-    local tooltip = ns:NewModule("CommunityTooltip") ---@type CommunityTooltipModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-    local render = ns:GetModule("Render") ---@type RenderModule
-
-    local hooked = {}
-    local completed
-
-    local function OnEnter(self)
-        if not config:Get("enableGuildTooltips") then
-            return
-        end
-        local clubType
-        local nameAndRealm
-        local level
-        local faction = ns.PLAYER_FACTION
-        if type(self.GetMemberInfo) == "function" then
-            local info = self:GetMemberInfo()
-            -- function exists but returns null when on "Pending Invites" header
-            if not info then
-                return
-            end
-            clubType = info.clubType
-            nameAndRealm = info.name
-            level = info.level
-        elseif type(self.cardInfo) == "table" then
-            nameAndRealm = util:GetNameRealm(self.cardInfo.guildLeader)
-            if self.cardInfo.isCrossFaction then
-                -- TODO: NYI
-            end
-        else
-            return
-        end
-        if type(self.GetLastPosterGUID) == "function" then
-            local playerGUID = self:GetLastPosterGUID()
-            if playerGUID then
-                local _, _, _, race = GetPlayerInfoByGUID(playerGUID)
-                if race then
-                    faction = util:GetFactionFromRace(race, faction)
-                end
-            end
-        end
-        if (clubType and clubType ~= Enum.ClubType.Guild and clubType ~= Enum.ClubType.Character) or not nameAndRealm or not util:IsMaxLevel(level, true) then
-            return
-        end
-        local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_LEFT", 0, 0)
-        if render:ShowProfile(GameTooltip, nameAndRealm, render.Preset.UnitSmartPadding(ownerExisted)) then
-            return
-        end
-        if ownerSet and not ownerExisted and ownerSetSame then
-            GameTooltip:Hide()
-        end
-    end
-
-    local function OnLeave(self)
-        if not config:Get("enableGuildTooltips") then
-            return
-        end
-        GameTooltip:Hide()
-    end
-
-    local function SmartHookButtons(buttons)
-        if not buttons then
-            return
-        end
-        local numButtons = 0
-        for _, button in pairs(buttons) do
-            numButtons = numButtons + 1
-            if not hooked[button] then
-                hooked[button] = true
-                button:HookScript("OnEnter", OnEnter)
-                button:HookScript("OnLeave", OnLeave)
-                if type(button.OnEnter) == "function" then hooksecurefunc(button, "OnEnter", OnEnter) end
-                if type(button.OnLeave) == "function" then hooksecurefunc(button, "OnLeave", OnLeave) end
-                -- TODO: NYI button.RequestJoin
-            end
-        end
-        return numButtons > 0
-    end
-
-    local function OnRefreshApplyHooks()
-        if completed then
-            return
-        end
-        SmartHookButtons(ClubFinderGuildFinderFrame.GuildCards.Cards)
-        SmartHookButtons(ClubFinderGuildFinderFrame.PendingGuildCards.Cards)
-        SmartHookButtons(ClubFinderCommunityAndGuildFinderFrame.GuildCards.Cards)
-        SmartHookButtons(ClubFinderCommunityAndGuildFinderFrame.PendingGuildCards.Cards)
-        return true
-    end
-
-    local function OnScroll()
-        if not config:Get("enableGuildTooltips") then
-            return
-        end
-        GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
-    end
-
-    function tooltip:CanLoad()
-        return CommunitiesFrame and ClubFinderGuildFinderFrame and ClubFinderCommunityAndGuildFinderFrame
-    end
-
-    function tooltip:OnLoad()
-        self:Enable()
-        ScrollBoxUtil:OnViewFramesChanged(CommunitiesFrame.MemberList.ScrollBox, SmartHookButtons) -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(CommunitiesFrame.MemberList.ScrollBox, OnScroll) -- TODO: DF
-        ScrollBoxUtil:OnViewFramesChanged(ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, OnScroll) -- TODO: DF
-        ScrollBoxUtil:OnViewFramesChanged(ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, OnScroll) -- TODO: DF
-        ScrollBoxUtil:OnViewFramesChanged(ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox, OnScroll) -- TODO: DF
-        ScrollBoxUtil:OnViewFramesChanged(ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox, OnScroll) -- TODO: DF
-        hooksecurefunc(ClubFinderGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
-        hooksecurefunc(ClubFinderGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
-        hooksecurefunc(ClubFinderCommunityAndGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
-        hooksecurefunc(ClubFinderCommunityAndGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
-    end
-
-end
-
--- keystonetooltip.lua
--- dependencies: module, config, render
-do
-
-    ---@class KeystoneTooltipModule : Module
-    local tooltip = ns:NewModule("KeystoneTooltip") ---@type KeystoneTooltipModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local render = ns:GetModule("Render") ---@type RenderModule
-
-    local KEYSTONE_PATTERN = "keystone:(%d+):(.-):(.-):(.-):(.-):(.-):(.-)"
-    local KEYSTONE_ITEM_PATTERN_1 = "item:(187786):(.+)"
-    local KEYSTONE_ITEM_PATTERN_2 = "item:(180653):(.+)"
-
-    ---@param link string
-    ---@param pattern string
-    ---@return number? itemID, number? instanceID, number? level, number? affix1, number? affix2, number? affix3, number? affix4
-    local function ExtractKeystoneItemData(link, pattern)
-        local id, raw = link:match(pattern)
-        if not id then
-            return
-        end
-        local info = {}
-        local temp = {strsplit(":", raw)}
-        for i = 12, #temp, 2 do -- start at offset 12 (where we expect the first kv-pair to occur in the keystone link)
-            local k = temp[i]
-            if k and k ~= "" then
-                k = tonumber(k)
-                if k and k >= 17 and k <= 23 then -- we expect the field ID's to be 17 to 23 that we wish to extract
-                    info[k - 16] = temp[i + 1]
-                end
-            end
-        end
-        if not info[1] or not info[2] then
-            return
-        end
-        return id, info[1], info[2], info[3] or 0, info[4] or 0, info[5] or 0, info[6] or 0
-    end
-
-    ---@type table<table, KeystoneInfo>
-    local currentKeystone = {}
-
-    ---@param link string
-    ---@return number? itemID, number instanceID, number level, number affix1, number affix2, number affix3, number affix4
-    local function GetKeystoneInfo(link)
-        local item, instance, level, affix1, affix2, affix3, affix4, _ = link:match(KEYSTONE_PATTERN)
-        if not item then
-            item, instance, level, affix1, affix2, affix3, affix4, _ = ExtractKeystoneItemData(link, KEYSTONE_ITEM_PATTERN_1)
-        end
-        if not item then
-            item, instance, level, affix1, affix2, affix3, affix4, _ = ExtractKeystoneItemData(link, KEYSTONE_ITEM_PATTERN_2)
-        end
-        if item then
-            item, instance, level, affix1, affix2, affix3, affix4 = tonumber(item), tonumber(instance), tonumber(level), tonumber(affix1), tonumber(affix2), tonumber(affix3), tonumber(affix4)
-        end
-        return item, instance, level, affix1 or 0, affix2 or 0, affix3 or 0, affix4 or 0
-    end
-
-    ---@param keystone KeystoneInfo
-    local function UpdateKeystoneInfo(keystone, link)
-        keystone.link = link
-        keystone.item, keystone.instance, keystone.level, keystone.affix1, keystone.affix2, keystone.affix3, keystone.affix4 = GetKeystoneInfo(link)
-        return keystone.link and keystone.level
-    end
-
-    local function OnTooltipSetItem(self)
-        if self ~= GameTooltip and self ~= ItemRefTooltip then
-            return
-        end
-        if not config:Get("enableKeystoneTooltips") then
-            return
-        end
-        local _, link = self:GetItem()
-        if not link or type(link) ~= "string" then
-            return
-        end
-        local keystone = currentKeystone[self]
-        if not keystone then
-            keystone = {} ---@diagnostic disable-line: missing-fields
-            currentKeystone[self] = keystone
-        end
-        if not UpdateKeystoneInfo(keystone, link) then
-            return
-        end
-        render:ShowKeystone(self, keystone)
-    end
-
-    local function OnTooltipCleared(self)
-        render:ClearTooltip(self)
-    end
-
-    local function OnHide(self)
-        render:HideTooltip(self)
-    end
-
-    function tooltip:OnLoad()
-        self:Enable()
-        if TooltipDataProcessor then -- TODO: DF
-            TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltipSetItem)
-        else
-            GameTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
-            ItemRefTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
-        end
-        GameTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
-        GameTooltip:HookScript("OnHide", OnHide)
-        ItemRefTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
-        ItemRefTooltip:HookScript("OnHide", OnHide)
-    end
-
-end
-
--- guildweekly.lua
--- dependencies: module, callback, config, util
-do
-
-    ---@class GuildWeeklyModule : Module
-    local guildweekly = ns:NewModule("GuildWeekly") ---@type GuildWeeklyModule
-    local callback = ns:GetModule("Callback") ---@type CallbackModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-    local util = ns:GetModule("Util") ---@type UtilModule
-
-    local CLASS_FILENAME_TO_ID = {
-        WARRIOR = 1,
-        PALADIN = 2,
-        HUNTER = 3,
-        ROGUE = 4,
-        PRIEST = 5,
-        DEATHKNIGHT = 6,
-        SHAMAN = 7,
-        MAGE = 8,
-        WARLOCK = 9,
-        MONK = 10,
-        DRUID = 11,
-        DEMONHUNTER = 12
-    }
-
-    ---@param runInfo ChallengeModeGuildTopAttempt
-    local function ConvertRunData(runInfo)
-        local dungeon = util:GetDungeonByKeystoneID(runInfo.mapChallengeModeID)
-        ---@type GuildMythicKeystoneRun
-        local runData = { ---@diagnostic disable-line: missing-fields
-            dungeon = dungeon,
-            zone_id = dungeon and dungeon.id or 0,
-            level = runInfo.keystoneLevel or 0,
-            upgrades = 0,
-            party = {},
-        }
-        for i = 1, #runInfo.members do
-            local member = runInfo.members[i]
-            runData.party[i] = { ---@diagnostic disable-line: missing-fields
-                name = member.name,
-                class_id = CLASS_FILENAME_TO_ID[member.classFileName] or 0
-            }
-        end
-        return runData
-    end
-
-    ---@return GuildCollection
-    local function GetGuildScoreboard()
-        local scoreboard = C_ChallengeMode.GetGuildLeaders()
-        local data = {}
-        for i = 1, #scoreboard do
-            data[#data + 1] = ConvertRunData(scoreboard[i])
-        end
-        return { weekly_best = data }
-    end
-
-    local function GetGuildFullName(unit)
-        local guildName, _, _, guildRealm = GetGuildInfo(unit)
-        if not guildName then
-            return
-        end
-        if not guildRealm then
-            _, guildRealm = util:GetNameRealm(unit)
-        end
-        return guildName .. "-" .. guildRealm
-    end
-
-    ---@class UICheckButtonTemplatePolyfill : CheckButton
-    ---@field public text FontString
-
-    ---@class GuildWeeklyFrameMixin
-    ---@field public offset number @The scroll offset.
-    ---@field public Refresh function @Refreshes the frame with new data.
-    ---@field public SetUp function @Prepares the frame by loading it with data from our guild.
-    ---@field public Reset function @Resets the frame back to empty.
-    ---@field public SwitchBestRun function @Toggles between this week and overall for the season.
-    ---@field public OnMouseWheel function @When scrolled list goes up or down.
-
-    ---@class GuildWeeklyRunMixin
-    ---@field public SetUp function @Sets up the run using the provided info.
-    ---@field public runInfo? GuildMythicKeystoneRun
-
-    ---@class GuildWeeklyBestNoRun : Frame
-    ---@field public Text FontString
-
-    ---@class GuildWeeklyRun : GuildWeeklyRunMixin, Frame
-    ---@field public CharacterName FontString
-    ---@field public Level FontString
-
-    ---@class GuildWeeklyFrame : GuildWeeklyFrameMixin, GuildWeeklyRun, BackdropTemplate
-    ---@field public maxVisible number
-    ---@field public Title FontString
-    ---@field public SubTitle FontString
-    ---@field public GuildBestNoRun GuildWeeklyBestNoRun
-    ---@field public SwitchGuildBest UICheckButtonTemplatePolyfill
-    ---@field public GuildBests GuildWeeklyRun[]
-
-    ---@type GuildWeeklyFrame
-    local frame
-
-    ---@type GuildWeeklyFrame
-    local GuildWeeklyRunMixin = {} ---@diagnostic disable-line: missing-fields
-
-    ---@param runInfo GuildMythicKeystoneRun
-    ---@return boolean? @true if successfull, otherwise false if we can't display this run
-    function GuildWeeklyRunMixin:SetUp(runInfo)
-        self.runInfo = runInfo
-        if not runInfo then
-            return
-        end
-        runInfo.dungeon = runInfo.dungeon or util:GetDungeonByID(runInfo.zone_id)
-        if not runInfo.dungeon then
-            return
-        end
-        runInfo.dungeonName = C_ChallengeMode.GetMapUIInfo(runInfo.dungeon.keystone_instance) or runInfo.dungeon.name
-        self.CharacterName:SetText(runInfo.dungeonName)
-        self.Level:SetText(util:GetNumChests(runInfo.upgrades) .. runInfo.level)
-        if runInfo.clear_time and runInfo.upgrades == 0 then
-            self.Level:SetTextColor(0.62, 0.62, 0.62)
-        else
-            self.Level:SetTextColor(1, 1, 1)
-        end
-        self:Show()
-    end
-
-    ---@param self GuildWeeklyRun
-    local function RunFrame_OnEnter(self)
-        local runInfo = self.runInfo ---@type GuildMythicKeystoneRun
-        if not runInfo then
-            return
-        end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(runInfo.dungeon.shortNameLocale, 1, 1, 1)
-        local chestsText = ""
-        if runInfo.upgrades > 0 then
-            chestsText = " (" .. util:GetNumChests(runInfo.upgrades) .. ")"
-        end
-        GameTooltip:AddLine(MYTHIC_PLUS_POWER_LEVEL:format(runInfo.level) .. chestsText, 1, 1, 1)
-        if runInfo.clear_time then
-            GameTooltip:AddLine(runInfo.clear_time, 1, 1, 1)
-        end
-        if runInfo.party then
-            GameTooltip:AddLine(" ")
-            for _, member in ipairs(runInfo.party) do
-                local classInfo = C_CreatureInfo.GetClassInfo(member.class_id)
-                local color = (classInfo and RAID_CLASS_COLORS[classInfo.classFile]) or NORMAL_FONT_COLOR
-                local texture
-                if member.role == "tank" or member.role == "TANK" then
-                    texture = CreateAtlasMarkup("roleicon-tiny-tank")
-                elseif member.role == "dps" or member.role == "DAMAGER" then
-                    texture = CreateAtlasMarkup("roleicon-tiny-dps")
-                elseif member.role == "healer" or member.role == "HEALER" then
-                    texture = CreateAtlasMarkup("roleicon-tiny-healer")
-                end
-                if texture then
-                    GameTooltip:AddLine(MYTHIC_PLUS_LEADER_BOARD_NAME_ICON:format(texture, member.name), color.r, color.g, color.b)
-                else
-                    GameTooltip:AddLine(member.name, color.r, color.g, color.b)
-                end
-            end
-        end
-        GameTooltip:Show()
-    end
-
-    local function CreateRunFrame()
-        ---@class GuildWeeklyRun
-        local frame = CreateFrame("Frame")
-        -- inherit from the mixin
-        for k, v in pairs(GuildWeeklyRunMixin) do
-            frame[k] = v
-        end
-        -- character name
-        do
-            frame.CharacterName = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
-            frame.CharacterName:SetJustifyH("LEFT")
-            frame.CharacterName:SetSize(70, 13)
-            frame.CharacterName:SetPoint("LEFT")
-            frame.CharacterName:SetTextColor(1, 1, 1)
-        end
-        -- keystone level
-        do
-            frame.Level = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
-            frame.Level:SetJustifyH("RIGHT")
-            frame.Level:SetSize(25, 13)
-            frame.Level:SetPoint("RIGHT")
-            frame.Level:SetTextColor(1, 1, 1)
-        end
-        -- the look and feel, anchoring and final touches
-        do
-            frame:SetSize(95, 13)
-            frame:SetScript("OnEnter", RunFrame_OnEnter)
-            frame:SetScript("OnLeave", GameTooltip_Hide)
-        end
-        -- finalize and return the frame
-        return frame
-    end
-
-    ---@type GuildWeeklyFrame
-    local GuildWeeklyFrameMixin = {} ---@diagnostic disable-line: missing-fields
-
-    function GuildWeeklyFrameMixin:Refresh()
-        local guildName = GetGuildFullName("player")
-        if not guildName then
-            self:Hide()
-            self:Reset()
-            return
-        end
-        self:Show()
-        self:SetUp(guildName)
-    end
-
-    function GuildWeeklyFrameMixin:SetUp(guildName)
-        self:Reset()
-
-        local guildsData = ns:GetClientGuildData()
-        local guildData = guildsData and guildsData[guildName] ---@type GuildCollection
-
-        local keyBest = "season_best"
-        local title = L.GUILD_BEST_SEASON
-        local blizzScoreboard
-
-        if not guildData or config:Get("displayWeeklyGuildBest") then
-            if not guildData then
-                blizzScoreboard = true
-                guildData = GetGuildScoreboard() ---@type GuildCollection
-            end
-            keyBest = "weekly_best"
-            title = L.GUILD_BEST_WEEKLY
-        end
-
-        self.SubTitle:SetText(title)
-        self.SwitchGuildBest:SetShown(guildData and not blizzScoreboard)
-
-        local switchShown = self.SwitchGuildBest:IsShown()
-        local switchHeight = self.SwitchGuildBest:GetHeight()
-        local switchRealHeight = switchShown and switchHeight or 0
-        local currentRuns = guildData and guildData[keyBest] ---@type GuildMythicKeystoneRun[]
-
-        if not currentRuns or not currentRuns[1] then
-            self.GuildBestNoRun:Show()
-            self:SetHeight(35 + 15 + switchRealHeight)
-            return
-        end
-
-        local numRuns = #currentRuns
-
-        if numRuns <= self.maxVisible then
-            self.offset = 0
-        end
-
-        local numVisibleRuns = min(numRuns, self.maxVisible)
-
-        for i = 1, numVisibleRuns do
-            self.GuildBests[i]:SetUp(currentRuns[i + self.offset])
-        end
-
-        if self:IsMouseOver(0, 0, 0, 0) then
-            local focus = GetMouseFocus()
-            if focus and focus ~= GameTooltip:GetOwner() then
-                util:ExecuteWidgetOnEnterSafely(focus)
-            end
-        end
-
-        self:SetHeight(35 + (numVisibleRuns > 0 and numVisibleRuns * self.GuildBests[1]:GetHeight() or 0) + switchRealHeight)
-
-        return numRuns, numVisibleRuns
-    end
-
-    function GuildWeeklyFrameMixin:Reset()
-        self.offset = 0
-        self.GuildBestNoRun:Hide()
-        self.GuildBestNoRun.Text:SetText(L.NO_GUILD_RECORD)
-        for _, frame in ipairs(self.GuildBests) do
-            frame:Hide()
-            frame:SetUp()
-        end
-    end
-
-    function GuildWeeklyFrameMixin:SwitchBestRun()
-        local displayWeeklyGuildBest = not config:Get("displayWeeklyGuildBest")
-        config:Set("displayWeeklyGuildBest", displayWeeklyGuildBest)
-        self:Refresh()
-    end
-
-    local function GuildWeeklyFrame_OnMouseWheel(self, delta)
-        self.offset = max(0, min(self.maxVisible, delta > 0 and -1 or 1))
-        self:Refresh()
-    end
-
-    local function GuildWeeklyFrameSwitch_OnShow(self)
-        self:SetChecked(config:Get("displayWeeklyGuildBest"))
-    end
-
-    local function GuildWeeklyFrameSwitch_OnClick(self)
-        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
-        self:GetParent():SwitchBestRun()
-    end
-
-    local function CreateGuildWeeklyFrame()
-        ---@type GuildWeeklyFrame
-        local frame = CreateFrame("Frame", addonName .. "_GuildWeeklyFrame", ChallengesFrame, BackdropTemplateMixin and "BackdropTemplate")
-        frame.maxVisible = 5
-        -- inherit from the mixin
-        for k, v in pairs(GuildWeeklyFrameMixin) do
-            frame[k] = v
-        end
-        -- title
-        do
-            frame.Title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
-            frame.Title:SetJustifyH("CENTER")
-            frame.Title:SetPoint("TOPLEFT", 10, -8)
-            frame.Title:SetTextColor(1, 0.85, 0)
-            frame.Title:SetShadowColor(0, 0, 0)
-            frame.Title:SetShadowOffset(1, -1)
-            frame.Title:SetText(L.GUILD_BEST_TITLE)
-        end
-        -- sub title
-        do
-            frame.SubTitle = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
-            frame.SubTitle:SetJustifyH("CENTER")
-            frame.SubTitle:SetPoint("TOPLEFT", 10, -18)
-            frame.SubTitle:SetTextColor(1, 0.85, 0, 0.8)
-            frame.SubTitle:SetShadowColor(0, 0, 0)
-            frame.SubTitle:SetShadowOffset(1, -1)
-        end
-        -- no runs available overlay
-        do
-            frame.GuildBestNoRun = CreateFrame("Frame", nil, frame) ---@diagnostic disable-line: param-type-mismatch
-            frame.GuildBestNoRun:SetSize(95, 13)
-            frame.GuildBestNoRun:SetPoint("TOPLEFT", frame.Title, "BOTTOMLEFT", 0, -14)
-            frame.GuildBestNoRun.Text = frame.GuildBestNoRun:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
-            frame.GuildBestNoRun.Text:SetJustifyH("LEFT")
-            frame.GuildBestNoRun.Text:SetSize(150, 0)
-            frame.GuildBestNoRun.Text:SetPoint("LEFT")
-            frame.GuildBestNoRun.Text:SetTextColor(1, 1, 1)
-        end
-        -- toggle between weekly and season best
-        do
-            frame.SwitchGuildBest = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate") ---@type UICheckButtonTemplatePolyfill
-            frame.SwitchGuildBest:SetSize(15, 15)
-            frame.SwitchGuildBest:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 8, 5) ---@diagnostic disable-line: param-type-mismatch
-            frame.SwitchGuildBest:SetScript("OnShow", GuildWeeklyFrameSwitch_OnShow)
-            frame.SwitchGuildBest:SetScript("OnClick", GuildWeeklyFrameSwitch_OnClick)
-            frame.SwitchGuildBest.text:SetFontObject("GameFontNormalTiny2")
-            frame.SwitchGuildBest.text:SetJustifyH("LEFT")
-            frame.SwitchGuildBest.text:SetPoint("LEFT", 15, 0)
-            frame.SwitchGuildBest.text:SetText(L.CHECKBOX_DISPLAY_WEEKLY)
-        end
-        -- create the guild best run frames
-        do
-            ---@type GuildWeeklyRun[]
-            frame.GuildBests = {}
-            for i = 1, 20 do
-                local runFrame = CreateRunFrame()
-                runFrame:SetParent(frame)
-                if i == 1 then
-                    runFrame:SetPoint("TOPLEFT", frame.Title, "BOTTOMLEFT", 0, -13)
-                else
-                    local prevRun = frame.GuildBests[i - 1]
-                    runFrame:SetPoint("TOP", prevRun, "BOTTOM")
-                end
-                frame.GuildBests[i] = runFrame
-            end
-        end
-        -- the look and feel, anchoring and final touches
-        do
-            -- look and feel
-            frame:SetScale(1.2)
-            frame:SetFrameStrata("MEDIUM")
-            frame:SetSize(115, 115)
-            if frame.SetBackdrop then
-                frame:SetBackdrop(BACKDROP_TUTORIAL_16_16)
-                frame:SetBackdropBorderColor(1, 1, 1, 1)
-                frame:SetBackdropColor(0, 0, 0, 0.6)
-            end
-            -- update anchor
-            frame:ClearAllPoints()
-            if IsAddOnLoaded("AngryKeystones") then
-                frame:SetPoint("TOPRIGHT", ChallengesFrame, "TOPRIGHT", -6, -22)
-            else
-                frame:SetPoint("BOTTOMLEFT", ChallengesFrame.DungeonIcons[1], "TOPLEFT", 2, 12)
-            end
-            -- mousewheel scrolling
-            frame:EnableMouseWheel(true)
-            frame:SetScript("OnMouseWheel", GuildWeeklyFrame_OnMouseWheel)
-        end
-        -- finalize and return the frame
-        frame:Reset()
-        return frame
-    end
-
-    local function UpdateShown()
-        if config:Get("showClientGuildBest") then
-            frame:Refresh()
-        else
-            frame:Hide()
-        end
-    end
-
-    function guildweekly:CanLoad()
-        return not frame and config:IsEnabled() and PVEFrame and ChallengesFrame
-    end
-
-    function guildweekly:OnLoad()
-        self:Enable()
-        frame = CreateGuildWeeklyFrame()
-        UpdateShown()
-        callback:RegisterEvent(UpdateShown, "RAIDERIO_SETTINGS_SAVED")
-        PVEFrame:HookScript("OnShow", UpdateShown)
-        ChallengesFrame:HookScript("OnShow", UpdateShown)
-        callback:RegisterEvent(UpdateShown, "CHALLENGE_MODE_LEADERS_UPDATE")
-    end
-
-end
-
 -- replay.lua
 -- dependencies: module, callback, config, util
 do
@@ -9575,6 +7494,2087 @@ do
     ---@return ReplaySummary? liveSummary, ReplaySummary? replaySummary
     function replay:GetCurrentReplaySummary()
         return currentLiveSummary, currentReplaySummary
+    end
+
+end
+
+-- public.lua (global)
+-- dependencies: module, util, provider, render
+do
+
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local provider = ns:GetModule("Provider") ---@type ProviderModule
+    local render = ns:GetModule("Render") ---@type RenderModule
+    local replay = ns:GetModule("Replay") ---@type ReplayModule
+
+    -- TODO: we have a long road a head of us... debugstack(0)
+    local function IsSafeCall()
+        return true
+    end
+
+    local unsafe = false
+
+    local function IsSafe()
+        if unsafe then
+            return false
+        end
+        if not IsSafeCall() then
+            unsafe = true
+            ns.Print("Error: Another AddOn has modified Raider.IO and is most likely forcing it to return invalid data. Please disable other addons until this message disappears.")
+            return false
+        end
+        return true
+    end
+
+    local function IsReady()
+        return ns.PLAYER_REGION ~= nil -- GetProfile will fail if called too early before the player info is properly loaded so we avoid doing that by safely checking if we're loaded ready
+    end
+
+    local pristine = {
+        AddProvider = function(...)
+            return provider:AddProvider(...)
+        end,
+        GetProfile = function(arg1, arg2, ...)
+            if not IsReady() then
+                return
+            end
+            local name, realm = arg1, arg2
+            local _, _, unitIsPlayer = util:IsUnit(arg1, arg2)
+            if unitIsPlayer then
+                name, realm = util:GetNameRealm(arg1)
+            elseif type(arg1) == "string" then
+                if arg1:find("-", nil, true) then
+                    name, realm = util:GetNameRealm(arg1)
+                    return provider:GetProfile(name, realm, ...)
+                else
+                    name, realm = util:GetNameRealm(arg1, arg2)
+                end
+            end
+            return provider:GetProfile(name, realm, ...)
+        end,
+        ShowProfile = function(tooltip, ...)
+            if not IsReady() then
+                return
+            end
+            if type(tooltip) ~= "table" or type(tooltip.GetObjectType) ~= "function" or tooltip:GetObjectType() ~= "GameTooltip" then
+                return
+            end
+            return render:ShowProfile(tooltip, ...)
+        end,
+        GetScoreColor = function(score, ...)
+            if type(score) ~= "number" then
+                score = 0
+            end
+            return util:GetScoreColor(score, ...)
+        end,
+        GetScoreForKeystone = function(level)
+            if not level then return end
+            local base = ns.KEYSTONE_LEVEL_TO_SCORE[level]
+            local average = util:GetKeystoneAverageScoreForLevel(level)
+            return base, average
+        end,
+        GetCurrentReplay = function()
+            return replay:GetCurrentReplaySummary()
+        end,
+    }
+
+    local private = {
+        AddProvider = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.AddProvider(...)
+        end,
+        GetProfile = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.GetProfile(...)
+        end,
+        ShowProfile = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.ShowProfile(...)
+        end,
+        GetScoreColor = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.GetScoreColor(...)
+        end,
+        GetScoreForKeystone = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.GetScoreForKeystone(...)
+        end,
+        GetCurrentReplay = function(...)
+            if not IsSafe() then
+                return
+            end
+            return pristine.GetCurrentReplay(...)
+        end,
+        -- DEPRECATED: these are here just to help mitigate the transition but do avoid using these as they will probably go away during Shadowlands
+        ProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
+        TooltipProfileOutput = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
+        DataProvider = setmetatable({}, { __index = function() return 0 end }), -- returns 0 for any query
+        HasPlayerProfile = function(...) return _G.RaiderIO.GetProfile(...) end, -- passes the request to the GetProfile API (if its there then it exists)
+        GetPlayerProfile = function(mask, ...) return _G.RaiderIO.GetProfile(...) end, -- skips the mask and passes the rest to the GetProfile API
+        ShowTooltip = function(tooltip, mask, ...) return _G.RaiderIO.ShowProfile(tooltip, ...) end, -- skips the mask and passes the rest to the ShowProfile API
+        GetRaidDifficultyColor = function(difficulty) local rd = ns.RAID_DIFFICULTY[difficulty] local t if rd then t = { rd.color[1], rd.color[2], rd.color[3], rd.color.hex } end return t end, -- returns the color table for the queried raid difficulty
+        GetScore = function() end, -- deprecated early BfA so we just return nothing
+    }
+
+    ---@class RaiderIOInterface
+    ---@field public AddProvider fun() For internal RaiderIO use only. Please do not call this function.
+    ---@field public GetProfile fun(unit: string): profile: DataProviderCharacterProfile? Returns a table containing the characters profile and data from the different data providers like mythic keystones, raiding and pvp. Usage: `RaiderIO.GetProfile(name, realm[, region])` or `RaiderIO.GetProfile(unit)`
+    ---@field public ShowProfile fun(tooltip: GameTooltip, ...): success: boolean Returns `true` or `false` depending if the profile could be drawn on the provided tooltip. `RaiderIO.ShowProfile(tooltip, name, realm[, region])` or `RaiderIO.ShowProfile(tooltip, unit[, region])`
+    ---@field public GetScoreColor fun(score: number, isPreviousSeason?: boolean): r: number, g: number, b: number Returns the color `r, g, b` for a given score. `RaiderIO.GetScoreColor(score[, isPreviousSeason])`
+    ---@field public GetScoreForKeystone fun(level: number): base: number, average: number Returns the base and average scores for a given keystone level.
+    ---@field public GetCurrentReplay fun(): liveSummary: ReplaySummary, replaySummary: ReplaySummary Returns the current live and replay summaries for the ongoing keystone.
+
+    ---@type RaiderIOInterface
+    _G.RaiderIO = setmetatable({}, {
+        __metatable = false,
+        __newindex = function()
+        end,
+        __index = function(self, key)
+            return private[key]
+        end,
+        __call = function(self, key, ...)
+            local func = pristine[key]
+            if not func then
+                return
+            end
+            return func(...)
+        end
+    })
+
+end
+
+-- gametooltip.lua
+-- dependencies: module, config, util, provider, render
+do
+
+    ---@class GameTooltipModule : Module
+    local tooltip = ns:NewModule("GameTooltip") ---@type GameTooltipModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local provider = ns:GetModule("Provider") ---@type ProviderModule
+    local render = ns:GetModule("Render") ---@type RenderModule
+
+    local function OnTooltipSetUnit(self)
+        if self ~= GameTooltip or not tooltip:IsEnabled() or not config:Get("enableUnitTooltips") then
+            return
+        end
+        if (config:Get("showScoreModifier") and not IsModifierKeyDown()) or (not config:Get("showScoreModifier") and not config:Get("showScoreInCombat") and InCombatLockdown()) then
+            return
+        end
+        local _, unit = self:GetUnit()
+        if not unit or not UnitIsPlayer(unit) then
+            return
+        end
+        if util:IsUnitMaxLevel(unit) then
+            local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary(unit)
+            if bioSummary and bioSummary.currentSeasonScore then
+                local name, realm = util:GetNameRealm(unit)
+                provider:OverrideProfile(name, realm, bioSummary.currentSeasonScore, bioSummary.runs)
+            end
+            render:ShowProfile(self, unit)
+        end
+    end
+
+    local function OnTooltipCleared(self)
+        render:ClearTooltip(self)
+    end
+
+    local function OnHide(self)
+        render:HideTooltip(self)
+    end
+
+    function tooltip:CanLoad()
+        return config:IsEnabled()
+    end
+
+    function tooltip:OnLoad()
+        self:Enable()
+        if TooltipDataProcessor then -- TODO: DF
+            TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnTooltipSetUnit)
+        else
+            GameTooltip:HookScript("OnTooltipSetUnit", OnTooltipSetUnit)
+        end
+        GameTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
+        GameTooltip:HookScript("OnHide", OnHide)
+    end
+
+end
+
+-- friendtooltip.lua
+-- dependencies: module, config, util, render
+do
+
+    ---@class FriendTooltipModule : Module
+    local tooltip = ns:NewModule("FriendTooltip") ---@type FriendTooltipModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local render = ns:GetModule("Render") ---@type RenderModule
+
+    local function FriendsTooltip_Show(self)
+        if not tooltip:IsEnabled() or not config:Get("enableFriendsTooltips") then
+            return
+        end
+        local button = self.button
+        local fullName, faction, level
+        if button.buttonType == FRIENDS_BUTTON_TYPE_BNET then
+            local bnetIDAccountInfo = C_BattleNet.GetFriendAccountInfo(button.id)
+            if bnetIDAccountInfo then
+                fullName, faction, level = util:GetNameRealmForBNetFriend(bnetIDAccountInfo.bnetAccountID)
+            end
+        elseif button.buttonType == FRIENDS_BUTTON_TYPE_WOW then
+            local friendInfo = C_FriendList.GetFriendInfoByIndex(button.id)
+            if friendInfo then
+                fullName, level = friendInfo.name, friendInfo.level
+                faction = ns.PLAYER_FACTION
+            end
+        end
+        if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
+            return
+        end
+        local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
+        -- HOTFIX: attempt to fix the issue with a bnet friend with a notification causes the update to be called each frame without a proper hide event and this makes it so we append an empty line due to the smart padding check
+        do
+            local firstText = GameTooltipTextLeft1:GetText()
+            if not firstText or firstText == "" or firstText == " " then
+                ownerExisted = false
+            end
+        end
+        if render:ShowProfile(GameTooltip, fullName, render.Preset.UnitSmartPadding(ownerExisted)) then
+            return
+        end
+        if ownerSet and not ownerExisted and ownerSetSame then
+            GameTooltip:Hide()
+        end
+    end
+
+    local function FriendsTooltip_Hide()
+        if not tooltip:IsEnabled() or not config:Get("enableFriendsTooltips") then
+            return
+        end
+        GameTooltip:Hide()
+    end
+
+    function tooltip:OnLoad()
+        self:Enable()
+        hooksecurefunc(FriendsTooltip, "Show", FriendsTooltip_Show)
+        hooksecurefunc(FriendsTooltip, "Hide", FriendsTooltip_Hide)
+    end
+
+end
+
+-- whotooltip.lua
+-- dependencies: module, config, util, render
+do
+
+    ---@class WhoTooltipModule : Module
+    local tooltip = ns:NewModule("WhoTooltip") ---@type WhoTooltipModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local render = ns:GetModule("Render") ---@type RenderModule
+
+    local function OnEnter(self)
+        if not self.index or not config:Get("enableWhoTooltips") then
+            return
+        end
+        local info = C_FriendList.GetWhoInfo(self.index)
+        if not info or not info.fullName or not util:IsMaxLevel(info.level) then
+            return
+        end
+        local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_LEFT")
+        if render:ShowProfile(GameTooltip, info.fullName, render.Preset.UnitSmartPadding(ownerExisted)) then
+            return
+        end
+        if ownerSet and not ownerExisted and ownerSetSame then
+            GameTooltip:Hide()
+        end
+    end
+
+    local function OnLeave(self)
+        if not self.index or not config:Get("enableWhoTooltips") then
+            return
+        end
+        GameTooltip:Hide()
+    end
+
+    local function OnScroll()
+        if not config:Get("enableWhoTooltips") then
+            return
+        end
+        GameTooltip:Hide()
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+    end
+
+    function tooltip:OnLoad()
+        self:Enable()
+        local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
+        ScrollBoxUtil:OnViewFramesChanged(WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+        ScrollBoxUtil:OnViewScrollChanged(WhoFrame.ScrollBox, OnScroll)
+    end
+
+end
+
+-- whochatframe.lua
+-- dependencies: module, config, util, provider
+do
+
+    ---@class WhoChatFrameModule : Module
+    local chatframe = ns:NewModule("WhoChatFrame") ---@type WhoChatFrameModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local provider = ns:GetModule("Provider") ---@type ProviderModule
+
+    local RAIDERIO_MP_SCORE = L.RAIDERIO_MP_SCORE:gsub("%.", "|cffffffff|r.") -- TODO: make it part of the locale file like L.RAIDERIO_MP_SCORE_WHOCHAT
+
+    local FORMAT_GUILD = "^" .. util:FormatToPattern(WHO_LIST_GUILD_FORMAT) .. "$"
+    local FORMAT = "^" .. util:FormatToPattern(WHO_LIST_FORMAT) .. "$"
+
+    ---@param profile DataProviderCharacterProfile
+    local function GetScore(profile)
+        local keystoneProfile = profile.mythicKeystoneProfile
+        if not keystoneProfile or keystoneProfile.blocked then
+            return
+        end
+        local currentScore = keystoneProfile.mplusCurrent.score
+        local mainCurrentScore = keystoneProfile.mplusMainCurrent.score
+        local text
+        if currentScore > 0 then
+            text = RAIDERIO_MP_SCORE .. ": " .. currentScore .. ". "
+        end
+        if mainCurrentScore > currentScore and config:Get("showMainsScore") then
+            text = (text or "") .. "(" .. L.MAINS_SCORE .. ": " .. mainCurrentScore .. "). "
+        end
+        return text
+    end
+
+    local function EventFilter(self, event, text, ...)
+        if event ~= "CHAT_MSG_SYSTEM" or not config:Get("enableWhoMessages") then
+            return false
+        end
+        local nameLink, name, level, race, class, guild, zone = text:match(FORMAT_GUILD)
+        if not nameLink then
+            return false
+        end
+        if not zone then
+            guild = nil
+            nameLink, name, level, race, class, zone = text:match(FORMAT)
+        end
+        if not nameLink or not level or not util:IsMaxLevel(tonumber(level)) then ---@diagnostic disable-line: param-type-mismatch
+            return false
+        end
+        local name, realm = util:GetNameRealm(nameLink)
+        local profile = provider:GetProfile(name, realm)
+        if not profile or not profile.mythicKeystoneProfile or profile.mythicKeystoneProfile.blocked then
+            return false
+        end
+        local score = GetScore(profile)
+        if not score then
+            return false
+        end
+        return false, text .. " - " .. score, ...
+    end
+
+    function chatframe:CanLoad()
+        return config:IsEnabled()
+    end
+
+    function chatframe:OnLoad()
+        self:Enable()
+        ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", EventFilter)
+    end
+
+end
+
+-- fanfare.lua (requires debug mode)
+-- dependencies: module, config, util, provider
+do
+
+    ---@class FanfareModule : Module
+    local fanfare = ns:NewModule("Fanfare") ---@type FanfareModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local provider = ns:GetModule("Provider") ---@type ProviderModule
+
+    local KEYSTONE_DATE
+
+    local function GetGroupMembers()
+        ---@type DataProviderCharacterProfile[]
+        local profiles = {}
+        local index = 0
+        local fromIndex, toIndex = IsInRaid() and 1 or 0, GetNumGroupMembers()
+        for i = fromIndex, toIndex do
+            local unit = i == 0 and "player" or (IsInRaid() and "raid" or "party") .. i
+            if UnitExists(unit) then
+                local name, realm = util:GetNameRealm(unit)
+                if name then
+                    index = index + 1
+                    profiles[index] = provider:GetProfile(name, realm) or false ---@diagnostic disable-line: assign-type-mismatch
+                end
+            end
+        end
+        return profiles
+    end
+
+    ---@class DungeonDifference
+    ---@field public member DataProviderCharacterProfile
+    ---@field public confidence number @The confidence score for this prediction. 1 = guaranteed, 2 = possibly (should check website), 3 = must check website
+    ---@field public levelDiff number @The difference between current and the latest run
+    ---@field public fractionalTimeDiff number @The difference between current and the latest run
+    ---@field public isUpgrade boolean @If this diff is an improvement in score
+
+    ---@param level1 number
+    ---@param level2 number
+    ---@param fractionalTime1 number
+    ---@param fractionalTime2 number
+    ---@return number, number, number, number @`arg1 = 1=left/2=right`, `arg2 = level`, `arg3 = fractionalTime`, `arg4 = confidence`
+    local function CompareLevelAndFractionalTime(level1, level2, fractionalTime1, fractionalTime2)
+        if not level1 or not fractionalTime1 then
+            return 2, level2, fractionalTime2, 3
+        elseif not level2 or not fractionalTime2 then
+            return 1, level1, fractionalTime1, 3
+        elseif (level1 == level2 and fractionalTime1 < fractionalTime2) or (level1 > level2 and fractionalTime1 <= (1 + (level1 - level2) * 0.1)) then
+            return 1, level1, fractionalTime1, level1 == level2 and 1 or 2
+        end
+        return 2, level2, fractionalTime2, level1 == level2 and 1 or 2
+    end
+
+    ---@param run? SortedDungeon
+    ---@param currentRun? SortedDungeon
+    local function GetDungeonUpgrade(run, currentRun)
+        if not run or not currentRun then
+            return
+        end
+        local side, _, _, confidence = CompareLevelAndFractionalTime(run.level, currentRun.level, run.fractionalTime, currentRun.fractionalTime)
+        ---@type DungeonDifference
+        local diff = {} ---@diagnostic disable-line: missing-fields
+        diff.confidence = confidence
+        diff.levelDiff = 0
+        diff.fractionalTimeDiff = 0
+        if side == 1 then
+            diff.levelDiff = currentRun.level - run.level
+            diff.fractionalTimeDiff = currentRun.fractionalTime - run.fractionalTime
+        end
+        diff.isUpgrade = diff.levelDiff > 0 or (diff.levelDiff == 0 and diff.fractionalTimeDiff < 0)
+        return diff
+    end
+
+    ---@param run1? SortedDungeon
+    ---@param diff1? DungeonDifference
+    ---@param run2? SortedDungeon
+    ---@param diff2? DungeonDifference
+    ---@return SortedDungeon?, DungeonDifference?
+    local function CompareDungeonUpgrades(run1, diff1, run2, diff2)
+        if not run2 then
+            if not run1 or not run1.level then
+                return
+            end
+            return run1, diff1
+        elseif not run1 then
+            if not run2 or not run2.level then
+                return
+            end
+            return run2, diff2
+        end
+        local side = CompareLevelAndFractionalTime(run1.level, run2.level, run1.fractionalTime, run2.fractionalTime)
+        if side == 1 then
+            return run1, diff1
+        end
+        return run2, diff2
+    end
+
+    ---@param member DataProviderCharacterProfile
+    ---@param dungeon Dungeon
+    local function GetSortedDungeonForMember(member, dungeon)
+        for i = 1, #member.mythicKeystoneProfile.sortedDungeons do
+            local sortedDungeon = member.mythicKeystoneProfile.sortedDungeons[i]
+            if sortedDungeon.dungeon == dungeon then
+                if sortedDungeon.level > 0 then
+                    return sortedDungeon
+                end
+                return
+            end
+        end
+    end
+
+    ---@param run SortedDungeon
+    local function CopyRun(run)
+        local r = {}
+        r.dungeon = run.dungeon
+        r.chests = run.chests
+        r.level = run.level
+        r.fractionalTime = run.fractionalTime
+        return r
+    end
+
+    ---@param member DataProviderCharacterProfile
+    ---@param currentRun SortedDungeon
+    ---@return SortedDungeon, DungeonDifference @`arg1 = isUpgrade`, `arg2 = SortedDungeon`, `arg3 = DungeonDifference`
+    local function GetCachedRunAndUpgrade(member, currentRun)
+        local cachedRuns = _G.RaiderIO_CachedRuns
+        if not cachedRuns then
+            cachedRuns = {}
+            _G.RaiderIO_CachedRuns = cachedRuns
+        end
+        if not cachedRuns.date then
+            cachedRuns.date = KEYSTONE_DATE
+        end
+        if KEYSTONE_DATE > cachedRuns.date then
+            table.wipe(cachedRuns)
+        end
+        local memberCachedRuns = cachedRuns[member.guid]
+        if not memberCachedRuns then
+            memberCachedRuns = {}
+            cachedRuns[member.guid] = memberCachedRuns
+        end
+        local dbRun = GetSortedDungeonForMember(member, currentRun.dungeon)
+        local dbRunUpgrade = GetDungeonUpgrade(dbRun, currentRun)
+        local cacheRun = memberCachedRuns[currentRun.dungeon.index] ---@type SortedDungeon
+        local cacheUpgrade = GetDungeonUpgrade(cacheRun, currentRun)
+        local bestRun, bestUpgrade = CompareDungeonUpgrades(dbRun, dbRunUpgrade, cacheRun, cacheUpgrade)
+        local bestIsCurrentRun
+        if not bestRun or not bestRun.level then
+            bestIsCurrentRun = true
+            bestRun = CopyRun(currentRun)
+            bestUpgrade = {} ---@diagnostic disable-line: missing-fields
+        elseif bestRun == dbRun then
+            bestRun = CopyRun(dbRun) ---@diagnostic disable-line: param-type-mismatch
+        end
+        memberCachedRuns[currentRun.dungeon.index] = bestRun
+        local side = CompareLevelAndFractionalTime(bestRun.level, currentRun.level, bestRun.fractionalTime, currentRun.fractionalTime)
+        if bestIsCurrentRun or side == 2 then
+            bestUpgrade.confidence = 1
+            if bestIsCurrentRun then
+                bestUpgrade.levelDiff = currentRun.level
+                bestUpgrade.fractionalTimeDiff = -currentRun.fractionalTime
+            else
+                bestUpgrade.levelDiff = currentRun.level - bestRun.level
+                bestUpgrade.fractionalTimeDiff = currentRun.fractionalTime - bestRun.fractionalTime
+            end
+            bestUpgrade.isUpgrade = bestIsCurrentRun or bestUpgrade.levelDiff > 0 or (bestUpgrade.levelDiff == 0 and bestUpgrade.fractionalTimeDiff < 0) ---@diagnostic disable-line: need-check-nil
+            bestRun.chests = currentRun.chests
+            bestRun.level = currentRun.level
+            bestRun.fractionalTime = currentRun.fractionalTime
+        end
+        return bestRun, bestUpgrade ---@diagnostic disable-line: return-type-mismatch
+    end
+
+    ---@param members DataProviderCharacterProfile[] @Table of group member profiles
+    ---@param currentRun SortedDungeon
+    local function GetDungeonUpgrades(members, currentRun)
+        ---@type DungeonDifference[]
+        local upgrades = {}
+        local index = 0
+        local hasAnyUpgrades
+        for i = 1, #members do
+            local member = members[i]
+            if member and member.mythicKeystoneProfile and not member.mythicKeystoneProfile.blocked then
+                local run, upgrade = GetCachedRunAndUpgrade(member, currentRun)
+                hasAnyUpgrades = hasAnyUpgrades or upgrade.isUpgrade
+                upgrade.member = member
+                index = index + 1
+                upgrades[index] = upgrade
+            end
+        end
+        return upgrades, hasAnyUpgrades
+    end
+
+    local LEVEL_UP_EFFECT = {
+        yellow = 166464, -- spells/levelup/levelup.m2 (yellow)
+        green = 166698, -- spells/reputationlevelup.m2 (green)
+        red = 240947, -- spells/levelup_red.m2 (red)
+        blue = 340883, -- spells/levelup_blue.m2 (blue)
+        x = -18,
+        y = 0,
+        z = -10,
+        facing = 0,
+        duration = 1.5
+    }
+
+    local function DecorationFrame_OnShow(self)
+        self:SetAlpha(0)
+        self.AnimIn:Play()
+        if self.model then
+            self.Sparks:Show()
+            self.Sparks:SetModel(self.model)
+        end
+    end
+
+    local function DecorationFrame_OnHide(self)
+        self.AnimIn:Stop()
+        self.Sparks:Hide()
+    end
+
+    local function DecorationFrame_AnimIn_Sparks_OnFinished(self)
+        self.frame.Sparks:Hide()
+    end
+
+    local PERCENTILE_LOWEST = 0.01 -- 0.01%
+    local PERCENTILE_LOWEST_DECIMAL = PERCENTILE_LOWEST/100 -- % to decimal
+
+    ---@param upgrade DungeonDifference
+    local function DecorationFrame_SetUp(self, upgrade)
+        if upgrade.isUpgrade then
+            if not upgrade.confidence or upgrade.confidence > 1 then
+                self.model = LEVEL_UP_EFFECT.yellow
+                self.Texture:SetAtlas("loottoast-arrow-orange")
+            else
+                self.model = LEVEL_UP_EFFECT.green
+                self.Texture:SetAtlas("loottoast-arrow-green")
+            end
+            --[=[
+            if upgrade.levelDiff and upgrade.levelDiff > 0 then
+                self.Text:SetText(upgrade.levelDiff .. (upgrade.levelDiff > 1 and " levels" or " level") .. " higher") -- TODO: locale
+            elseif upgrade.fractionalTimeDiff and upgrade.fractionalTimeDiff < 0 then
+                local p = floor(upgrade.fractionalTimeDiff * -10000) / 100
+                if p > 0 then
+                    self.Text:SetText(p .. "% faster") -- TODO: locale
+                else
+                    self.Text:SetText("~" .. PERCENTILE_LOWEST .. "% faster") -- TODO: locale
+                end
+            else
+                self.Text:SetText()
+            end
+            --]=]
+        else
+            self.model = nil
+            self.Texture:SetTexture()
+            --[=[
+            if upgrade.levelDiff and upgrade.levelDiff < 0 then
+                self.Text:SetText((-upgrade.levelDiff) .. (upgrade.levelDiff > 1 and " levels" or " level") .. " lower") -- TODO: locale
+            elseif upgrade.levelDiff == 0 and upgrade.fractionalTimeDiff and upgrade.fractionalTimeDiff > 0 then
+                local p = floor(upgrade.fractionalTimeDiff * 10000) / 100
+                if p > 0 then
+                    self.Text:SetText(p .. "% slower") -- TODO: locale
+                else
+                    self.Text:SetText("~" .. PERCENTILE_LOWEST .. "% slower") -- TODO: locale
+                end
+            elseif upgrade.levelDiff == 0 and upgrade.fractionalTimeDiff and upgrade.fractionalTimeDiff <= PERCENTILE_LOWEST_DECIMAL then
+                self.Text:SetText("No change") -- TODO: locale
+            else
+                self.Text:SetText()
+            end
+            --]=]
+        end
+    end
+
+    ---@class ScalePolyfill
+    ---@field public SetScaleFrom fun(x, y)
+    ---@field public SetScaleTo fun(x, y)
+
+    local function CreateDecorationFrame()
+        local frame = CreateFrame("Frame")
+        frame:Hide()
+        frame:SetScript("OnShow", DecorationFrame_OnShow)
+        frame:SetScript("OnHide", DecorationFrame_OnHide)
+        frame.SetUp = DecorationFrame_SetUp
+        do
+            frame.Texture = frame:CreateTexture(nil, "ARTWORK")
+            frame.Texture:SetPoint("CENTER")
+            frame.Texture:SetSize(32, 32)
+            frame.Texture:SetTexture(nil) ---@diagnostic disable-line: param-type-mismatch
+        end
+        do
+            frame.Text = frame:CreateFontString(nil, "ARTWORK", "ChatFontNormal")
+            frame.Text:SetAllPoints()
+            frame.Text:SetJustifyH("CENTER")
+            frame.Text:SetJustifyV("MIDDLE")
+            frame.Text:SetText()
+        end
+        do
+            frame.Sparks = CreateFrame("PlayerModel", nil, frame)
+            frame.Sparks:Hide()
+            frame.Sparks:SetAllPoints()
+            frame.Sparks:SetModel(LEVEL_UP_EFFECT.yellow)
+            frame.Sparks:SetPortraitZoom(1)
+            frame.Sparks:ClearTransform()
+            frame.Sparks:SetPosition(LEVEL_UP_EFFECT.x, LEVEL_UP_EFFECT.y, LEVEL_UP_EFFECT.z)
+            frame.Sparks:SetFacing(LEVEL_UP_EFFECT.facing)
+        end
+        do
+            frame.AnimIn = frame:CreateAnimationGroup()
+            frame.AnimIn:SetToFinalAlpha(true)
+            local alpha = frame.AnimIn:CreateAnimation("Alpha")
+            alpha:SetOrder(1)
+            alpha:SetStartDelay(0.2)
+            alpha:SetDuration(0.25)
+            alpha:SetFromAlpha(0)
+            alpha:SetToAlpha(1)
+            local scale = frame.AnimIn:CreateAnimation("Scale") ---@type Animation|Scale|ScalePolyfill
+            scale:SetOrder(1)
+            scale:SetStartDelay(0.2)
+            scale:SetDuration(0.25)
+            scale:SetScaleFrom(5, 5)
+            scale:SetScaleTo(1, 1)
+            local sparks = frame.AnimIn:CreateAnimation("Scale") ---@type Animation|Scale|ScalePolyfill
+            sparks:SetOrder(1)
+            sparks:SetStartDelay(0)
+            sparks:SetDuration(LEVEL_UP_EFFECT.duration)
+            sparks:SetScaleFrom(1, 1)
+            sparks:SetScaleTo(1, 1)
+            sparks.frame = frame
+            sparks:SetScript("OnFinished", DecorationFrame_AnimIn_Sparks_OnFinished)
+        end
+        return frame
+    end
+
+    local frameHooks = {}
+    local frames = {}
+
+    local function OnFrameHidden()
+        for _, frame in pairs(frames) do
+            frame:Hide()
+        end
+    end
+
+    ---@param upgrade DungeonDifference
+    local function DecoratePartyMember(partyMember, upgrade)
+        if not partyMember then
+            return
+        end
+        local frame = frames[partyMember]
+        if not frame then
+            frame = CreateDecorationFrame()
+            frame:SetParent(partyMember)
+            frame:SetAllPoints()
+            frames[partyMember] = frame
+        end
+        frame:SetUp(upgrade)
+        frame:Show()
+    end
+
+    ---@param upgrade DungeonDifference
+    local function ShowUpgrade(frame, upgrade)
+        local sortedUnitTokens = frame:GetSortedPartyMembers()
+        for i = 1, #sortedUnitTokens do
+            local unit = sortedUnitTokens[i]
+            local name, realm = util:GetNameRealm(unit)
+            if name and name == upgrade.member.name and realm == upgrade.member.realm then
+                DecoratePartyMember(frame.PartyMembers[i], upgrade)
+                break
+            end
+        end
+    end
+
+    ---@param dungeon Dungeon
+    local function GetCurrentRun(dungeon, level, fractionalTime, keystoneUpgradeLevels)
+        ---@type SortedDungeon
+        local run = {} ---@diagnostic disable-line: missing-fields
+        run.chests = keystoneUpgradeLevels
+        run.dungeon = dungeon
+        run.fractionalTime = fractionalTime
+        run.level = level
+        return run
+    end
+
+    ---@class ChallengeModeCompleteBannerData
+    ---@field public mapID number @Keystone instance ID
+    ---@field public level number @Keystone level
+    ---@field public time number @Run duration in seconds
+    ---@field public onTime number @true if on time, otherwise false if depleted
+    ---@field public keystoneUpgradeLevels number @The amount of chests/level upgrades
+    ---@field public oldDungeonScore number
+    ---@field public newDungeonScore number
+    ---@field public isAffixRecord boolean
+    ---@field public isMapRecord boolean
+    ---@field public primaryAffix number
+    ---@field public isEligibleForScore boolean
+    ---@field public upgradeMembers ChallengeModeCompletionMemberInfo[]
+
+    ---@param bannerData ChallengeModeCompleteBannerData
+    local function OnChallengeModeCompleteBannerPlay(frame, bannerData)
+        if not KEYSTONE_DATE or not bannerData or not bannerData.mapID or not bannerData.time or not bannerData.level then
+            return
+        end
+        if not fanfare:IsEnabled() then
+            return
+        end
+        local dungeon = util:GetDungeonByKeystoneID(bannerData.mapID)
+        if not dungeon then
+            return
+        end
+        local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(bannerData.mapID)
+        if not timeLimit or timeLimit == 0 then
+            return
+        end
+        local fractionalTime = bannerData.time/timeLimit
+        local members = GetGroupMembers()
+        local currentRun = GetCurrentRun(dungeon, bannerData.level, fractionalTime, bannerData.keystoneUpgradeLevels)
+        local upgrades, hasAnyUpgrades = GetDungeonUpgrades(members, currentRun)
+        if not frameHooks[frame] then
+            frameHooks[frame] = true
+            frame:HookScript("OnHide", OnFrameHidden)
+        end
+        for i = 1, #upgrades do
+            ShowUpgrade(frame, upgrades[i])
+        end
+    end
+
+    local hooked
+
+    local function TopBannerManager_Show(self)
+        if hooked then
+            return
+        end
+        local frame = ChallengeModeCompleteBanner ---@type Frame?
+        if not frame or frame ~= self then
+            return
+        end
+        hooked = true
+        hooksecurefunc(frame, "PlayBanner", OnChallengeModeCompleteBannerPlay)
+        local mapID, level, time, onTime, keystoneUpgradeLevels, practiceRun, oldDungeonScore, newDungeonScore, isAffixRecord, isMapRecord, primaryAffix, isEligibleForScore, upgradeMembers = C_ChallengeMode.GetCompletionInfo()
+        if not practiceRun then
+            local bannerData = { mapID = mapID, level = level, time = time, onTime = onTime, keystoneUpgradeLevels = keystoneUpgradeLevels or 0, oldDungeonScore = oldDungeonScore, newDungeonScore = newDungeonScore, isAffixRecord = isAffixRecord, isMapRecord = isMapRecord, primaryAffix = primaryAffix, isEligibleForScore = isEligibleForScore, upgradeMembers = upgradeMembers } ---@type ChallengeModeCompleteBannerData
+            OnChallengeModeCompleteBannerPlay(frame, bannerData)
+        end
+    end
+
+    local function CheckCachedData()
+        local cachedRuns = _G.RaiderIO_CachedRuns
+        if not cachedRuns then
+            return
+        end
+        if KEYSTONE_DATE and cachedRuns.date and KEYSTONE_DATE > cachedRuns.date then
+            table.wipe(cachedRuns)
+            return
+        end
+        local dungeons = ns:GetDungeonData()
+        for _, memberCachedRuns in pairs(cachedRuns) do
+            if type(memberCachedRuns) == "table" then
+                for i = 1, #dungeons do
+                    ---@type SortedDungeon
+                    local cachedRun = memberCachedRuns[i]
+                    if cachedRun then
+                        cachedRun.dungeon = dungeons[i]
+                    end
+                end
+            end
+        end
+    end
+
+    function fanfare:CanLoad()
+        return config:IsEnabled() and config:Get("debugMode") -- TODO: do not load this module by default (it's not yet tested well enough) but we do load it if debug mode is enabled
+    end
+
+    function fanfare:OnLoad()
+        self:Enable()
+        KEYSTONE_DATE = provider:GetProvidersDates()
+        CheckCachedData()
+        hooksecurefunc("TopBannerManager_Show", TopBannerManager_Show)
+    end
+
+    -- DEBUG: force show the end screen for MIST+15 (1800/1440/1080 is the timer)
+    -- /run wipe(RaiderIO_CachedRuns)
+    -- /run C_ChallengeMode.GetCompletionInfo=function()return 375, 15, 1800, true, 1, false, 123, 234, true, true, 9, nil end
+    -- /run for _,f in ipairs({GetFramesRegisteredForEvent("CHALLENGE_MODE_COMPLETED")})do f:GetScript("OnEvent")(f,"CHALLENGE_MODE_COMPLETED")end
+
+end
+
+-- profile.lua
+-- dependencies: module, callback, config, render
+do
+
+    ---@class ProfileModule : Module
+    local profile = ns:NewModule("Profile") ---@type ProfileModule
+    local callback = ns:GetModule("Callback") ---@type CallbackModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local render = ns:GetModule("Render") ---@type RenderModule
+
+    local function IsFrame(widget)
+        return type(widget) == "table" and type(widget.GetObjectType) == "function" and widget
+    end
+
+    local STRATA_MAP = {
+        "TOOLTIP",
+        "FULLSCREEN_DIALOG",
+        "FULLSCREEN",
+        "DIALOG",
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "BACKGROUND",
+    }
+
+    for k, v in ipairs(STRATA_MAP) do
+        STRATA_MAP[v] = k
+    end
+
+    local function GetHighestStrata(...)
+        local s, o
+        for _, v in ipairs({...}) do
+            if type(v) == "string" then
+                local c = STRATA_MAP[v]
+                if not o or o > c then
+                    s, o = v, c
+                end
+            end
+        end
+        return s
+    end
+
+    local fallbackFrame = _G.UIParent
+    local fallbackStrata = "LOW"
+
+    local tooltipAnchor ---@type Frame
+    local tooltip ---@type GameTooltip
+
+    local tooltipAnchorPriority = {
+        -- this entry is updated with the latest anchor from previous `profile:ShowProfile(anchor, ...)` call so that we can prioritize this anchor above all others
+        {
+            name = nil,
+            strata = "TOOLTIP",
+        },
+        -- overrides the default PVEFrame anchor behavior when Premade Groups Filter is loaded
+        {
+            name = "PremadeGroupsFilterDialog",
+            hook = function(anchor, frame, updatePosition)
+                if not anchor.toggleHooked and IsFrame(frame.MoveableToggle) then
+                    anchor.toggleHooked = true
+                    frame.MoveableToggle:HookScript("OnClick", updatePosition)
+                end
+            end,
+            usable = function(anchor, frame)
+                return frame:IsShown() and (not frame.MoveableToggle or not frame.MoveableToggle:GetChecked())
+            end,
+        },
+        -- the default PVEFrame player profile and anchor behavior
+        {
+            name = "PVEFrame",
+            show = function(anchor, frame)
+                if not frame:IsShown() or not config:Get("showRaiderIOProfile") then
+                    return
+                end
+                profile:ShowProfile(false, "player")
+            end,
+            hide = function()
+                profile:HideProfile()
+            end,
+        },
+    }
+
+    local hookedFrames = {}
+
+    local function Eval(o, f, ...)
+        if type(o) == "function" then
+            return o(...)
+        end
+        return o or f
+    end
+
+    local function GetAnchorPoint(anchor, frame)
+        return
+            Eval(anchor.point, "TOPLEFT", anchor, frame),
+            Eval(anchor.rpoint, "TOPRIGHT", anchor, frame),
+            Eval(anchor.x, -16, anchor, frame),
+            Eval(anchor.y, 0, anchor, frame),
+            Eval(anchor.strata, fallbackStrata, anchor, frame)
+    end
+
+    ---@return Frame? frame, string? strata Returns the used frame and strata after logical checks have been performed on the provided frame and strata values.
+    local function SetAnchor()
+        for _, anchor in ipairs(tooltipAnchorPriority) do
+            local frame = anchor.name
+            if frame then
+                frame = IsFrame(frame) or IsFrame(_G[frame])
+                if frame then
+                    local usable = anchor.usable
+                    if usable == nil then
+                        usable = true
+                    elseif type(usable) == "function" then
+                        usable = anchor.usable(anchor, frame)
+                    end
+                    if usable then
+                        local p, rp, x, y, strata = GetAnchorPoint(anchor, frame)
+                        strata = GetHighestStrata(strata, frame:GetFrameStrata())
+                        tooltipAnchor:SetParent(frame)
+                        tooltipAnchor:ClearAllPoints()
+                        tooltipAnchor:SetPoint(p, frame, rp, x, y)
+                        tooltipAnchor:SetFrameStrata(strata)
+                        tooltip:SetFrameStrata(strata)
+                        return frame, strata
+                    end
+                end
+            end
+        end
+    end
+
+    ---@class ConfigProfilePoint
+    ---@field public point string|nil
+    ---@field public x number|nil
+    ---@field public y number|nil
+
+    ---@return Frame frame, string strata Returns the used frame and strata after logical checks have been performed on the provided frame and strata values.
+    local function SetUserAnchor()
+        local profilePoint = config:Get("profilePoint") ---@type ConfigProfilePoint
+        local p = profilePoint.point or "CENTER"
+        local x = profilePoint.x or 0
+        local y = profilePoint.y or 0
+        tooltipAnchor:SetParent(fallbackFrame)
+        tooltipAnchor:ClearAllPoints()
+        tooltipAnchor:SetPoint(p, fallbackFrame, p, x, y)
+        tooltipAnchor:SetFrameStrata(fallbackStrata)
+        tooltip:SetFrameStrata(fallbackStrata)
+        return fallbackFrame, fallbackStrata
+    end
+
+    ---@param isDraggable boolean
+    ---@return boolean @true if frame is draggable, otherwise false.
+    local function SetDraggable(self, isDraggable)
+        self:EnableMouse(isDraggable)
+        self:SetMovable(isDraggable)
+        self.Indicator:SetShown(isDraggable)
+        self.Icon:SetShown(isDraggable)
+        return isDraggable
+    end
+
+    ---@return boolean isAutoPosition, Frame? frame, string? strata @arg1 returns true if position is automatic, otherwise false. `arg2+` are the same as returned from `SetAnchor` or `SetUserAnchor`.
+    local function UpdatePosition(anchor, frame)
+        if anchor and frame then
+            if frame:IsShown() and anchor.show and type(anchor.show) == "function" then
+                anchor.show(anchor, frame)
+            elseif not frame:IsShown() and anchor.hide and type(anchor.hide) == "function" then
+                anchor.hide(anchor, frame)
+            end
+        end
+        SetDraggable(tooltipAnchor, not config:Get("positionProfileAuto") and not config:Get("lockProfile"))
+        if config:Get("positionProfileAuto") then
+            return true, SetAnchor()
+        else
+            return false, SetUserAnchor()
+        end
+    end
+
+    local function UpdateAnchorHooks()
+        for _, anchor in ipairs(tooltipAnchorPriority) do
+            local frame = anchor.name
+            if frame then
+                frame = IsFrame(frame) or IsFrame(_G[frame])
+                if frame and not hookedFrames[frame] then
+                    hookedFrames[frame] = true
+                    local function updatePosition() return UpdatePosition(anchor, frame) end
+                    frame:HookScript("OnShow", updatePosition)
+                    frame:HookScript("OnHide", updatePosition)
+                    if anchor.hook and type(anchor.hook) == "function" then
+                        anchor.hook(anchor, frame, updatePosition)
+                    end
+                end
+            end
+        end
+    end
+
+    local function OnDragStart(self)
+        self:StartMoving()
+    end
+
+    local function OnDragStop(self)
+        self:StopMovingOrSizing()
+        local point, _, _, x, y = self:GetPoint() -- TODO: improve this to store a corner so that when the tip is resized the corner is the anchor point and not the center as that makes it very wobbly and unpleasant to look at
+        local profilePoint = config:Get("profilePoint") ---@type ConfigProfilePoint
+        config:Set("profilePoint", profilePoint)
+        profilePoint.point, profilePoint.x, profilePoint.y = point, x, y
+    end
+
+    local function CreateTooltipAnchor()
+        local frame = CreateFrame("Frame", addonName .. "_ProfileTooltipAnchor", fallbackFrame)
+        frame:SetFrameStrata(fallbackStrata)
+        frame:SetFrameLevel(100)
+        frame:SetClampedToScreen(true)
+        frame:RegisterForDrag("LeftButton")
+        frame:SetScript("OnDragStart", OnDragStart)
+        frame:SetScript("OnDragStop", OnDragStop)
+        frame:SetSize(16, 16)
+        frame.Indicator = frame:CreateTexture(nil, "BACKGROUND")
+        frame.Indicator:SetAllPoints()
+        frame.Indicator:SetColorTexture(0.3, 0.3, 0.3)
+        frame.Icon = frame:CreateTexture(nil, "ARTWORK")
+        frame.Icon:SetAllPoints()
+        frame.Icon:SetTexture(386863)
+        frame:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(L.PROFILE_TOOLTIP_ANCHOR_TOOLTIP, 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        frame:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+        return frame
+    end
+
+    local function CreateTooltip()
+        local tooltip = CreateFrame("GameTooltip", addonName .. "_ProfileTooltip", tooltipAnchor, "GameTooltipTemplate") ---@type GameTooltip
+        tooltip:SetClampedToScreen(true)
+        tooltip:SetOwner(tooltipAnchor, "ANCHOR_NONE")
+        tooltip:ClearAllPoints()
+        tooltip:SetPoint("TOPLEFT", tooltipAnchor, "TOPRIGHT", 0, 0)
+        tooltip:SetFrameStrata(fallbackStrata)
+        tooltip:SetFrameLevel(100)
+        return tooltip
+    end
+
+    local function OnSettingsSaved()
+        if not profile:IsEnabled() then
+            return
+        end
+        UpdatePosition()
+    end
+
+    local showProfileArgs
+
+    local function OnModifierStateChanged()
+        if not showProfileArgs or not showProfileArgs[1] or not showProfileArgs[2] then
+            return
+        end
+        return profile:ShowProfile(unpack(showProfileArgs))
+    end
+
+    function profile:CanLoad()
+        return not tooltip and config:IsEnabled() and PVEFrame
+    end
+
+    function profile:OnLoad()
+        self:Enable()
+        tooltipAnchor = CreateTooltipAnchor()
+        tooltip = CreateTooltip()
+        UpdateAnchorHooks()
+        UpdatePosition()
+        callback:RegisterEvent(OnSettingsSaved, "RAIDERIO_SETTINGS_SAVED")
+        callback:RegisterEvent(UpdateAnchorHooks, "ADDON_LOADED")
+        callback:RegisterEvent(OnModifierStateChanged, "MODIFIER_STATE_CHANGED")
+    end
+
+    ---@return boolean, boolean? @arg1 is true if the toggle was successfull, otherwise false if we can't toggle right now. arg2 is set to true if the frame is now draggable, otherwise false for locked.
+    function profile:ToggleDrag()
+        if not profile:IsEnabled() then
+            return false
+        end
+        if config:Get("positionProfileAuto") then
+            ns.Print(L.WARNING_LOCK_POSITION_FRAME_AUTO)
+            return false
+        end
+        local isLocking = not config:Get("lockProfile")
+        config:Set("lockProfile", isLocking)
+        if isLocking then
+            ns.Print(L.LOCKING_PROFILE_FRAME)
+        else
+            ns.Print(L.UNLOCKING_PROFILE_FRAME)
+        end
+        return true, SetDraggable(tooltipAnchor, not isLocking)
+    end
+
+    local function IsPlayer(unit, name, realm, region)
+        if unit and UnitExists(unit) then
+            return UnitIsUnit(unit, "player")
+        end
+        return name == ns.PLAYER_NAME and realm == ns.PLAYER_REALM and (not region or region == ns.PLAYER_REGION)
+    end
+
+    ---@return boolean
+    function profile:ShowProfile(anchor, ...)
+        if not profile:IsEnabled() or not config:Get("showRaiderIOProfile") then
+            return ---@diagnostic disable-line: missing-return-value
+        end
+        showProfileArgs = { anchor, ... }
+        tooltipAnchorPriority[1].name = anchor
+        UpdateAnchorHooks()
+        UpdatePosition()
+        local unit, name, realm, _, options, args, region = render.GetQuery(...)
+        options = options or render.Preset.Profile()
+        local isPlayer = IsPlayer(unit, name, realm, region)
+        if not isPlayer and config:Get("enableProfileModifier") and band(options, render.Flags.IGNORE_MOD) ~= render.Flags.IGNORE_MOD then
+            if config:Get("inverseProfileModifier") == (config:Get("alwaysExtendTooltip") or band(options, render.Flags.MOD) == render.Flags.MOD) then
+                unit, name, realm = "player", nil, nil ---@diagnostic disable-line: cast-local-type
+            end
+        end
+        tooltip:SetOwner(tooltipAnchor, "ANCHOR_NONE")
+        tooltip:SetPoint("TOPLEFT", tooltipAnchor, "TOPRIGHT", 0, 0)
+        local success
+        if not isPlayer or not config:Get("hidePersonalRaiderIOProfile") then
+            if unit and UnitExists(unit) then
+                success = render:ShowProfile(tooltip, unit, options, args, region)
+            else
+                success = render:ShowProfile(tooltip, name, realm, options, args, region)
+            end
+        end
+        if not success then
+            profile:HideProfile()
+        end
+        return success
+    end
+
+    function profile:HideProfile()
+        if not profile:IsEnabled() then
+            return
+        end
+        if showProfileArgs then
+            table.wipe(showProfileArgs)
+        end
+        render:HideTooltip(tooltip)
+    end
+
+end
+
+-- lfgtooltip.lua
+-- dependencies: module, config, util, render, profile
+do
+
+    ---@class LfgTooltipModule : Module
+    local tooltip = ns:NewModule("LfgTooltip") ---@type LfgTooltipModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local render = ns:GetModule("Render") ---@type RenderModule
+    local profile = ns:GetModule("Profile") ---@type ProfileModule
+    local provider = ns:GetModule("Provider") ---@type ProviderModule
+
+    ---@class LfgResult
+    ---@field public activityID number|nil
+    ---@field public leaderName string
+    ---@field public keystoneLevel number
+
+    ---@type LfgResult
+    local currentResult = {} ---@diagnostic disable-line: missing-fields
+
+    local hooked = {}
+    local OnEnter
+    local OnLeave
+    local cleanupPending
+
+    local function SetSearchEntry(tooltip, resultID, autoAcceptOption)
+        if not config:Get("enableLFGTooltips") then
+            return
+        end
+        local entry = C_LFGList.GetSearchResultInfo(resultID)
+        if not entry or not entry.leaderName then
+            table.wipe(currentResult)
+            return
+        end
+        local leaderFaction = util:FactionGroupToFactionId(entry.leaderFactionGroup)
+        local activityInfo = C_LFGList.GetActivityInfoTable(entry.activityID, nil, entry.isWarMode)
+        if activityInfo and activityInfo.isMythicPlusActivity and entry.leaderOverallDungeonScore then
+            local leaderName, leaderRealm = util:GetNameRealm(entry.leaderName)
+            provider:OverrideProfile(leaderName, leaderRealm, entry.leaderOverallDungeonScore)
+        end
+        currentResult.activityID = entry.activityID
+        currentResult.leaderName = entry.leaderName
+        currentResult.leaderFaction = leaderFaction
+        currentResult.keystoneLevel = util:GetKeystoneLevelFromText(entry.name) or util:GetKeystoneLevelFromText(entry.comment) or 0
+        local success1 = render:ShowProfile(tooltip, currentResult.leaderName, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult)
+        local success2 = profile:ShowProfile(tooltip, currentResult.leaderName, currentResult)
+        if success1 or success2 then
+            if not hooked[tooltip] then
+                hooked[tooltip] = true
+                tooltip:HookScript("OnHide", function()
+                    if not cleanupPending then
+                        return
+                    end
+                    cleanupPending = nil
+                    OnLeave()
+                end)
+            end
+            cleanupPending = true
+        end
+    end
+
+    local function HookApplicantButtons(buttons)
+        for _, button in pairs(buttons) do
+            if not hooked[button] then
+                hooked[button] = true
+                button:HookScript("OnEnter", OnEnter)
+                button:HookScript("OnLeave", OnLeave)
+            end
+        end
+    end
+
+    local function ShowApplicantProfile(parent, applicantID, memberIdx)
+        local fullName, _, _, _, _, _, _, _, _, _, _, dungeonScore, _, factionGroup = C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
+        if not fullName then
+            return false
+        end
+        if dungeonScore then
+            local name, realm = util:GetNameRealm(fullName)
+            provider:OverrideProfile(name, realm, dungeonScore)
+        end
+        local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, parent, "ANCHOR_NONE", 0, 0)
+        if render:ShowProfile(GameTooltip, fullName, render.Preset.Unit(render.Flags.MOD_STICKY), currentResult) then
+            return true, fullName
+        end
+        if ownerSet and not ownerExisted and ownerSetSame then
+            GameTooltip:Hide()
+        end
+        return false
+    end
+
+    local function OnScroll()
+        GameTooltip:Hide()
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+    end
+
+    function OnEnter(self)
+        local entry = C_LFGList.GetActiveEntryInfo()
+        if entry then
+            currentResult.activityID = entry.activityID
+        end
+        if not currentResult.activityID or not config:Get("enableLFGTooltips") then
+            return
+        end
+        if self.applicantID and self.Members then
+            HookApplicantButtons(self.Members)
+        elseif self.memberIdx then
+            local shown, fullName = ShowApplicantProfile(self, self:GetParent().applicantID, self.memberIdx)
+            local success
+            if shown then
+                success = profile:ShowProfile(GameTooltip, fullName, currentResult)
+            else
+                success = profile:ShowProfile(false, "player", currentResult)
+            end
+            if not success then
+                profile:HideProfile()
+            end
+        end
+    end
+
+    function OnLeave(self)
+        GameTooltip:Hide()
+        profile:HideProfile()
+        profile:ShowProfile(false, "player")
+    end
+
+    function tooltip:CanLoad()
+        return profile:IsEnabled() and LFGListFrame and LFGListFrame.SearchPanel and LFGListFrame.ApplicationViewer
+    end
+
+    function tooltip:OnLoad()
+        self:Enable()
+        -- the player looking at groups
+        hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntry)
+        local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
+        ScrollBoxUtil:OnViewFramesChanged(LFGListFrame.SearchPanel.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+        ScrollBoxUtil:OnViewScrollChanged(LFGListFrame.SearchPanel.ScrollBox, OnScroll)
+        -- the player hosting a group looking at applicants
+        ScrollBoxUtil:OnViewFramesChanged(LFGListFrame.ApplicationViewer.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+        ScrollBoxUtil:OnViewScrollChanged(LFGListFrame.ApplicationViewer.ScrollBox, OnScroll)
+        -- remove the shroud and allow hovering over people even when not the group leader
+        do
+            local f = LFGListFrame.ApplicationViewer.UnempoweredCover
+            f:EnableMouse(false)
+            f:EnableMouseWheel(false)
+            f:SetToplevel(false)
+        end
+    end
+
+end
+
+-- guildtooltip.lua
+-- dependencies: module, config, util, render
+do
+
+    ---@class GuildTooltipModule : Module
+    local tooltip = ns:NewModule("GuildTooltip") ---@type GuildTooltipModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local render = ns:GetModule("Render") ---@type RenderModule
+
+    local function OnEnter(self)
+        if not self.guildIndex or not config:Get("enableGuildTooltips") then
+            return
+        end
+        local fullName, _, _, level = GetGuildRosterInfo(self.guildIndex)
+        if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
+            return
+        end
+        local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_TOPLEFT", 0, 0)
+        if render:ShowProfile(GameTooltip, fullName, render.Preset.UnitSmartPadding(ownerExisted)) then
+            return
+        end
+        if ownerSet and not ownerExisted and ownerSetSame then
+            GameTooltip:Hide()
+        end
+    end
+
+    local function OnLeave(self)
+        if not self.guildIndex or not config:Get("enableGuildTooltips") then
+            return
+        end
+        GameTooltip:Hide()
+    end
+
+    local function OnScroll()
+        if not config:Get("enableGuildTooltips") then
+            return
+        end
+        GameTooltip:Hide()
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+    end
+
+    function tooltip:CanLoad()
+        return GuildRosterContainer
+    end
+
+    function tooltip:OnLoad()
+        self:Enable()
+        local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
+        ScrollBoxUtil:OnViewFramesChanged(GuildRosterContainer, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+        ScrollBoxUtil:OnViewScrollChanged(GuildRosterContainer, OnScroll)
+    end
+
+end
+
+-- communitytooltip.lua
+-- dependencies: module, config, util, render
+do
+
+    ---@class CommunityTooltipModule : Module
+    local tooltip = ns:NewModule("CommunityTooltip") ---@type CommunityTooltipModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+    local render = ns:GetModule("Render") ---@type RenderModule
+
+    local hooked = {}
+    local completed
+
+    local function OnEnter(self)
+        if not config:Get("enableGuildTooltips") then
+            return
+        end
+        local clubType
+        local nameAndRealm
+        local level
+        local faction = ns.PLAYER_FACTION
+        if type(self.GetMemberInfo) == "function" then
+            local info = self:GetMemberInfo()
+            -- function exists but returns null when on "Pending Invites" header
+            if not info then
+                return
+            end
+            clubType = info.clubType
+            nameAndRealm = info.name
+            level = info.level
+        elseif type(self.cardInfo) == "table" then
+            nameAndRealm = util:GetNameRealm(self.cardInfo.guildLeader)
+            if self.cardInfo.isCrossFaction then
+                -- TODO: NYI
+            end
+        else
+            return
+        end
+        if type(self.GetLastPosterGUID) == "function" then
+            local playerGUID = self:GetLastPosterGUID()
+            if playerGUID then
+                local _, _, _, race = GetPlayerInfoByGUID(playerGUID)
+                if race then
+                    faction = util:GetFactionFromRace(race, faction)
+                end
+            end
+        end
+        if (clubType and clubType ~= Enum.ClubType.Guild and clubType ~= Enum.ClubType.Character) or not nameAndRealm or not util:IsMaxLevel(level, true) then
+            return
+        end
+        local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_LEFT", 0, 0)
+        if render:ShowProfile(GameTooltip, nameAndRealm, render.Preset.UnitSmartPadding(ownerExisted)) then
+            return
+        end
+        if ownerSet and not ownerExisted and ownerSetSame then
+            GameTooltip:Hide()
+        end
+    end
+
+    local function OnLeave(self)
+        if not config:Get("enableGuildTooltips") then
+            return
+        end
+        GameTooltip:Hide()
+    end
+
+    local function SmartHookButtons(buttons)
+        if not buttons then
+            return
+        end
+        local numButtons = 0
+        for _, button in pairs(buttons) do
+            numButtons = numButtons + 1
+            if not hooked[button] then
+                hooked[button] = true
+                button:HookScript("OnEnter", OnEnter)
+                button:HookScript("OnLeave", OnLeave)
+                if type(button.OnEnter) == "function" then hooksecurefunc(button, "OnEnter", OnEnter) end
+                if type(button.OnLeave) == "function" then hooksecurefunc(button, "OnLeave", OnLeave) end
+                -- TODO: NYI button.RequestJoin
+            end
+        end
+        return numButtons > 0
+    end
+
+    local function OnRefreshApplyHooks()
+        if completed then
+            return
+        end
+        SmartHookButtons(ClubFinderGuildFinderFrame.GuildCards.Cards)
+        SmartHookButtons(ClubFinderGuildFinderFrame.PendingGuildCards.Cards)
+        SmartHookButtons(ClubFinderCommunityAndGuildFinderFrame.GuildCards.Cards)
+        SmartHookButtons(ClubFinderCommunityAndGuildFinderFrame.PendingGuildCards.Cards)
+        return true
+    end
+
+    local function OnScroll()
+        if not config:Get("enableGuildTooltips") then
+            return
+        end
+        GameTooltip:Hide()
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+    end
+
+    function tooltip:CanLoad()
+        return CommunitiesFrame and ClubFinderGuildFinderFrame and ClubFinderCommunityAndGuildFinderFrame
+    end
+
+    function tooltip:OnLoad()
+        self:Enable()
+        ScrollBoxUtil:OnViewFramesChanged(CommunitiesFrame.MemberList.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(CommunitiesFrame.MemberList.ScrollBox, OnScroll) -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, OnScroll) -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, OnScroll) -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox, OnScroll) -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox, OnScroll) -- TODO: DF
+        hooksecurefunc(ClubFinderGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(ClubFinderGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(ClubFinderCommunityAndGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
+        hooksecurefunc(ClubFinderCommunityAndGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
+    end
+
+end
+
+-- keystonetooltip.lua
+-- dependencies: module, config, render
+do
+
+    ---@class KeystoneTooltipModule : Module
+    local tooltip = ns:NewModule("KeystoneTooltip") ---@type KeystoneTooltipModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local render = ns:GetModule("Render") ---@type RenderModule
+
+    local KEYSTONE_PATTERN = "keystone:(%d+):(.-):(.-):(.-):(.-):(.-):(.-)"
+    local KEYSTONE_ITEM_PATTERN_1 = "item:(187786):(.+)"
+    local KEYSTONE_ITEM_PATTERN_2 = "item:(180653):(.+)"
+
+    ---@param link string
+    ---@param pattern string
+    ---@return number? itemID, number? instanceID, number? level, number? affix1, number? affix2, number? affix3, number? affix4
+    local function ExtractKeystoneItemData(link, pattern)
+        local id, raw = link:match(pattern)
+        if not id then
+            return
+        end
+        local info = {}
+        local temp = {strsplit(":", raw)}
+        for i = 12, #temp, 2 do -- start at offset 12 (where we expect the first kv-pair to occur in the keystone link)
+            local k = temp[i]
+            if k and k ~= "" then
+                k = tonumber(k)
+                if k and k >= 17 and k <= 23 then -- we expect the field ID's to be 17 to 23 that we wish to extract
+                    info[k - 16] = temp[i + 1]
+                end
+            end
+        end
+        if not info[1] or not info[2] then
+            return
+        end
+        return id, info[1], info[2], info[3] or 0, info[4] or 0, info[5] or 0, info[6] or 0
+    end
+
+    ---@type table<table, KeystoneInfo>
+    local currentKeystone = {}
+
+    ---@param link string
+    ---@return number? itemID, number instanceID, number level, number affix1, number affix2, number affix3, number affix4
+    local function GetKeystoneInfo(link)
+        local item, instance, level, affix1, affix2, affix3, affix4, _ = link:match(KEYSTONE_PATTERN)
+        if not item then
+            item, instance, level, affix1, affix2, affix3, affix4, _ = ExtractKeystoneItemData(link, KEYSTONE_ITEM_PATTERN_1)
+        end
+        if not item then
+            item, instance, level, affix1, affix2, affix3, affix4, _ = ExtractKeystoneItemData(link, KEYSTONE_ITEM_PATTERN_2)
+        end
+        if item then
+            item, instance, level, affix1, affix2, affix3, affix4 = tonumber(item), tonumber(instance), tonumber(level), tonumber(affix1), tonumber(affix2), tonumber(affix3), tonumber(affix4)
+        end
+        return item, instance, level, affix1 or 0, affix2 or 0, affix3 or 0, affix4 or 0
+    end
+
+    ---@param keystone KeystoneInfo
+    local function UpdateKeystoneInfo(keystone, link)
+        keystone.link = link
+        keystone.item, keystone.instance, keystone.level, keystone.affix1, keystone.affix2, keystone.affix3, keystone.affix4 = GetKeystoneInfo(link)
+        return keystone.link and keystone.level
+    end
+
+    local function OnTooltipSetItem(self)
+        if self ~= GameTooltip and self ~= ItemRefTooltip then
+            return
+        end
+        if not config:Get("enableKeystoneTooltips") then
+            return
+        end
+        local _, link = self:GetItem()
+        if not link or type(link) ~= "string" then
+            return
+        end
+        local keystone = currentKeystone[self]
+        if not keystone then
+            keystone = {} ---@diagnostic disable-line: missing-fields
+            currentKeystone[self] = keystone
+        end
+        if not UpdateKeystoneInfo(keystone, link) then
+            return
+        end
+        render:ShowKeystone(self, keystone)
+    end
+
+    local function OnTooltipCleared(self)
+        render:ClearTooltip(self)
+    end
+
+    local function OnHide(self)
+        render:HideTooltip(self)
+    end
+
+    function tooltip:OnLoad()
+        self:Enable()
+        if TooltipDataProcessor then -- TODO: DF
+            TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltipSetItem)
+        else
+            GameTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
+            ItemRefTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
+        end
+        GameTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
+        GameTooltip:HookScript("OnHide", OnHide)
+        ItemRefTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
+        ItemRefTooltip:HookScript("OnHide", OnHide)
+    end
+
+end
+
+-- guildweekly.lua
+-- dependencies: module, callback, config, util
+do
+
+    ---@class GuildWeeklyModule : Module
+    local guildweekly = ns:NewModule("GuildWeekly") ---@type GuildWeeklyModule
+    local callback = ns:GetModule("Callback") ---@type CallbackModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+
+    local CLASS_FILENAME_TO_ID = {
+        WARRIOR = 1,
+        PALADIN = 2,
+        HUNTER = 3,
+        ROGUE = 4,
+        PRIEST = 5,
+        DEATHKNIGHT = 6,
+        SHAMAN = 7,
+        MAGE = 8,
+        WARLOCK = 9,
+        MONK = 10,
+        DRUID = 11,
+        DEMONHUNTER = 12
+    }
+
+    ---@param runInfo ChallengeModeGuildTopAttempt
+    local function ConvertRunData(runInfo)
+        local dungeon = util:GetDungeonByKeystoneID(runInfo.mapChallengeModeID)
+        ---@type GuildMythicKeystoneRun
+        local runData = { ---@diagnostic disable-line: missing-fields
+            dungeon = dungeon,
+            zone_id = dungeon and dungeon.id or 0,
+            level = runInfo.keystoneLevel or 0,
+            upgrades = 0,
+            party = {},
+        }
+        for i = 1, #runInfo.members do
+            local member = runInfo.members[i]
+            runData.party[i] = { ---@diagnostic disable-line: missing-fields
+                name = member.name,
+                class_id = CLASS_FILENAME_TO_ID[member.classFileName] or 0
+            }
+        end
+        return runData
+    end
+
+    ---@return GuildCollection
+    local function GetGuildScoreboard()
+        local scoreboard = C_ChallengeMode.GetGuildLeaders()
+        local data = {}
+        for i = 1, #scoreboard do
+            data[#data + 1] = ConvertRunData(scoreboard[i])
+        end
+        return { weekly_best = data }
+    end
+
+    local function GetGuildFullName(unit)
+        local guildName, _, _, guildRealm = GetGuildInfo(unit)
+        if not guildName then
+            return
+        end
+        if not guildRealm then
+            _, guildRealm = util:GetNameRealm(unit)
+        end
+        return guildName .. "-" .. guildRealm
+    end
+
+    ---@class UICheckButtonTemplatePolyfill : CheckButton
+    ---@field public text FontString
+
+    ---@class GuildWeeklyFrameMixin
+    ---@field public offset number @The scroll offset.
+    ---@field public Refresh function @Refreshes the frame with new data.
+    ---@field public SetUp function @Prepares the frame by loading it with data from our guild.
+    ---@field public Reset function @Resets the frame back to empty.
+    ---@field public SwitchBestRun function @Toggles between this week and overall for the season.
+    ---@field public OnMouseWheel function @When scrolled list goes up or down.
+
+    ---@class GuildWeeklyRunMixin
+    ---@field public SetUp function @Sets up the run using the provided info.
+    ---@field public runInfo? GuildMythicKeystoneRun
+
+    ---@class GuildWeeklyBestNoRun : Frame
+    ---@field public Text FontString
+
+    ---@class GuildWeeklyRun : GuildWeeklyRunMixin, Frame
+    ---@field public CharacterName FontString
+    ---@field public Level FontString
+
+    ---@class GuildWeeklyFrame : GuildWeeklyFrameMixin, GuildWeeklyRun, BackdropTemplate
+    ---@field public maxVisible number
+    ---@field public Title FontString
+    ---@field public SubTitle FontString
+    ---@field public GuildBestNoRun GuildWeeklyBestNoRun
+    ---@field public SwitchGuildBest UICheckButtonTemplatePolyfill
+    ---@field public GuildBests GuildWeeklyRun[]
+
+    ---@type GuildWeeklyFrame
+    local frame
+
+    ---@type GuildWeeklyFrame
+    local GuildWeeklyRunMixin = {} ---@diagnostic disable-line: missing-fields
+
+    ---@param runInfo GuildMythicKeystoneRun
+    ---@return boolean? @true if successfull, otherwise false if we can't display this run
+    function GuildWeeklyRunMixin:SetUp(runInfo)
+        self.runInfo = runInfo
+        if not runInfo then
+            return
+        end
+        runInfo.dungeon = runInfo.dungeon or util:GetDungeonByID(runInfo.zone_id)
+        if not runInfo.dungeon then
+            return
+        end
+        runInfo.dungeonName = C_ChallengeMode.GetMapUIInfo(runInfo.dungeon.keystone_instance) or runInfo.dungeon.name
+        self.CharacterName:SetText(runInfo.dungeonName)
+        self.Level:SetText(util:GetNumChests(runInfo.upgrades) .. runInfo.level)
+        if runInfo.clear_time and runInfo.upgrades == 0 then
+            self.Level:SetTextColor(0.62, 0.62, 0.62)
+        else
+            self.Level:SetTextColor(1, 1, 1)
+        end
+        self:Show()
+    end
+
+    ---@param self GuildWeeklyRun
+    local function RunFrame_OnEnter(self)
+        local runInfo = self.runInfo ---@type GuildMythicKeystoneRun
+        if not runInfo then
+            return
+        end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(runInfo.dungeon.shortNameLocale, 1, 1, 1)
+        local chestsText = ""
+        if runInfo.upgrades > 0 then
+            chestsText = " (" .. util:GetNumChests(runInfo.upgrades) .. ")"
+        end
+        GameTooltip:AddLine(MYTHIC_PLUS_POWER_LEVEL:format(runInfo.level) .. chestsText, 1, 1, 1)
+        if runInfo.clear_time then
+            GameTooltip:AddLine(runInfo.clear_time, 1, 1, 1)
+        end
+        if runInfo.party then
+            GameTooltip:AddLine(" ")
+            for _, member in ipairs(runInfo.party) do
+                local classInfo = C_CreatureInfo.GetClassInfo(member.class_id)
+                local color = (classInfo and RAID_CLASS_COLORS[classInfo.classFile]) or NORMAL_FONT_COLOR
+                local texture
+                if member.role == "tank" or member.role == "TANK" then
+                    texture = CreateAtlasMarkup("roleicon-tiny-tank")
+                elseif member.role == "dps" or member.role == "DAMAGER" then
+                    texture = CreateAtlasMarkup("roleicon-tiny-dps")
+                elseif member.role == "healer" or member.role == "HEALER" then
+                    texture = CreateAtlasMarkup("roleicon-tiny-healer")
+                end
+                if texture then
+                    GameTooltip:AddLine(MYTHIC_PLUS_LEADER_BOARD_NAME_ICON:format(texture, member.name), color.r, color.g, color.b)
+                else
+                    GameTooltip:AddLine(member.name, color.r, color.g, color.b)
+                end
+            end
+        end
+        GameTooltip:Show()
+    end
+
+    local function CreateRunFrame()
+        ---@class GuildWeeklyRun
+        local frame = CreateFrame("Frame")
+        -- inherit from the mixin
+        for k, v in pairs(GuildWeeklyRunMixin) do
+            frame[k] = v
+        end
+        -- character name
+        do
+            frame.CharacterName = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
+            frame.CharacterName:SetJustifyH("LEFT")
+            frame.CharacterName:SetSize(70, 13)
+            frame.CharacterName:SetPoint("LEFT")
+            frame.CharacterName:SetTextColor(1, 1, 1)
+        end
+        -- keystone level
+        do
+            frame.Level = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
+            frame.Level:SetJustifyH("RIGHT")
+            frame.Level:SetSize(25, 13)
+            frame.Level:SetPoint("RIGHT")
+            frame.Level:SetTextColor(1, 1, 1)
+        end
+        -- the look and feel, anchoring and final touches
+        do
+            frame:SetSize(95, 13)
+            frame:SetScript("OnEnter", RunFrame_OnEnter)
+            frame:SetScript("OnLeave", GameTooltip_Hide)
+        end
+        -- finalize and return the frame
+        return frame
+    end
+
+    ---@type GuildWeeklyFrame
+    local GuildWeeklyFrameMixin = {} ---@diagnostic disable-line: missing-fields
+
+    function GuildWeeklyFrameMixin:Refresh()
+        local guildName = GetGuildFullName("player")
+        if not guildName then
+            self:Hide()
+            self:Reset()
+            return
+        end
+        self:Show()
+        self:SetUp(guildName)
+    end
+
+    function GuildWeeklyFrameMixin:SetUp(guildName)
+        self:Reset()
+
+        local guildsData = ns:GetClientGuildData()
+        local guildData = guildsData and guildsData[guildName] ---@type GuildCollection
+
+        local keyBest = "season_best"
+        local title = L.GUILD_BEST_SEASON
+        local blizzScoreboard
+
+        if not guildData or config:Get("displayWeeklyGuildBest") then
+            if not guildData then
+                blizzScoreboard = true
+                guildData = GetGuildScoreboard() ---@type GuildCollection
+            end
+            keyBest = "weekly_best"
+            title = L.GUILD_BEST_WEEKLY
+        end
+
+        self.SubTitle:SetText(title)
+        self.SwitchGuildBest:SetShown(guildData and not blizzScoreboard)
+
+        local switchShown = self.SwitchGuildBest:IsShown()
+        local switchHeight = self.SwitchGuildBest:GetHeight()
+        local switchRealHeight = switchShown and switchHeight or 0
+        local currentRuns = guildData and guildData[keyBest] ---@type GuildMythicKeystoneRun[]
+
+        if not currentRuns or not currentRuns[1] then
+            self.GuildBestNoRun:Show()
+            self:SetHeight(35 + 15 + switchRealHeight)
+            return
+        end
+
+        local numRuns = #currentRuns
+
+        if numRuns <= self.maxVisible then
+            self.offset = 0
+        end
+
+        local numVisibleRuns = min(numRuns, self.maxVisible)
+
+        for i = 1, numVisibleRuns do
+            self.GuildBests[i]:SetUp(currentRuns[i + self.offset])
+        end
+
+        if self:IsMouseOver(0, 0, 0, 0) then
+            local focus = GetMouseFocus()
+            if focus and focus ~= GameTooltip:GetOwner() then
+                util:ExecuteWidgetOnEnterSafely(focus)
+            end
+        end
+
+        self:SetHeight(35 + (numVisibleRuns > 0 and numVisibleRuns * self.GuildBests[1]:GetHeight() or 0) + switchRealHeight)
+
+        return numRuns, numVisibleRuns
+    end
+
+    function GuildWeeklyFrameMixin:Reset()
+        self.offset = 0
+        self.GuildBestNoRun:Hide()
+        self.GuildBestNoRun.Text:SetText(L.NO_GUILD_RECORD)
+        for _, frame in ipairs(self.GuildBests) do
+            frame:Hide()
+            frame:SetUp()
+        end
+    end
+
+    function GuildWeeklyFrameMixin:SwitchBestRun()
+        local displayWeeklyGuildBest = not config:Get("displayWeeklyGuildBest")
+        config:Set("displayWeeklyGuildBest", displayWeeklyGuildBest)
+        self:Refresh()
+    end
+
+    local function GuildWeeklyFrame_OnMouseWheel(self, delta)
+        self.offset = max(0, min(self.maxVisible, delta > 0 and -1 or 1))
+        self:Refresh()
+    end
+
+    local function GuildWeeklyFrameSwitch_OnShow(self)
+        self:SetChecked(config:Get("displayWeeklyGuildBest"))
+    end
+
+    local function GuildWeeklyFrameSwitch_OnClick(self)
+        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        self:GetParent():SwitchBestRun()
+    end
+
+    local function CreateGuildWeeklyFrame()
+        ---@type GuildWeeklyFrame
+        local frame = CreateFrame("Frame", addonName .. "_GuildWeeklyFrame", ChallengesFrame, BackdropTemplateMixin and "BackdropTemplate")
+        frame.maxVisible = 5
+        -- inherit from the mixin
+        for k, v in pairs(GuildWeeklyFrameMixin) do
+            frame[k] = v
+        end
+        -- title
+        do
+            frame.Title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
+            frame.Title:SetJustifyH("CENTER")
+            frame.Title:SetPoint("TOPLEFT", 10, -8)
+            frame.Title:SetTextColor(1, 0.85, 0)
+            frame.Title:SetShadowColor(0, 0, 0)
+            frame.Title:SetShadowOffset(1, -1)
+            frame.Title:SetText(L.GUILD_BEST_TITLE)
+        end
+        -- sub title
+        do
+            frame.SubTitle = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
+            frame.SubTitle:SetJustifyH("CENTER")
+            frame.SubTitle:SetPoint("TOPLEFT", 10, -18)
+            frame.SubTitle:SetTextColor(1, 0.85, 0, 0.8)
+            frame.SubTitle:SetShadowColor(0, 0, 0)
+            frame.SubTitle:SetShadowOffset(1, -1)
+        end
+        -- no runs available overlay
+        do
+            frame.GuildBestNoRun = CreateFrame("Frame", nil, frame) ---@diagnostic disable-line: param-type-mismatch
+            frame.GuildBestNoRun:SetSize(95, 13)
+            frame.GuildBestNoRun:SetPoint("TOPLEFT", frame.Title, "BOTTOMLEFT", 0, -14)
+            frame.GuildBestNoRun.Text = frame.GuildBestNoRun:CreateFontString(nil, "ARTWORK", "GameFontNormalTiny2")
+            frame.GuildBestNoRun.Text:SetJustifyH("LEFT")
+            frame.GuildBestNoRun.Text:SetSize(150, 0)
+            frame.GuildBestNoRun.Text:SetPoint("LEFT")
+            frame.GuildBestNoRun.Text:SetTextColor(1, 1, 1)
+        end
+        -- toggle between weekly and season best
+        do
+            frame.SwitchGuildBest = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate") ---@type UICheckButtonTemplatePolyfill
+            frame.SwitchGuildBest:SetSize(15, 15)
+            frame.SwitchGuildBest:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 8, 5) ---@diagnostic disable-line: param-type-mismatch
+            frame.SwitchGuildBest:SetScript("OnShow", GuildWeeklyFrameSwitch_OnShow)
+            frame.SwitchGuildBest:SetScript("OnClick", GuildWeeklyFrameSwitch_OnClick)
+            frame.SwitchGuildBest.text:SetFontObject("GameFontNormalTiny2")
+            frame.SwitchGuildBest.text:SetJustifyH("LEFT")
+            frame.SwitchGuildBest.text:SetPoint("LEFT", 15, 0)
+            frame.SwitchGuildBest.text:SetText(L.CHECKBOX_DISPLAY_WEEKLY)
+        end
+        -- create the guild best run frames
+        do
+            ---@type GuildWeeklyRun[]
+            frame.GuildBests = {}
+            for i = 1, 20 do
+                local runFrame = CreateRunFrame()
+                runFrame:SetParent(frame)
+                if i == 1 then
+                    runFrame:SetPoint("TOPLEFT", frame.Title, "BOTTOMLEFT", 0, -13)
+                else
+                    local prevRun = frame.GuildBests[i - 1]
+                    runFrame:SetPoint("TOP", prevRun, "BOTTOM")
+                end
+                frame.GuildBests[i] = runFrame
+            end
+        end
+        -- the look and feel, anchoring and final touches
+        do
+            -- look and feel
+            frame:SetScale(1.2)
+            frame:SetFrameStrata("MEDIUM")
+            frame:SetSize(115, 115)
+            if frame.SetBackdrop then
+                frame:SetBackdrop(BACKDROP_TUTORIAL_16_16)
+                frame:SetBackdropBorderColor(1, 1, 1, 1)
+                frame:SetBackdropColor(0, 0, 0, 0.6)
+            end
+            -- update anchor
+            frame:ClearAllPoints()
+            if IsAddOnLoaded("AngryKeystones") then
+                frame:SetPoint("TOPRIGHT", ChallengesFrame, "TOPRIGHT", -6, -22)
+            else
+                frame:SetPoint("BOTTOMLEFT", ChallengesFrame.DungeonIcons[1], "TOPLEFT", 2, 12)
+            end
+            -- mousewheel scrolling
+            frame:EnableMouseWheel(true)
+            frame:SetScript("OnMouseWheel", GuildWeeklyFrame_OnMouseWheel)
+        end
+        -- finalize and return the frame
+        frame:Reset()
+        return frame
+    end
+
+    local function UpdateShown()
+        if config:Get("showClientGuildBest") then
+            frame:Refresh()
+        else
+            frame:Hide()
+        end
+    end
+
+    function guildweekly:CanLoad()
+        return not frame and config:IsEnabled() and PVEFrame and ChallengesFrame
+    end
+
+    function guildweekly:OnLoad()
+        self:Enable()
+        frame = CreateGuildWeeklyFrame()
+        UpdateShown()
+        callback:RegisterEvent(UpdateShown, "RAIDERIO_SETTINGS_SAVED")
+        PVEFrame:HookScript("OnShow", UpdateShown)
+        ChallengesFrame:HookScript("OnShow", UpdateShown)
+        callback:RegisterEvent(UpdateShown, "CHALLENGE_MODE_LEADERS_UPDATE")
     end
 
 end

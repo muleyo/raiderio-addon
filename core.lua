@@ -9477,6 +9477,9 @@ do
                 publicSummary.dungeon_short_name = currentReplay.dungeon.short_name
                 publicSummary.dungeon_name = currentReplay.dungeon.name
             end
+            for _, boss in ipairs(publicSummary.bosses) do
+                boss.encounter = util:TableCopy(boss.encounter)
+            end
         end
         return publicSummary
     end

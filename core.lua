@@ -1091,7 +1091,7 @@ do
 
     ---@class FallbackConfig
     ---@field public mplusHeadlineMode HeadlineMode @Defaults to `ns.HEADLINE_MODE.BEST_SEASON` (`1`)
-    ---@field public replayStyle ReplayFrameStyle @Defaults to `MODERN_COMPACT`
+    ---@field public replayStyle ReplayFrameStyle @Defaults to `MODERN`
 
     -- fallback saved variables
     ---@class FallbackConfig
@@ -1133,7 +1133,7 @@ do
         rwfBackgroundRemindAt = 10, -- NEW in 9.2
         rwfMiniPoint = { point = nil, x = 0, y = 0 }, -- NEW in 9.2
         showMedalsInsteadOfText = false, -- NEW in 9.1.5
-        replayStyle = "MODERN_COMPACT", -- NEW in 10.0.7
+        replayStyle = "MODERN", -- NEW in 10.0.7
         enableReplay = true, -- NEW in 10.1.5
     }
 
@@ -5422,10 +5422,10 @@ do
     local ReplayFrameStyles = {
         MODERN = "MODERN",
         MODERN_COMPACT = "MODERN_COMPACT",
-        MDI = "MDI",
+        --MDI = "MDI",
         [1] = "MODERN",
         [2] = "MODERN_COMPACT",
-        [3] = "MDI",
+        --[3] = "MDI",
     }
 
     local FRAME_UPDATE_INTERVAL = 0.5

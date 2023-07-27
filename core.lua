@@ -1090,8 +1090,9 @@ do
     local callback = ns:GetModule("Callback") ---@type CallbackModule
 
     ---@class FallbackConfig
-    ---@field public mplusHeadlineMode HeadlineMode @Defaults to `ns.HEADLINE_MODE.BEST_SEASON` (`1`)
-    ---@field public replayStyle ReplayFrameStyle @Defaults to `MODERN`
+    ---@field public mplusHeadlineMode HeadlineMode Defaults to `ns.HEADLINE_MODE.BEST_SEASON` (`1`)
+    ---@field public replayStyle ReplayFrameStyle Defaults to `MODERN`
+    ---@field public replayTiming ReplayFrameTiming Defaults to `BOSS`
 
     -- fallback saved variables
     ---@class FallbackConfig
@@ -1134,6 +1135,7 @@ do
         rwfMiniPoint = { point = nil, x = 0, y = 0 }, -- NEW in 9.2
         showMedalsInsteadOfText = false, -- NEW in 9.1.5
         replayStyle = "MODERN", -- NEW in 10.0.7
+        replayTiming = "BOSS", -- NEW in 10.1.5
         enableReplay = true, -- NEW in 10.1.5
     }
 
@@ -7354,6 +7356,16 @@ do
         -- [3] = "MDI",
     }
 
+    ---@alias ReplayFrameTiming "BOSS"|"DUNGEON"
+
+    ---@class ReplayFrameTimings
+    local ReplayFrameTimings = {
+        BOSS = "BOSS",
+        DUNGEON = "DUNGEON",
+        [1] = "BOSS",
+        [2] = "DUNGEON",
+    }
+
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
 
@@ -7478,6 +7490,16 @@ do
         return format("%s%s%s", prefix, text, suffix)
     end
 
+    ---@param delta number
+    ---@param comparisonDelta number
+    ---@param splitStyle? ReplaySplitStyle
+    local function SecondsToTimeTextCompared(delta, comparisonDelta, splitStyle)
+        local text = SecondsToTimeText(delta, splitStyle, true)
+        local ahead = delta - comparisonDelta <= 0
+        local color = ahead and "55FF55" or "FF5555"
+        return format("|cff%s%s|r", color, text)
+    end
+
     ---@param replayEvent ReplayEvent
     ---@return ReplayEventInfo replayEventInfo
     local function UnpackReplayEvent(replayEvent)
@@ -7525,12 +7547,13 @@ do
                 boss.combatStart = replayEventInfo.timer
             elseif boss.combat and not bossInfo.combat then
                 boss.combat = false
-                boss.combatStart = nil
             end
             boss.pulls = bossInfo.pulls
             if bossInfo.killed then
                 boss.dead = true
                 boss.combat = false
+                boss.killedStart = boss.combatStart or replayEventInfo.timer
+                boss.combatStart = nil
                 boss.killed = replayEventInfo.timer
                 local delta = ConvertMillisecondsToSeconds(replayEventInfo.timer)
                 boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
@@ -7580,15 +7603,16 @@ do
     end
 
     ---@class ReplayBoss
+    ---@field public encounter ReplayEncounter the replay encounter object related to this boss (dynamically assigned using `index` on call in the live boss objects - can return the empty object in those cases)
     ---@field public order number `1` sorting number based on the keystone run boss order (usually same as `index` but might be different and used when sorting)
     ---@field public index number `1` the index of the boss as seen in the replay
     ---@field public pulls number `1` the number of pulls that has been attempted
     ---@field public dead boolean indicates if the boss is dead
     ---@field public combat boolean indicates if the boss is engaged in combat
     ---@field public combatStart? number `time()` if in combat this contains the time when combat started
+    ---@field public killedStart? number `timerMS` when the boss was pulled for the kill
     ---@field public killed? number `timerMS` if dead this contains the timer when it happened
     ---@field public killedText? string `01:30` if dead this contains the timer as text
-    ---@field public encounter? ReplayEncounter the replay encounter object related to this boss
 
     ---@class ReplaySummary
     ---@field public level number `25` the level of the keystone
@@ -7608,6 +7632,7 @@ do
     local replayFrame
 
     ---@class BossFrame : Frame
+    ---@field public bossRows ReplayBossRow[]
     ---@field public Name FontString
     ---@field public InfoL FontString
     ---@field public InfoR FontString
@@ -7630,12 +7655,10 @@ do
 
         ---@param self BossFrame
         ---@param index number
-        ---@param liveBoss ReplayBoss
-        ---@param replayBoss ReplayBoss
-        function BossFrameMixin:Setup(index, liveBoss, replayBoss)
+        ---@param bossRows ReplayBossRow[]
+        function BossFrameMixin:Setup(bossRows, index)
+            self.bossRows = bossRows
             self.index = index
-            self.liveBoss = liveBoss
-            self.replayBoss = replayBoss
             self.Name:SetText(self.index)
             self.InfoL:SetText("")
             self.InfoR:SetText("")
@@ -7645,24 +7668,42 @@ do
 
         ---@param self BossFrame
         function BossFrameMixin:Update()
-            local liveBoss = self.liveBoss
-            local replayBoss = self.replayBoss
+            local liveBoss, replayBoss = self:GetBosses()
             local keystoneTimeMS = replayFrame:GetKeystoneTimeMS()
             local isLiveBossDead = liveBoss and liveBoss.dead
             local isReplayBossDead = replayBoss and replayBoss.killed and replayBoss.killed - keystoneTimeMS <= 0
-            -- TODO: feedback from Dratnos and Jah about splits (read more on Discord about how to change this code)
+            local timing = replayFrame:GetTiming()
             if isLiveBossDead then
-                local delta = ConvertMillisecondsToSeconds(replayBoss.killed - liveBoss.killed)
-                self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeText(delta, "PARENTHESIS"))
-            elseif liveBoss and liveBoss.combatStart then
+                local delta
+                local comparisonDelta
+                if timing == "BOSS" then
+                    delta = ConvertMillisecondsToSeconds(liveBoss.killed - liveBoss.killedStart)
+                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and replayBoss.killed - replayBoss.killedStart or 0)
+                else
+                    local prevLiveBoss = self:GetBosses(self.index - 1)
+                    delta = prevLiveBoss and prevLiveBoss.killed or 0
+                    delta = liveBoss.killed - delta
+                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and replayBoss.killed - delta or 0)
+                    delta = ConvertMillisecondsToSeconds(delta)
+                end
+                self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeTextCompared(delta, comparisonDelta, "PARENTHESIS"))
+            elseif liveBoss and liveBoss.combat then
                 local delta = ConvertMillisecondsToSeconds(keystoneTimeMS - liveBoss.combatStart)
                 self.InfoL:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
             else
                 self.InfoL:SetText("")
             end
             if isReplayBossDead then
-                self.InfoR:SetFormattedText("%s", replayBoss.killedText)
-            elseif replayBoss and replayBoss.combatStart then
+                local delta
+                if timing == "BOSS" then
+                    delta = ConvertMillisecondsToSeconds(replayBoss.killed - replayBoss.killedStart)
+                else
+                    local _, prevReplayBoss = self:GetBosses(self.index - 1)
+                    delta = prevReplayBoss and prevReplayBoss.killed or 0
+                    delta = ConvertMillisecondsToSeconds(replayBoss.killed - delta)
+                end
+                self.InfoR:SetFormattedText("%s\n%s", replayBoss.killedText, SecondsToTimeText(delta, "PARENTHESIS", true))
+            elseif replayBoss and replayBoss.combat then
                 local delta = ConvertMillisecondsToSeconds(keystoneTimeMS - replayBoss.combatStart)
                 self.InfoR:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
             else
@@ -7670,17 +7711,36 @@ do
             end
             self.CombatL:SetShown(liveBoss and liveBoss.combat)
             self.CombatR:SetShown(replayBoss and replayBoss.combat)
-            self.RouteSwap:SetShown(not not self:HasDifferentBosses())
+            self.RouteSwap:SetShown(not self.CombatR:IsShown() and (not not self:HasDifferentBosses()))
+        end
+
+        ---@param index number? Defaults to the current rows bosses.
+        ---@return ReplayBoss liveBoss, ReplayBoss replayBoss
+        function BossFrameMixin:GetBosses(index)
+            if not index then
+                index = self.index
+            end
+            local bossRow = self.bossRows[index]
+            if not bossRow then
+                return ---@diagnostic disable-line: missing-return-value
+            end
+            return bossRow.liveBoss, bossRow.replayBoss
         end
 
         function BossFrameMixin:HasDifferentBosses()
-            if not self.liveBoss or not self.replayBoss then
+            local liveBoss, replayBoss = self:GetBosses()
+            if not liveBoss or not replayBoss then
                 return
             end
-            if not self.liveBoss.killed then
+            if not liveBoss.killed then
                 return
             end
-            return self.liveBoss.encounter.journal_encounter_id ~= self.replayBoss.encounter.journal_encounter_id
+            local liveEncounter = liveBoss.encounter
+            local replayEncounter = replayBoss.encounter
+            if not liveEncounter or not replayEncounter then
+                return
+            end
+            return liveEncounter.journal_encounter_id ~= replayEncounter.journal_encounter_id
         end
 
         ---@param boss ReplayBoss
@@ -7697,8 +7757,9 @@ do
 
         ---@return number bossID, number? liveBossID, number? replayBossID
         function BossFrameMixin:GetBossID()
-            local liveBossID = GetBossID(self.liveBoss)
-            local replayBossID = GetBossID(self.replayBoss)
+            local liveBoss, replayBoss = self:GetBosses()
+            local liveBossID = GetBossID(liveBoss)
+            local replayBossID = GetBossID(replayBoss)
             return liveBossID or replayBossID or 0, liveBossID, replayBossID
         end
 
@@ -7980,19 +8041,27 @@ do
 
     do
 
+        ---@type ReplayEncounter
+        local FallbackMissingEncounter = {
+            ordinal = -1,
+            encounter_id = -1,
+            journal_encounter_id = -1,
+        }
+
         ---@param ordinal number
         ---@return ReplayEncounter? encounter
         local function GetEncounterFromReplayByBossOrdinal(ordinal)
             local replayDataProvider = replayFrame:GetReplayDataProvider()
             local replay = replayDataProvider:GetReplay()
             if not replay then
-                return
+                return FallbackMissingEncounter
             end
             for _, encounter in ipairs(replay.encounters) do
                 if encounter.ordinal == ordinal then
                     return encounter
                 end
             end
+            return FallbackMissingEncounter
         end
 
         local ReplayBossLiveMetatable = {
@@ -8082,13 +8151,14 @@ do
                                     boss.pulls = boss.pulls + 1
                                 elseif boss.combat and not combat then
                                     boss.combat = false
-                                    boss.combatStart = nil
                                 end
                             end
                             if completed and not boss.dead then
                                 boss.combat = false
                                 boss.pulls = max(1, boss.pulls)
                                 boss.dead = true
+                                boss.killedStart = boss.combatStart or liveSummary.timer
+                                boss.combatStart = nil
                                 boss.killed = liveSummary.timer
                                 local delta = ConvertMillisecondsToSeconds(liveSummary.timer)
                                 boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
@@ -8112,7 +8182,7 @@ do
 
     do
 
-        ---@alias ReplayFrameDropDownMenuList "replay"|"style"
+        ---@alias ReplayFrameDropDownMenuList "replay"|"style"|"timing"
 
         ---@class UIDropDownMenuTemplate : Frame
 
@@ -8165,6 +8235,8 @@ do
                 end
                 info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_REPLAY, true, "replay"
                 UIDropDownMenu_AddButton(info, level)
+                info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_TIMING, true, "timing"
+                UIDropDownMenu_AddButton(info, level)
                 info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_STYLE, true, "style"
                 UIDropDownMenu_AddButton(info, level)
                 info.text, info.hasArrow = CLOSE, nil
@@ -8191,6 +8263,16 @@ do
                         UIDropDownMenu_AddButton(info, level)
                     end
                 end
+            elseif menuList == "timing" then
+                local currentTiming = replayFrame:GetTiming()
+                info.func = parent.OnOptionClick
+                info.arg1 = parent
+                for _, timing in ipairs(ReplayFrameTimings) do
+                    info.checked = timing == currentTiming
+                    info.text = L[format("REPLAY_TIMING_TITLE_%s", timing)]
+                    info.arg2 = timing
+                    UIDropDownMenu_AddButton(info, level)
+                end
             elseif menuList == "style" then
                 local currentStyle = replayFrame:GetStyle()
                 info.func = parent.OnOptionClick
@@ -8209,8 +8291,13 @@ do
             local dropDownMenu = self.arg1
             local value = self.arg2 or self.value
             if value and type(value) == "string" then
-                local style = value ---@type ReplayFrameStyle
-                replayFrame:SetStyle(style, true)
+                if ReplayFrameStyles[value] then
+                    local style = value ---@type ReplayFrameStyle
+                    replayFrame:SetStyle(style, true)
+                elseif ReplayFrameTimings[value] then
+                    local timing = value ---@type ReplayFrameTiming
+                    replayFrame:SetTiming(timing, true)
+                end
             else
                 local replay = value ---@type Replay
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
@@ -8408,17 +8495,69 @@ do
             self:SetBarValue(0, 0, 100, true)
         end
 
+        ---@param bosses ReplayBoss[]
+        ---@param timer? number
+        ---@return number count
+        local function CountDeadBosses(bosses, timer)
+            local count = 0
+            for _, boss in ipairs(bosses) do
+                if timer and boss.killed and boss.killed <= timer then
+                    count = count + 1
+                elseif not timer and boss.dead then
+                    count = count + 1
+                end
+            end
+            return count
+        end
+
         ---@param boss1 ReplayBoss
         ---@param boss2 ReplayBoss
         local function SortBosses(boss1, boss2)
             local killed1 = boss1.killed or 0xffffffff
             local killed2 = boss2.killed or 0xffffffff
             if killed1 == killed2 then
-                local order1 = boss1.order or boss1.index
-                local order2 = boss2.order or boss2.index
-                return order1 < order2
+                return boss1.order < boss2.order
             end
             return killed1 < killed2
+        end
+
+        ---@class ReplayBossRow
+        ---@field public liveBoss ReplayBoss
+        ---@field public replayBoss ReplayBoss
+
+        ---@param liveBosses ReplayBoss[]
+        ---@param replayBosses ReplayBoss[]
+        ---@return ReplayBossRow[] bossRows
+        local function CreateBossRows(liveBosses, replayBosses)
+            local sortedLiveBosses = util:TableCopy(liveBosses)
+            local sortedReplayBosses = util:TableCopy(replayBosses)
+            table.sort(sortedReplayBosses, SortBosses)
+            local encounterOrder = {} ---@type table<ReplayEncounter, number>
+            for index, boss in ipairs(sortedReplayBosses) do
+                boss.order = index
+                local encounter = boss.encounter
+                if encounter then
+                    encounterOrder[encounter.journal_encounter_id] = index
+                end
+            end
+            for _, boss in ipairs(sortedLiveBosses) do
+                local encounter = boss.encounter
+                if encounter then
+                    boss.order = encounterOrder[encounter.journal_encounter_id] or 0
+                end
+            end
+            table.sort(sortedLiveBosses, SortBosses)
+            local bossRows = {} ---@type ReplayBossRow[]
+            local count = max(#sortedLiveBosses, #sortedReplayBosses)
+            for i = 1, count do
+                local liveBoss = sortedLiveBosses[i]
+                local replayBoss = sortedReplayBosses[i]
+                bossRows[i] = {
+                    liveBoss = liveBoss,
+                    replayBoss = replayBoss,
+                }
+            end
+            return bossRows
         end
 
         ---@alias ReplayFrameState
@@ -8663,6 +8802,28 @@ do
         ---@param style ReplayFrameStyle
         function ReplayFrameMixin:IsStyle(style)
             return self.style == style
+        end
+
+        ---@param timing ReplayFrameTiming
+        ---@param save? boolean
+        function ReplayFrameMixin:SetTiming(timing, save)
+            if not timing or not ReplayFrameTimings[timing] then
+                timing = config:GetDefault("replayTiming") ---@type ReplayFrameTiming
+            end
+            if save then
+                config:Set("replayTiming", timing)
+            end
+            self.timing = timing
+            self:UpdateShown()
+        end
+
+        function ReplayFrameMixin:GetTiming()
+            return self.timing
+        end
+
+        ---@param timing ReplayFrameTiming
+        function ReplayFrameMixin:IsTiming(timing)
+            return self.timing == timing
         end
 
         ---@param replayDataProvider ReplayDataProvider
@@ -9060,21 +9221,7 @@ do
                 self.bossesHeight = 0
                 return
             end
-            local sortedReplayBosses = util:TableCopy(replayBosses)
-            local sortedLiveBosses = util:TableCopy(liveBosses)
-            table.sort(sortedReplayBosses, SortBosses)
-            local encounterOrder = {} ---@type table<ReplayEncounter, number>
-            for index, boss in ipairs(sortedReplayBosses) do
-                if boss.encounter then
-                    encounterOrder[boss.encounter.journal_encounter_id] = index
-                end
-            end
-            for _, boss in ipairs(sortedLiveBosses) do
-                if boss.encounter then
-                    boss.order = encounterOrder[boss.encounter.journal_encounter_id]
-                end
-            end
-            table.sort(sortedLiveBosses, SortBosses)
+            local bossRows = CreateBossRows(liveBosses, replayBosses)
             local isDirty = forceUpdate
             if not isDirty then
                 if count ~= pool:GetNumActive() then
@@ -9084,10 +9231,10 @@ do
             if not isDirty then
                 for bossFrame in pool:EnumerateActive() do
                     local frameIndex = bossFrame.index
-                    local frameLiveBoss = bossFrame.liveBoss
-                    local frameReplayBoss = bossFrame.replayBoss
-                    local liveBoss = sortedLiveBosses[frameIndex]
-                    local replayBoss = sortedReplayBosses[frameIndex]
+                    local frameLiveBoss, frameReplayBoss = bossFrame:GetBosses()
+                    local bossRow = bossRows[frameIndex]
+                    local liveBoss = bossRow.liveBoss
+                    local replayBoss = bossRow.replayBoss
                     if (frameLiveBoss ~= liveBoss)
                     or (frameLiveBoss and not liveBoss)
                     or (not frameLiveBoss and liveBoss)
@@ -9116,19 +9263,20 @@ do
                 return
             end
             pool:ReleaseAll()
-            for index = 1, count do
-                local liveBoss = sortedLiveBosses[index]
-                local replayBoss = sortedReplayBosses[index]
+            for index, bossRow in ipairs(bossRows) do
+                local replayBoss = bossRow.replayBoss
                 if replayBoss then
+                    replayBoss.order = index
+                    local liveBoss = bossRow.liveBoss
                     if liveBoss then
                         liveBoss.order = index
                     end
-                    replayBoss.order = index
                     local bossFrame = pool:Acquire()
-                    bossFrame:Setup(index, liveBoss, replayBoss)
+                    bossFrame:Setup(bossRows, index)
                 end
             end
             self.bossesHeight = pool:UpdateLayout()
+            replay:SetCurrentReplayBossRows(bossRows)
         end
 
         ---@param liveBosses ReplayBoss[]
@@ -9137,10 +9285,8 @@ do
         ---@param isRunning? boolean
         function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer, isRunning)
             local style = self:GetStyle()
-            local liveCount = 0
-            local replayCount = 0
-            for _, boss in ipairs(liveBosses) do if boss.dead then liveCount = liveCount + 1 end end
-            for _, boss in ipairs(replayBosses) do if boss.killed and boss.killed <= timer then replayCount = replayCount + 1 end end
+            local liveCount = CountDeadBosses(liveBosses)
+            local replayCount = CountDeadBosses(replayBosses, timer)
             local totalCount = max(#liveBosses, #replayBosses)
             if style == "MODERN_COMPACT" or style == "MODERN" then
                 if isRunning then
@@ -9429,6 +9575,7 @@ do
         replayFrame:SetReplayDataProvider(CreateReplayDataProvider())
         replayFrame:SetLiveDataProvider(CreateLiveDataProvider())
         replayFrame:SetStyle(config:Get("replayStyle"))
+        replayFrame:SetTiming(config:Get("replayTiming"))
         OnSettingsChanged()
         callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")
         callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_SAVED")
@@ -9453,11 +9600,17 @@ do
     ---@field public dungeon_short_name string?
     ---@field public dungeon_name string?
 
+    ---@class PublicReplayBossRow
+    ---@field public liveBoss ReplayBoss
+    ---@field public replayBoss ReplayBoss
+
     local currentReplay ---@type Replay?
     local currentLiveSummary ---@type ReplaySummary?
     local currentReplaySummary ---@type ReplaySummary?
+    local currentBossRows ---@type ReplayBossRow[]?
     local publicLiveSummary ---@type PublicReplaySummary?
     local publicReplaySummary ---@type PublicReplaySummary?
+    local publicBossRows ---@type PublicReplayBossRow[]?
 
     ---@param publicSummary PublicReplaySummary?
     ---@param privateSummary ReplaySummary?
@@ -9484,6 +9637,22 @@ do
         return publicSummary
     end
 
+    ---@param publicBossRows PublicReplayBossRow[]?
+    ---@param privateBossRows ReplayBossRow[]?
+    local function UpdatePublicBossRows(publicBossRows, privateBossRows)
+        if not privateBossRows then
+            return
+        end
+        publicBossRows = util:TableCopy(privateBossRows)
+        for _, bossRow in ipairs(publicBossRows) do
+            bossRow.liveBoss = util:TableCopy(bossRow.liveBoss)
+            bossRow.replayBoss = util:TableCopy(bossRow.replayBoss)
+            bossRow.liveBoss.encounter = util:TableCopy(bossRow.liveBoss.encounter)
+            bossRow.replayBoss.encounter = util:TableCopy(bossRow.replayBoss.encounter)
+        end
+        return publicBossRows
+    end
+
     ---@param liveSummary ReplaySummary
     ---@param replaySummary ReplaySummary
     function replay:SetCurrentReplaySummary(keystoneReplay, liveSummary, replaySummary)
@@ -9492,11 +9661,17 @@ do
         currentReplaySummary = replaySummary
     end
 
-    ---@return PublicReplaySummary? liveSummary, PublicReplaySummary? replaySummary
+    ---@param bossRows ReplayBossRow[]
+    function replay:SetCurrentReplayBossRows(bossRows)
+        currentBossRows = bossRows
+    end
+
+    ---@return PublicReplaySummary? liveSummary, PublicReplaySummary? replaySummary, PublicReplayBossRow[]? bossRows
     function replay:GetCurrentReplaySummary()
         publicLiveSummary = UpdatePublicSummary(publicLiveSummary, currentLiveSummary)
         publicReplaySummary = UpdatePublicSummary(publicReplaySummary, currentReplaySummary)
-        return publicLiveSummary, publicReplaySummary
+        publicBossRows = UpdatePublicBossRows(publicBossRows, currentBossRows)
+        return publicLiveSummary, publicReplaySummary, publicBossRows
     end
 
 end

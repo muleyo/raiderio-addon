@@ -9509,6 +9509,7 @@ do
             replayFrame:SaveLiveSummary()
         elseif staging and not replayFrame:IsState("COMPLETED") then
             replayFrame:SetState("STAGING")
+            replayFrame:Reset()
         end
         -- finalize the UI by feeding the relevant methods their data and forcing an UI update
         replayFrame:SetTimer(timerID, elapsedTime, isActive)

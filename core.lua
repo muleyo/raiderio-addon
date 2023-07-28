@@ -7683,7 +7683,7 @@ do
                     local prevLiveBoss = self:GetBosses(self.index - 1)
                     delta = prevLiveBoss and prevLiveBoss.killed or 0
                     delta = liveBoss.killed - delta
-                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and replayBoss.killed - delta or 0)
+                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and delta - replayBoss.killed or 0)
                     delta = ConvertMillisecondsToSeconds(delta)
                 end
                 self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeTextCompared(delta, comparisonDelta, "PARENTHESIS"))
@@ -8930,7 +8930,7 @@ do
             local replayDataProvider = self:GetReplayDataProvider()
             local replay = replayDataProvider:GetReplay()
             if replay and self:IsState("STAGING") then
-                return replay.clear_time_ms/1000
+                return replay.clear_time_ms / 1000
             end
             local dungeon = replay and util:GetDungeonByID(replay.dungeon.id)
             local timeLimit = dungeon and dungeon.timers[#dungeon.timers] or self.timeLimit
@@ -8943,7 +8943,7 @@ do
             local replayDataProvider = self:GetReplayDataProvider()
             local replay = replayDataProvider:GetReplay()
             if replay and self:IsState("STAGING") then
-                return replay.clear_time_ms/1000
+                return replay.clear_time_ms / 1000
             end
             local timeLimit = self:GetCurrentTimeLimit()
             local timer = self.elapsedKeystoneTimer
@@ -8961,6 +8961,19 @@ do
         ---@return number timeMS
         function ReplayFrameMixin:GetKeystoneTimeMS(includePenalties)
             return self:GetKeystoneTime(includePenalties) * 1000
+        end
+
+        function ReplayFrameMixin:GetReplayTime()
+            return self:GetReplayTimeMS() / 1000
+        end
+
+        function ReplayFrameMixin:GetReplayTimeMS()
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if replay and self:IsState("COMPLETED") then
+                return replay.clear_time_ms
+            end
+            return self:GetKeystoneTimeMS()
         end
 
         ---@param mapID? number
@@ -9085,7 +9098,10 @@ do
         end
 
         function ReplayFrameMixin:Update()
-            if self:IsState("NONE") or self:IsState("COMPLETED") then
+            if self:IsState("NONE") then
+                return
+            elseif self:IsState("COMPLETED") then
+                self:UpdateAsCompleted()
                 return
             end
             local isRunning = self.isActive and self:IsState("PLAYING")
@@ -9115,6 +9131,35 @@ do
             replay:SetCurrentReplaySummary(_replay, liveSummary, replaySummary)
         end
 
+        function ReplayFrameMixin:UpdateAsCompleted()
+            if not self:IsState("COMPLETED") then
+                return
+            end
+            local replayDataProvider = self:GetReplayDataProvider()
+            local _replay = replayDataProvider:GetReplay()
+            if not _replay then
+                return
+            end
+            local liveDataProvider = self:GetLiveDataProvider()
+            local liveSummary = liveDataProvider:GetSummary()
+            local deathPenalty = liveDataProvider:GetDeathPenalty()
+            local deathPenaltyMS = deathPenalty * 1000
+            local keystoneTimeMS = self:GetKeystoneTimeMS()
+            local replayTimeMS = self:GetReplayTimeMS()
+            local replayCompletedTimer = replayTimeMS/1000
+            local replaySummary = replayDataProvider:GetReplaySummaryAt(replayTimeMS)
+            local liveDeathsDuringTimer, replayDeathsDuringTimer = self:GetCurrentDeaths()
+            local liveTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + liveDeathsDuringTimer * deathPenaltyMS)
+            local replayTimer = ConvertMillisecondsToSeconds(replayTimeMS + replayDeathsDuringTimer * deathPenaltyMS)
+            local totalTimer = ConvertMillisecondsToSeconds(keystoneTimeMS)
+            self:SetUITimer(liveTimer, replayTimer, totalTimer, false, true, replayCompletedTimer)
+            self:SetUITrash(liveSummary.trash, replaySummary.trash, _replay.dungeon.total_enemy_forces, true, replayCompletedTimer)
+            self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, true, replayCompletedTimer)
+            self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, keystoneTimeMS, true, replayTimeMS)
+            self:UpdateUIBossesCombat(false, false)
+            replay:SetCurrentReplaySummary(_replay, liveSummary, replaySummary)
+        end
+
         ---@param liveLevel number
         ---@param liveAffixes number[]
         ---@param replayLevel number
@@ -9139,10 +9184,11 @@ do
         ---@param totalTimer number
         ---@param replayIsCompleted boolean
         ---@param isRunning? boolean
-        function ReplayFrameMixin:SetUITimer(liveTimer, replayTimer, totalTimer, replayIsCompleted, isRunning)
+        ---@param replayCompletedTimer? number
+        function ReplayFrameMixin:SetUITimer(liveTimer, replayTimer, totalTimer, replayIsCompleted, isRunning, replayCompletedTimer)
             local liveClock = SecondsToTimeText(liveTimer, "NONE_COLORLESS")
-            local totalClock = SecondsToTimeText(totalTimer, "NONE_COLORLESS")
-            local replayClock = SecondsToTimeText(replayTimer, "NONE_COLORLESS")
+            local totalClock = SecondsToTimeText(replayCompletedTimer or totalTimer, "NONE_COLORLESS")
+            local replayClock = SecondsToTimeText(replayCompletedTimer or replayTimer, "NONE_COLORLESS")
             if self:IsStyle("MDI") then
                 self.MDI.TimerL:SetText(liveClock)
                 self.MDI.TimerR:SetText(totalClock)
@@ -9165,7 +9211,8 @@ do
         ---@param replayTrash number
         ---@param totalTrash number
         ---@param isRunning? boolean
-        function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash, isRunning)
+        ---@param replayCompletedTimer? number
+        function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash, isRunning, replayCompletedTimer)
             local livePctl = liveTrash / totalTrash * 100
             local replayPctl = replayTrash / totalTrash * 100
             if self:IsStyle("MDI") then
@@ -9185,7 +9232,8 @@ do
         ---@param replayDeaths number
         ---@param deathPenalty number
         ---@param isRunning? boolean
-        function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty, isRunning)
+        ---@param replayCompletedTimer? number
+        function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty, isRunning, replayCompletedTimer)
             local deltaDeaths = liveDeaths - replayDeaths
             local livePenalty = liveDeaths * deathPenalty
             local replayPenalty = replayDeaths * deathPenalty
@@ -9283,10 +9331,11 @@ do
         ---@param replayBosses ReplayBoss[]
         ---@param timer number
         ---@param isRunning? boolean
-        function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer, isRunning)
+        ---@param replayCompletedTimer? number
+        function ReplayFrameMixin:UpdateUIBosses(liveBosses, replayBosses, timer, isRunning, replayCompletedTimer)
             local style = self:GetStyle()
             local liveCount = CountDeadBosses(liveBosses)
-            local replayCount = CountDeadBosses(replayBosses, timer)
+            local replayCount = CountDeadBosses(replayBosses, replayCompletedTimer or timer)
             local totalCount = max(#liveBosses, #replayBosses)
             if style == "MODERN_COMPACT" or style == "MODERN" then
                 if isRunning then
@@ -9506,6 +9555,7 @@ do
             replayFrame:SetState("PLAYING")
         elseif replayFrame.isActive and replayFrame:IsState("PLAYING") then
             replayFrame:SetState("COMPLETED")
+            replayFrame:UpdateAsCompleted()
             replayFrame:SaveLiveSummary()
         elseif staging and not replayFrame:IsState("COMPLETED") then
             replayFrame:SetState("STAGING")

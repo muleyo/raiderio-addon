@@ -7667,11 +7667,12 @@ do
         end
 
         ---@param self BossFrame
-        function BossFrameMixin:Update()
+        ---@param replayCompletedTimer? number
+        function BossFrameMixin:Update(replayCompletedTimer)
             local liveBoss, replayBoss = self:GetBosses()
-            local keystoneTimeMS = replayFrame:GetKeystoneTimeMS()
+            local timerMS = replayCompletedTimer or replayFrame:GetKeystoneTimeMS()
             local isLiveBossDead = liveBoss and liveBoss.dead
-            local isReplayBossDead = replayBoss and replayBoss.killed and replayBoss.killed - keystoneTimeMS <= 0
+            local isReplayBossDead = replayBoss and replayBoss.killed and replayBoss.killed - timerMS <= 0
             local timing = replayFrame:GetTiming()
             if isLiveBossDead then
                 local delta
@@ -7688,7 +7689,7 @@ do
                 end
                 self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeTextCompared(delta, comparisonDelta, "PARENTHESIS"))
             elseif liveBoss and liveBoss.combat then
-                local delta = ConvertMillisecondsToSeconds(keystoneTimeMS - liveBoss.combatStart)
+                local delta = ConvertMillisecondsToSeconds(timerMS - liveBoss.combatStart)
                 self.InfoL:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
             else
                 self.InfoL:SetText("")
@@ -7704,7 +7705,7 @@ do
                 end
                 self.InfoR:SetFormattedText("%s\n%s", replayBoss.killedText, SecondsToTimeText(delta, "PARENTHESIS", true))
             elseif replayBoss and replayBoss.combat then
-                local delta = ConvertMillisecondsToSeconds(keystoneTimeMS - replayBoss.combatStart)
+                local delta = ConvertMillisecondsToSeconds(timerMS - replayBoss.combatStart)
                 self.InfoR:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
             else
                 self.InfoR:SetText("")
@@ -8958,7 +8959,7 @@ do
         end
 
         ---@param includePenalties? boolean
-        ---@return number timeMS
+        ---@return number timerMS
         function ReplayFrameMixin:GetKeystoneTimeMS(includePenalties)
             return self:GetKeystoneTime(includePenalties) * 1000
         end
@@ -9351,7 +9352,7 @@ do
             if style == "MODERN" then
                 local pool = self.BossFramePool
                 for bossFrame in pool:EnumerateActive() do
-                    bossFrame:Update()
+                    bossFrame:Update(replayCompletedTimer)
                 end
             end
         end

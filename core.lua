@@ -7450,6 +7450,15 @@ do
     ---@type table<number, boolean>
     local ActiveEncounters = {}
 
+    ---@param ... FontString
+    local function SetupAutoScalingFontStringMixin(...)
+        local temp = {...}
+        for _, fontString in ipairs(temp) do
+            Mixin(fontString, AutoScalingFontStringMixin)
+            fontString.minLineHeight = 1
+        end
+    end
+
     ---@param ms number
     ---@return number roundedSeconds
     local function ConvertMillisecondsToSeconds(ms)
@@ -7837,9 +7846,7 @@ do
         obj:HookScript("OnEnter", obj.OnEnter)
         obj:HookScript("OnLeave", obj.OnLeave)
         obj:SetMouseClickEnabled(false)
-        Mixin(obj.Name, AutoScalingFontStringMixin)
-        Mixin(obj.InfoL, AutoScalingFontStringMixin)
-        Mixin(obj.InfoR, AutoScalingFontStringMixin)
+        SetupAutoScalingFontStringMixin(obj.Name, obj.InfoL, obj.InfoR)
     end
 
     ---@param self BossFramePool
@@ -8648,9 +8655,7 @@ do
                 RF:SetPoint("TOPLEFT", MF, "TOPRIGHT", 0, 0)
                 RF:SetJustifyH("LEFT")
                 RF:SetJustifyV("MIDDLE")
-                Mixin(LF, AutoScalingFontStringMixin)
-                Mixin(MF, AutoScalingFontStringMixin)
-                Mixin(RF, AutoScalingFontStringMixin)
+                SetupAutoScalingFontStringMixin(LF, MF, RF)
                 return LF, MF, RF
             end
 
@@ -8717,8 +8722,7 @@ do
                 RF:SetPoint("TOPLEFT", LF, "TOPRIGHT", self.edgePaddingMDI + middlePadding, 0)
                 RF:SetJustifyH("LEFT")
                 RF:SetJustifyV("MIDDLE")
-                Mixin(LF, AutoScalingFontStringMixin)
-                Mixin(RF, AutoScalingFontStringMixin)
+                SetupAutoScalingFontStringMixin(LF, RF)
                 return LF, RF
             end
 

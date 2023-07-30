@@ -7495,7 +7495,7 @@ do
     ---@param splitStyle? ReplaySplitStyle
     local function SecondsToTimeTextCompared(delta, comparisonDelta, splitStyle)
         local text = SecondsToTimeText(delta, splitStyle, true)
-        local ahead = delta - comparisonDelta <= 0
+        local ahead = delta <= comparisonDelta
         local color = ahead and "55FF55" or "FF5555"
         return format("|cff%s%s|r", color, text)
     end
@@ -7684,7 +7684,7 @@ do
                     local prevLiveBoss = self:GetBosses(self.index - 1)
                     delta = prevLiveBoss and prevLiveBoss.killed or 0
                     delta = liveBoss.killed - delta
-                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and delta - replayBoss.killed or 0)
+                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and replayBoss.killed or 0)
                     delta = ConvertMillisecondsToSeconds(delta)
                 end
                 self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeTextCompared(delta, comparisonDelta, "PARENTHESIS"))
@@ -9004,6 +9004,33 @@ do
             self:UpdateShown()
         end
 
+        ---@param forceTimer? number
+        function ReplayFrameMixin:StartDebug(forceTimer)
+            if not config:Get("debugMode") then
+                return
+            end
+            self:Reset()
+            self.isActive = true
+            if forceTimer then
+                self.elapsedTimer = forceTimer
+                self:SetKeystoneTime(forceTimer)
+            end
+            local replayDataProvider = self:GetReplayDataProvider()
+            replayDataProvider:SetupSummary()
+            local timerMS = self:GetKeystoneTimeMS()
+            replayDataProvider:GetReplaySummaryAt(timerMS)
+            self:SetState("PLAYING")
+            self:Update()
+        end
+
+        function ReplayFrameMixin:StopDebug()
+            if not config:Get("debugMode") then
+                return
+            end
+            self:SetState("COMPLETED")
+            self:Update()
+        end
+
         ---@param state ReplayFrameState
         function ReplayFrameMixin:SetState(state)
             self.state = state
@@ -9401,9 +9428,9 @@ do
                 return timerID, elapsedTime, not stopTimer or stopTimerID ~= timerID
             end
         end
-        if config:Get("debugMode") then
-            return 1, 0, true
-        end
+        -- if config:Get("debugMode") then
+        --     return 1, 0, true
+        -- end
     end
 
     ---@return number? mapID, number? timeLimit
@@ -9451,11 +9478,11 @@ do
                 end
             end
         end
-        if not mapID and config:Get("debugMode") then
-            local dungeons = ns:GetDungeonData()
-            local dungeon = dungeons[1]
-            mapID, timeLimit = dungeon.instance_map_id, dungeon.timers[3]
-        end
+        -- if not mapID and config:Get("debugMode") then
+        --     local dungeons = ns:GetDungeonData()
+        --     local dungeon = dungeons[1]
+        --     mapID, timeLimit = dungeon.instance_map_id, dungeon.timers[3]
+        -- end
         return mapID, timeLimit, mapIDs
     end
 
@@ -9503,9 +9530,9 @@ do
                 end
             end
         end
-        if config:Get("debugMode") then
-            return replays[1]
-        end
+        -- if config:Get("debugMode") then
+        --     return replays[1]
+        -- end
     end
 
     ---@param event? WowEvent

@@ -15,6 +15,7 @@
         "AutoComplete_Update",
         "AutoCompleteBox",
         "AutoCompleteEditBox_SetAutoCompleteSource",
+        "AutoScalingFontStringMixin",
         "BACKDROP_DIALOG_32_32",
         "BACKDROP_TUTORIAL_16_16",
         "ButtonFrameTemplate_HidePortrait",

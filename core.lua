@@ -6345,6 +6345,7 @@ do
         frame:RegisterForDrag("LeftButton")
         frame:SetScript("OnDragStart", OnDragStart)
         frame:SetScript("OnDragStop", OnDragStop)
+        hooksecurefunc("ToggleGameMenu", function() OnDragStop(frame) end)
         frame:SetSize(16, 16)
         frame.Indicator = frame:CreateTexture(nil, "BACKGROUND")
         frame.Indicator:SetAllPoints()
@@ -7836,6 +7837,9 @@ do
         obj:HookScript("OnEnter", obj.OnEnter)
         obj:HookScript("OnLeave", obj.OnLeave)
         obj:SetMouseClickEnabled(false)
+        Mixin(obj.Name, AutoScalingFontStringMixin)
+        Mixin(obj.InfoL, AutoScalingFontStringMixin)
+        Mixin(obj.InfoR, AutoScalingFontStringMixin)
     end
 
     ---@param self BossFramePool
@@ -8597,6 +8601,7 @@ do
             self:RegisterForDrag("LeftButton")
             self:SetScript("OnDragStart", self.StartMoving)
             self:SetScript("OnDragStop", self.StopMovingOrSizing)
+            hooksecurefunc("ToggleGameMenu", function() self:StopMovingOrSizing() end)
 
             self.ConfigButton = CreateReplayFrameConfigButton(self)
 
@@ -8643,6 +8648,9 @@ do
                 RF:SetPoint("TOPLEFT", MF, "TOPRIGHT", 0, 0)
                 RF:SetJustifyH("LEFT")
                 RF:SetJustifyV("MIDDLE")
+                Mixin(LF, AutoScalingFontStringMixin)
+                Mixin(MF, AutoScalingFontStringMixin)
+                Mixin(RF, AutoScalingFontStringMixin)
                 return LF, MF, RF
             end
 
@@ -8709,6 +8717,8 @@ do
                 RF:SetPoint("TOPLEFT", LF, "TOPRIGHT", self.edgePaddingMDI + middlePadding, 0)
                 RF:SetJustifyH("LEFT")
                 RF:SetJustifyV("MIDDLE")
+                Mixin(LF, AutoScalingFontStringMixin)
+                Mixin(RF, AutoScalingFontStringMixin)
                 return LF, RF
             end
 
@@ -10023,6 +10033,7 @@ do
             Frame:SetClampedToScreen(true)
             Frame:SetScript("OnDragStart", function() Frame:StartMoving() end)
             Frame:SetScript("OnDragStop", function() Frame:StopMovingOrSizing() end)
+            hooksecurefunc("ToggleGameMenu", function() Frame:StopMovingOrSizing() end)
             Frame:SetScript("OnShow", function() search:ShowProfile(regionBox:GetText(), realmBox:GetText(), nameBox:GetText()) end)
             Frame:SetScript("OnHide", function() search:ShowProfile() end)
             Frame.close = CreateFrame("Button", nil, Frame, "UIPanelCloseButtonNoScripts") ---@diagnostic disable-line: param-type-mismatch
@@ -11013,8 +11024,7 @@ do
         frame.MiniFrame:EnableMouse(true)
         frame.MiniFrame:SetMovable(true)
         frame.MiniFrame:RegisterForDrag("LeftButton")
-        frame.MiniFrame:SetScript("OnDragStart", frame.MiniFrame.StartMoving)
-        frame.MiniFrame:SetScript("OnDragStop", function(self)
+        local function OnDragStop(self)
             self:StopMovingOrSizing()
             local point, _, _, x, y = self:GetPoint() -- TODO: improve this to store a corner so that when the tip is resized the corner is the anchor point and not the center as that makes it very wobbly and unpleasant to look at
             local miniPoint = config:Get("rwfMiniPoint") ---@type ConfigProfilePoint
@@ -11023,7 +11033,10 @@ do
             if self.arrow1 then
                 self:UpdateArrow()
             end
-        end)
+        end
+        frame.MiniFrame:SetScript("OnDragStart", frame.MiniFrame.StartMoving)
+        frame.MiniFrame:SetScript("OnDragStop", OnDragStop)
+        hooksecurefunc("ToggleGameMenu", function() OnDragStop(frame.MiniFrame) end)
         frame.MiniFrame.Text:SetPoint("TOP", frame.MiniFrame, "BOTTOM", 0, -5)
         frame.MiniFrame:SetDisabledFontObject(GameFontHighlightHuge)
         frame.MiniFrame:SetHighlightFontObject(GameFontHighlightHuge)
@@ -12052,10 +12065,11 @@ do
                 configParentFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.8) ---@diagnostic disable-line: param-type-mismatch
             end
 
+            configParentFrame:SetScript("OnEvent", ConfigFrame_OnEvent)
             configParentFrame:SetScript("OnShow", ConfigFrame_OnShow)
             configParentFrame:SetScript("OnDragStart", ConfigFrame_OnDragStart)
             configParentFrame:SetScript("OnDragStop", ConfigFrame_OnDragStop)
-            configParentFrame:SetScript("OnEvent", ConfigFrame_OnEvent)
+            hooksecurefunc("ToggleGameMenu", function() ConfigFrame_OnDragStop(configParentFrame) end)
 
             configParentFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
             configParentFrame:RegisterEvent("PLAYER_REGEN_DISABLED")

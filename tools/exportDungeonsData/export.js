@@ -1,51 +1,98 @@
+const path = require('node:path');
+const fs = require('node:fs/promises');
 const fetch = require('node-fetch');
 const csv = require('fast-csv');
 
+// https://github.com/Vladinator/wow-dbc-archive/blob/release/wow_latest/displayseason.csv
+// https://wago.tools/db2/DisplaySeason
 // https://wow.tools/dbc/?dbc=displayseason
+
 const config = {
-    build: '9.2.7.45338',
-    expansion: 8,
-    season: 8,
-    // manually specify the activity id's for these particular keystone instances
+    download: false,
+    build: '10.1.5.50469',
+    expansion: 9,
+    season: 10,
+    // manually specify certain fields for these particular keystone instances
     keystoneInstanceOverride: {
+        [2]: { // Temple of the Jade Serpent
+            id: 5965,
+        },
+        [165]: { // Shadowmoon Burial Grounds
+            id: 6932,
+            lfd_activity_ids: [27, 35, 185, 407, 1193],
+        },
+        [200]: { // Halls of Valor
+            id: 7672,
+            shortName: 'HOV',
+        },
+        [210]: { // Court of Stars
+            id: 8079,
+            shortName: 'COS',
+        },
         [227]: { // Return to Karazhan: Lower
-            lfd_activity_ids: [ 470, 471 ],
+            lfd_activity_ids: [470, 471],
             name: 'Return to Karazhan: Lower',
             shortName: 'LOWR',
         },
         [234]: { // Return to Karazhan: Upper
-            lfd_activity_ids: [ 472, 473 ],
+            lfd_activity_ids: [472, 473],
             name: 'Return to Karazhan: Upper',
             shortName: 'UPPR',
         },
         [369]: { // Operation: Mechagon - Junkyard
-            lfd_activity_ids: [ 679, 682 ],
+            lfd_activity_ids: [679, 682],
             name: 'Mechagon Junkyard',
             shortName: 'YARD',
         },
         [370]: { // Operation: Mechagon - Workshop
-            lfd_activity_ids: [ 683, 684 ],
+            lfd_activity_ids: [683, 684],
             name: 'Mechagon Workshop',
             shortName: 'WORK',
         },
         [391]: { // Tazavesh: Streets of Wonder
-            lfd_activity_ids: [ 1016, 1018 ],
+            lfd_activity_ids: [1016, 1018],
             shortName: 'STRT',
         },
         [392]: { // Tazavesh: So'leah's Gambit
-            lfd_activity_ids: [ 1017, 1019 ],
+            lfd_activity_ids: [1017, 1019],
             shortName: 'GMBT',
+        },
+        [399]: { // Ruby Life Pools
+            id: 14063,
+        },
+        [400]: { // The Nokhud Offensive
+            id: 13982,
+            shortName: 'NO',
+        },
+        [401]: { // The Azure Vault
+            id: 13954,
+            shortName: 'AV',
+        },
+        [402]: { // Algeth'ar Academy
+            id: 14032,
+        },
+    },
+    // same as above, only by using the instance_map_id property
+    instanceOverride: {
+        [2522]: { // Vault of the Incarnates
+            id: 14030,
+            shortName: 'VOTI',
+        },
+        [2569]: { // Aberrus, the Shadowed Crucible
+            id: 14663,
+            shortName: 'ATSC',
         },
     },
 };
 
-// Object.assign(config, { build: '10.0.0.45454', expansion: 9, season: 9 }); // DEBUG
-// Object.assign(config, { build: '10.0.2.45505', expansion: 9, season: 9 }); // DEBUG
-
 (async () => {
 
-    if (!/^\d+\.\d+\.\d+\.\d+$/.test(config.build) || typeof config.expansion !== 'number') return console.error('Missing valid build and/or expansion id.');
-    console.info(`Downloading data for game version ${config.build} and expansion ${config.expansion}`);
+    if (config.download) {
+        if (!/^\d+\.\d+\.\d+\.\d+$/.test(config.build) || typeof config.expansion !== 'number') return console.error('Missing valid build and/or expansion id.');
+        console.info(`Downloading data for game version ${config.build} and expansion ${config.expansion} ...`);
+    } else {
+        console.info('Using cached db data ...');
+    }
 
     const seasonFiles = [
         {
@@ -128,7 +175,7 @@ const config = {
                     continue;
                 }
                 if (!Array.isArray(oldVal)) {
-                    oldVal = oldItem[key] = [ oldVal ];
+                    oldVal = oldItem[key] = [oldVal];
                 }
                 if (oldVal.indexOf(newVal) < 0) {
                     oldVal.push(newVal);
@@ -143,13 +190,17 @@ const config = {
 
         for (const file of files) {
 
-            const request = await fetch(`https://wow.tools/dbc/api/export/?name=${file.name}&build=${config.build}`, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-            });
+            let text;
 
-            const text = await request.text();
+            if (config.download) {
+                const request = await fetch(`https://wow.tools/dbc/api/export/?name=${file.name}&build=${config.build}`, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+                });
+                text = await request.text();
+            } else {
+                const filePath = `${path.join(__dirname, 'db', file.name)}.csv`;
+                text = await fs.readFile(filePath);
+            }
 
             file.rows = await parseCsv(text);
 
@@ -170,7 +221,7 @@ const config = {
                         oldVal = temp[key] = newVal;
                     } else {
                         if (!Array.isArray(oldVal)) {
-                            oldVal = temp[key] = [ oldVal ];
+                            oldVal = temp[key] = [oldVal];
                         }
                         if (oldVal.indexOf(newVal) < 0) {
                             oldVal.push(newVal);
@@ -311,11 +362,11 @@ const config = {
 
     dungeons.forEach(dungeon => {
         const timerInfo = getTimerInfoForDungeon(dungeon);
-        dungeon.timers = timerInfo ? [ timerInfo.goldTimer, timerInfo.silverTimer, timerInfo.bronzeTimer ] : [];
+        dungeon.timers = timerInfo ? [timerInfo.goldTimer, timerInfo.silverTimer, timerInfo.bronzeTimer] : [];
     });
 
     dungeons.forEach(dungeon => {
-        const overrideData = config.keystoneInstanceOverride[dungeon.keystone_instance];
+        const overrideData = config.keystoneInstanceOverride[dungeon.keystone_instance] || config.instanceOverride[dungeon.instance_map_id];
         if (!overrideData)
             return;
         for (const key in overrideData)

@@ -7694,7 +7694,7 @@ do
                     local prevLiveBoss = self:GetBosses(self.index - 1)
                     delta = prevLiveBoss and prevLiveBoss.killed or 0
                     delta = liveBoss.killed - delta
-                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and replayBoss.killed or 0)
+                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and replayBoss.killed - liveBoss.killed or 0)
                     delta = ConvertMillisecondsToSeconds(delta)
                 end
                 self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeTextCompared(delta, comparisonDelta, "PARENTHESIS"))
@@ -9019,8 +9019,14 @@ do
         end
 
         ---@param forceTimer? number
-        function ReplayFrameMixin:StartDebug(forceTimer)
+        ---@param killBosses? boolean
+        function ReplayFrameMixin:StartDebug(forceTimer, killBosses)
             if not config:Get("debugMode") then
+                return
+            end
+            local replayDataProvider = self:GetReplayDataProvider()
+            local replay = replayDataProvider:GetReplay()
+            if not replay then
                 return
             end
             self:Reset()
@@ -9029,12 +9035,42 @@ do
                 self.elapsedTimer = forceTimer
                 self:SetKeystoneTime(forceTimer)
             end
-            local replayDataProvider = self:GetReplayDataProvider()
-            replayDataProvider:SetupSummary()
             local timerMS = self:GetKeystoneTimeMS()
+            replayDataProvider:SetupSummary()
             replayDataProvider:GetReplaySummaryAt(timerMS)
+            if killBosses then
+                local liveDataProvider = self:GetLiveDataProvider()
+                local liveSummary = liveDataProvider:GetSummary()
+                for i = 1, #replay.encounters do
+                    local encounter = replay.encounters[i]
+                    local boss = liveSummary.bosses[i]
+                    if not boss then
+                        ---@type ReplayBoss
+                        boss = {} ---@diagnostic disable-line: missing-fields
+                        boss.encounter = encounter
+                        boss.index = i
+                        boss.order = encounter.ordinal + 1
+                        boss.combat = false
+                        boss.pulls = 0
+                        boss.dead = false
+                        liveSummary.bosses[i] = boss
+                    end
+                    if not boss.dead then
+                        boss.combat = false
+                        boss.pulls = max(1, boss.pulls)
+                        boss.dead = true
+                        boss.killedStart = max(0, timerMS - ((5 - i) * 60000))
+                        boss.combatStart = nil
+                        boss.killed = boss.killedStart + random(10000, 60000)
+                        local delta = ConvertMillisecondsToSeconds(boss.killed)
+                        boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
+                    end
+                end
+            end
             self:SetState("PLAYING")
             self:Update()
+            C_Timer.After(0.25, function() self:UpdateShown() end)
+            C_Timer.After(0.50, function() self:UpdateShown() end)
         end
 
         function ReplayFrameMixin:StopDebug()

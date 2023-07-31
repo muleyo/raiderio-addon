@@ -9223,15 +9223,15 @@ do
             local deathPenaltyMS = deathPenalty * 1000
             local keystoneTimeMS = self:GetKeystoneTimeMS()
             local replayTimeMS = self:GetReplayTimeMS()
-            local replayCompletedTimer = replayTimeMS/1000
+            local replayCompletedTimer = ConvertMillisecondsToSeconds(replayTimeMS)
             local replaySummary = replayDataProvider:GetReplaySummaryAt(replayTimeMS)
             local liveDeathsDuringTimer, replayDeathsDuringTimer = self:GetCurrentDeaths()
             local liveTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + liveDeathsDuringTimer * deathPenaltyMS)
             local replayTimer = ConvertMillisecondsToSeconds(replayTimeMS + replayDeathsDuringTimer * deathPenaltyMS)
             local totalTimer = ConvertMillisecondsToSeconds(keystoneTimeMS)
             self:SetUITimer(liveTimer, replayTimer, totalTimer, false, true, replayCompletedTimer)
-            self:SetUITrash(liveSummary.trash, replaySummary.trash, _replay.dungeon.total_enemy_forces, true, replayCompletedTimer)
-            self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, true, replayCompletedTimer)
+            self:SetUITrash(liveSummary.trash, replaySummary.trash, _replay.dungeon.total_enemy_forces, true)
+            self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, true)
             self:UpdateUIBosses(liveSummary.bosses, replaySummary.bosses, keystoneTimeMS, true, replayTimeMS)
             self:UpdateUIBossesCombat(false, false)
             replay:SetCurrentReplaySummary(_replay, liveSummary, replaySummary)
@@ -9272,7 +9272,7 @@ do
                 return
             end
             if isRunning then
-                local delta = replayIsCompleted and 1 or (liveTimer - replayTimer)
+                local delta = replayIsCompleted and 1 or (liveTimer - (replayCompletedTimer or replayTimer))
                 self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta, true), liveClock)
             else
                 self.TextBlock.TimerL:SetText("")
@@ -9288,8 +9288,7 @@ do
         ---@param replayTrash number
         ---@param totalTrash number
         ---@param isRunning? boolean
-        ---@param replayCompletedTimer? number
-        function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash, isRunning, replayCompletedTimer)
+        function ReplayFrameMixin:SetUITrash(liveTrash, replayTrash, totalTrash, isRunning)
             local livePctl = liveTrash / totalTrash * 100
             local replayPctl = replayTrash / totalTrash * 100
             if self:IsStyle("MDI") then
@@ -9309,8 +9308,7 @@ do
         ---@param replayDeaths number
         ---@param deathPenalty number
         ---@param isRunning? boolean
-        ---@param replayCompletedTimer? number
-        function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty, isRunning, replayCompletedTimer)
+        function ReplayFrameMixin:SetUIDeaths(liveDeaths, replayDeaths, deathPenalty, isRunning)
             local deltaDeaths = liveDeaths - replayDeaths
             local livePenalty = liveDeaths * deathPenalty
             local replayPenalty = replayDeaths * deathPenalty

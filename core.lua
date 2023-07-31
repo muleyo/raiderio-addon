@@ -7691,11 +7691,9 @@ do
                     delta = ConvertMillisecondsToSeconds(liveBoss.killed - liveBoss.killedStart)
                     comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and replayBoss.killed - replayBoss.killedStart or 0)
                 else
-                    local prevLiveBoss = self:GetBosses(self.index - 1)
-                    delta = prevLiveBoss and prevLiveBoss.killed or 0
-                    delta = liveBoss.killed - delta
-                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and replayBoss.killed - liveBoss.killed or 0)
-                    delta = ConvertMillisecondsToSeconds(delta)
+                    local prevLiveBoss, prevReplayBoss = self:GetBosses(self.index - 1)
+                    delta = ConvertMillisecondsToSeconds(liveBoss.killed - (prevLiveBoss and prevLiveBoss.killed or 0))
+                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss.killed - (prevReplayBoss and prevReplayBoss.killed or 0))
                 end
                 self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeTextCompared(delta, comparisonDelta, "PARENTHESIS"))
             elseif liveBoss and liveBoss.combat then
@@ -9041,7 +9039,8 @@ do
             if killBosses then
                 local liveDataProvider = self:GetLiveDataProvider()
                 local liveSummary = liveDataProvider:GetSummary()
-                for i = 1, #replay.encounters do
+                local count = #replay.encounters
+                for i = 1, count do
                     local encounter = replay.encounters[i]
                     local boss = liveSummary.bosses[i]
                     if not boss then
@@ -9059,9 +9058,9 @@ do
                         boss.combat = false
                         boss.pulls = max(1, boss.pulls)
                         boss.dead = true
-                        boss.killedStart = max(0, timerMS - ((5 - i) * 60000))
+                        boss.killedStart = max(0, timerMS - ((count - i) * 240000))
                         boss.combatStart = nil
-                        boss.killed = boss.killedStart + random(10000, 60000)
+                        boss.killed = boss.killedStart + (30000 * random(1, 20))
                         local delta = ConvertMillisecondsToSeconds(boss.killed)
                         boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
                     end

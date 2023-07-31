@@ -1093,6 +1093,7 @@ do
     ---@field public mplusHeadlineMode HeadlineMode Defaults to `ns.HEADLINE_MODE.BEST_SEASON` (`1`)
     ---@field public replayStyle ReplayFrameStyle Defaults to `MODERN`
     ---@field public replayTiming ReplayFrameTiming Defaults to `BOSS`
+    ---@field public profilePoint ConfigProfilePoint Defaults to `{ point = nil, x = 0, y = 0 }`
 
     -- fallback saved variables
     ---@class FallbackConfig
@@ -1137,6 +1138,8 @@ do
         replayStyle = "MODERN", -- NEW in 10.0.7
         replayTiming = "BOSS", -- NEW in 10.1.5
         enableReplay = true, -- NEW in 10.1.5
+        lockReplay = true, -- NEW in 10.1.5
+        replayPoint = { point = nil, x = 0, y = 0 }, -- NEW in 10.1.5
     }
 
     -- fallback metatable looks up missing keys into the fallback config table
@@ -8192,7 +8195,7 @@ do
 
     do
 
-        ---@alias ReplayFrameDropDownMenuList "replay"|"style"|"timing"
+        ---@alias ReplayFrameDropDownMenuList "replay"|"style"|"timing"|"position"
 
         ---@class UIDropDownMenuTemplate : Frame
 
@@ -8249,6 +8252,8 @@ do
                 UIDropDownMenu_AddButton(info, level)
                 info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_STYLE, true, "style"
                 UIDropDownMenu_AddButton(info, level)
+                info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_POSITION, true, "position"
+                UIDropDownMenu_AddButton(info, level)
                 info.text, info.hasArrow = CLOSE, nil
                 UIDropDownMenu_AddButton(info)
             elseif menuList == "replay" then
@@ -8293,13 +8298,28 @@ do
                     info.arg2 = style
                     UIDropDownMenu_AddButton(info, level)
                 end
+            elseif menuList == "position" then
+                info.hasArrow = false
+                info.tooltipOnButton = true
+                info.func = parent.OnPositionClick
+                info.arg1 = parent
+                info.text = L.REPLAY_MENU_LOCK
+                info.checked = config:Get("lockReplay")
+                info.arg2 = true
+                info.tooltipTitle = L.REPLAY_MENU_LOCK_DESC
+                UIDropDownMenu_AddButton(info, level)
+                info.text = L.REPLAY_MENU_UNLOCK
+                info.checked = not config:Get("lockReplay")
+                info.arg2 = false
+                info.tooltipTitle = L.REPLAY_MENU_UNLOCK_DESC
+                UIDropDownMenu_AddButton(info, level)
             end
         end
 
         ---@param self UIDropDownMenuInfo
         function ReplayFrameConfigButtonMixin:OnOptionClick()
             local dropDownMenu = self.arg1
-            local value = self.arg2 or self.value
+            local value = self.arg2 ---@type ReplayFrameStyle|ReplayFrameTiming
             if value and type(value) == "string" then
                 if ReplayFrameStyles[value] then
                     local style = value ---@type ReplayFrameStyle
@@ -8319,8 +8339,17 @@ do
         ---@param self UIDropDownMenuInfo
         function ReplayFrameConfigButtonMixin:OnCopyReplayUrlClick()
             local dropDownMenu = self.arg1
-            local value = self.arg2 or self.value ---@type Replay
+            local value = self.arg2 ---@type Replay
             util:ShowCopyRaiderIOReplayPopup(value.title, value.run_url)
+            dropDownMenu:Close()
+        end
+
+        ---@param self UIDropDownMenuInfo
+        function ReplayFrameConfigButtonMixin:OnPositionClick()
+            local dropDownMenu = self.arg1
+            local lock = self.arg2 ---@type boolean
+            config:Set("lockReplay", lock)
+            replayFrame:UpdatePosition()
             dropDownMenu:Close()
         end
 
@@ -8604,9 +8633,10 @@ do
             self:EnableMouse(true)
             self:SetMovable(true)
             self:RegisterForDrag("LeftButton")
-            self:SetScript("OnDragStart", self.StartMoving)
-            self:SetScript("OnDragStop", self.StopMovingOrSizing)
-            hooksecurefunc("ToggleGameMenu", function() self:StopMovingOrSizing() end)
+            self:SetScript("OnDragStart", function() self:StartMoving() self.isMoving = true end)
+            local function OnDragStop() self:StopMovingOrSizing() self:UpdatePosition(self.isMoving) self.isMoving = false end
+            self:SetScript("OnDragStop", OnDragStop)
+            hooksecurefunc("ToggleGameMenu", OnDragStop)
 
             self.ConfigButton = CreateReplayFrameConfigButton(self)
 
@@ -9139,6 +9169,26 @@ do
             self.elapsed = 0
         end
 
+        ---@param save? boolean
+        function ReplayFrameMixin:UpdatePosition(save)
+            if config:Get("lockReplay") then
+                self:EnableMouse(false)
+                self:ClearAllPoints()
+                self:SetPoint("TOPRIGHT", ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
+                return
+            end
+            if save then
+                local point, _, _, x, y = self:GetPoint(1)
+                local replayPoint = config:Get("replayPoint") ---@type ConfigProfilePoint
+                config:Set("replayPoint", replayPoint)
+                replayPoint.point, replayPoint.x, replayPoint.y = point, x, y
+            end
+            self:EnableMouse(true)
+            self:ClearAllPoints()
+            local replayPoint = config:Get("replayPoint") ---@type ConfigProfilePoint
+            self:SetPoint(replayPoint.point or "TOPRIGHT", replayPoint.point and UIParent or ObjectiveTrackerFrame, replayPoint.point or "TOPLEFT", replayPoint.point and replayPoint.x or -32, replayPoint.point and replayPoint.y or 0)
+        end
+
         function ReplayFrameMixin:UpdateShown()
             local isRunning = self.isActive and self:IsState("PLAYING")
             local shown = self.timerID and self.mapID and not self:IsState("NONE")
@@ -9200,6 +9250,9 @@ do
             local liveTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + liveDeathsDuringTimer * deathPenaltyMS)
             local replayTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + replayDeathsDuringTimer * deathPenaltyMS)
             local totalTimer = ConvertMillisecondsToSeconds(_replay.clear_time_ms)
+            if replayTimer > totalTimer then
+                replayTimer = totalTimer
+            end
             self:SetUITimer(liveTimer, replayTimer, totalTimer, not nextReplayEvent, isRunning)
             self:SetUITrash(liveSummary.trash, replaySummary.trash, _replay.dungeon.total_enemy_forces, isRunning)
             self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, isRunning)
@@ -9229,6 +9282,9 @@ do
             local liveTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + liveDeathsDuringTimer * deathPenaltyMS)
             local replayTimer = ConvertMillisecondsToSeconds(replayTimeMS + replayDeathsDuringTimer * deathPenaltyMS)
             local totalTimer = ConvertMillisecondsToSeconds(keystoneTimeMS)
+            if replayTimer > totalTimer then
+                replayTimer = totalTimer
+            end
             self:SetUITimer(liveTimer, replayTimer, totalTimer, false, true, replayCompletedTimer)
             self:SetUITrash(liveSummary.trash, replaySummary.trash, _replay.dungeon.total_enemy_forces, true)
             self:SetUIDeaths(liveSummary.deaths, replaySummary.deaths, deathPenalty, true)
@@ -9272,7 +9328,7 @@ do
                 return
             end
             if isRunning then
-                local delta = replayIsCompleted and 1 or (liveTimer - (replayCompletedTimer or replayTimer))
+                local delta = liveTimer - (replayCompletedTimer or replayTimer)
                 self.TextBlock.TimerL:SetFormattedText("|cff%s%s|r", AheadColor(delta, true), liveClock)
             else
                 self.TextBlock.TimerL:SetText("")
@@ -9683,6 +9739,7 @@ do
     local function OnSettingsChanged()
         if config:Get("enableReplay") then
             replay:Enable()
+            replayFrame:UpdatePosition()
         else
             replay:Disable()
         end

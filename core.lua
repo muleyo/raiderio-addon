@@ -7723,8 +7723,8 @@ do
             else
                 self.InfoR:SetText("")
             end
-            self.CombatL:SetShown(liveBoss and liveBoss.combat)
-            self.CombatR:SetShown(replayBoss and replayBoss.combat)
+            self.CombatL:SetShown(not isLiveBossDead and liveBoss and liveBoss.combat)
+            self.CombatR:SetShown(not isReplayBossDead and replayBoss and replayBoss.combat)
             self.RouteSwap:SetShown(not self.CombatR:IsShown() and (not not self:HasDifferentBosses()))
         end
 

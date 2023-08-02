@@ -1138,7 +1138,8 @@ do
         replayStyle = "MODERN", -- NEW in 10.0.7
         replayTiming = "BOSS", -- NEW in 10.1.5
         enableReplay = true, -- NEW in 10.1.5
-        lockReplay = true, -- NEW in 10.1.5
+        dockReplay = true, -- NEW in 10.1.5
+        lockReplay = false, -- NEW in 10.1.5
         replayPoint = { point = nil, x = 0, y = 0 }, -- NEW in 10.1.5
     }
 
@@ -2106,6 +2107,7 @@ do
     ---@field public preferredIndex? number
     ---@field public timeout? number
     ---@field public whileDead? boolean
+    ---@field public OnAcceptCallback? fun()
 
     ---@param popup InternalStaticPopupDialog
     ---@param ... any
@@ -7909,19 +7911,50 @@ do
 
     do
 
+        ---@type InternalStaticPopupDialog
+        local REPLAY_CHANGE_POPUP = {
+            id = "RAIDERIO_REPLAY_CHANGE_CONFIRM",
+            text = "%s",
+            button1 = L.CONFIRM,
+            button2 = L.CANCEL,
+            hasEditBox = false,
+            preferredIndex = 3,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+            OnShow = nil,
+            OnHide = nil,
+            OnAccept = function (self)
+                if self.OnAcceptCallback then
+                    self.OnAcceptCallback()
+                    self.OnAcceptCallback = nil
+                end
+            end,
+            OnCancel = nil
+        }
+
         function ReplayDataProviderMixin:OnLoad()
             self.replaySummary = self:CreateSummary()
             self:SetDeathPenalty(DEATH_PENALTY)
         end
 
         ---@param replay? Replay
-        function ReplayDataProviderMixin:SetReplay(replay)
+        ---@param requireConfirmation? boolean
+        function ReplayDataProviderMixin:SetReplay(replay, requireConfirmation)
             if self.replay == replay then
                 return
             end
-            self.replay = replay
-            self:SetupSummary()
-            replayFrame:OnReplayChange()
+            local function Apply()
+                self.replay = replay
+                self:SetupSummary()
+                replayFrame:OnReplayChange()
+            end
+            if requireConfirmation then
+                local popup = util:ShowStaticPopupDialog(REPLAY_CHANGE_POPUP, L.REPLAY_REPLAY_CHANGING)
+                popup.OnAcceptCallback = Apply
+                return
+            end
+            Apply()
         end
 
         ---@return Replay? replay
@@ -8197,16 +8230,18 @@ do
 
         ---@alias ReplayFrameDropDownMenuList "replay"|"style"|"timing"|"position"
 
+        ---@alias ReplayFrameDropDownPositionOption "lock"|"unlock"|"dock"|"undock"
+
         ---@class UIDropDownMenuTemplate : Frame
 
         ---@class UIDropDownMenuInfo
         ---@field public checked boolean
         ---@field public text string
         ---@field public hasArrow boolean
+        ---@field public notCheckable boolean
         ---@field public menuList ReplayFrameDropDownMenuList
         ---@field public arg1 ReplayFrameConfigButton
-        ---@field public arg2 Replay|ReplayFrameStyle
-        ---@field public value Replay|ReplayFrameStyle
+        ---@field public arg2 Replay|ReplayFrameStyle|ReplayFrameDropDownPositionOption
         ---@field public tooltipTitle? string
         ---@field public tooltipText? string
         ---@field public tooltipOnButton? boolean
@@ -8299,19 +8334,28 @@ do
                     UIDropDownMenu_AddButton(info, level)
                 end
             elseif menuList == "position" then
+                info.checked = nil
+                info.notCheckable = true
                 info.hasArrow = false
-                info.tooltipOnButton = true
                 info.func = parent.OnPositionClick
                 info.arg1 = parent
-                info.text = L.REPLAY_MENU_LOCK
-                info.checked = config:Get("lockReplay")
-                info.arg2 = true
-                info.tooltipTitle = L.REPLAY_MENU_LOCK_DESC
+                if config:Get("dockReplay") then
+                    info.text = L.REPLAY_MENU_UNDOCK
+                    info.arg2 = "undock"
+                    UIDropDownMenu_AddButton(info, level)
+                    return
+                end
+                info.text = L.REPLAY_MENU_DOCK
+                info.arg2 = "dock"
                 UIDropDownMenu_AddButton(info, level)
-                info.text = L.REPLAY_MENU_UNLOCK
-                info.checked = not config:Get("lockReplay")
-                info.arg2 = false
-                info.tooltipTitle = L.REPLAY_MENU_UNLOCK_DESC
+                if config:Get("lockReplay") then
+                    info.text = L.REPLAY_MENU_UNLOCK
+                    info.arg2 = "unlock"
+                    UIDropDownMenu_AddButton(info, level)
+                    return
+                end
+                info.text = L.REPLAY_MENU_LOCK
+                info.arg2 = "lock"
                 UIDropDownMenu_AddButton(info, level)
             end
         end
@@ -8331,7 +8375,7 @@ do
             else
                 local replay = value ---@type Replay
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
-                replayDataProvider:SetReplay(replay)
+                replayDataProvider:SetReplay(replay, replayFrame:IsState("COMPLETED"))
             end
             dropDownMenu:Close()
         end
@@ -8347,8 +8391,16 @@ do
         ---@param self UIDropDownMenuInfo
         function ReplayFrameConfigButtonMixin:OnPositionClick()
             local dropDownMenu = self.arg1
-            local lock = self.arg2 ---@type boolean
-            config:Set("lockReplay", lock)
+            local action = self.arg2 ---@type ReplayFrameDropDownPositionOption
+            if action == "dock" then
+                config:Set("dockReplay", true)
+            elseif action == "undock" then
+                config:Set("dockReplay", false)
+            elseif action == "lock" then
+                config:Set("lockReplay", true)
+            elseif action == "unlock" then
+                config:Set("lockReplay", false)
+            end
             replayFrame:UpdatePosition()
             dropDownMenu:Close()
         end
@@ -9171,8 +9223,9 @@ do
 
         ---@param save? boolean
         function ReplayFrameMixin:UpdatePosition(save)
-            if config:Get("lockReplay") then
-                self:EnableMouse(false)
+            if config:Get("dockReplay") then
+                self:SetMovable(false)
+                self:SetMouseClickEnabled(false)
                 self:ClearAllPoints()
                 self:SetPoint("TOPRIGHT", ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
                 return
@@ -9183,7 +9236,9 @@ do
                 config:Set("replayPoint", replayPoint)
                 replayPoint.point, replayPoint.x, replayPoint.y = point, x, y
             end
-            self:EnableMouse(true)
+            local locked = config:Get("lockReplay")
+            self:SetMovable(not locked)
+            self:SetMouseClickEnabled(not locked)
             self:ClearAllPoints()
             local replayPoint = config:Get("replayPoint") ---@type ConfigProfilePoint
             self:SetPoint(replayPoint.point or "TOPRIGHT", replayPoint.point and UIParent or ObjectiveTrackerFrame, replayPoint.point or "TOPLEFT", replayPoint.point and replayPoint.x or -32, replayPoint.point and replayPoint.y or 0)

@@ -1532,6 +1532,16 @@ do
         return time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) ---@diagnostic disable-line: missing-fields
     end
 
+    function util:IsOnRetailRealm()
+        if IsOnTournamentRealm() then
+            return false
+        end
+        if IsTestBuild() then
+            return false
+        end
+        return true
+    end
+
     local REGION = ns:GetRegionData()
 
     ---@return boolean|string|nil, number|nil @arg1 can be nil (no data), false (server is unknown), string (the ltd). arg2 can be nil (no data), or region ID.
@@ -1544,8 +1554,11 @@ do
         local regionId = REGION[serverId]
         if not regionId then
             regionId = GetCurrentRegion()
-            if not IsOnTournamentRealm() then
+            if util:IsOnRetailRealm() then
                 ns.Print(format(L.UNKNOWN_SERVER_FOUND, addonName, guid or "N/A", GetNormalizedRealmName() or "N/A"))
+            end
+            if not regionId or regionId > #ns.REGION_TO_LTD then
+                regionId = 1
             end
         end
         if not regionId then
@@ -2763,10 +2776,8 @@ do
             ns.Print(format(L.OUT_OF_SYNC_DATABASE_S, addonName))
         elseif blocked or outdated then
             ns.Print(format(L.OUTDATED_EXPIRED_ALERT, addonName, ns.RAIDERIO_ADDON_DOWNLOAD_URL))
-        elseif not providers[1] then
-            if not IsOnTournamentRealm() then
-                ns.Print(format(L.PROVIDER_NOT_LOADED, addonName, ns.PLAYER_FACTION_TEXT))
-            end
+        elseif not providers[1] and util:IsOnRetailRealm() then
+            ns.Print(format(L.PROVIDER_NOT_LOADED, addonName, ns.PLAYER_FACTION_TEXT))
         end
     end
 
@@ -2776,7 +2787,7 @@ do
     end
 
     local function OnPlayerLogin()
-        if IsTestBuild() and config:Get("debugMode") then
+        if config:Get("debugMode") and not util:IsOnRetailRealm() then
             InjectTestBuildData()
         end
         CheckQueuedProviders()
@@ -8714,7 +8725,14 @@ do
             self.textHeight = self.textRowHeight * self.textRowCount + self.contentPaddingY * (self.textRowCount - 1) ---@type number
             self.bossesHeight = 0
 
-            self:SetPoint("TOPRIGHT", ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
+            self.trackerFrameParent = UIParentRightManagedFrameContainer ---@type Region
+            self.trackerFramePoint = "TOPRIGHT"
+            self.trackerFrame = ObjectiveTrackerFrame ---@type Region
+            self.trackerFrameRelativePoint = "TOPLEFT"
+            self.trackerFrameOffsetX = -32
+            self.trackerFrameOffsetY = 0
+
+            self:SetPoint(self:GetTrackerPoint())
             self:SetSize(self.width, 0)
             self:SetFrameStrata("LOW")
             self:SetClampedToScreen(true)
@@ -8887,6 +8905,15 @@ do
             self.MDI.DeathPenR.Background = self.MDI:CreateTexture(nil, "BACKGROUND", nil, 1)
             self.MDI.DeathPenR.Background:SetAllPoints(self.MDI.DeathPenR)
             self.MDI.DeathPenR.Background:SetColorTexture(0, 0, 0, 0.85)
+        end
+
+        ---@return AnchorPoint point, Region relativeTo, AnchorPoint relativePoint, number offsetX, number offsetY
+        function ReplayFrameMixin:GetTrackerPoint()
+            if self.trackerFrame:GetParent() ~= self.trackerFrameParent or self.trackerFrame == self.trackerFrameParent then
+                local offsetX = -32 - self.trackerFrameParent:GetWidth()
+                self.trackerFramePoint, self.trackerFrame, self.trackerFrameRelativePoint, self.trackerFrameOffsetX, self.trackerFrameOffsetY = "TOPRIGHT", self.trackerFrameParent, "TOPRIGHT", offsetX, 0
+            end
+            return self.trackerFramePoint, self.trackerFrame, self.trackerFrameRelativePoint, self.trackerFrameOffsetX, self.trackerFrameOffsetY
         end
 
         ---@param style ReplayFrameStyle
@@ -9280,7 +9307,7 @@ do
                 self:SetMovable(false)
                 self:SetMouseClickEnabled(false)
                 self:ClearAllPoints()
-                self:SetPoint("TOPRIGHT", ObjectiveTrackerFrame, "TOPLEFT", -32, 0)
+                self:SetPoint(self:GetTrackerPoint())
                 return
             end
             if save then
@@ -9294,7 +9321,8 @@ do
             self:SetMouseClickEnabled(not locked)
             self:ClearAllPoints()
             local replayPoint = config:Get("replayPoint") ---@type ConfigProfilePoint
-            self:SetPoint(replayPoint.point or "TOPRIGHT", replayPoint.point and UIParent or ObjectiveTrackerFrame, replayPoint.point or "TOPLEFT", replayPoint.point and replayPoint.x or -32, replayPoint.point and replayPoint.y or 0)
+            local point, relativeTo, relativePoint, offsetX, offsetY = self:GetTrackerPoint()
+            self:SetPoint(replayPoint.point or point, replayPoint.point and UIParent or relativeTo, replayPoint.point or relativePoint, replayPoint.point and replayPoint.x or offsetX, replayPoint.point and replayPoint.y or offsetY)
         end
 
         function ReplayFrameMixin:UpdateShown()

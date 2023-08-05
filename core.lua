@@ -8288,8 +8288,6 @@ do
             self:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
             self:RegisterForClicks("LeftButtonUp")
             self:SetScript("OnClick", self.OnClick)
-            -- self:SetScript("OnEnter", self.OnEnter)
-            -- self:SetScript("OnLeave", self.OnLeave)
             self.Texture = self:CreateTexture(nil, "ARTWORK")
             self.Texture:SetAllPoints()
             self.Texture:SetTexture(851903)
@@ -8456,18 +8454,22 @@ do
         end
 
         function ReplayFrameConfigButtonMixin:OnClick()
-            PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+            if self:HideCogwheelTextureIfModifyClicked() then
+                return
+            end
+            if self.Texture:IsShown() then
+                PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+            end
             self:Toggle()
         end
 
-        function ReplayFrameConfigButtonMixin:OnEnter()
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip_SetTitle(GameTooltip, L.REPLAY_SETTINGS_TOOLTIP)
-            GameTooltip:Show()
-        end
-
-        function ReplayFrameConfigButtonMixin:OnLeave()
-            GameTooltip:Hide()
+        ---@return boolean? textureWasHidden
+        function ReplayFrameConfigButtonMixin:HideCogwheelTextureIfModifyClicked()
+            if not IsShiftKeyDown() or not IsControlKeyDown() or not IsAltKeyDown() then
+                return
+            end
+            self.Texture:Hide()
+            return true
         end
 
     end

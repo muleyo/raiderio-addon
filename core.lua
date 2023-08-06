@@ -2320,6 +2320,73 @@ do
         return tbl
     end
 
+    ---@class AnimationGroupFadeScaleInOut : AnimationGroup
+
+    ---@param group AnimationGroupFadeScaleInOut
+    ---@param shown? boolean
+    local function AnimationGroupFadeScaleInOutSetShown(group, shown)
+        local targetShown = group.Target:IsShown()
+        if targetShown and not shown then
+            group.SkipPause = true
+            if not group:IsPlaying() then
+                group:Play()
+            end
+        elseif not targetShown and shown then
+            if not group:IsPlaying() then
+                group:Play()
+            end
+        end
+    end
+
+    ---@param parent Region
+    ---@param target Region
+    ---@param duration? number
+    function util:CreateAnimationGroupFadeScaleInOut(parent, target, duration)
+        duration = duration or 0.25
+        ---@class AnimationGroupFadeScaleInOut
+        local group = parent:CreateAnimationGroup()
+        group.SkipPause = false
+        group.Target = target
+        group.Alpha1 = group:CreateAnimation("Alpha")
+        group.Alpha1:SetTarget(target)
+        group.Alpha1:SetOrder(1)
+        group.Alpha1:SetSmoothing("IN_OUT")
+        group.Alpha1:SetStartDelay(0)
+        group.Alpha1:SetDuration(duration)
+        group.Alpha1:SetFromAlpha(0)
+        group.Alpha1:SetToAlpha(1)
+        group.Alpha2 = group:CreateAnimation("Alpha")
+        group.Alpha2:SetTarget(target)
+        group.Alpha2:SetOrder(2)
+        group.Alpha2:SetSmoothing("IN_OUT")
+        group.Alpha2:SetStartDelay(duration)
+        group.Alpha2:SetDuration(duration)
+        group.Alpha2:SetFromAlpha(1)
+        group.Alpha2:SetToAlpha(0)
+        group.Scale1 = group:CreateAnimation("Scale")
+        group.Scale1:SetTarget(target)
+        group.Scale1:SetOrder(1)
+        group.Scale1:SetSmoothing("IN_OUT")
+        group.Scale1:SetStartDelay(0)
+        group.Scale1:SetDuration(duration)
+        group.Scale1:SetScaleFrom(0, 0) ---@diagnostic disable-line: undefined-field
+        group.Scale1:SetScaleTo(1, 1) ---@diagnostic disable-line: undefined-field
+        group.Scale2 = group:CreateAnimation("Scale")
+        group.Scale2:SetTarget(target)
+        group.Scale2:SetOrder(2)
+        group.Scale2:SetSmoothing("IN_OUT")
+        group.Scale2:SetStartDelay(duration)
+        group.Scale2:SetDuration(duration)
+        group.Scale2:SetScaleFrom(1, 1) ---@diagnostic disable-line: undefined-field
+        group.Scale2:SetScaleTo(0, 0) ---@diagnostic disable-line: undefined-field
+        group:HookScript("OnPlay", function() target:Show() end)
+        group:HookScript("OnStop", function() group.SkipPause = false target:Hide() end)
+        group.Alpha1:HookScript("OnFinished", function() if not group.SkipPause then group:Pause() end end)
+        group.Alpha2:HookScript("OnFinished", function() group:Stop() end)
+        group.SetShown = AnimationGroupFadeScaleInOutSetShown
+        return group
+    end
+
 end
 
 -- json.lua
@@ -7692,6 +7759,9 @@ do
     ---@field public CombatL Texture
     ---@field public CombatR Texture
     ---@field public RouteSwap Texture
+    ---@field public CombatLAnim AnimationGroupFadeScaleInOut
+    ---@field public CombatRAnim AnimationGroupFadeScaleInOut
+    ---@field public RouteSwapAnim AnimationGroupFadeScaleInOut
 
     ---@class BossFramePool
     ---@field public Acquire fun(self: BossFramePool): BossFrame
@@ -7760,9 +7830,9 @@ do
             else
                 self.InfoR:SetText("")
             end
-            self.CombatL:SetShown(not isLiveBossDead and liveBoss and liveBoss.combat)
-            self.CombatR:SetShown(not isReplayBossDead and replayBoss and replayBoss.combat)
-            self.RouteSwap:SetShown(not self.CombatR:IsShown() and (not not self:HasDifferentBosses()))
+            self.CombatLAnim:SetShown(not isLiveBossDead and liveBoss and liveBoss.combat)
+            self.CombatRAnim:SetShown(not isReplayBossDead and replayBoss and replayBoss.combat)
+            self.RouteSwapAnim:SetShown(not self.CombatR:IsShown() and (not not self:HasDifferentBosses()))
         end
 
         ---@param index number? Defaults to the current rows bosses.
@@ -7851,7 +7921,7 @@ do
     ---@param obj BossFrame
     local function BossFrameOnInit(obj)
         Mixin(obj, BossFrameMixin)
-        obj:SetSize(320, 32)
+        obj:SetSize(200 - 5*2, 32)
         obj.Name = obj:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         obj.Name:SetSize(16 + 4, 32 - 4*2)
         obj.Name:SetPoint("CENTER")
@@ -7868,21 +7938,24 @@ do
         obj.InfoR:SetJustifyH("LEFT")
         obj.InfoR:SetJustifyV("MIDDLE")
         obj.Background = obj:CreateTexture(nil, "BACKGROUND")
-        obj.Background:SetPoint("TOPLEFT", 1, -1)
-        obj.Background:SetPoint("BOTTOMRIGHT", -1, 1)
-        obj.Background:SetColorTexture(0, 0, 0, 0.5)
+        obj.Background:SetAllPoints()
+        obj.Background:SetColorTexture(1, 1, 1, 1)
+        obj.Background:SetGradient("VERTICAL", CreateColor(0, 0, 0, 0.5), CreateColor(0, 0, 0, 0.4))
         obj.CombatL = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
         obj.CombatL:SetPoint("LEFT", obj.InfoL, "LEFT", 4, 0)
         obj.CombatL:SetSize(14, 14)
         obj.CombatL:Hide()
+        obj.CombatLAnim = util:CreateAnimationGroupFadeScaleInOut(obj, obj.CombatL)
         obj.CombatR = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
         obj.CombatR:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
         obj.CombatR:SetSize(14, 14)
         obj.CombatR:Hide()
+        obj.CombatRAnim = util:CreateAnimationGroupFadeScaleInOut(obj, obj.CombatR)
         obj.RouteSwap = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.ROUTE, "ARTWORK")
         obj.RouteSwap:SetPoint("RIGHT", obj.InfoR, "RIGHT", -4, 0)
         obj.RouteSwap:SetSize(16, 16)
         obj.RouteSwap:Hide()
+        obj.RouteSwapAnim = util:CreateAnimationGroupFadeScaleInOut(obj, obj.RouteSwap)
         obj:HookScript("OnEnter", obj.OnEnter)
         obj:HookScript("OnLeave", obj.OnLeave)
         obj:SetMouseClickEnabled(false)
@@ -7909,25 +7982,21 @@ do
                 bossFrames[bossIndex] = bossFrame
             end
             table.sort(bossFrames, function(a, b) return a.index < b.index end)
-            local offsetX, offsetY = 0, replayFrame.contentPaddingY
+            local bossFrameWidth = replayFrame.width - replayFrame.contentPaddingX*2
+            local bossFrameHeight = 32 -- BossFrameOnInit
+            local offsetX, offsetY = 0, 0
             local prevBossFrame
-            local bossesHeight = 0
             for _, bossFrame in ipairs(bossFrames) do
-                local height = bossFrame:GetHeight()
-                bossesHeight = bossesHeight + height
+                bossFrame:SetWidth(bossFrameWidth)
                 bossFrame:ClearAllPoints()
                 if prevBossFrame then
-                    bossFrame:SetPoint("TOPLEFT", prevBossFrame, "BOTTOMLEFT", 0, 0)
-                    bossFrame:SetPoint("BOTTOMRIGHT", prevBossFrame, "BOTTOMRIGHT", 0, -height)
+                    bossFrame:SetPoint("TOPLEFT", prevBossFrame, "BOTTOMLEFT", 0, -offsetY)
                 else
-                    bossFrame:SetPoint("TOPLEFT", replayFrame.TextBlock, "BOTTOMLEFT", offsetX, -offsetY)
-                    bossFrame:SetPoint("BOTTOMRIGHT", replayFrame.TextBlock, "BOTTOMRIGHT", -offsetX, -height-offsetY)
+                    bossFrame:SetPoint("TOPLEFT", replayFrame.TextBlock, "BOTTOMLEFT", offsetX, -offsetY) -- -replayFrame.contentPaddingY
                 end
                 prevBossFrame = bossFrame
             end
-            if bossesHeight > 0 then
-                bossesHeight = bossesHeight + replayFrame.contentPaddingY
-            end
+            local bossesHeight = #bossFrames * (bossFrameHeight + offsetY)
             return bossesHeight
         end
 
@@ -8367,12 +8436,9 @@ do
                     local showDungeon = info.checked or (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
                     if showDungeon then
                         local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface\\icons\\%s:16:16|t", affix.icon) end, "")
-                        local members = {strsplit(",", replay.title)} ---@type string[]
-                        members = format(" - %s", util:TableMapConcat(members, function(name) return strtrim(name) end, "\n - ")) ---@diagnostic disable-line: cast-local-type
                         info.text = replay.title
                         info.arg2 = replay
                         info.tooltipTitle = affixesText
-                        info.tooltipText = format("|cffFFFFFF%s|r", members)
                         UIDropDownMenu_AddButton(info, level)
                     end
                 end
@@ -8776,6 +8842,13 @@ do
             self.trackerFrameOffsetX = -32
             self.trackerFrameOffsetY = 0
 
+            hooksecurefunc(self.trackerFrameParent, "Layout", function()
+                if not config:Get("dockReplay") then
+                    return
+                end
+                self:UpdatePosition()
+            end)
+
             self:SetPoint(self:GetTrackerPoint())
             self:SetSize(self.width, 0)
             self:SetFrameStrata("LOW")
@@ -8851,8 +8924,10 @@ do
             self.TextBlock.BossCombatR:SetSize(14, 14)
             self.TextBlock.BossCombatR:Hide()
 
-            ---@param self ReplayFrame
-            local function ShowReplayRunTooltip(self)
+            self.TextBlock.BossCombatLAnim = util:CreateAnimationGroupFadeScaleInOut(self.TextBlock, self.TextBlock.BossCombatL)
+            self.TextBlock.BossCombatRAnim = util:CreateAnimationGroupFadeScaleInOut(self.TextBlock, self.TextBlock.BossCombatR)
+
+            local function ShowReplayRunTooltip()
                 local currentReplay = self.replayDataProvider:GetReplay()
                 if not currentReplay then
                     return
@@ -8862,8 +8937,15 @@ do
                 GameTooltip:Show()
             end
 
+            local function HideReplayRunTooltip()
+                if GameTooltip:GetOwner() ~= self then
+                    return
+                end
+                GameTooltip:Hide()
+            end
+
             self:SetScript("OnEnter", ShowReplayRunTooltip)
-            self:SetScript("OnLeave", GameTooltip_Hide)
+            self:SetScript("OnLeave", HideReplayRunTooltip)
 
             self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL, ns.CUSTOM_ICONS.replay.TRASH("TextureMarkup"))
             self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.DEATH("TextureMarkup"))
@@ -9673,8 +9755,8 @@ do
             local style = self:GetStyle()
             local isModern = style == "MODERN" or style == "MODERN_COMPACT"
             local isMDI = style == "MDI"
-            self.TextBlock.BossCombatL:SetShown(isModern and liveInBossCombat)
-            self.TextBlock.BossCombatR:SetShown(isModern and replayInBossCombat)
+            self.TextBlock.BossCombatLAnim:SetShown(isModern and liveInBossCombat)
+            self.TextBlock.BossCombatRAnim:SetShown(isModern and replayInBossCombat)
             self.MDI.BossCombat:SetShown(isMDI and replayInBossCombat)
         end
 

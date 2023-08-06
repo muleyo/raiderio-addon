@@ -2128,6 +2128,7 @@ do
 
     ---@param popup InternalStaticPopupDialog
     ---@param ... any
+    ---@return InternalStaticPopupDialog
     function util:ShowStaticPopupDialog(popup, ...)
         local id = popup.id
         if not StaticPopupDialogs[id] then
@@ -7959,7 +7960,9 @@ do
             whileDead = true,
             hideOnEscape = true,
             OnShow = nil,
-            OnHide = nil,
+            OnHide = function (self)
+                self.OnAcceptCallback = nil
+            end,
             OnAccept = function (self)
                 if self.OnAcceptCallback then
                     self.OnAcceptCallback()
@@ -8264,6 +8267,30 @@ do
 
     do
 
+        ---@type InternalStaticPopupDialog
+        local DISABLE_REPLAY_POPUP = {
+            id = "RAIDERIO_REPLAY_DISABLE_CONFIRM",
+            text = "%s",
+            button1 = L.CONFIRM,
+            button2 = L.CANCEL,
+            hasEditBox = false,
+            preferredIndex = 3,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+            OnShow = nil,
+            OnHide = function (self)
+                self.OnAcceptCallback = nil
+            end,
+            OnAccept = function (self)
+                if self.OnAcceptCallback then
+                    self.OnAcceptCallback()
+                    self.OnAcceptCallback = nil
+                end
+            end,
+            OnCancel = nil
+        }
+
         ---@alias ReplayFrameDropDownMenuList "replay"|"style"|"timing"|"position"
 
         ---@alias ReplayFrameDropDownPositionOption "lock"|"unlock"|"dock"|"undock"
@@ -8322,6 +8349,10 @@ do
                 info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_STYLE, true, "style"
                 UIDropDownMenu_AddButton(info, level)
                 info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_POSITION, true, "position"
+                UIDropDownMenu_AddButton(info, level)
+                info.func = parent.OnDisableClick
+                info.arg1 = parent
+                info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_DISABLE, false, nil
                 UIDropDownMenu_AddButton(info, level)
             elseif menuList == "replay" then
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
@@ -8434,6 +8465,17 @@ do
                 config:Set("lockReplay", false)
             end
             replayFrame:UpdatePosition()
+            dropDownMenu:Close()
+        end
+
+        ---@param self UIDropDownMenuInfo
+        function ReplayFrameConfigButtonMixin:OnDisableClick()
+            local dropDownMenu = self.arg1
+            local popup = util:ShowStaticPopupDialog(DISABLE_REPLAY_POPUP, L.REPLAY_DISABLE_CONFIRM)
+            popup.OnAcceptCallback = function()
+                config:Set("enableReplay", false)
+                replay:Disable()
+            end
             dropDownMenu:Close()
         end
 

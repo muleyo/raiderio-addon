@@ -261,7 +261,9 @@ L.REPLAY_MENU_DOCK = "Dock"
 L.REPLAY_MENU_UNDOCK = "Undock"
 L.REPLAY_MENU_LOCK = "Lock"
 L.REPLAY_MENU_UNLOCK = "Unlock"
+L.REPLAY_MENU_DISABLE = "Disable"
 L.REPLAY_REPLAY_CHANGING = "Changing your replay will reset the live data."
+L.REPLAY_DISABLE_CONFIRM = "If you disable the |cffFFFFFFMythic+ Replay System|r you can turn it back on via the Settings panel under the |cffFFFFFFRaider.IO Client Customization|r category."
 L.REPLAY_SUMMARY_LOGGED = "|cffFFFFFF%s|r logged your completion of this |cffFFFFFF+%s|r in |cffFFFFFF%s|r."
 
 -- Bindings.xml

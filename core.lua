@@ -174,6 +174,7 @@ do
         r, g, b = r or 1, g or 1, b or 0
         DEFAULT_CHAT_FRAME:AddMessage(tostring(text), r, g, b, ...)
     end
+
     ns.EXPANSION = max(GetServerExpansionLevel(), GetMinimumExpansionLevel(), GetExpansionLevel()) - 1
     ns.MAX_LEVEL = GetMaxLevelForExpansionLevel(ns.EXPANSION)
     ns.REGION_TO_LTD = { "us", "kr", "eu", "tw", "cn" }
@@ -188,6 +189,38 @@ do
     ns.LOOKUP_MAX_SIZE = floor(2^18-1) -- the maximum index we can use in a table before we start to get errors
     ns.CURRENT_SEASON = 1 -- the current mythic keystone season. dynamically assigned once keystone data is loaded.
     ns.RAIDERIO_ADDON_DOWNLOAD_URL = "https://rio.gg/addon"
+
+    ns.EASTER_EGG = {
+        ["eu"] = {
+            ["TarrenMill"] = {
+                ["Vladinator"] = "Raider.IO AddOn Author"
+            },
+            ["Ysondre"] = {
+                ["Isakem"] = "Raider.IO Developer"
+            }
+        },
+        ["us"] = {
+            ["Skullcrusher"] = {
+                ["Aspyrio"] = "Raider.IO Creator",
+                ["Ulsoga"] = "Raider.IO Creator",
+                ["Mccaffrey"] = "Killing Keys Since 1977!",
+                ["Oscassey"] = "Master of dis guys",
+                ["Rhoma"] = "Plays an MDI Champion on TV"
+            },
+            ["Thrall"] = {
+                ["Firstclass"] = "Author of mythicpl.us"
+            },
+            ["Tichondrius"] = {
+                ["Johnsamdi"] = "Raider.IO Developer"
+            }
+        }
+    }
+
+    -- Special servers for keystones, PvP, etc. That we do not wish to consider a live server.
+    ns.IGNORED_REALMS = {
+        ["EU Mythic Dungeons"] = true,
+        ["EUMythicDungeons"] = true,
+    }
 
     ---@class HeadlineMode
     ns.HEADLINE_MODE = {
@@ -1552,11 +1585,16 @@ do
         return time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) ---@diagnostic disable-line: missing-fields
     end
 
+    -- Servers that are **not** `IsOnTournamentRealm`, `IsTestBuild`, or part of `ns.IGNORED_REALMS` are considered retail realms.
+    -- We will use this function to avoid complaining or printing warnings to the user about these special realms.
     function util:IsOnRetailRealm()
         if IsOnTournamentRealm() then
             return false
         end
         if IsTestBuild() then
+            return false
+        end
+        if ns.IGNORED_REALMS[ns.PLAYER_REALM] or ns.IGNORED_REALMS[ns.PLAYER_REALM_SLUG] then
             return false
         end
         return true
@@ -4522,10 +4560,10 @@ do
     end
 
     local function OnPlayerLogin()
-        ns.PLAYER_REGION, ns.PLAYER_REGION_ID = util:GetRegion() ---@diagnostic disable-line: assign-type-mismatch
         ns.PLAYER_FACTION, ns.PLAYER_FACTION_TEXT = util:GetFaction("player") ---@diagnostic disable-line: assign-type-mismatch
         ns.PLAYER_NAME, ns.PLAYER_REALM = util:GetNameRealm("player")
         ns.PLAYER_REALM_SLUG = util:GetRealmSlug(ns.PLAYER_REALM)
+        ns.PLAYER_REGION, ns.PLAYER_REGION_ID = util:GetRegion() ---@diagnostic disable-line: assign-type-mismatch
         _G.RaiderIO_LastCharacter = format("%s-%s-%s", ns.PLAYER_REGION, ns.PLAYER_NAME, ns.PLAYER_REALM_SLUG or ns.PLAYER_REALM)
         _G.RaiderIO_MissingCharacters = {}
         _G.RaiderIO_MissingServers = {}
@@ -4778,32 +4816,6 @@ do
     local function Has(flag, mask)
         return band(flag, mask) == mask
     end
-
-    local EASTER_EGG = {
-        ["eu"] = {
-            ["TarrenMill"] = {
-                ["Vladinator"] = "Raider.IO AddOn Author"
-            },
-            ["Ysondre"] = {
-                ["Isakem"] = "Raider.IO Developer"
-            }
-        },
-        ["us"] = {
-            ["Skullcrusher"] = {
-                ["Aspyrio"] = "Raider.IO Creator",
-                ["Ulsoga"] = "Raider.IO Creator",
-                ["Mccaffrey"] = "Killing Keys Since 1977!",
-                ["Oscassey"] = "Master of dis guys",
-                ["Rhoma"] = "Plays an MDI Champion on TV"
-            },
-            ["Thrall"] = {
-                ["Firstclass"] = "Author of mythicpl.us"
-            },
-            ["Tichondrius"] = {
-                ["Johnsamdi"] = "Raider.IO Developer"
-            }
-        }
-    }
 
     local function GetSeasonLabel(label, seasonId)
         if not seasonId then
@@ -5367,7 +5379,7 @@ do
                     -- TODO: NYI
                 end
                 if showFooter then
-                    local easterEgg = EASTER_EGG[ns.PLAYER_REGION]
+                    local easterEgg = ns.EASTER_EGG[ns.PLAYER_REGION]
                     if easterEgg then
                         easterEgg = easterEgg[profile.realm]
                         if easterEgg then

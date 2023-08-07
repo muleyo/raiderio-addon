@@ -136,6 +136,8 @@ do
     ---@class ns
     ---@field public DUNGEONS Dungeon[]
     ---@field public dungeons Dungeon[] @DEPRECATED
+    ---@field public EXPANSION_DUNGEONS Dungeon[]
+    ---@field public expansionDungeons Dungeon[] @DEPRECATED
     ---@field public RAIDS DungeonRaid[]
     ---@field public raids DungeonRaid[] @DEPRECATED
     ---@field public REALMS RealmCollection<string, string>
@@ -681,11 +683,17 @@ do
     ---@field public shortNameLocale string @Assigned dynamically based on the user preference regarding the short dungeon names.
     ---@field public index number @Assigned dynamically based on the index of the dungeon/raid in the table.
 
+    ---@alias DungeonType "SEASON"|"EXPANSION"
+
     ---@class Dungeon : DungeonInstance
+    ---@field public type DungeonType
     ---@field public keystone_instance number
     ---@field public timers number[]
 
     ---@class DungeonRaid : DungeonInstance
+
+    ---@type Dungeon[]
+    local ALL_DUNGEONS = {}
 
     ---@type Dungeon[]
     local DUNGEONS = ns.DUNGEONS or ns.dungeons -- DEPRECATED: ns.dungeons
@@ -693,6 +701,18 @@ do
     for i = 1, #DUNGEONS do
         local dungeon = DUNGEONS[i] ---@type Dungeon
         dungeon.index = i
+        dungeon.type = "SEASON"
+        ALL_DUNGEONS[#ALL_DUNGEONS + 1] = dungeon
+    end
+
+    ---@type Dungeon[]
+    local EXPANSION_DUNGEONS = ns.EXPANSION_DUNGEONS or ns.expansionDungeons -- DEPRECATED: ns.expansionDungeons
+
+    for i = 1, #EXPANSION_DUNGEONS do
+        local dungeon = EXPANSION_DUNGEONS[i] ---@type Dungeon
+        dungeon.index = i
+        dungeon.type = "EXPANSION"
+        ALL_DUNGEONS[#ALL_DUNGEONS + 1] = dungeon
     end
 
     ---@type DungeonRaid[]
@@ -703,9 +723,9 @@ do
         raid.index = i
     end
 
-    ---@return Dungeon[]
+    ---@return Dungeon[] dungeons, Dungeon[] expansionDungeons, Dungeon[] allDungeons
     function ns:GetDungeonData()
-        return DUNGEONS
+        return DUNGEONS, EXPANSION_DUNGEONS, ALL_DUNGEONS
     end
 
     ---@return DungeonRaid[]
@@ -1218,7 +1238,7 @@ do
     local callback =  ns:GetModule("Callback") ---@type CallbackModule
     local config = ns:GetModule("Config") ---@type ConfigModule
 
-    local DUNGEONS = ns:GetDungeonData()
+    local DUNGEONS, _, ALL_DUNGEONS = ns:GetDungeonData()
     local RAIDS = ns:GetDungeonRaidData()
 
     local SORTED_DUNGEONS = {} ---@type Dungeon[]
@@ -1280,8 +1300,8 @@ do
 
     ---@return Dungeon|nil
     function util:GetDungeonByLFDActivityID(id)
-        for i = 1, #DUNGEONS do
-            local dungeon = DUNGEONS[i]
+        for i = 1, #ALL_DUNGEONS do
+            local dungeon = ALL_DUNGEONS[i]
             for j = 1, #dungeon.lfd_activity_ids do
                 local activityID = dungeon.lfd_activity_ids[j]
                 if activityID == id then
@@ -1293,8 +1313,8 @@ do
 
     ---@return Dungeon|nil
     function util:GetDungeonByKeyValue(key, value)
-        for i = 1, #DUNGEONS do
-            local dungeon = DUNGEONS[i]
+        for i = 1, #ALL_DUNGEONS do
+            local dungeon = ALL_DUNGEONS[i]
             if dungeon[key] == value then
                 return dungeon
             end
@@ -12982,7 +13002,7 @@ do
             return mapID
         end
         local raidMapID = getLowestMapIdForInstances(ns:GetDungeonRaidData())
-        local keystoneMapID = getLowestMapIdForInstances(ns:GetDungeonData())
+        local keystoneMapID = getLowestMapIdForInstances(select(3, ns:GetDungeonData()))
         if raidMapID and keystoneMapID then
             autoLogFromMapID = keystoneMapID > raidMapID and raidMapID or keystoneMapID
         elseif raidMapID then

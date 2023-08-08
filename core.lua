@@ -5437,7 +5437,7 @@ do
                     end
                     if keystone.instance then
                         local dungeon = util:GetDungeonByKeystoneID(keystone.instance)
-                        if dungeon then
+                        if dungeon and dungeon.type == "SEASON" then
                             AppendGroupLevelsToTooltip(tooltip, keystone, dungeon)
                         end
                     end
@@ -6173,7 +6173,7 @@ do
             return
         end
         local dungeon = util:GetDungeonByKeystoneID(bannerData.mapID)
-        if not dungeon then
+        if not dungeon or dungeon.type ~= "SEASON" then
             return
         end
         local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(bannerData.mapID)

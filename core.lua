@@ -723,7 +723,10 @@ do
     ---@field public keystone_instance number
     ---@field public timers number[]
 
+    ---@alias DungeonRaidType "RAID"
+
     ---@class DungeonRaid : DungeonInstance
+    ---@field public type DungeonRaidType
 
     ---@type Dungeon[]
     local ALL_DUNGEONS = {}
@@ -754,6 +757,7 @@ do
     for i = 1, #RAIDS do
         local raid = RAIDS[i] ---@type DungeonRaid
         raid.index = i
+        raid.type = "RAID"
     end
 
     ---@return Dungeon[] dungeons, Dungeon[] expansionDungeons, Dungeon[] allDungeons
@@ -1939,23 +1943,28 @@ do
         return util:GetDungeonByInstanceMapID(instanceMapID) or util:GetRaidByInstanceMapID(instanceMapID)
     end
 
-    function util:GetLFDStatusForCurrentActivity(activityID)
+    ---@param activityID number
+    ---@param includeExpansionDungeons? boolean
+    function util:GetLFDStatusForCurrentActivity(activityID, includeExpansionDungeons)
         ---@type Dungeon|DungeonRaid|nil
         local focusDungeon
         if activityID then
             focusDungeon = util:GetDungeonByLFDActivityID(activityID) or util:GetRaidByLFDActivityID(activityID)
         end
-        if not focusDungeon then
+        if not focusDungeon or (not includeExpansionDungeons and focusDungeon.type == "EXPANSION") then
             local lfd = util:GetLFDStatus()
             if lfd then
                 focusDungeon = lfd.dungeon
             end
         end
-        if not focusDungeon then
+        if not focusDungeon or (not includeExpansionDungeons and focusDungeon.type == "EXPANSION") then
             local instanceDungeon = util:GetInstanceStatus()
             if instanceDungeon then
                 focusDungeon = instanceDungeon
             end
+        end
+        if focusDungeon and (not includeExpansionDungeons and focusDungeon.type == "EXPANSION") then
+            focusDungeon = nil
         end
         return focusDungeon
     end
@@ -9345,7 +9354,7 @@ do
 
         ---@param forceTimer? number
         ---@param killBosses? boolean
-        function ReplayFrameMixin:StartDebug(forceTimer, killBosses)
+        function ReplayFrameMixin:StartDebug(forceTimer, killBosses, zeroBossTimer)
             if not config:Get("debugMode") then
                 return
             end
@@ -9388,6 +9397,9 @@ do
                         boss.killedStart = max(0, timerMS - ((count - i) * 240000))
                         boss.combatStart = nil
                         boss.killed = boss.killedStart + (30000 * random(1, 20))
+                        if zeroBossTimer then
+                            boss.killedStart = boss.killed
+                        end
                         local delta = ConvertMillisecondsToSeconds(boss.killed)
                         boss.killedText = SecondsToTimeText(delta, "NONE_COLORLESS")
                     end
@@ -9396,7 +9408,7 @@ do
             self:SetState("PLAYING")
             self:Update()
             C_Timer.After(0.25, function() self:UpdateShown() end)
-            C_Timer.After(0.50, function() self:UpdateShown() end)
+            C_Timer.After(0.75, function() self:UpdateShown() end)
         end
 
         function ReplayFrameMixin:StopDebug()

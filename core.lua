@@ -7585,7 +7585,11 @@ do
         [657] = 438,
     }
 
-    ---@type table<number, boolean>
+    --- For any given `encounterID` the value returned will be
+    --- - `true` when the boss is engaged in combat
+    --- - `nil` the boss is not engaged and is out of combat
+    --- - `false` the boss is not engaged and is out of combat - but we never had the `ENCOUNTER_START` called so this helps us track that situation (this bug will be resolved in 10.1.7)
+    ---@type table<number, boolean?>
     local ActiveEncounters = {}
 
     ---@param ... FontString
@@ -7839,7 +7843,12 @@ do
                     delta = ConvertMillisecondsToSeconds(liveBoss.killed - (prevLiveBoss and prevLiveBoss.killed or 0))
                     comparisonDelta = ConvertMillisecondsToSeconds(replayBoss.killed - (prevReplayBoss and prevReplayBoss.killed or 0))
                 end
-                self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeTextCompared(delta, comparisonDelta, "PARENTHESIS"))
+                -- HOTFIX: handles the special case where `ENCOUNTER_START` was never called, but we know about it because the value is `false`, and that means that the boss was defeated (this bug will be resolved in 10.1.7)
+                if timing == "BOSS" and delta <= 0 then
+                    self.InfoL:SetText(liveBoss.killedText)
+                else
+                    self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeTextCompared(delta, comparisonDelta, "PARENTHESIS"))
+                end
             elseif liveBoss and liveBoss.combat then
                 local delta = ConvertMillisecondsToSeconds(timerMS - liveBoss.combatStart)
                 self.InfoL:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
@@ -8337,6 +8346,15 @@ do
                                     boss.pulls = boss.pulls + 1
                                 elseif boss.combat and not combat then
                                     boss.combat = false
+                                end
+                            end
+                            -- HOTFIX: handles the special case where `ENCOUNTER_START` was never called, but we know about it because the value is `false`, and that means that the boss was defeated (this bug will be resolved in 10.1.7)
+                            if completed and not boss.dead then
+                                local encounterID = boss.encounter and boss.encounter.encounter_id or 0
+                                local combat = ActiveEncounters[encounterID]
+                                if combat == false then
+                                    boss.combatStart = liveSummary.timer
+                                    boss.pulls = boss.pulls + 1
                                 end
                             end
                             if completed and not boss.dead then
@@ -9964,13 +9982,17 @@ do
     ---@param event? WowEvent
     local function OnEvent(event, ...)
         -- handle updating the active encounter state
-        if event == "ENCOUNTER_START" or event == "ENCOUNTER_END" then
+        if event == "PLAYER_ENTERING_WORLD" then
+            table.wipe(ActiveEncounters)
+        elseif event == "ENCOUNTER_START" or event == "ENCOUNTER_END" then
             ---@type number, string, number, number, boolean
             local encounterID, _, _, _, success = ...
             if success == nil then -- it's nil when it's the start event, otherwise 0 for wipe, and 1 for success
                 ActiveEncounters[encounterID] = true
-            else
+            elseif ActiveEncounters[encounterID] then
                 ActiveEncounters[encounterID] = nil
+            else
+                ActiveEncounters[encounterID] = false
             end
             return
         end

@@ -1,15 +1,7 @@
-const path = require('node:path');
-const fs = require('node:fs/promises');
-const fetch = require('node-fetch');
-const csv = require('fast-csv');
-
-// https://github.com/Vladinator/wow-dbc-archive/blob/release/wow_latest/displayseason.csv
-// https://wago.tools/db2/DisplaySeason
-// https://wow.tools/dbc/?dbc=displayseason
+const db = require('./db');
 
 const config = {
-    download: false,
-    build: '10.1.5.50469',
+    // the desired expansion and season to export data from
     expansion: 9,
     season: 10,
     // manually specify certain fields for these particular keystone instances
@@ -87,14 +79,7 @@ const config = {
 
 (async () => {
 
-    if (config.download) {
-        if (!/^\d+\.\d+\.\d+\.\d+$/.test(config.build) || typeof config.expansion !== 'number') return console.error('Missing valid build and/or expansion id.');
-        console.info(`Downloading data for game version ${config.build} and expansion ${config.expansion} ...`);
-    } else {
-        console.info('Using cached db data ...');
-    }
-
-    const seasonFiles = [
+    const [seasonData, seasonFileRows] = await db.processRows([
         {
             name: 'displayseason',
             fields: {
@@ -110,9 +95,14 @@ const config = {
                 'MapChallengeModeID': 'ChallengeMapID',
             },
         },
-    ];
+    ], (oldItem, newItem) => (
+        db.equalOrIncluded(oldItem.ExpansionID, newItem.ExpansionID) ||
+        db.equalOrIncluded(oldItem.SeasonID, newItem.SeasonID) ||
+        db.equalOrIncluded(oldItem.Season, newItem.Season) ||
+        db.equalOrIncluded(oldItem.ChallengeMapID, newItem.ChallengeMapID)
+    ));
 
-    const instanceFiles = [
+    const [instanceData, instanceFileRows] = await db.processRows([
         {
             name: 'groupfinderactivity',
             fields: {
@@ -145,237 +135,122 @@ const config = {
                 'MapName_lang': 'mapName'
             }
         }
-    ];
-
-    const parseCsv = async (text) => {
-        return new Promise(resolve => {
-            const data = [];
-            csv.parseString(text, { headers: true })
-                .on('error', error => resolve(null))
-                .on('data', row => data.push(row))
-                .on('end', rowCount => resolve(data, rowCount));
-        });
-    };
-
-    const getExistingItem = (items, newItem, isExistingFunc) => {
-        for (const item of items) {
-            if (isExistingFunc(items, newItem))
-                return item;
-        }
-    };
-
-    const mergeItems = (oldItem, newItem) => {
-        for (let key in newItem) {
-            const newVal = newItem[key];
-            let oldVal = oldItem[key];
-            if (oldVal === undefined) {
-                oldItem[key] = newVal;
-            } else if (oldVal !== newVal) {
-                if (key === 'id' || key === 'shortName') {
-                    continue;
-                }
-                if (!Array.isArray(oldVal)) {
-                    oldVal = oldItem[key] = [oldVal];
-                }
-                if (oldVal.indexOf(newVal) < 0) {
-                    oldVal.push(newVal);
-                }
-            }
-        }
-    };
-
-    const fetchData = async (files, isExistingFunc) => {
-
-        const items = [];
-
-        for (const file of files) {
-
-            let text;
-
-            if (config.download) {
-                const request = await fetch(`https://wow.tools/dbc/api/export/?name=${file.name}&build=${config.build}`, {
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
-                });
-                text = await request.text();
-            } else {
-                const filePath = `${path.join(__dirname, 'db', file.name)}.csv`;
-                text = await fs.readFile(filePath);
-            }
-
-            file.rows = await parseCsv(text);
-
-            if (!file.rows)
-                continue;
-
-            for (const row of file.rows) {
-
-                const temp = {};
-
-                for (let field in file.fields) {
-
-                    const key = file.fields[field];
-                    const newVal = row[field];
-                    let oldVal = temp[key];
-
-                    if (oldVal === undefined) {
-                        oldVal = temp[key] = newVal;
-                    } else {
-                        if (!Array.isArray(oldVal)) {
-                            oldVal = temp[key] = [oldVal];
-                        }
-                        if (oldVal.indexOf(newVal) < 0) {
-                            oldVal.push(newVal);
-                        }
-                    }
-
-                }
-
-                const existingItem = getExistingItem(items, temp, isExistingFunc);
-
-                if (!existingItem) {
-                    items.push(temp);
-                } else {
-                    mergeItems(existingItem, temp);
-                }
-
-            }
-
-        }
-
-        return items;
-
-    };
-
-    const groupData = (items, filterFunc, groupBy = null, groupValuesBy = null) => {
-        const groups = {};
-        const relevantItems = items.filter(filterFunc);
-        if (!groupBy || !groupValuesBy)
-            return relevantItems;
-        for (const relevantItem of relevantItems) {
-            const key = relevantItem[groupBy];
-            groups[key] = { ...groups[key], ...relevantItem };
-        }
-        for (const item of items) {
-            const valKey = item[groupValuesBy];
-            if (!valKey)
-                continue;
-            const key = item[groupBy];
-            const group = groups[key];
-            if (!group)
-                continue;
-            let grouped = group[groupValuesBy];
-            if (!grouped)
-                grouped = group[groupValuesBy] = [];
-            if (grouped.indexOf(valKey) === -1)
-                grouped.push(valKey);
-        }
-        return Object.values(groups)[0];
-    };
-
-    const seasonData = await fetchData(seasonFiles, (season, temp) => (
-        (season.ExpansionID !== undefined && season.ExpansionID === temp.ExpansionID) ||
-        (season.SeasonID !== undefined && season.SeasonID === temp.SeasonID) ||
-        (season.Season !== undefined && season.Season === temp.Season) ||
-        (season.ChallengeMapID !== undefined && season.ChallengeMapID === temp.ChallengeMapID)
+    ], (oldItem, newItem) => (
+        db.equalOrIncluded(oldItem.instance_map_id, newItem.instance_map_id) ||
+        db.equalOrIncluded(oldItem.keystone_instance, newItem.keystone_instance) ||
+        db.equalOrIncluded(oldItem.id, newItem.id) ||
+        db.equalOrIncluded(oldItem.name, newItem.name) ||
+        db.equalOrIncluded(oldItem.shortName, newItem.shortName) ||
+        db.equalOrIncluded(oldItem.lfd_activity_ids, newItem.lfd_activity_ids) ||
+        db.arraysIntersect(oldItem.lfd_activity_ids, newItem.lfd_activity_ids)
     ));
 
-    const instanceData = await fetchData(instanceFiles, (dungeon, temp) => (
-        (dungeon.instance_map_id !== undefined && dungeon.instance_map_id === temp.instance_map_id) ||
-        (dungeon.keystone_instance !== undefined && dungeon.keystone_instance === temp.keystone_instance) ||
-        (dungeon.id !== undefined && dungeon.id === temp.id) ||
-        (dungeon.name !== undefined && dungeon.name === temp.name) ||
-        (dungeon.shortName !== undefined && dungeon.shortName === temp.shortName) ||
-        (dungeon.lfd_activity_ids !== undefined && dungeon.lfd_activity_ids === temp.lfd_activity_ids) ||
-        (dungeon.lfd_activity_ids !== undefined && Array.isArray(dungeon.lfd_activity_ids) && dungeon.lfd_activity_ids.indexOf(temp.lfd_activity_ids) > -1) ||
-        (dungeon.lfd_activity_ids !== undefined && Array.isArray(temp.lfd_activity_ids) && temp.lfd_activity_ids.indexOf(dungeon.lfd_activity_ids) > -1) ||
-        (dungeon.lfd_activity_ids !== undefined && Array.isArray(dungeon.lfd_activity_ids) && Array.isArray(temp.lfd_activity_ids) && dungeon.lfd_activity_ids.indexOf(temp.lfd_activity_ids[0]) > -1)
-    ));
+    const mapChallengeModeRows = instanceFileRows.mapchallengemode;
+    const groupFinderActivityRows = instanceFileRows.groupfinderactivity;
 
-    const season = groupData(seasonData, season => season.ExpansionID == config.expansion && season.Season == config.season, 'SeasonID', 'ChallengeMapID');
-    const dungeons = groupData(instanceData, dungeon => season?.ChallengeMapID.indexOf(dungeon.keystone_instance) > -1 || (dungeon.instanceType == 2 && dungeon.expansion == config.expansion));
-
-    const sanitizeObjectValues = (temp) => {
-        for (let key in temp) {
-            let val = temp[key];
-            if (Array.isArray(val) && val.length < 2) {
-                val = temp[key] = val[0];
-            }
-            if (typeof val === 'string' && /^\d+$/.test(val)) {
-                val = temp[key] = parseInt(val);
-            }
-            if (Array.isArray(val)) {
-                for (let j = 0; j < val.length; j++) {
-                    if (typeof val[j] === 'string') {
-                        if (/^\d+$/.test(val[j])) {
-                            val[j] = parseInt(val[j]);
-                        } else {
-                            val[j] = '"' + val[j].replace(/\"/g, '\\"') + '"';
-                        }
-                    }
-                }
-            }
-        }
-    };
-
-    sanitizeObjectValues(season);
-    dungeons.forEach(sanitizeObjectValues);
-
-    const file_groupfinderactivity_rows = instanceFiles.filter(file => file.name === 'groupfinderactivity')[0].rows;
-    const file_mapchallengemode_rows = instanceFiles.filter(file => file.name === 'mapchallengemode')[0].rows;
-
-    const extendDungeon = (dungeon, id) => {
-        Object.assign(dungeon, {
-            lfd_activity_ids: [],
-            id: id,
-            name: '',
+    const extendInstance = (instance, id) => {
+        Object.assign(instance, {
+            id: id, // dungeon.id
+            name: typeof instance.name === 'string' && instance.name.length ? instance.name : '',
             shortName: '',
+            lfd_activity_ids: [],
         });
-        const keystoneRows = file_mapchallengemode_rows.filter(row => row.ID == dungeon.keystone_instance);
+        const keystoneRows = mapChallengeModeRows.filter(row => row.ID == instance.keystone_instance);
         if (keystoneRows.length) {
-            dungeon.name = keystoneRows[0].Name_lang;
+            const keystoneRow = keystoneRows[0];
+            instance.name = keystoneRow.Name_lang;
+            const goldTimer = parseInt(keystoneRow['CriteriaCount[2]']) || 0;
+            const silverTimer = parseInt(keystoneRow['CriteriaCount[1]']) || 0;
+            const bronzeTimer = parseInt(keystoneRow['CriteriaCount[0]']) || 0;
+            instance.timers = [goldTimer, silverTimer, bronzeTimer];
         }
-        const activityRows = file_groupfinderactivity_rows.filter(row => row.MapID == dungeon.instance_map_id);
+        const activityRows = groupFinderActivityRows.filter(row => row.MapID == instance.instance_map_id);
         if (activityRows.length) {
-            for (const activityRow of activityRows) {
-                dungeon.lfd_activity_ids.push(parseInt(activityRow.ID));
-            }
+            const ids = activityRows.map(o => parseInt(o.ID)).filter(o => typeof o === 'number' && !isNaN(o));
+            instance.lfd_activity_ids.push(...ids);
         }
-        dungeon.shortName = (dungeon.mapName || dungeon.name).replace(/[\sa-z]+/g, '').replace(/[^a-zA-Z]+/g, ''); // TODO
+        let instanceName = instance.name.length ? instance.name : instance.mapName;
+        if (Array.isArray(instanceName))
+            instanceName = instanceName[0];
+        if (typeof instanceName !== 'string')
+            return;
+        instance.name = instanceName;
+        instance.shortName = instanceName.replace(/[\sa-z]+/g, '').replace(/[^a-zA-Z]+/g, ''); // TODO: can be greatly improved
     };
 
-    for (let i = 0; i < dungeons.length; i++) {
-        extendDungeon(dungeons[i], 1000000 + i + 1);
+    instanceData.forEach((v, k) => extendInstance(v, k + 1000001)); // TODO: fake ID as placeholder
+
+    const relSeasonData = db.groupItems(
+        seasonData,
+        item => (
+            (
+                config.expansion == -1 || db.equalOrIncluded(config.expansion, item.ExpansionID)
+            ) && (
+                config.season == -1 || db.equalOrIncluded(config.season, item.Season)
+            )
+        ),
+        'SeasonID',
+        'ChallengeMapID'
+    );
+
+    db.sanitizeItems(relSeasonData);
+
+    const ChallengeMapIDs = relSeasonData.reduce((pv, cv) => {
+        const ids = cv.ChallengeMapID.filter(id => typeof id === 'number');
+        for (const id of ids) {
+            if (pv.indexOf(id) === -1)
+                pv.push(id);
+        }
+        return pv;
+    }, []);
+
+    const relInstanceData = db.groupItems(
+        instanceData,
+        item => (
+            db.equalOrIncluded(ChallengeMapIDs, item.keystone_instance) ||
+            (item.instanceType == 2 && item.lfd_activity_ids.length && (config.expansion == -1 || db.equalOrIncluded(config.expansion, item.expansion)))
+        )
+    );
+
+    db.sanitizeItems(relInstanceData);
+
+    for (const instance of relInstanceData) {
+        const overrideData = config.keystoneInstanceOverride[instance.keystone_instance] || config.instanceOverride[instance.instance_map_id];
+        if (!overrideData)
+            continue;
+        Object.assign(instance, overrideData);
     }
 
-    const timerFile = instanceFiles.filter(file => file.name === 'mapchallengemode')[0];
-    const getTimerInfoForDungeon = dungeon => {
-        if (!timerFile || !timerFile.rows)
-            return;
-        const dungeonRow = timerFile.rows.filter(row => row['ID'] - dungeon.keystone_instance === 0)[0];
-        if (!dungeonRow)
-            return;
-        const goldTimer = parseInt(dungeonRow['CriteriaCount[2]']) || 0;
-        const silverTimer = parseInt(dungeonRow['CriteriaCount[1]']) || 0;
-        const bronzeTimer = parseInt(dungeonRow['CriteriaCount[0]']) || 0;
-        return { goldTimer, silverTimer, bronzeTimer };
+    relInstanceData.sort((a, b) => a.id - b.id);
+
+    const instancesToLua = (instances, keys) => {
+        const lua = [];
+        for (const instance of instances) {
+            const lualine = ['\t[' + (lua.length + 1) + '] = {'];
+            for (const key of keys) {
+                let val = instance[key];
+                if (typeof val === 'string') {
+                    val = '"' + val.replace(/\"/g, '\\"') + '"';
+                } else if (Array.isArray(val)) {
+                    val = '{ ' + val.join(', ') + ' }';
+                }
+                lualine.push(`\t\t["${key == 'mapName' ? 'name' : key}"] = ${val},`);
+            }
+            lualine.push('\t}');
+            lua.push(lualine.join('\r\n'));
+        }
+        return lua;
     };
 
-    dungeons.forEach(dungeon => {
-        const timerInfo = getTimerInfoForDungeon(dungeon);
-        dungeon.timers = timerInfo ? [timerInfo.goldTimer, timerInfo.silverTimer, timerInfo.bronzeTimer] : [];
-    });
+    const isInstanceSeasonal = (instance) => db.equalOrIncluded(ChallengeMapIDs, instance.keystone_instance);
+    const isInstanceKeystone = (instance) => instance.keystone_instance;
+    const isInstanceRaid = (instance) => instance.instanceType == 2;
 
-    dungeons.forEach(dungeon => {
-        const overrideData = config.keystoneInstanceOverride[dungeon.keystone_instance] || config.instanceOverride[dungeon.instance_map_id];
-        if (!overrideData)
-            return;
-        for (const key in overrideData)
-            dungeon[key] = overrideData[key];
-    });
+    const instancesSeasonals = relInstanceData.filter(isInstanceSeasonal);
+    const instancesKeystones = relInstanceData.filter(isInstanceKeystone);
+    const instancesRaids = relInstanceData.filter(isInstanceRaid);
 
-    dungeons.sort((a, b) => a.id - b.id);
-
-    const sortedKeys = [
+    const sortedKeystoneKeys = [
         'id',
         'keystone_instance',
         'instance_map_id',
@@ -385,31 +260,7 @@ const config = {
         'shortName'
     ];
 
-    const isDungeonValid = (dungeon) => dungeon !== undefined && dungeon.id !== undefined && dungeon.instance_map_id !== undefined && Array.isArray(dungeon.lfd_activity_ids) && dungeon.lfd_activity_ids.length;
-    const isDungeonKeystoneValid = (dungeon) => Array.isArray(dungeon.timers) && dungeon.timers.length;
-
-    const lua = [];
-
-    for (let i = 0; i < dungeons.length; i++) {
-        const dungeon = dungeons[i];
-        if (!isDungeonValid(dungeon) || !isDungeonKeystoneValid(dungeon))
-            continue;
-        const lualine = ['\t[' + (lua.length + 1) + '] = {'];
-        for (let j = 0; j < sortedKeys.length; j++) {
-            const sortedKey = sortedKeys[j];
-            let val = dungeon[sortedKey];
-            if (typeof val === 'string') {
-                val = '"' + val.replace(/\"/g, '\\"') + '"';
-            } else if (Array.isArray(val)) {
-                val = '{ ' + val.join(', ') + ' }';
-            }
-            lualine.push(`\t\t["${sortedKey}"] = ${val},`);
-        }
-        lualine.push('\t}');
-        lua.push(lualine.join('\r\n'));
-    }
-
-    const sortedKeys2 = [
+    const sortedRaidKeys = [
         'id',
         'instance_map_id',
         'lfd_activity_ids',
@@ -417,29 +268,45 @@ const config = {
         'shortName'
     ];
 
-    const isDungeonRaidValid = dungeon => dungeon.instanceType == 2;
+    const luaSeasonals = instancesToLua(instancesSeasonals, sortedKeystoneKeys);
+    const luaKeystones = instancesToLua(instancesKeystones, sortedKeystoneKeys);
+    const luaRaids = instancesToLua(instancesRaids, sortedRaidKeys);
 
-    const lua2 = [];
-
-    for (let i = 0; i < dungeons.length; i++) {
-        const dungeon = dungeons[i];
-        if (!isDungeonValid(dungeon) || !isDungeonRaidValid(dungeon))
-            continue;
-        const lualine = ['\t[' + (lua2.length + 1) + '] = {'];
-        for (let j = 0; j < sortedKeys2.length; j++) {
-            const sortedKey = sortedKeys2[j];
-            let val = dungeon[sortedKey];
-            if (typeof val === 'string') {
-                val = '"' + val.replace(/\"/g, '\\"') + '"';
-            } else if (Array.isArray(val)) {
-                val = '{ ' + val.join(', ') + ' }';
+    const instanceMapAndKeystoneIDs = mapChallengeModeRows
+        .map(row => ({ ID: row.ID, MapID: row.MapID }))
+        .reduce((pv, cv) => {
+            const existing = pv.find(o => o.MapID == cv.MapID);
+            if (existing) {
+                existing.IDs.push(cv.ID);
+            } else {
+                pv.push({ MapID: cv.MapID, IDs: [ cv.ID ] });
             }
-            lualine.push(`\t\t["${sortedKey === 'mapName' ? 'name' : sortedKey}"] = ${val},`);
-        }
-        lualine.push('\t}');
-        lua2.push(lualine.join('\r\n'));
-    }
+            return pv;
+        }, []);
 
-    console.log('local _, ns = ...\r\n\r\n-- Dungeon listing sorted by id\r\nns.dungeons = {\r\n' + lua.join(',\r\n') + '\r\n}\r\n\r\n-- Raid listing sorted by id\r\nns.raids = {\r\n' + lua2.join(',\r\n') + '\r\n}\r\n');
+    const luaInstanceMapAndKeystoneIDs = instanceMapAndKeystoneIDs.map(o => `\t[${o.MapID}] = ${o.IDs.length > 1 ? `{ ${o.IDs.join(', ')} }` : o.IDs[0]}`).join(',\r\n');
+
+    const lua = `local _, ns = ...
+
+-- Seasonal dungeons
+ns.dungeons = {
+${luaSeasonals.join(',\r\n')}
+}
+
+-- Expansion dungeons
+ns.expansionDungeons = {
+${luaKeystones.join(',\r\n')}
+}
+
+-- Raid instances
+ns.raids = {
+${luaRaids.join(',\r\n')}
+}
+
+local INSTANCE_ID_TO_CHALLENGE_MAP_ID = {
+${luaInstanceMapAndKeystoneIDs}
+}`;
+
+    console.log(lua);
 
 })();

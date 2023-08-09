@@ -1154,6 +1154,7 @@ do
     ---@field public replaySelection ReplayFrameSelections Defaults to `user_best_replay`
     ---@field public replayPoint ConfigProfilePoint Defaults to `{ point = nil, x = 0, y = 0 }`
     ---@field public profilePoint ConfigProfilePoint Defaults to `{ point = nil, x = 0, y = 0 }`
+    ---@field public replayBackground ConfigReplayColor Defaults to `{ r = 0, g = 0, b = 0, a = 0.5 }`
 
     -- fallback saved variables
     ---@class FallbackConfig
@@ -1198,6 +1199,8 @@ do
         replayStyle = "MODERN", -- NEW in 10.0.7
         replayTiming = "BOSS", -- NEW in 10.1.5
         replaySelection = "user_best_replay", -- NEW in 10.1.5
+        replayBackground = { r = 0, g = 0, b = 0, a = 0.5 }, -- NEW in 10.1.5
+        replayAlpha = 1, -- NEW in 10.1.5
         enableReplay = true, -- NEW in 10.1.5
         dockReplay = true, -- NEW in 10.1.5
         lockReplay = false, -- NEW in 10.1.5
@@ -7514,6 +7517,33 @@ do
         [5] = "watched_replay",
     }
 
+    ---@class ConfigReplayColor
+    ---@field public r number
+    ---@field public g number
+    ---@field public b number
+    ---@field public a number
+
+    ---@param texture Texture
+    ---@param color1 ConfigReplayColor
+    ---@param color2? ConfigReplayColor
+    ---@return boolean? success
+    local function ApplyColorToTexture(texture, color1, color2)
+        if not color1 or type(color1) ~= "table" then
+            return
+        end
+        if type(color2) ~= "table" then
+            color2 = nil
+        end
+        if color1 and not color2 then
+            texture:SetColorTexture(color1.r, color1.g, color1.b, color1.a)
+            return true
+        elseif color1 and color2 then
+            texture:SetGradient("VERTICAL", color1, color2)
+            return true
+        end
+        return false
+    end
+
     local FRAME_UPDATE_INTERVAL = 0.5
     local FRAME_TIMER_SCALE = 1 -- always 1 for production
 
@@ -7795,12 +7825,16 @@ do
     ---@class ReplayFrame : Frame
     local replayFrame
 
+    ---@class BossFrameBackgroundTexture : Texture
+    ---@field public ColorTop ColorMixin
+    ---@field public ColorBottom ColorMixin
+
     ---@class BossFrame : Frame
     ---@field public bossRows ReplayBossRow[]
     ---@field public Name FontString
     ---@field public InfoL FontString
     ---@field public InfoR FontString
-    ---@field public Background Texture
+    ---@field public Background BossFrameBackgroundTexture
     ---@field public CombatL Texture
     ---@field public CombatR Texture
     ---@field public RouteSwap Texture
@@ -7829,6 +7863,7 @@ do
             self.Name:SetText(self.index)
             self.InfoL:SetText("")
             self.InfoR:SetText("")
+            self:SetBackgroundColor(replayFrame:GetBackgroundColor())
             self:Show()
             self:Update()
         end
@@ -7966,6 +8001,20 @@ do
             GameTooltip_Hide()
         end
 
+        ---@param color ConfigReplayColor
+        function BossFrameMixin:SetBackgroundColor(color)
+            local bottom = CreateColor(color.r, color.g, color.b, color.a)
+            local top = CreateColor(color.r, color.g, color.b, color.a > 0.1 and color.a - 0.1 or 0)
+            self.Background.ColorBottom = bottom
+            self.Background.ColorTop = top
+            self.Background:SetGradient("VERTICAL", bottom, top)
+        end
+
+        ---@return ColorMixin colorBottom, ColorMixin colorTop
+        function BossFrameMixin:GetBackgroundColor()
+            return self.Background.ColorBottom, self.Background.ColorTop
+        end
+
     end
 
     ---@param obj BossFrame
@@ -7990,7 +8039,7 @@ do
         obj.Background = obj:CreateTexture(nil, "BACKGROUND")
         obj.Background:SetAllPoints()
         obj.Background:SetColorTexture(1, 1, 1, 1)
-        obj.Background:SetGradient("VERTICAL", CreateColor(0, 0, 0, 0.5), CreateColor(0, 0, 0, 0.4))
+        obj:SetBackgroundColor(replayFrame:GetBackgroundColor())
         obj.CombatL = util:CreateTextureFromIcon(obj, ns.CUSTOM_ICONS.replay.COMBAT, "ARTWORK")
         obj.CombatL:SetPoint("LEFT", obj.InfoL, "LEFT", 4, 0)
         obj.CombatL:SetSize(14, 14)
@@ -8876,6 +8925,9 @@ do
             self:Hide()
             self:SetScript("OnUpdate", self.OnUpdate)
 
+            self.backgroundColor = { r = 0, g = 0, b = 0, a = 0.5 } ---@type ConfigReplayColor
+            self.frameAlpha = 1
+
             self.forceHidden = false
             self.state = "NONE" ---@type ReplayFrameState
             self.elapsedTime = 0 -- the start time as provided by the WORLD_STATE_TIMER_START event
@@ -8908,6 +8960,7 @@ do
                 self:UpdatePosition()
             end)
 
+            self:SetAlpha(self.frameAlpha)
             self:SetPoint(self:GetTrackerPoint())
             self:SetSize(self.width, 0)
             self:SetFrameStrata("LOW")
@@ -8924,7 +8977,7 @@ do
 
             self.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
             self.Background:SetAllPoints()
-            self.Background:SetColorTexture(0, 0, 0, 0.5)
+            ApplyColorToTexture(self.Background, self.backgroundColor)
 
             self.BossFramePool = CreateBossFramePool(self)
 
@@ -8935,7 +8988,7 @@ do
             self.TextBlock.Background = self:CreateTexture(nil, "BACKGROUND", nil, 1)
             self.TextBlock.Background:SetPoint("TOPLEFT", self.TextBlock, "TOPLEFT", 0, 0)
             self.TextBlock.Background:SetPoint("BOTTOMRIGHT", self.TextBlock, "BOTTOMRIGHT", 0, 0)
-            self.TextBlock.Background:SetColorTexture(0, 0, 0, 0.5)
+            ApplyColorToTexture(self.TextBlock.Background, self.backgroundColor)
 
             ---@param previous? Region
             ---@param middleText? string
@@ -9173,6 +9226,30 @@ do
         ---@param timing ReplayFrameTiming
         function ReplayFrameMixin:IsTiming(timing)
             return self.timing == timing
+        end
+
+        ---@param color ConfigReplayColor
+        function ReplayFrameMixin:SetBackgroundColor(color)
+            self.backgroundColor = color
+            ApplyColorToTexture(self.Background, color)
+            ApplyColorToTexture(self.TextBlock.Background, color)
+            for bossFrame in self.BossFramePool:EnumerateActive() do
+                bossFrame:SetBackgroundColor(color)
+            end
+        end
+
+        function ReplayFrameMixin:GetBackgroundColor()
+            return self.backgroundColor
+        end
+
+        ---@param alpha number
+        function ReplayFrameMixin:SetFrameAlpha(alpha)
+            self.frameAlpha = alpha
+            self:SetAlpha(alpha)
+        end
+
+        function ReplayFrameMixin:GetFrameAlpha()
+            return self.frameAlpha
         end
 
         ---@param replayDataProvider ReplayDataProvider
@@ -10093,10 +10170,23 @@ do
         end)
     end
 
-    local function OnSettingsChanged()
+    local function OnSettingsChanged(event, ...)
+        if event == "RAIDERIO_SETTINGS_WIDGET_UPDATE" then
+            if replayFrame:IsShown() then
+                local cvar, value = ...
+                if cvar == "replayBackground" then
+                    replayFrame:SetBackgroundColor(value)
+                elseif cvar == "replayAlpha" then
+                    replayFrame:SetFrameAlpha(value)
+                end
+            end
+            return
+        end
         if config:Get("enableReplay") then
             replay:Enable()
             replayFrame:UpdatePosition()
+            replayFrame:SetBackgroundColor(config:Get("replayBackground"))
+            replayFrame:SetFrameAlpha(config:Get("replayAlpha"))
         else
             replay:Disable()
         end
@@ -10118,9 +10208,13 @@ do
         replayFrame:SetLiveDataProvider(CreateLiveDataProvider())
         replayFrame:SetStyle(config:Get("replayStyle"))
         replayFrame:SetTiming(config:Get("replayTiming"))
+        replayFrame:SetBackgroundColor(config:Get("replayBackground"))
+        replayFrame:SetFrameAlpha(config:Get("replayAlpha"))
         OnSettingsChanged()
         callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_CONFIG_READY")
         callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_SAVED")
+        callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_CLOSED")
+        callback:RegisterEvent(OnSettingsChanged, "RAIDERIO_SETTINGS_WIDGET_UPDATE")
     end
 
     function replay:OnEnable()
@@ -12187,11 +12281,12 @@ do
         end
 
         local function Close_OnClick()
-            configParentFrame:SetShown(not configParentFrame:IsShown())
+            configParentFrame:Hide()
+            callback:SendEvent("RAIDERIO_SETTINGS_CLOSED")
         end
 
         local function Save_OnClick()
-            Close_OnClick()
+            configParentFrame:Hide()
             local reload
             for i = 1, #configOptions.modules do
                 local f = configOptions.modules[i]
@@ -12249,6 +12344,20 @@ do
                     config:Set(f.cvar, f.selected.value)
                 end
             end
+            for i = 1, #configOptions.colors do
+                local f = configOptions.colors[i]
+                local value = config:Get(f.cvar)
+                if f.selected then
+                    value.r, value.g, value.b, value.a = f.selected.r, f.selected.g, f.selected.b, f.selected.a
+                    config:Set(f.cvar, value)
+                end
+            end
+            for i = 1, #configOptions.sliders do
+                local f = configOptions.sliders[i]
+                if f.selected then
+                    config:Set(f.cvar, f.selected)
+                end
+            end
             if reload then
                 util:ShowStaticPopupDialog(RELOAD_POPUP)
             end
@@ -12261,6 +12370,8 @@ do
             options = {}, ---@type RaiderIOSettingsToggleWidget[]
             radios = {}, ---@type RaiderIOSettingsRadioToggleWidget[]
             dropdowns = {}, ---@type RaiderIOSettingsDropDownWidget[]
+            colors = {}, ---@type RaiderIOSettingsColorPickerWidget[]
+            sliders = {}, ---@type RaiderIOSettingsSliderWidget[]
             backdrop = { -- TODO: 9.0
                 bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
                 edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 16,
@@ -12300,7 +12411,7 @@ do
             end
             for i = 1, #self.dropdowns do
                 local f = self.dropdowns[i]
-                if f.isDisabled then
+                if f.isDisabled ~= nil then
                     local disabled = f.isDisabled
                     if type(disabled) == "function" then
                         disabled = disabled(f)
@@ -12317,6 +12428,48 @@ do
                         f.toggleButton:SetEnabled(true)
                         f.toggleButton.text:SetVertexColor(1, 1, 1)
                         f.toggleButton.indicator:SetVertexColor(1, 1, 1)
+                    end
+                end
+            end
+            for i = 1, #self.colors do
+                local f = self.colors[i]
+                if f.isDisabled ~= nil then
+                    local disabled = f.isDisabled
+                    if type(disabled) == "function" then
+                        disabled = disabled(f)
+                    end
+                    if disabled then
+                        f.text:SetVertexColor(0.5, 0.5, 0.5)
+                        f.help.icon:SetVertexColor(0.5, 0.5, 0.5)
+                        f.colorButton:SetEnabled(false)
+                        f.colorButton.text:SetVertexColor(0.5, 0.5, 0.5)
+                        f.colorButton.indicator:SetDesaturated(true)
+                    else
+                        f.text:SetVertexColor(1, 1, 1)
+                        f.help.icon:SetVertexColor(1, 1, 1)
+                        f.colorButton:SetEnabled(true)
+                        f.colorButton.text:SetVertexColor(1, 1, 1)
+                        f.colorButton.indicator:SetDesaturated(false)
+                    end
+                end
+            end
+            for i = 1, #self.sliders do
+                local f = self.sliders[i]
+                if f.isDisabled ~= nil then
+                    local disabled = f.isDisabled
+                    if type(disabled) == "function" then
+                        disabled = disabled(f)
+                    end
+                    if disabled then
+                        f.text:SetVertexColor(0.5, 0.5, 0.5)
+                        f.help.icon:SetVertexColor(0.5, 0.5, 0.5)
+                        f.sliderFrame:SetEnabled(false)
+                        f.sliderFrame.text:SetVertexColor(0.5, 0.5, 0.5)
+                    else
+                        f.text:SetVertexColor(1, 1, 1)
+                        f.help.icon:SetVertexColor(1, 1, 1)
+                        f.sliderFrame:SetEnabled(true)
+                        f.sliderFrame.text:SetVertexColor(1, 1, 1)
                     end
                 end
             end
@@ -12356,6 +12509,16 @@ do
                     end
                 end
                 f.toggleButton.text:SetText(f.selected and f.selected.text)
+            end
+            for i = 1, #self.colors do
+                local f = self.colors[i]
+                f.selected = nil
+                self.ColorPickerUpdate(f)
+            end
+            for i = 1, #self.sliders do
+                local f = self.sliders[i]
+                f.selected = nil
+                self.SliderUpdate(f)
             end
         end
 
@@ -12564,7 +12727,6 @@ do
 
         ---@class RaiderIOSettingsDropDownWidget : RaiderIOSettingsBaseWidget, RaiderIOSettingsDropDownWidgetOptions
         ---@field public selected? RaiderIOSettingsDropDownOption
-        ---@field public isDisabled? boolean|RaiderIOSettingsDropDownWidgetIsDisabledCallback
 
         ---@class RaiderIOSettingsDropDownWidgetToggleButton : Button
 
@@ -12650,6 +12812,196 @@ do
             frame.toggleButton.DropDownMenu = CreateFrame("Frame", nil, frame.toggleButton, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
             UIDropDownMenu_Initialize(frame.toggleButton.DropDownMenu, function(...) self.DropDownOnInitialize(frame, ...) end, "MENU")
             self.dropdowns[#self.dropdowns + 1] = frame
+            return frame
+        end
+
+        ---@alias RaiderIOSettingsColorPickerWidgetIsDisabledCallback fun(self: RaiderIOSettingsColorPickerWidget): boolean?
+
+        ---@class RaiderIOSettingsColorPickerWidgetOptions
+        ---@field public isDisabled? boolean|RaiderIOSettingsColorPickerWidgetIsDisabledCallback
+
+        ---@class RaiderIOSettingsColorPickerWidget : RaiderIOSettingsBaseWidget, RaiderIOSettingsColorPickerWidgetOptions
+        ---@field public selected? ConfigReplayColor
+
+        ---@param self RaiderIOSettingsColorPickerWidget
+        ---@param setValue? ConfigReplayColor
+        function configOptions.ColorPickerUpdate(self, setValue)
+            local value = self.selected or util:TableCopy(config:Get(self.cvar))
+            if setValue then
+                value = setValue
+            end
+            self.selected = value
+            self.colorButton.indicator:SetColorTexture(value.r, value.g, value.b, value.a)
+            self.colorButton.text:SetFormattedText("%d %d %d (%d)", value.r * 255, value.g * 255, value.b * 255, value.a * 100)
+            callback:SendEvent("RAIDERIO_SETTINGS_WIDGET_UPDATE", self.cvar, self.selected)
+        end
+
+        ---@class OpenColorPickerColorOptions
+        ---@field public r number
+        ---@field public g number
+        ---@field public b number
+        ---@field public opacity number
+
+        ---@class OpenColorPickerOptions : OpenColorPickerColorOptions
+        ---@field public hasOpacity boolean
+        ---@field public swatchFunc fun()
+        ---@field public opacityFunc fun()
+        ---@field public cancelFunc fun(previousValues: OpenColorPickerColorOptions)
+        ---@field public extraInfo? any
+
+        ---@alias OpenColorPicker fun(options: OpenColorPickerOptions)
+        local OpenColorPicker = OpenColorPicker ---@type OpenColorPicker
+
+        ---@param self RaiderIOSettingsColorPickerWidget
+        function configOptions.ColorPickerOnClick(self)
+            if ColorPickerFrame:IsShown() then
+                return
+            end
+            local value = self.selected or util:TableCopy(config:Get(self.cvar)) ---@type ConfigReplayColor
+            ---@param applyPreviousValues? OpenColorPickerColorOptions
+            local function update(applyPreviousValues)
+                if applyPreviousValues then
+                    value.r, value.g, value.b = applyPreviousValues.r, applyPreviousValues.g, applyPreviousValues.b
+                    if 1 + applyPreviousValues.opacity > 1 then
+                        value.a = 1 - applyPreviousValues.opacity
+                    else
+                        value.a = 1 + applyPreviousValues.opacity
+                    end
+                else
+                    value.r, value.g, value.b = ColorPickerFrame:GetColorRGB()
+                    value.a = 1 - OpacitySliderFrame:GetValue()
+                end
+                configOptions.ColorPickerUpdate(self, value)
+            end
+            OpenColorPicker({
+                r = value.r,
+                g = value.g,
+                b = value.b,
+                opacity = 1 - value.a,
+                hasOpacity = true,
+                swatchFunc = function() update() end,
+                opacityFunc = function() update() end,
+                cancelFunc = function(previousValues) update(previousValues) end,
+                -- extraInfo = {},
+            })
+        end
+
+        ---@param self RaiderIOConfigOptions
+        ---@param label string
+        ---@param description string
+        ---@param cvar string
+        ---@param configOptions RaiderIOSettingsColorPickerWidgetOptions
+        function configOptions.CreateColorPicker(self, label, description, cvar, configOptions)
+            ---@class RaiderIOSettingsColorPickerWidget
+            local frame = self:CreateWidget("Frame")
+            frame.isDisabled = configOptions.isDisabled
+            frame.text:SetTextColor(1, 1, 1)
+            frame.text:SetText(label)
+            frame.tooltip = description
+            frame.cvar = cvar
+            frame.help.tooltip = description
+            frame.help:Hide()
+            frame.checkButton:Hide()
+            frame.colorButton = CreateFrame("Button", nil, frame) ---@class RaiderIOSettingsDropDownWidgetToggleButton
+            frame.colorButton:SetSize(120, 20)
+            frame.colorButton:SetPoint("RIGHT", frame.checkButton, "RIGHT", 0, 0)
+            frame.colorButton.indicator = frame.colorButton:CreateTexture(nil, "ARTWORK")
+            frame.colorButton.indicator:SetPoint("RIGHT", frame.colorButton, "RIGHT", -3, 0)
+            frame.colorButton.indicator:SetSize(16, 16)
+            frame.colorButton.indicator:SetColorTexture(1, 1, 1, 1)
+            frame.colorButton.text = frame.colorButton:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+            frame.colorButton.text:SetSize(120, 20)
+            frame.colorButton.text:SetPoint("LEFT", frame.colorButton, "LEFT", 0, 0)
+            frame.colorButton.text:SetPoint("RIGHT", frame.colorButton.indicator, "LEFT", -2, 0)
+            frame.colorButton.text:SetJustifyH("RIGHT")
+            frame.colorButton:EnableMouse(true)
+            frame.colorButton:RegisterForClicks("LeftButtonUp")
+            frame.colorButton:SetScript("OnClick", function(...) self.ColorPickerOnClick(frame, ...) end)
+            self.ColorPickerUpdate(frame)
+            self.colors[#self.colors + 1] = frame
+            return frame
+        end
+
+        ---@alias RaiderIOSettingsSliderWidgetIsDisabledCallback fun(self: RaiderIOSettingsSliderWidget): boolean?
+
+        ---@class RaiderIOSettingsSliderWidgetOptions
+        ---@field public isDisabled? boolean|RaiderIOSettingsSliderWidgetIsDisabledCallback
+        ---@field public pctl? boolean
+        ---@field public from? number
+        ---@field public to? number
+        ---@field public step? number
+
+        ---@class RaiderIOSettingsSliderWidget : RaiderIOSettingsBaseWidget, RaiderIOSettingsSliderWidgetOptions
+        ---@field public selected? number
+
+        ---@class RaiderIOSettingsSliderWidgetSliderFrame : Slider
+        ---@field public obeyStepOnDrag boolean
+        ---@field public Left Texture
+        ---@field public Right Texture
+        ---@field public Middle Texture
+        ---@field public Thumb Texture
+
+        ---@param self RaiderIOSettingsSliderWidget
+        ---@param setValue? number
+        function configOptions.SliderUpdate(self, setValue)
+            local value = self.selected or config:Get(self.cvar)
+            if setValue then
+                value = setValue
+            end
+            self.selected = value
+            local pctl = self.pctl
+            local pctlMod = pctl and 100 or 1
+            local from = self.from * pctlMod
+            local to = self.to * pctlMod
+            local step = self.step * pctlMod
+            local displayValue = value * pctlMod
+            self.sliderFrame:SetMinMaxValues(from, to)
+            self.sliderFrame:SetValue(displayValue)
+            self.sliderFrame:SetValueStep(step)
+            self.sliderFrame.text:SetFormattedText("%d", displayValue)
+            callback:SendEvent("RAIDERIO_SETTINGS_WIDGET_UPDATE", self.cvar, self.selected)
+        end
+
+        ---@param self RaiderIOConfigOptions
+        ---@param label string
+        ---@param description string
+        ---@param cvar string
+        ---@param configOptions RaiderIOSettingsSliderWidgetOptions
+        function configOptions.CreateSlider(self, label, description, cvar, configOptions)
+            ---@class RaiderIOSettingsSliderWidget
+            local frame = self:CreateWidget("Frame")
+            frame.isDisabled = configOptions.isDisabled
+            frame.pctl = configOptions.pctl or false
+            frame.from = configOptions.from or 0
+            frame.to = configOptions.to or 1
+            frame.step = configOptions.step or (frame.to - frame.from)/100
+            frame.text:SetTextColor(1, 1, 1)
+            frame.text:SetText(label)
+            frame.tooltip = description
+            frame.cvar = cvar
+            frame.help.tooltip = description
+            frame.help:Hide()
+            frame.checkButton:Hide()
+            frame.sliderFrame = CreateFrame("Slider", nil, frame, "MinimalSliderTemplate") ---@class RaiderIOSettingsSliderWidgetSliderFrame
+            frame.sliderFrame:SetSize(120, 20)
+            frame.sliderFrame:SetPoint("RIGHT", frame.checkButton, "RIGHT", 0, 0)
+            frame.sliderFrame.text = frame.sliderFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            frame.sliderFrame.text:SetSize(120, 20)
+            frame.sliderFrame.text:SetAllPoints()
+            frame.sliderFrame.text:SetJustifyH("CENTER")
+            ---@param value number
+            ---@param userInput boolean
+            frame.sliderFrame:SetScript("OnValueChanged", function(_, value, userInput)
+                if not userInput then
+                    return
+                end
+                if frame.pctl then
+                    value = value / (frame.to * 100)
+                end
+                self.SliderUpdate(frame, value)
+            end)
+            self.SliderUpdate(frame)
+            self.sliders[#self.sliders + 1] = frame
             return frame
         end
 
@@ -12759,6 +13111,9 @@ do
             configOptions:CreateOptionToggle(L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS, L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS_DESC, "enableClientEnhancements", { needReload = true })
             configOptions:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest")
             local enableReplay = configOptions:CreateOptionToggle(L.ENABLE_REPLAY, L.ENABLE_REPLAY_DESC, "enableReplay")
+            local function isReplayDisabled()
+                return not enableReplay.checkButton:GetChecked()
+            end
             configOptions:CreateDropDown(L.REPLAY_AUTO_SELECTION, L.REPLAY_AUTO_SELECTION_DESC, "replaySelection", {
                 options = {
                     { text = L.REPLAY_AUTO_SELECTION_MOST_RECENT, value = "user_recent_replay" },
@@ -12767,10 +13122,10 @@ do
                     { text = L.REPLAY_AUTO_SELECTION_GUILD_BEST, value = "guild_best_replay" },
                     { text = L.REPLAY_AUTO_SELECTION_STARRED, value = "watched_replay" },
                 },
-                isDisabled = function()
-                    return not enableReplay.checkButton:GetChecked()
-                end,
+                isDisabled = isReplayDisabled,
             })
+            configOptions:CreateColorPicker(L.REPLAY_BACKGROUND_COLOR, L.REPLAY_BACKGROUND_COLOR_DESC, "replayBackground", { isDisabled = isReplayDisabled })
+            configOptions:CreateSlider(L.REPLAY_FRAME_ALPHA, L.REPLAY_FRAME_ALPHA_DESC, "replayAlpha", { pctl = true, from = 0, to = 1, step = 0.01, isDisabled = isReplayDisabled })
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)

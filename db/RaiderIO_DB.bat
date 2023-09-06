@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 set cwd=%~dp0
 
 :TOC
-set toc_interface=100105
+set toc_interface=100107
 set toc_author=Vladinator ^(Vladinator-TarrenMill^), Aspyr ^(Aspyrox-Skullcrusher^) and Isak ^(Isak-Sargeras^)
 set toc_addon=RaiderIO
 

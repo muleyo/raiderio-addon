@@ -1,6 +1,7 @@
 local IS_RETAIL = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
-if not IS_RETAIL and not IS_CLASSIC then return end
+local IS_WRATH = WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC
+if not IS_RETAIL and not IS_CLASSIC and not IS_WRATH then return end
 
 local addonName = ... ---@type string @The name of the addon.
 local ns = select(2, ...) ---@class ns @The addon namespace.
@@ -191,7 +192,13 @@ do
     ns.LOOKUP_MAX_SIZE = floor(2^18-1) -- the maximum index we can use in a table before we start to get errors
     ns.CURRENT_SEASON = 1 -- the current mythic keystone season. dynamically assigned once keystone data is loaded.
     ns.RAIDERIO_ADDON_DOWNLOAD_URL = "https://rio.gg/addon"
-    ns.RAIDERIO_DOMAIN = IS_CLASSIC and "classic.raider.io" or "raider.io"
+    ns.RAIDERIO_DOMAIN = "raider.io"
+
+    if IS_CLASSIC then
+        ns.RAIDERIO_DOMAIN = "era.raider.io"
+    elseif IS_WRATH then
+        ns.RAIDERIO_DOMAIN = "classic.raider.io"
+    end
 
     ns.EASTER_EGG = {
         ["eu"] = {

@@ -10856,6 +10856,7 @@ do
         CHAT_ROSTER = true,
         COMMUNITIES_GUILD_MEMBER = true,
         COMMUNITIES_WOW_MEMBER = true,
+        ENEMY_PLAYER = true,
         FOCUS = true,
         FRIEND = true,
         GUILD = true,
@@ -10866,7 +10867,7 @@ do
         RAID_PLAYER = true,
         SELF = true,
         TARGET = true,
-        WORLD_STATE_SCORE = true
+        WORLD_STATE_SCORE = true,
     }
 
     -- if the dropdown is a valid type of dropdown then we mark it as acceptable to check for a unit on it

@@ -1601,6 +1601,9 @@ do
         if IsTestBuild() then
             return false
         end
+        if GetCurrentRegion() == 72 then
+            return false
+        end
         if ns.IGNORED_REALMS[ns.PLAYER_REALM] or ns.IGNORED_REALMS[ns.PLAYER_REALM_SLUG] then
             return false
         end

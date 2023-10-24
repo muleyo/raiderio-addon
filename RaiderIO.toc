@@ -9,4 +9,13 @@
 ## X-AddonProvider: github
 ## X-Curse-Project-ID: 279257
 ## X-Wago-ID: b6mb0XKP
+db/db_mainline_client_characters.lua
+db/db_mainline_client_colors.lua
+db/db_mainline_client_config.lua
+db/db_mainline_client_guilds.lua
+db/db_mainline_client_replays.lua
+db/db_mainline_dungeons.lua
+db/db_mainline_score_stats.lua
+db/db_mainline_score_tiers.lua
+db/db_mainline_score_tiers_prev.lua
 core.xml

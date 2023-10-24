@@ -9,4 +9,13 @@
 ## X-AddonProvider: github
 ## X-Curse-Project-ID: 279257
 ## X-Wago-ID: b6mb0XKP
+db/db_wrath_client_characters.lua
+db/db_wrath_client_colors.lua
+db/db_wrath_client_config.lua
+db/db_wrath_client_guilds.lua
+db/db_wrath_client_replays.lua
+db/db_wrath_dungeons.lua
+db/db_wrath_score_stats.lua
+db/db_wrath_score_tiers.lua
+db/db_wrath_score_tiers_prev.lua
 core.xml

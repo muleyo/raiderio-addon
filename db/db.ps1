@@ -33,6 +33,7 @@ function EscapeText
 foreach ($clientKey in $clients.Keys)
 {
 
+	$isMainline = $clientKey -eq "Mainline"
 	$clientVersion = $clients[$clientKey]
 	$clientText = EscapeText $clientKey
 
@@ -57,7 +58,7 @@ foreach ($clientKey in $clients.Keys)
 
 			$dbFolderName = "$($meta.AddOn)_DB_$($regionKey)_$($typeKey)"
 			$dbFolderPath = Join-Path $PSScriptRoot $dbFolderName
-			$tocFile = "$($dbFolderName)_$($clientKey).toc"
+			$tocFile = if ($isMainline) { "$($dbFolderName).toc" } else { "$($dbFolderName)_$($clientKey).toc" }
 			$tocFilePath = Join-Path $PSScriptRoot $dbFolderName $tocFile
 
 			if (-not (Test-Path $dbFolderPath))

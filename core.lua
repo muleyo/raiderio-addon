@@ -1,5 +1,5 @@
 local IS_RETAIL = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
-local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
+local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC
 local IS_WRATH = WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC
 
 local addonName = ... ---@type string @The name of the addon.
@@ -136,31 +136,33 @@ end
 do
 
     ---@class ns
-    ---@field public DUNGEONS Dungeon[]
-    ---@field public dungeons Dungeon[] @DEPRECATED
-    ---@field public EXPANSION_DUNGEONS Dungeon[]
-    ---@field public expansionDungeons Dungeon[] @DEPRECATED
-    ---@field public RAIDS DungeonRaid[]
-    ---@field public raids DungeonRaid[] @DEPRECATED
-    ---@field public REALMS RealmCollection<string, string>
-    ---@field public realmSlugs RealmCollection<string, string> @DEPRECATED
-    ---@field public REGIONS RegionCollection<number, number>
-    ---@field public regionIDs RegionCollection<number, number> @DEPRECATED
-    ---@field public SCORE_STATS ScoreStatsCollection<number, number>
-    ---@field public scoreLevelStats ScoreStatsCollection<number, number> @DEPRECATED
-    ---@field public SCORE_TIERS ScoreColorCollection<number, ScoreColor>
-    ---@field public scoreTiers ScoreColorCollection<number, ScoreColor> @DEPRECATED
-    ---@field public SCORE_TIERS_SIMPLE ScoreTiersSimpleCollection<number, ScoreTierSimple>
-    ---@field public scoreTiersSimple ScoreTiersSimpleCollection<number, ScoreTierSimple> @DEPRECATED
-    ---@field public SCORE_TIERS_PREV ScoreColorCollection<number, ScoreColor>
-    ---@field public previousScoreTiers ScoreColorCollection<number, ScoreColor> @DEPRECATED
-    ---@field public SCORE_TIERS_SIMPLE_PREV ScoreTiersSimpleCollection<number, ScoreTierSimple>
-    ---@field public previousScoreTiersSimple ScoreTiersSimpleCollection<number, ScoreTierSimple> @DEPRECATED
-    ---@field public CUSTOM_TITLES RecruitmentTitlesCollection<number, RecruitmentTitle>
+    ---@field public DUNGEONS? Dungeon[]
+    ---@field public dungeons? Dungeon[] @DEPRECATED
+    ---@field public EXPANSION_DUNGEONS? Dungeon[]
+    ---@field public expansionDungeons? Dungeon[] @DEPRECATED
+    ---@field public RAIDS? DungeonRaid[]
+    ---@field public raids? DungeonRaid[] @DEPRECATED
+    ---@field public REALMS table<string, string>
+    ---@field public realmSlugs table<string, string> @DEPRECATED
+    ---@field public REGIONS table<number, number>
+    ---@field public regionIDs table<number, number> @DEPRECATED
+    ---@field public SCORE_STATS? table<number, number>
+    ---@field public scoreLevelStats? table<number, number> @DEPRECATED
+    ---@field public DUNGEON_SCORE_STATS? table<number, DungeonScoreStats>
+    ---@field public dungeonScoreStats? table<number, DungeonScoreStats> @DEPRECATED
+    ---@field public SCORE_TIERS? table<number, ScoreColor>
+    ---@field public scoreTiers? table<number, ScoreColor> @DEPRECATED
+    ---@field public SCORE_TIERS_SIMPLE? table<number, ScoreTierSimple>
+    ---@field public scoreTiersSimple? table<number, ScoreTierSimple> @DEPRECATED
+    ---@field public SCORE_TIERS_PREV? table<number, ScoreColor>
+    ---@field public previousScoreTiers? table<number, ScoreColor> @DEPRECATED
+    ---@field public SCORE_TIERS_SIMPLE_PREV table<number, ScoreTierSimple>
+    ---@field public previousScoreTiersSimple table<number, ScoreTierSimple> @DEPRECATED
+    ---@field public CUSTOM_TITLES table<number, RecruitmentTitle>
     ---@field public CLIENT_CHARACTERS table<string, CharacterCollection>
-    ---@field public CLIENT_COLORS ScoreColorCollection<number, ScoreColor>
+    ---@field public CLIENT_COLORS table<number, ScoreColor>
     ---@field public CLIENT_CONFIG ClientConfig
-    ---@field public GUILD_BEST_DATA Guild<string, GuildCollection>
+    ---@field public GUILD_BEST_DATA table<string, GuildCollection>
     ---@field public REPLAYS Replay[]
     ---@field public EXPANSION number @The currently accessible expansion to the playerbase
     ---@field public MAX_LEVEL number @The currently accessible expansion max level to the playerbase
@@ -239,7 +241,7 @@ do
     }
 
     local PREVIOUS_SEASON_NUM_DUNGEONS = 8
-    local DUNGEONS = ns.DUNGEONS or ns.dungeons -- DEPRECATED: ns.dungeons
+    local DUNGEONS = ns.DUNGEONS or ns.dungeons or {} -- DEPRECATED: ns.dungeons + FALLBACK
 
     -- threshold for comparing current character's previous season score to current score
     -- meaning: once current score exceeds this fraction of previous season, then show current season
@@ -596,9 +598,7 @@ do
     ---@field public score number
     ---@field public color number[]
 
-    ---@class ScoreColorCollection
-
-    ---@return ScoreColorCollection<number, ScoreColor>
+    ---@return table<number, ScoreColor>
     function ns:GetClientColorData()
         return ns.CLIENT_COLORS
     end
@@ -628,9 +628,7 @@ do
     ---@field public season_best GuildMythicKeystoneRun[]
     ---@field public weekly_best GuildMythicKeystoneRun[]
 
-    ---@class Guild
-
-    ---@return Guild<string, GuildCollection>
+    ---@return table<string, GuildCollection>
     function ns:GetClientGuildData()
         return ns.GUILD_BEST_DATA
     end
@@ -742,7 +740,7 @@ do
     local ALL_DUNGEONS = {}
 
     ---@type Dungeon[]
-    local DUNGEONS = ns.DUNGEONS or ns.dungeons -- DEPRECATED: ns.dungeons
+    local DUNGEONS = ns.DUNGEONS or ns.dungeons or {} -- DEPRECATED: ns.dungeons + FALLBACK
 
     for i = 1, #DUNGEONS do
         local dungeon = DUNGEONS[i] ---@type Dungeon
@@ -752,7 +750,7 @@ do
     end
 
     ---@type Dungeon[]
-    local EXPANSION_DUNGEONS = ns.EXPANSION_DUNGEONS or ns.expansionDungeons -- DEPRECATED: ns.expansionDungeons
+    local EXPANSION_DUNGEONS = ns.EXPANSION_DUNGEONS or ns.expansionDungeons or {} -- DEPRECATED: ns.expansionDungeons + FALLBACK
 
     for i = 1, #EXPANSION_DUNGEONS do
         local dungeon = EXPANSION_DUNGEONS[i] ---@type Dungeon
@@ -762,7 +760,7 @@ do
     end
 
     ---@type DungeonRaid[]
-    local RAIDS = ns.RAIDS or ns.raids -- DEPRECATED: ns.raids
+    local RAIDS = ns.RAIDS or ns.raids or {} -- DEPRECATED: ns.raids + FALLBACK
 
     for i = 1, #RAIDS do
         local raid = RAIDS[i] ---@type DungeonRaid
@@ -780,60 +778,73 @@ do
         return RAIDS
     end
 
-    ---@class RealmCollection
+    ---@type table<string, string>
+    local REALMS = ns.REALMS or ns.realmSlugs -- DEPRECATED: ns.realmSlugs
 
-    ---@return RealmCollection<string, string>
     function ns:GetRealmData()
-        return ns.REALMS or ns.realmSlugs -- DEPRECATED: ns.realmSlugs
+        return REALMS
     end
 
-    ---@class RegionCollection
-
-    ---@return RegionCollection<number, number>
+    ---@return table<number, number>
     function ns:GetRegionData()
         return ns.REGIONS or ns.regionIDs -- DEPRECATED: ns.regionIDs
     end
 
-    ---@class ScoreStatsCollection
+    ---@type table<number, number>
+    local SCORE_STATS = ns.SCORE_STATS or ns.scoreLevelStats or {} -- DEPRECATED: ns.scoreLevelStats + FALLBACK
 
-    ---@return ScoreStatsCollection<number, number>
     function ns:GetScoreStatsData()
-        return ns.SCORE_STATS or ns.scoreLevelStats -- DEPRECATED: ns.scoreLevelStats
+        return SCORE_STATS
     end
 
-    ---@return ScoreColorCollection<number, ScoreColor>
+    ---@class DungeonScoreStats
+    ---@field public [1] number
+    ---@field public [2] number
+
+    ---@type table<number, DungeonScoreStats>
+    local DUNGEON_SCORE_STATS = ns.DUNGEON_SCORE_STATS or ns.dungeonScoreStats or {} -- DEPRECATED: ns.dungeonScoreStats + FALLBACK
+
+    function ns:GetDungeonScoreStatsData()
+        return DUNGEON_SCORE_STATS
+    end
+
+    ---@type table<number, ScoreColor>
+    local SCORE_TIERS = ns.SCORE_TIERS or ns.scoreTiers or {} -- DEPRECATED: ns.scoreTiers + FALLBACK
+
     function ns:GetScoreTiersData()
-        return ns.SCORE_TIERS or ns.scoreTiers -- DEPRECATED: ns.scoreTiers
+        return SCORE_TIERS
     end
 
     ---@class ScoreTierSimple
     ---@field public score number
     ---@field public quality number
 
-    ---@class ScoreTiersSimpleCollection
+    ---@type table<number, ScoreTierSimple>
+    local SCORE_TIERS_SIMPLE = ns.SCORE_TIERS_SIMPLE or ns.scoreTiersSimple or {} -- DEPRECATED: ns.scoreTiersSimple + FALLBACK
 
-    ---@return ScoreTiersSimpleCollection<number, ScoreTierSimple>
     function ns:GetScoreTiersSimpleData()
-        return ns.SCORE_TIERS_SIMPLE or ns.scoreTiersSimple -- DEPRECATED: ns.scoreTiersSimple
+        return SCORE_TIERS_SIMPLE
     end
 
-    ---@return ScoreColorCollection<number, ScoreColor>
+    ---@type table<number, ScoreColor>
+    local SCORE_TIERS_PREV = ns.SCORE_TIERS_PREV or ns.previousScoreTiers or {} -- DEPRECATED ns.previousScoreTiers + FALLBACK
+
     function ns:GetScoreTiersPrevData()
-        return ns.SCORE_TIERS_PREV or ns.previousScoreTiers -- DEPRECATED ns.previousScoreTiers
+        return SCORE_TIERS_PREV
     end
 
-    ---@return ScoreTiersSimpleCollection<number, ScoreTierSimple>
+    ---@type table<number, ScoreTierSimple>
+    local SCORE_TIERS_SIMPLE_PREV = ns.SCORE_TIERS_SIMPLE_PREV or ns.previousScoreTiersSimple or {} -- DEPRECATED: ns.previousScoreTiersSimple + FALLBACK
+
     function ns:GetScoreTiersSimplePrevData()
-        return ns.SCORE_TIERS_SIMPLE_PREV or ns.previousScoreTiersSimple -- DEPRECATED: ns.previousScoreTiersSimple
+        return SCORE_TIERS_SIMPLE_PREV
     end
 
     ---@class RecruitmentTitle
     ---@field public [1] string
     ---@field public [2] number?
 
-    ---@class RecruitmentTitlesCollection
-
-    ---@return RecruitmentTitlesCollection<number, RecruitmentTitle>
+    ---@return table<number, RecruitmentTitle>
     function ns:GetRecruitmentTitles()
         return ns.CUSTOM_TITLES
     end

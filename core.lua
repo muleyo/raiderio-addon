@@ -1,7 +1,6 @@
 local IS_RETAIL = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
 local IS_WRATH = WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC
-if not IS_RETAIL and not IS_CLASSIC and not IS_WRATH then return end
 
 local addonName = ... ---@type string @The name of the addon.
 local ns = select(2, ...) ---@class ns @The addon namespace.
@@ -1606,6 +1605,9 @@ do
     -- Servers that are **not** `IsOnTournamentRealm`, `IsTestBuild`, or part of `ns.IGNORED_REALMS` are considered retail realms.
     -- We will use this function to avoid complaining or printing warnings to the user about these special realms.
     function util:IsOnRetailRealm()
+        if not IS_RETAIL then
+            return false
+        end
         if IsOnTournamentRealm() then
             return false
         end
@@ -2941,7 +2943,7 @@ do
     end
 
     local function OnPlayerLogin()
-        if config:Get("debugMode") and not util:IsOnRetailRealm() then
+        if IS_RETAIL and config:Get("debugMode") and not util:IsOnRetailRealm() then
             InjectTestBuildData()
         end
         CheckQueuedProviders()
@@ -12248,7 +12250,7 @@ do
 
     ---@type RaiderIOSettingsModuleColumn[]
     local databaseModuleColumns = {
-        { icon = 525134, text = L.DB_MODULES_HEADER_MYTHIC_PLUS, check = "checkButton", addon = "addon1" }, -- 525134 = inv_relics_hourglass
+        { icon = IS_RETAIL and 525134 or 136106, text = L.DB_MODULES_HEADER_MYTHIC_PLUS, check = "checkButton", addon = "addon1" }, -- 525134 = inv_relics_hourglass | 136106 = spell_nature_timestop
         { icon = 254652, text = L.DB_MODULES_HEADER_RAIDING, check = "checkButton2", addon = "addon2" }, -- 254652 = achievement_boss_ragnaros
         { icon = 442272, text = L.DB_MODULES_HEADER_RECRUITMENT, check = "checkButton3", addon = "addon3" }, -- 442272 = achievement_guildperk_everybodysfriend
     }

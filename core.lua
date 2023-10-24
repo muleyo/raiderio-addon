@@ -1642,7 +1642,7 @@ do
         local serverId = tonumber(strmatch(guid, "^Player%-(%d+)") or 0) or 0
         local regionId = REGION[serverId]
         if not regionId then
-            regionId = GetCurrentRegion()
+            regionId = GetCurrentRegion() ---@type number
             if util:IsOnRetailRealm() then
                 ns.Print(format(L.UNKNOWN_SERVER_FOUND, addonName, guid or "N/A", GetNormalizedRealmName() or "N/A"))
             end
@@ -2159,7 +2159,7 @@ do
         if fontObject then
             TOOLTIP_TEXT_FONTSTRING:SetFontObject(fontObject)
         else
-            TOOLTIP_TEXT_FONTSTRING:SetFont(fontWidget:GetFont())
+            TOOLTIP_TEXT_FONTSTRING:SetFont(fontWidget:GetFont()) ---@diagnostic disable-line: param-type-mismatch
         end
     end
 
@@ -7579,7 +7579,7 @@ if IS_RETAIL then
             texture:SetColorTexture(color1.r, color1.g, color1.b, color1.a)
             return true
         elseif color1 and color2 then
-            texture:SetGradient("VERTICAL", color1, color2)
+            texture:SetGradient("VERTICAL", color1, color2) ---@diagnostic disable-line: param-type-mismatch
             return true
         end
         return false
@@ -13139,7 +13139,7 @@ do
 
             -- add widgets
             local header = configOptions:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(C_AddOns.GetAddOnMetadata(addonName, "Version")), configHeaderFrame)
-            header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
+            header.text:SetFont(header.text:GetFont(), 16, "OUTLINE") ---@diagnostic disable-line: param-type-mismatch
 
             configOptions:CreateHeadline(L.CHOOSE_HEADLINE_HEADER)
             configOptions:CreateRadioToggle(L.SHOW_BEST_SEASON, L.SHOW_BEST_SEASON_DESC, "mplusHeadlineMode", 1)

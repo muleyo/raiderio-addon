@@ -29,3 +29,5 @@ ignore:
   - package-lock.json
   - node_modules
   - .vscode
+  - .github
+  - .ackrc

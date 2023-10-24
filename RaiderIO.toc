@@ -8,4 +8,5 @@
 ## X-Website: https://raider.io
 ## X-AddonProvider: github
 ## X-Curse-Project-ID: 279257
+## X-Wago-ID: b6mb0XKP
 core.xml

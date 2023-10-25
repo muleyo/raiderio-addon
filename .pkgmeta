@@ -19,7 +19,7 @@ plain-copy:
   - db/db_*.lua
 
 ignore:
-  - db/db.ps1
+  - toc.ps1
   - build.sh
   - create_merged_package.sh
   - update_locale.sh

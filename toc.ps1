@@ -129,7 +129,7 @@ foreach ($clientKey in $clients.Keys)
 		{
 			continue
 		}
-		$clientTocLines += "$($clientFile.Name)"
+		$clientTocLines += "db/$($clientFile.Name)"
 	}
 	$clientTocLines += "core.xml"
 	$clientTocText = $clientTocLines -join "`r`n"

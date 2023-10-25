@@ -9,6 +9,7 @@
 ## X-AddonProvider: github
 ## X-Curse-Project-ID: 279257
 ## X-Wago-ID: b6mb0XKP
+db/db_era_client_characters.lua
 db/db_era_client_colors.lua
 db/db_era_client_config.lua
 db/db_era_client_guilds.lua

@@ -112,6 +112,23 @@ function BuildTocLines
 	return $tocLines
 }
 
+function IsClientFile
+{
+	param(
+		[string]$client,
+		[string]$file
+	)
+	foreach ($typeValue in $types.Values)
+	{
+		$text = EscapeText $typeValue
+		if ($file.StartsWith("db_$($client)_$($text)_"))
+		{
+			return $false
+		}
+	}
+	return $true
+}
+
 foreach ($clientKey in $clients.Keys)
 {
 
@@ -125,7 +142,7 @@ foreach ($clientKey in $clients.Keys)
 	$clientTocLines = BuildTocLines $meta.TOC $clientInfo.Interface
 	foreach ($clientFile in $clientFiles)
 	{
-		if ($clientFile.Name -match "_(characters|lookup)\.lua$")
+		if (-not (IsClientFile $clientInfo.Name $clientFile.Name))
 		{
 			continue
 		}

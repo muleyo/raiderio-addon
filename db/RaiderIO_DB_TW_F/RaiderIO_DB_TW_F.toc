@@ -9,5 +9,5 @@
 ## X-Region: Taiwan
 ## X-Faction: Both
 ## X-Website: https://raider.io
-../RaiderIO/db/db_mainline_recruitment_tw_characters.lua
-../RaiderIO/db/db_mainline_recruitment_tw_lookup.lua
+../RaiderIO/db/db_recruitment_tw_characters.lua
+../RaiderIO/db/db_recruitment_tw_lookup.lua

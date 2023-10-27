@@ -9,5 +9,5 @@
 ## X-Region: Europe
 ## X-Faction: Both
 ## X-Website: https://raider.io
-../RaiderIO/db/db_mainline_mythicplus_eu_characters.lua
-../RaiderIO/db/db_mainline_mythicplus_eu_lookup.lua
+../RaiderIO/db/db_mythicplus_eu_characters.lua
+../RaiderIO/db/db_mythicplus_eu_lookup.lua

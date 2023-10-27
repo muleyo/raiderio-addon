@@ -47,7 +47,7 @@ node_modules
 
 # Client related files we don't need to commit back to git
 CHANGES.txt
-db_client_*.lua
+#db_*client_*.lua
 .env
 
 # Tool related cache we don't need to commit

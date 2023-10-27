@@ -1,7 +1,7 @@
 # https://warcraft.wiki.gg/wiki/TOC_format#Warcraft_Wiki
 # https://wowpedia.fandom.com/wiki/TOC_format#Wowpedia
 
-$clients = @{
+$clients = [ordered]@{
 	Mainline = @{
 		Interface = 100107
 		Version = "10.1.7"
@@ -62,8 +62,33 @@ $types = @{
 	F = "Recruitment"
 }
 
+$nonMainlineClients = @()
+
+for ($i = 0; $i -lt $clients.Values.Count; $i++)
+{
+	$clientInfo = $clients.Values[$i]
+	$clientInfo.IsMainline = $i -eq 0
+	if (-not $clientInfo.IsMainline)
+	{
+		$nonMainlineClients += $clientInfo
+	}
+}
+
 $rootPath = $PSScriptRoot
 $dbRootPath = Join-Path $rootPath "db"
+
+$sharedClientFiles = @()
+$coreXml = [xml](Get-Content -Path (Join-Path $rootPath "core.xml"))
+
+foreach ($xmlScript in $coreXml.Ui.Script)
+{
+	$xmlFile = $xmlScript.file
+	if (-not $xmlFile.StartsWith("db/db_"))
+	{
+		continue
+	}
+	$sharedClientFiles += $xmlFile.Split("/", 2)[1]
+}
 
 function EscapeText
 {
@@ -112,16 +137,51 @@ function BuildTocLines
 	return $tocLines
 }
 
-function IsClientFile
+function ClientFilePrefix
 {
 	param(
-		[string]$client,
+		$clientInfo
+	)
+	if ($clientInfo.IsMainline)
+	{
+		return "db"
+	}
+	else
+	{
+		return "db_$($clientInfo.Name)"
+	}
+}
+
+function ClientTocCanLoadFile
+{
+	param(
+		$clientInfo,
 		[string]$file
 	)
+	if ($sharedClientFiles.Contains($file))
+	{
+		return $false
+	}
+	$clientFilePrefix = ClientFilePrefix $clientInfo
+	foreach ($clientKey in $clients.Keys)
+	{
+		$otherClientInfo = $clients[$clientKey]
+		if ($otherClientInfo.IsMainline -or $otherClientInfo -eq $clientInfo)
+		{
+			continue
+		}
+		$otherClientFilePrefix = ClientFilePrefix $otherClientInfo
+		$otherFilePrefix = "$($otherClientFilePrefix)_"
+		if ($file.StartsWith($otherFilePrefix))
+		{
+			return $false
+		}
+	}
 	foreach ($typeValue in $types.Values)
 	{
-		$text = EscapeText $typeValue
-		if ($file.StartsWith("db_$($client)_$($text)_"))
+		$typeText = EscapeText $typeValue
+		$filePrefix = "$($clientFilePrefix)_$($typeText)_"
+		if ($file.StartsWith($filePrefix))
 		{
 			return $false
 		}
@@ -132,21 +192,20 @@ function IsClientFile
 foreach ($clientKey in $clients.Keys)
 {
 
-	$isMainline = $clientKey -eq "Mainline"
 	$clientInfo = $clients[$clientKey]
 	$clientVersion = $clientInfo.Version
 
-	$clientTocFile = if ($isMainline) { "$($meta.AddOn).toc" } else { "$($meta.AddOn)_$($clientKey).toc" }
+	$clientTocFile = if ($clientInfo.IsMainline) { "$($meta.AddOn).toc" } else { "$($meta.AddOn)_$($clientKey).toc" }
 	$clientTocFilePath = Join-Path $rootPath $clientTocFile
-	$clientFiles = Get-ChildItem $dbRootPath -Filter "db_$($clientInfo.Name)_*.lua"
+	$clientFilePrefix = ClientFilePrefix $clientInfo
+	$clientFiles = Get-ChildItem $dbRootPath -Filter "$($clientFilePrefix)_*.lua"
 	$clientTocLines = BuildTocLines $meta.TOC $clientInfo.Interface
 	foreach ($clientFile in $clientFiles)
 	{
-		if (-not (IsClientFile $clientInfo.Name $clientFile.Name))
+		if (ClientTocCanLoadFile $clientInfo $clientFile.Name)
 		{
-			continue
+			$clientTocLines += "db/$($clientFile.Name)"
 		}
-		$clientTocLines += "db/$($clientFile.Name)"
 	}
 	$clientTocLines += "core.xml"
 	$clientTocText = $clientTocLines -join "`r`n"
@@ -164,8 +223,8 @@ foreach ($clientKey in $clients.Keys)
 			$typeName = $types[$typeKey]
 			$typeText = EscapeText $typeName
 
-			$db1 = "db_$($clientInfo.Name)_$($typeText)_$($regionText)_characters.lua"
-			$db2 = "db_$($clientInfo.Name)_$($typeText)_$($regionText)_lookup.lua"
+			$db1 = "$($clientFilePrefix)_$($typeText)_$($regionText)_characters.lua"
+			$db2 = "$($clientFilePrefix)_$($typeText)_$($regionText)_lookup.lua"
 
 			$db1Path = Join-Path $dbRootPath $db1
 			$db2Path = Join-Path $dbRootPath $db2
@@ -173,7 +232,7 @@ foreach ($clientKey in $clients.Keys)
 
 			$dbFolderName = "$($meta.AddOn)_DB_$($regionKey)_$($typeKey)"
 			$dbFolderPath = Join-Path $dbRootPath $dbFolderName
-			$tocFile = if ($isMainline) { "$($dbFolderName).toc" } else { "$($dbFolderName)_$($clientKey).toc" }
+			$tocFile = if ($clientInfo.IsMainline) { "$($dbFolderName).toc" } else { "$($dbFolderName)_$($clientKey).toc" }
 			$tocFilePath = Join-Path $dbRootPath $dbFolderName $tocFile
 
 			if (-not (Test-Path $dbFolderPath))

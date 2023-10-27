@@ -9,5 +9,5 @@
 ## X-Region: Europe
 ## X-Faction: Both
 ## X-Website: https://raider.io
-../RaiderIO/db/db_mainline_raiding_eu_characters.lua
-../RaiderIO/db/db_mainline_raiding_eu_lookup.lua
+../RaiderIO/db/db_raiding_eu_characters.lua
+../RaiderIO/db/db_raiding_eu_lookup.lua

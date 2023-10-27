@@ -9,5 +9,5 @@
 ## X-Region: Americas
 ## X-Faction: Both
 ## X-Website: https://raider.io
-../RaiderIO/db/db_mainline_raiding_us_characters.lua
-../RaiderIO/db/db_mainline_raiding_us_lookup.lua
+../RaiderIO/db/db_raiding_us_characters.lua
+../RaiderIO/db/db_raiding_us_lookup.lua

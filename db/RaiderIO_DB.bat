@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 set cwd=%~dp0
 
 :TOC
-set toc_interface=100107
+set toc_interface=100200
 set toc_author=Vladinator ^(Vladinator-TarrenMill^), Aspyr ^(Aspyrox-Skullcrusher^) and Isak ^(Isak-Sargeras^)
 set toc_addon=RaiderIO
 
@@ -60,7 +60,7 @@ for %%r in (
 			echo ## Author: !toc_author!>>!af!
 			echo ## Dependencies: !toc_addon!>>!af!
 			echo ## DefaultState: enabled>>!af!
-			echo ## IconTexture: Interface\AddOns\RaiderIO\icons\logo
+			echo ## IconTexture: Interface\AddOns\RaiderIO\icons\logo>>!af!
 			echo ## X-Type: !t2!>>!af!
 			echo ## X-Region: !r2!>>!af!
 			echo ## X-Faction: Both>>!af!

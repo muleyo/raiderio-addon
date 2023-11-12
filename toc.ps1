@@ -3,8 +3,8 @@
 
 $clients = [ordered]@{
 	Mainline = @{
-		Interface = 100107
-		Version = "10.1.7"
+		Interface = 100200
+		Version = "10.2.0"
 		Name = "mainline"
 	}
 	Wrath = @{

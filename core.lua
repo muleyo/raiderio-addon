@@ -3884,6 +3884,13 @@ do
     ---@param results DataProviderMythicKeystoneProfile
     local function ApplySortedMilestones(results)
         results.sortedMilestones = {}
+        if results.keystoneTwentyFivePlus > 0 then
+            results.sortedMilestones[#results.sortedMilestones + 1] = {
+                level = 25,
+                label = L.TIMED_25_RUNS,
+                text = results.keystoneTwentyFivePlus .. (results.keystoneTwentyFivePlus > 10 and "+" or "")
+            }
+        end
         if results.keystoneTwentyPlus > 0 then
             results.sortedMilestones[#results.sortedMilestones + 1] = {
                 level = 20,
@@ -4040,7 +4047,9 @@ do
                 results.keystoneFifteenPlus = DecodeBits8(value)
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
                 results.keystoneTwentyPlus = DecodeBits8(value)
-                results.hasRenderableData = results.hasRenderableData or results.keystoneFivePlus > 0 or results.keystoneTenPlus > 0 or results.keystoneFifteenPlus > 0 or results.keystoneTwentyPlus > 0
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
+                results.keystoneTwentyFivePlus = DecodeBits8(value)
+                results.hasRenderableData = results.hasRenderableData or results.keystoneFivePlus > 0 or results.keystoneTenPlus > 0 or results.keystoneFifteenPlus > 0 or results.keystoneTwentyPlus > 0 or results.keystoneTwentyFivePlus > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_LEVELS then
                 bitOffset = ReadDungeonLevelStats(results, bucket, bitOffset, 'base')
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_BEST_INDEX then

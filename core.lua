@@ -3882,42 +3882,19 @@ do
     end
 
     ---@param results DataProviderMythicKeystoneProfile
-    local function ApplySortedMilestones(results)
+    ---@param keystoneMilestoneLevels number[]
+    local function ApplySortedMilestones(results, keystoneMilestoneLevels)
         results.sortedMilestones = {}
-        if results.keystoneTwentyFivePlus > 0 then
-            results.sortedMilestones[#results.sortedMilestones + 1] = {
-                level = 25,
-                label = L.TIMED_25_RUNS,
-                text = results.keystoneTwentyFivePlus .. (results.keystoneTwentyFivePlus > 10 and "+" or "")
-            }
-        end
-        if results.keystoneTwentyPlus > 0 then
-            results.sortedMilestones[#results.sortedMilestones + 1] = {
-                level = 20,
-                label = L.TIMED_20_RUNS,
-                text = results.keystoneTwentyPlus .. (results.keystoneTwentyPlus > 10 and "+" or "")
-            }
-        end
-        if results.keystoneFifteenPlus > 0 then
-            results.sortedMilestones[#results.sortedMilestones + 1] = {
-                level = 15,
-                label = L.TIMED_15_RUNS,
-                text = results.keystoneFifteenPlus .. (results.keystoneFifteenPlus > 10 and "+" or "")
-            }
-        end
-        if results.keystoneTenPlus > 0 then
-            results.sortedMilestones[#results.sortedMilestones + 1] = {
-                level = 10,
-                label = L.TIMED_10_RUNS,
-                text = results.keystoneTenPlus .. (results.keystoneTenPlus > 10 and "+" or "")
-            }
-        end
-        if results.keystoneFivePlus > 0 then
-            results.sortedMilestones[#results.sortedMilestones + 1] = {
-                level = 5,
-                label = L.TIMED_5_RUNS,
-                text = results.keystoneFivePlus .. (results.keystoneFivePlus > 10 and "+" or "")
-            }
+        for i = 1, #keystoneMilestoneLevels do
+            local milestoneLevel = keystoneMilestoneLevels[i]
+            local milestoneLevelCount = results["keystoneMilestone" .. milestoneLevel] or 0
+            if milestoneLevelCount > 0 then
+                results.sortedMilestones[#results.sortedMilestones + 1] = {
+                    level = milestoneLevel,
+                    label = L["TIMED_" .. milestoneLevel .. "_RUNS"],
+                    text = milestoneLevelCount .. (milestoneLevelCount > 10 and "+" or "")
+                }
+            end
         end
         results.mplusCurrent = {
             score = results.currentScore or 0,
@@ -3996,7 +3973,7 @@ do
     ---@param name? string
     ---@param realm? string
     ---@param region? string
-    local function UnpackMythicKeystoneData(bucket, baseOffset, encodingOrder, providerOutdated, providerBlocked, name, realm, region)
+    local function UnpackMythicKeystoneData(bucket, baseOffset, encodingOrder, keystoneMilestoneLevels, providerOutdated, providerBlocked, name, realm, region)
         ---@type DataProviderMythicKeystoneProfile
         local results = { outdated = providerOutdated, hasRenderableData = false } ---@diagnostic disable-line: missing-fields
         if providerBlocked then
@@ -4039,17 +4016,16 @@ do
                 value, bitOffset = ReadBitsFromString(bucket, bitOffset, 7)
                 results.mainPreviousRoleOrdinalIndex = 1 + value -- indexes are one-based
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_RUN_COUNTS then
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
-                results.keystoneFivePlus = DecodeBits8(value)
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
-                results.keystoneTenPlus = DecodeBits8(value)
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
-                results.keystoneFifteenPlus = DecodeBits8(value)
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
-                results.keystoneTwentyPlus = DecodeBits8(value)
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
-                results.keystoneTwentyFivePlus = DecodeBits8(value)
-                results.hasRenderableData = results.hasRenderableData or results.keystoneFivePlus > 0 or results.keystoneTenPlus > 0 or results.keystoneFifteenPlus > 0 or results.keystoneTwentyPlus > 0 or results.keystoneTwentyFivePlus > 0
+                local hasMilestoneData = false
+                for i = 1, #keystoneMilestoneLevels do
+                    value, bitOffset = ReadBitsFromString(bucket, bitOffset, 8)
+                    local milestoneData = DecodeBits8(value)
+                    results["keystoneMilestone" .. keystoneMilestoneLevels[i]] = milestoneData
+                    if milestoneData > 0 then
+                        hasMilestoneData = true
+                    end
+                end
+                results.hasRenderableData = results.hasRenderableData or hasMilestoneData
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_LEVELS then
                 bitOffset = ReadDungeonLevelStats(results, bucket, bitOffset, 'base')
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_BEST_INDEX then
@@ -4066,7 +4042,7 @@ do
             end
         end
         ApplySortedDungeons(results)
-        ApplySortedMilestones(results)
+        ApplySortedMilestones(results, keystoneMilestoneLevels)
         -- ApplyClientDataToMythicKeystoneData(results, name, realm) -- TODO: weekly affix handling so we disable this until we know what kind of data we expect here
         return results
     end
@@ -4502,7 +4478,7 @@ do
             if cache then
                 return cache
             end
-            local profile = UnpackMythicKeystoneData(nil, nil, nil, true, true, name, realm, provider.region) ---@diagnostic disable-line: param-type-mismatch
+            local profile = UnpackMythicKeystoneData(nil, nil, nil, nil, true, true, name, realm, provider.region) ---@diagnostic disable-line: param-type-mismatch
             profile.blockedPurged = true
             mythicKeystoneProfileCache[guid] = profile
             return profile
@@ -4515,7 +4491,7 @@ do
         if cache then
             return cache
         end
-        local profile = UnpackMythicKeystoneData(bucket, baseOffset, provider.encodingOrder, provider.outdated, provider.blocked, name, realm, provider.region)
+        local profile = UnpackMythicKeystoneData(bucket, baseOffset, provider.encodingOrder, provider.keystoneMilestoneLevels, provider.outdated, provider.blocked, name, realm, provider.region)
         mythicKeystoneProfileCache[guid] = profile
         return profile
     end

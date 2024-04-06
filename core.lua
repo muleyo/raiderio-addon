@@ -131,6 +131,12 @@ local HookUtil do
 
 end
 
+-- clients have API naming variants and this helps bridge that gap (this will require revisions/deletion as the clients unify their API's)
+local GetDetailedItemLevelInfo = GetDetailedItemLevelInfo or C_Item.GetDetailedItemLevelInfo ---@diagnostic disable-line: deprecated
+local GetItemInfo = GetItemInfo or C_Item.GetItemInfo ---@diagnostic disable-line: deprecated
+local GetItemInfoInstant = GetItemInfoInstant or C_Item.GetItemInfoInstant ---@diagnostic disable-line: deprecated
+local GetItemQualityColor = GetItemQualityColor or C_Item.GetItemQualityColor ---@diagnostic disable-line: deprecated
+
 -- constants.lua (ns)
 -- dependencies: none
 do
@@ -867,22 +873,22 @@ do
     ---@field public enabled boolean @Flag indicates if the module is enabled.
     ---@field public dependencies string[] @List over dependencies before we can Load the module.
     -- private functions that should never be called
-    ---@field public SetLoaded function @Internal function should not be called manually.
-    ---@field public Load function @Internal function should not be called manually.
-    ---@field public SetEnabled function @Internal function should not be called manually.
+    ---@field public SetLoaded fun(self: Module, state: boolean) @Internal function should not be called manually.
+    ---@field public Load fun(self: Module):boolean @Internal function should not be called manually.
+    ---@field public SetEnabled fun(self: Module, state: boolean) @Internal function should not be called manually.
     -- protected functions that can be called but should never be overridden
-    ---@field public IsLoaded function @Internal function, can be called but do not override.
-    ---@field public IsEnabled function @Internal function, can be called but do not override.
-    ---@field public Enable function @Internal function, can be called but do not override.
-    ---@field public Disable function @Internal function, can be called but do not override.
-    ---@field public SetDependencies function @Internal function, can be called but do not override.
-    ---@field public HasDependencies function @Internal function, can be called but do not override.
-    ---@field public GetDependencies function @Internal function, can be called but do not override. Returns a table using the same order as the dependencies table. Returns the modules or nil depending if they are available or not.
+    ---@field public IsLoaded fun(self: Module):boolean @Internal function, can be called but do not override.
+    ---@field public IsEnabled fun(self: Module):boolean @Internal function, can be called but do not override.
+    ---@field public Enable fun(self: Module):boolean @Internal function, can be called but do not override.
+    ---@field public Disable fun(self: Module):boolean @Internal function, can be called but do not override.
+    ---@field public SetDependencies fun(self: Module, dependencies?: string[]) @Internal function, can be called but do not override.
+    ---@field public HasDependencies fun(self: Module):boolean @Internal function, can be called but do not override.
+    ---@field public GetDependencies fun(self: Module):string[] @Internal function, can be called but do not override. Returns a table using the same order as the dependencies table. Returns the modules or nil depending if they are available or not.
     -- public functions that can be overridden
-    ---@field public CanLoad function @If it returns true the module will be loaded, otherwise postponed for later. Override to define your modules load criteria that have to be met before loading.
-    ---@field public OnLoad function @Once the module loads this function is executed. Use this to setup further logic for your module. The args provided are the module references as described in the dependencies table.
-    ---@field public OnEnable function @This function is executed when the module is set to enabled state. Use this to setup and prepare.
-    ---@field public OnDisable function @This function is executed when the module is set to disabled state. Use this for cleanup purposes.
+    ---@field public CanLoad fun(self: Module):boolean @If it returns true the module will be loaded, otherwise postponed for later. Override to define your modules load criteria that have to be met before loading.
+    ---@field public OnLoad fun(self: Module) @Once the module loads this function is executed. Use this to setup further logic for your module. The args provided are the module references as described in the dependencies table.
+    ---@field public OnEnable fun(self: Module) @This function is executed when the module is set to enabled state. Use this to setup and prepare.
+    ---@field public OnDisable fun(self: Module) @This function is executed when the module is set to disabled state. Use this for cleanup purposes.
 
     ---@type Module
     local module = {} ---@diagnostic disable-line: missing-fields
@@ -1176,6 +1182,7 @@ do
     ---@field public replayPoint ConfigProfilePoint Defaults to `{ point = nil, x = 0, y = 0 }`
     ---@field public profilePoint ConfigProfilePoint Defaults to `{ point = nil, x = 0, y = 0 }`
     ---@field public replayBackground ConfigReplayColor Defaults to `{ r = 0, g = 0, b = 0, a = 0.5 }`
+    ---@field public minimapIcon LibDBIcon.button.DB Defaults to `{ hide = false, lock = false, showInCompartment = true, minimapPos = 180 }`
 
     -- fallback saved variables
     ---@class FallbackConfig
@@ -1226,6 +1233,7 @@ do
         dockReplay = true, -- NEW in 10.1.5
         lockReplay = false, -- NEW in 10.1.5
         replayPoint = { point = nil, x = 0, y = 0 }, -- NEW in 10.1.5
+        minimapIcon = { hide = false, lock = false, showInCompartment = true, minimapPos = 180 }, -- NEW in 10.2.6
     }
 
     -- fallback metatable looks up missing keys into the fallback config table
@@ -4663,7 +4671,8 @@ do
     local util = ns:GetModule("Util") ---@type UtilModule
     local provider = ns:GetModule("Provider") ---@type ProviderModule
 
-    ---@return string, string, string, number, number, table, string @Always call as `render.GetQuery(...)`. Returns the following args: unit, name, realm, faction, options, args
+    -- Always called as `render.GetQuery(...)`
+    ---@return string unit, string name, string realm, number faction, number options, table args, string region
     function render.GetQuery(...)
         local arg1, arg2, arg3, arg4, arg5, arg6 = ...
         local name, realm, unit = util:GetNameRealm(arg1, arg2)
@@ -5744,7 +5753,7 @@ do
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
     end
 
     function tooltip:CanLoad()
@@ -6571,6 +6580,7 @@ do
         if not showProfileArgs or not showProfileArgs[1] or not showProfileArgs[2] then
             return
         end
+        callback:SendEvent("RAIDERIO_PROFILE_REFRESH", showProfileArgs)
         return profile:ShowProfile(unpack(showProfileArgs))
     end
 
@@ -6645,6 +6655,9 @@ do
         if not success then
             profile:HideProfile()
         end
+        if success then
+            callback:SendEvent("RAIDERIO_PROFILE_SHOW", showProfileArgs)
+        end
         return success
     end
 
@@ -6652,10 +6665,29 @@ do
         if not profile:IsEnabled() then
             return
         end
+        callback:SendEvent("RAIDERIO_PROFILE_HIDE", showProfileArgs)
         if showProfileArgs then
             table.wipe(showProfileArgs)
         end
         render:HideTooltip(tooltip)
+    end
+
+    function profile:IsProfileShown()
+        return tooltip:IsShown()
+    end
+
+    ---@return Frame? anchor
+    function profile:GetProfileAnchor()
+        return tooltip:IsShown() and showProfileArgs and showProfileArgs[1] ---@type Frame?
+    end
+
+    ---@param frame Frame
+    function profile:IsProfileAnchored(frame)
+        return self:GetProfileAnchor() == frame
+    end
+
+    function profile:GetProfileTooltip()
+        return tooltip
     end
 
 end
@@ -6776,7 +6808,7 @@ if IS_RETAIL then
 
     local function OnScroll()
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
     end
 
     ---@param self LFGListFrameWildcardFrame
@@ -6875,7 +6907,7 @@ do
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
     end
 
     function tooltip:CanLoad()
@@ -6992,7 +7024,7 @@ if IS_RETAIL then
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
     end
 
     function tooltip:CanLoad()
@@ -7392,7 +7424,7 @@ if IS_RETAIL then
         if self:IsMouseOver(0, 0, 0, 0) then
             local focus = GetMouseFocus()
             if focus and focus ~= GameTooltip:GetOwner() then
-                util:ExecuteWidgetOnEnterSafely(focus)
+                util:ExecuteWidgetOnEnterSafely(focus) ---@diagnostic disable-line: param-type-mismatch
             end
         end
 
@@ -11307,7 +11339,7 @@ if IS_RETAIL then
         lootEntry.isNew = not lootEntry.timestamp
         lootEntry.timestamp = lootEntry.timestamp or timestamp
         lootEntry.isUpdated = timestamp - lootEntry.timestamp > 60
-        lootEntry.itemLevel = GetDetailedItemLevelInfo(link) ---@diagnostic disable-line: assign-type-mismatch
+        lootEntry.itemLevel = GetDetailedItemLevelInfo(link)
         lootEntry.id, lootEntry.itemType, lootEntry.itemSubType, lootEntry.itemEquipLoc, lootEntry.itemIcon, lootEntry.itemClassID, lootEntry.itemSubClassID = GetItemInfoInstant(link)
         lootEntry.link = link
         lootEntry.index = lootEntry.index or CountItems(tables[3]) -- keep same index or count (our item is already included in the count)
@@ -11870,7 +11902,7 @@ if IS_RETAIL then
                 self:SetShown(not frame:IsShown())
             end
             local numItems = frame:GetNumLootItems(LOG_TYPE.News)
-            self:SetText(numItems > 0 and numItems or "")
+            self:SetFormattedText("%s", numItems > 0 and numItems or "")
             -- self:SetEnabled(numItems > 0)
             if not self.isGlowing and numItems >= config:Get("rwfBackgroundRemindAt") then
                 self.isGlowing = true
@@ -12396,7 +12428,6 @@ do
         end
 
         local function Save_OnClick()
-            configParentFrame:Hide()
             local reload
             for i = 1, #configOptions.modules do
                 local f = configOptions.modules[i]
@@ -12420,30 +12451,44 @@ do
             end
             for i = 1, #configOptions.options do
                 local f = configOptions.options[i]
-                local checked = f.checkButton:GetChecked()
-                local enabled = config:Get(f.cvar)
-                config:Set(f.cvar, not not checked)
-                if ((not enabled and checked) or (enabled and not checked)) then
-                    if f.needReload then
-                        reload = 1
+                if f.cvar then
+                    local checked = f.checkButton:GetChecked()
+                    local enabled = config:Get(f.cvar)
+                    config:Set(f.cvar, not not checked)
+                    if ((not enabled and checked) or (enabled and not checked)) then
+                        local needReload = f.needReload
+                        if type(needReload) == "function" then
+                            needReload = needReload(f)
+                        end
+                        if needReload then
+                            reload = 1
+                        end
+                        if f.callback then
+                            f.callback(f)
+                        end
                     end
-                    if f.callback then
-                        f.callback()
-                    end
+                elseif f.callback then
+                    f.callback(f)
                 end
             end
             for cvar in pairs(configOptions.radios) do
                 local radios = configOptions.radios[cvar]
                 for i = 1, #radios do
                     local f = radios[i]
-                    local checked = f.checkButton:GetChecked()
-                    local currentValue = config:Get(f.cvar)
-
-                    if checked then
-                        config:Set(f.cvar, f.valueRadio)
-
-                        if currentValue ~= f.valueRadio and f.needReload then
-                            reload = 1
+                    if f.cvar then
+                        local checked = f.checkButton:GetChecked()
+                        local currentValue = config:Get(f.cvar)
+                        if checked then
+                            config:Set(f.cvar, f.valueRadio)
+                            if currentValue ~= f.valueRadio then
+                                local needReload = f.needReload
+                                if type(needReload) == "function" then
+                                    needReload = needReload(f)
+                                end
+                                if needReload then
+                                    reload = 1
+                                end
+                            end
                         end
                     end
                 end
@@ -12468,6 +12513,7 @@ do
                     config:Set(f.cvar, f.selected)
                 end
             end
+            configParentFrame:Hide()
             if reload then
                 util:ShowStaticPopupDialog(RELOAD_POPUP)
             end
@@ -12479,7 +12525,7 @@ do
             lastWidget = nil, ---@type RaiderIOSettingsBaseWidget?
             modules = {}, ---@type RaiderIOSettingsModuleToggleWidget[]
             options = {}, ---@type RaiderIOSettingsToggleWidget[]
-            radios = {}, ---@type RaiderIOSettingsRadioToggleWidget[]
+            radios = {}, ---@type table<string, RaiderIOSettingsRadioToggleWidget[]>
             dropdowns = {}, ---@type RaiderIOSettingsDropDownWidget[]
             colors = {}, ---@type RaiderIOSettingsColorPickerWidget[]
             sliders = {}, ---@type RaiderIOSettingsSliderWidget[]
@@ -12490,11 +12536,16 @@ do
             }
         }
 
-        function configOptions.UpdateWidgetStates(self)
+        ---@param frameClicked? RaiderIOSettingsToggleWidget
+        function configOptions.UpdateWidgetStates(self, frameClicked)
             for i = 1, #self.options do
                 local f = self.options[i]
                 if f.isDisabled then
-                    if f:isDisabled() then
+                    local isDisabled = f.isDisabled
+                    if type(isDisabled) == "function" then
+                        isDisabled = isDisabled(f)
+                    end
+                    if isDisabled then
                         f.text:SetVertexColor(0.5, 0.5, 0.5)
                         f.help.icon:SetVertexColor(0.5, 0.5, 0.5)
                         f.checkButton:SetEnabled(false)
@@ -12506,8 +12557,12 @@ do
                         f.checkButton2:SetEnabled(true)
                     end
                 end
-                if f.isFakeChecked then
-                    local useFakeCheckMark, useGrayCheckMark = f:isFakeChecked()
+                if f.isFakeChecked ~= nil then
+                    local isFakeChecked = f.isFakeChecked
+                    local useFakeCheckMark, useGrayCheckMark = true, false
+                    if type(isFakeChecked) == "function" then
+                        useFakeCheckMark, useGrayCheckMark = isFakeChecked(f)
+                    end
                     if useFakeCheckMark then
                         if useGrayCheckMark then
                             f.checkButton.fakeCheck:SetVertexColor(0.5, 0.5, 0.5)
@@ -12519,15 +12574,25 @@ do
                         f.checkButton.fakeCheck:Hide()
                     end
                 end
+                if f == frameClicked and f.onPreClick then
+                    f.onPreClick(f)
+                end
+                if f.isRealChecked ~= nil then
+                    local isRealChecked = f.isRealChecked
+                    if type(isRealChecked) == "function" then
+                        isRealChecked = isRealChecked(f)
+                    end
+                    f.checkButton:SetChecked(isRealChecked)
+                end
             end
             for i = 1, #self.dropdowns do
                 local f = self.dropdowns[i]
                 if f.isDisabled ~= nil then
-                    local disabled = f.isDisabled
-                    if type(disabled) == "function" then
-                        disabled = disabled(f)
+                    local isDisabled = f.isDisabled
+                    if type(isDisabled) == "function" then
+                        isDisabled = isDisabled(f)
                     end
-                    if disabled then
+                    if isDisabled then
                         f.text:SetVertexColor(0.5, 0.5, 0.5)
                         f.help.icon:SetVertexColor(0.5, 0.5, 0.5)
                         f.toggleButton:SetEnabled(false)
@@ -12545,11 +12610,11 @@ do
             for i = 1, #self.colors do
                 local f = self.colors[i]
                 if f.isDisabled ~= nil then
-                    local disabled = f.isDisabled
-                    if type(disabled) == "function" then
-                        disabled = disabled(f)
+                    local isDisabled = f.isDisabled
+                    if type(isDisabled) == "function" then
+                        isDisabled = isDisabled(f)
                     end
-                    if disabled then
+                    if isDisabled then
                         f.text:SetVertexColor(0.5, 0.5, 0.5)
                         f.help.icon:SetVertexColor(0.5, 0.5, 0.5)
                         f.colorButton:SetEnabled(false)
@@ -12567,11 +12632,11 @@ do
             for i = 1, #self.sliders do
                 local f = self.sliders[i]
                 if f.isDisabled ~= nil then
-                    local disabled = f.isDisabled
-                    if type(disabled) == "function" then
-                        disabled = disabled(f)
+                    local isDisabled = f.isDisabled
+                    if type(isDisabled) == "function" then
+                        isDisabled = isDisabled(f)
                     end
-                    if disabled then
+                    if isDisabled then
                         f.text:SetVertexColor(0.5, 0.5, 0.5)
                         f.help.icon:SetVertexColor(0.5, 0.5, 0.5)
                         f.sliderFrame:SetEnabled(false)
@@ -12601,13 +12666,17 @@ do
             end
             for i = 1, #self.options do
                 local f = self.options[i]
-                f.checkButton:SetChecked(config:Get(f.cvar) ~= false)
+                if f.cvar then
+                    f.checkButton:SetChecked(config:Get(f.cvar) ~= false)
+                end
             end
             for cvar in pairs(self.radios) do
                 local radios = configOptions.radios[cvar]
                 for i = 1, #radios do
                     local f = radios[i]
-                    f.checkButton:SetChecked(f.valueRadio == config:Get(f.cvar))
+                    if f.cvar then
+                        f.checkButton:SetChecked(f.valueRadio == config:Get(f.cvar))
+                    end
                 end
             end
             for i = 1, #self.dropdowns do
@@ -12633,10 +12702,19 @@ do
             end
         end
 
+        ---@class RaiderIOSettingsBaseWidgetConfigOptions
+        ---@field public needReload? boolean|fun(self: RaiderIOSettingsBaseWidget):boolean
+        ---@field public isDisabled? boolean|fun(self: RaiderIOSettingsBaseWidget):boolean
+        ---@field public isFakeChecked? boolean|fun(self: RaiderIOSettingsBaseWidget):boolean
+        ---@field public isRealChecked? boolean|fun(self: RaiderIOSettingsBaseWidget):boolean
+        ---@field public onPreClick? fun(self: RaiderIOSettingsBaseWidget)
+        ---@field public callback? fun(self: RaiderIOSettingsBaseWidget)
+        ---@field public callbackClose? fun(self: RaiderIOSettingsBaseWidget)
+
         ---@class RaiderIOSettingsBaseWidgetCheckButton : CheckButton
         ---@field public fakeCheck Texture
 
-        ---@class RaiderIOSettingsBaseWidget : Button, BackdropTemplate
+        ---@class RaiderIOSettingsBaseWidget : Button, BackdropTemplate, RaiderIOSettingsBaseWidgetConfigOptions
         ---@field public bg Texture
         ---@field public text FontString
         ---@field public checkButton RaiderIOSettingsBaseWidgetCheckButton
@@ -12763,13 +12841,16 @@ do
         end
 
         ---@class RaiderIOSettingsToggleWidget : RaiderIOSettingsBaseWidget
-        ---@field public tooltip string
-        ---@field public cvar string
-        ---@field public needReload boolean
-        ---@field public isDisabled? boolean
-        ---@field public isFakeChecked? boolean
-        ---@field public callback? function
+        ---@field public tooltip? string
+        ---@field public cvar? string
 
+        ---@param label string
+        ---@param description? string
+        ---@param cvar? string
+        ---@param configOptions? RaiderIOSettingsBaseWidgetConfigOptions
+        ---| RaiderIOSettingsDropDownWidgetOptions
+        ---| RaiderIOSettingsColorPickerWidgetOptions
+        ---| RaiderIOSettingsSliderWidgetOptions
         function configOptions.CreateToggle(self, label, description, cvar, configOptions)
             ---@type RaiderIOSettingsToggleWidget
             local frame = self:CreateWidget("Frame")
@@ -12780,18 +12861,28 @@ do
             frame.needReload = (configOptions and configOptions.needReload) or false
             frame.isDisabled = (configOptions and configOptions.isDisabled) or nil
             frame.isFakeChecked = (configOptions and configOptions.isFakeChecked) or nil
+            frame.isRealChecked = (configOptions and configOptions.isRealChecked) or nil
+            frame.onPreClick = (configOptions and configOptions.onPreClick) or nil
             frame.callback = (configOptions and configOptions.callback) or nil
+            frame.callbackClose = (configOptions and configOptions.callbackClose) or nil
+            if frame.callbackClose then
+                frame:HookScript("OnHide", frame.callbackClose)
+            end
             frame.help.tooltip = description
-            frame.help:Show()
+            frame.help:SetShown(description and description ~= "")
             frame.checkButton:Show()
             return frame
         end
 
+        ---@param label string
+        ---@param description? string
+        ---@param cvar? string
+        ---@param configOptions? RaiderIOSettingsBaseWidgetConfigOptions
         function configOptions.CreateOptionToggle(self, label, description, cvar, configOptions)
             ---@class RaiderIOSettingsToggleWidget
             local frame = self:CreateToggle(label, description, cvar, configOptions)
             frame.checkButton:SetScript("OnClick", function ()
-                self:UpdateWidgetStates()
+                self:UpdateWidgetStates(frame)
             end)
             self.options[#self.options + 1] = frame
             return frame
@@ -12800,6 +12891,11 @@ do
         ---@class RaiderIOSettingsRadioToggleWidget : RaiderIOSettingsToggleWidget
         ---@field public valueRadio any
 
+        ---@param label string
+        ---@param description? string
+        ---@param cvar string
+        ---@param value? any
+        ---@param configOptions? RaiderIOSettingsBaseWidgetConfigOptions
         function configOptions.CreateRadioToggle(self, label, description, cvar, value, configOptions)
             ---@class RaiderIOSettingsRadioToggleWidget
             local frame = self:CreateToggle(label, description, cvar, configOptions)
@@ -13259,6 +13355,64 @@ do
             configOptions:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
             configOptions:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
 
+            ---@class RaiderIOSettingsToggleWidgetMinimapToggle : RaiderIOSettingsToggleWidget
+            ---@field public value? boolean
+
+            configOptions:CreatePadding()
+            configOptions:CreateHeadline(L.MINIMAP_SHORTCUT_HEADER)
+            configOptions:CreateOptionToggle(L.MINIMAP_SHORTCUT_ENABLE, L.MINIMAP_SHORTCUT_ENABLE_DESC, nil, {
+                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                isRealChecked = function(self)
+                    if self.value == nil then
+                        local db = config:Get("minimapIcon") ---@type LibDBIcon.button.DB
+                        self.value = not db.hide
+                    end
+                    return self.value
+                end,
+                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                onPreClick = function(self)
+                    if self.value ~= nil then
+                        self.value = not self.value
+                    end
+                end,
+                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                callback = function(self)
+                    local db = config:Get("minimapIcon") ---@type LibDBIcon.button.DB
+                    db.hide = not self.value
+                    self.value = nil
+                end,
+                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                callbackClose = function(self)
+                    self.value = nil
+                end,
+            })
+            configOptions:CreateOptionToggle(L.MINIMAP_SHORTCUT_LOCK, nil, nil, {
+                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                isRealChecked = function(self)
+                    if self.value == nil then
+                        local db = config:Get("minimapIcon") ---@type LibDBIcon.button.DB
+                        self.value = not not db.lock
+                    end
+                    return self.value
+                end,
+                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                onPreClick = function(self)
+                    if self.value ~= nil then
+                        self.value = not self.value
+                    end
+                end,
+                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                callback = function(self)
+                    local db = config:Get("minimapIcon") ---@type LibDBIcon.button.DB
+                    db.lock = not not self.value
+                    self.value = nil
+                end,
+                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                callbackClose = function(self)
+                    self.value = nil
+                end,
+            })
+
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.DB_MODULES)
             local modulesHeader = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_M", "RaiderIO_DB_US_R", "RaiderIO_DB_US_F")
@@ -13706,6 +13860,154 @@ do
 
     function serverlog:OnDisable()
         callback:UnregisterEvent(OnEvent, unpack(TRACKING_EVENTS))
+    end
+
+end
+
+-- shortcuts.lua
+-- dependencies: module, callback, config, profile, search, settings, LibDataBroker + LibDBIcon
+do
+
+    ---@class ShortcutsModule : Module
+    local shortcuts = ns:NewModule("Shortcuts") ---@type ShortcutsModule
+    local callback = ns:GetModule("Callback") ---@type CallbackModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local profile = ns:GetModule("Profile") ---@type ProfileModule
+    local search = ns:GetModule("Search") ---@type SearchModule
+    local settings = ns:GetModule("Settings") ---@type SettingsModule
+
+    local LDB = LibStub("LibDataBroker-1.1", true)
+    local LDBI = LibStub("LibDBIcon-1.0", true)
+    local currentFrame ---@type Frame?
+    local anchorFrame ---@type Frame
+
+    function shortcuts:GetMinimapIconDB()
+        return config:Get("minimapIcon") ---@type LibDBIcon.button.DB
+    end
+
+    ---@param frame Frame
+    function shortcuts:OnButtonEnter(frame)
+        currentFrame = frame
+        GameTooltip:SetOwner(frame, "ANCHOR_TOPRIGHT", -frame:GetWidth(), 0)
+        GameTooltip:AddLine(L.MINIMAP_SHORTCUT_HELP)
+        GameTooltip:Show()
+        if profile:IsProfileShown() then
+            return
+        end
+        local offsetX = 0
+        if profile:ShowProfile(anchorFrame, "player") then
+            offsetX = -profile:GetProfileTooltip():GetWidth()
+        end
+        anchorFrame:SetPoint("TOPRIGHT", frame, "TOPLEFT", offsetX, 0)
+    end
+
+    ---@param frame Frame
+    function shortcuts:OnButtonLeave(frame)
+        currentFrame = nil
+        if profile:IsProfileAnchored(anchorFrame) then
+            profile:HideProfile()
+        end
+        GameTooltip:Hide()
+    end
+
+    ---@param frame Frame
+    ---@param button MouseButton
+    function shortcuts:OnButtonClick(frame, button)
+        if button == "RightButton" then
+            settings:Toggle()
+            return
+        end
+        if search:IsShown() then
+            search:Hide()
+        else
+            search:Show()
+            search:SearchAndShowProfile(ns.PLAYER_REGION, ns.PLAYER_REALM, ns.PLAYER_NAME)
+        end
+        self:OnButtonEnter(frame)
+    end
+
+    function shortcuts:InitializeDataBroker()
+        if not LDB or self.dataBroker then
+            return
+        end
+        self.dataBroker = LDB:NewDataObject(addonName, {
+            text = "Raider.IO",
+            type = "launcher",
+            icon = "Interface\\AddOns\\RaiderIO\\icons\\logo",
+            OnEnter = function(...) self:OnButtonEnter(...) end,
+            OnLeave = function(...) self:OnButtonLeave(...) end,
+            OnClick = function(...) self:OnButtonClick(...) end,
+        })
+    end
+
+    function shortcuts:InitializeDBIcon()
+        if not LDBI or self.dbIcon or not self.dataBroker then
+            return
+        end
+        local db = self:GetMinimapIconDB()
+        config:Set("minimapIcon", db) -- force save the initial settings in the SV file
+        LDBI:Register(addonName, self.dataBroker, db) ---@diagnostic disable-line: param-type-mismatch
+        self.dbIcon = LDBI:IsRegistered(addonName)
+    end
+
+    function shortcuts:ShowIcon()
+        if self.dbIcon then
+            LDBI:AddButtonToCompartment(addonName)
+            LDBI:Show(addonName)
+            LDBI:Refresh(addonName, self:GetMinimapIconDB())
+        end
+    end
+
+    function shortcuts:HideIcon()
+        if self.dbIcon then
+            LDBI:RemoveButtonFromCompartment(addonName)
+            LDBI:Hide(addonName)
+        end
+    end
+
+    local EVENTS = {
+        "RAIDERIO_SETTINGS_SAVED",
+        "RAIDERIO_PROFILE_SHOW",
+        "RAIDERIO_PROFILE_HIDE",
+        "RAIDERIO_PROFILE_REFRESH",
+    }
+
+    local function OnEvent(event, ...)
+        if event == "RAIDERIO_SETTINGS_SAVED" then
+            local db = shortcuts:GetMinimapIconDB()
+            if db.hide then
+                shortcuts:HideIcon()
+            else
+                shortcuts:ShowIcon()
+            end
+        elseif event == "RAIDERIO_PROFILE_SHOW" or event == "RAIDERIO_PROFILE_HIDE" or event == "RAIDERIO_PROFILE_REFRESH" then
+            if not currentFrame then
+                return
+            end
+            shortcuts:OnButtonEnter(currentFrame)
+        end
+    end
+
+    function shortcuts:CanLoad()
+        return config:IsEnabled() and profile:IsEnabled() and search:IsEnabled() and settings:IsEnabled()
+    end
+
+    function shortcuts:OnLoad()
+        anchorFrame = CreateFrame("Frame", nil, UIParent)
+        anchorFrame:SetSize(1, 1)
+        self:InitializeDataBroker()
+        self:InitializeDBIcon()
+        self:Enable()
+    end
+
+    function shortcuts:OnEnable()
+        self:ShowIcon()
+        callback:RegisterEvent(OnEvent, unpack(EVENTS))
+    end
+
+    function shortcuts:OnDisable()
+        self:HideIcon()
+        callback:UnregisterEvent(OnEvent, unpack(EVENTS))
     end
 
 end

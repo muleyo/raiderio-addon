@@ -1,11 +1,15 @@
-# https://warcraft.wiki.gg/wiki/TOC_format#Warcraft_Wiki
-# https://wowpedia.fandom.com/wiki/TOC_format#Wowpedia
+# https://warcraft.wiki.gg/wiki/TOC_format#Interface_version
 
 $clients = [ordered]@{
 	Mainline = @{
-		Interface = 100200
-		Version = "10.2.0"
+		Interface = 100206
+		Version = "10.2.6"
 		Name = "mainline"
+	}
+	Cata = @{
+		Interface = 40400
+		Version = "4.4.0"
+		Name = "cata"
 	}
 	Wrath = @{
 		Interface = 30403
@@ -13,8 +17,8 @@ $clients = [ordered]@{
 		Name = "classic"
 	}
 	Classic = @{
-		Interface = 11404
-		Version = "1.14.4"
+		Interface = 11502
+		Version = "1.15.2"
 		Name = "era"
 	}
 }
@@ -61,6 +65,27 @@ $types = @{
 	R = "Raiding"
 	F = "Recruitment"
 }
+
+$clientPlaceholderFiles = @(
+	"db_client_characters"
+	"db_client_colors"
+	"db_client_config"
+	"db_client_guilds"
+	"db_client_replays"
+	"db_dungeons"
+	"db_score_stats"
+	"db_score_tiers"
+	"db_score_tiers_prev"
+)
+
+$clientPlaceholderContent = "
+-- __________        .__    .___           .___________   
+-- \______   \_____  |__| __| _/___________|   \_____  \  
+--  |       _/\__  \ |  |/ __ |/ __ \_  __ \   |/   |   \ 
+--  |    |   \ / __ \|  / /_/ \  ___/|  | \/   /    |    \
+--  |____|_  /(____  /__\____ |\___  >__|  |___\_______  /
+--         \/      \/        \/    \/                  \/ 
+".Trim()
 
 $nonMainlineClients = @()
 
@@ -193,7 +218,28 @@ foreach ($clientKey in $clients.Keys)
 {
 
 	$clientInfo = $clients[$clientKey]
-	$clientVersion = $clientInfo.Version
+	$clientName = $clientInfo.Name
+
+	foreach ($clientPlaceholderFile in $clientPlaceholderFiles)
+	{
+		$clientPlaceholderFile = "db/$($clientPlaceholderFile).lua"
+		if (-not $clientInfo.IsMainline)
+		{
+			$clientPlaceholderFile = $clientPlaceholderFile -replace "db_", "db_$($clientName)_"
+		}
+		if (-not (Test-Path $clientPlaceholderFile))
+		{
+			Set-Content $clientPlaceholderFile $clientPlaceholderContent
+		}
+	}
+
+}
+
+foreach ($clientKey in $clients.Keys)
+{
+
+	$clientInfo = $clients[$clientKey]
+	$clientVersion = $clientInfo.Version # variable is indirectly used by EvalText
 
 	$clientTocFile = if ($clientInfo.IsMainline) { "$($meta.AddOn).toc" } else { "$($meta.AddOn)_$($clientKey).toc" }
 	$clientTocFilePath = Join-Path $rootPath $clientTocFile
@@ -214,7 +260,7 @@ foreach ($clientKey in $clients.Keys)
 	foreach ($regionKey in $regions.Keys)
 	{
 
-		$regionName = $regions[$regionKey]
+		$regionName = $regions[$regionKey] # variable is indirectly used by EvalText
 		$regionText = EscapeText $regionKey
 
 		foreach ($typeKey in $types.Keys)

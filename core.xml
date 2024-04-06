@@ -18,17 +18,8 @@
 	<Script file="locale/zhCN.lua" />
 	<Script file="locale/zhTW.lua" />
 
-	<Script file="db/db_client_characters.lua" />
-	<Script file="db/db_client_colors.lua" />
-	<Script file="db/db_client_config.lua" />
-	<Script file="db/db_client_guilds.lua" />
-	<Script file="db/db_client_replays.lua" />
-	<Script file="db/db_dungeons.lua" />
 	<Script file="db/db_realms.lua" />
 	<Script file="db/db_regions.lua" />
-	<Script file="db/db_score_stats.lua" />
-	<Script file="db/db_score_tiers.lua" />
-	<Script file="db/db_score_tiers_prev.lua" />
 	<Script file="db/db_titles.lua" />
 
 	<Script file="utf8.lua" />

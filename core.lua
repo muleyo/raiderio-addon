@@ -1790,7 +1790,7 @@ do
 
     ---@param arg1 string @"unit", "name", or "name-realm"
     ---@param arg2? string @"realm" or nil
-    ---@return string, string, string @name, realm, unit
+    ---@return string name, string realm, string unit
     function util:GetNameRealm(arg1, arg2)
         local unit, name, realm
         local _, unitExists, unitIsPlayer = util:IsUnit(arg1, arg2)
@@ -10542,11 +10542,11 @@ do
         return temp
     end
 
-    local searchFrame
-    local searchRegionBox
-    local searchRealmBox
-    local searchNameBox
-    local searchTooltip
+    local searchFrame ---@type RaiderIOSearchFrame
+    local searchRegionBox ---@type RaiderIOSearchAutoCompleteEditBox
+    local searchRealmBox ---@type RaiderIOSearchAutoCompleteEditBox
+    local searchNameBox ---@type RaiderIOSearchAutoCompleteEditBox
+    local searchTooltip ---@type RaiderIOSearchTooltip
 
     local function GetRegionName()
         return (searchRegionBox:GetText() and searchRegionBox:GetText() ~= "") and searchRegionBox:GetText() or ns.PLAYER_REGION
@@ -10654,6 +10654,9 @@ do
     ---@class RaiderIOSearchAutoCompleteEditBox : EditBox
     ---@field public autoCompleteFunction fun(text: string, maxResults: number, cursorPosition: number)
 
+    ---@class RaiderIOSearchTooltip : GameTooltip
+    ---@field public hasProfile boolean
+
     local function CreateEditBox()
         local f = CreateFrame("EditBox", nil, UIParent, "AutoCompleteEditBoxTemplate") ---@class RaiderIOSearchAutoCompleteEditBox
         -- autocomplete
@@ -10708,7 +10711,7 @@ do
     end
 
     local function CreateTooltip()
-        return CreateFrame("GameTooltip", addonName .. "_SearchTooltip", UIParent, "GameTooltipTemplate")
+        return CreateFrame("GameTooltip", addonName .. "_SearchTooltip", UIParent, "GameTooltipTemplate") ---@type RaiderIOSearchTooltip
     end
 
     local function CreateSearchFrame()
@@ -10728,7 +10731,7 @@ do
         realmBox.autoCompleteFunction = GetRealms
         nameBox.autoCompleteFunction = GetNames
 
-        local Frame = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate") ---@class RaiderIOSearchFrame : Frame, BackdropTemplate
+        local Frame = CreateFrame("Frame", addonName .. "_SearchFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate") ---@class RaiderIOSearchFrame : Frame, BackdropTemplate
         do
             Frame:Hide()
             Frame:EnableMouse(true)
@@ -10880,6 +10883,7 @@ do
             return
         end
         if not region or not realm or not name or strlenutf8(realm) < 1 or strlenutf8(name) < 1 then
+            searchTooltip.hasProfile = false
             searchTooltip:Hide()
             profile:HideProfile()
             return
@@ -10903,6 +10907,7 @@ do
         else
             profile:HideProfile()
         end
+        searchTooltip.hasProfile = shown
         return shown
     end
 
@@ -10941,6 +10946,14 @@ do
         searchRealmBox:SetText(realm)
         searchNameBox:SetText(name)
         return search:ShowProfile(region, realm, name)
+    end
+
+    ---@return boolean hasProfile, string region, string realm, string name
+    function search:SearchHasProfile()
+        if not self:IsEnabled() then
+            return ---@diagnostic disable-line: missing-return-value
+        end
+        return searchTooltip.hasProfile, searchRegionBox:GetText(), searchRealmBox:GetText(), searchNameBox:GetText()
     end
 
     function search:Toggle()
@@ -12369,7 +12382,7 @@ do
     local function CreateOptions()
 
         ---@class RaiderIOSettingsFrame
-        local configParentFrame = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate")
+        local configParentFrame = CreateFrame("Frame", addonName .. "_SettingsFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate")
         configParentFrame:SetSize(400, 600)
         configParentFrame:SetPoint("CENTER")
 
@@ -13901,13 +13914,14 @@ do
 end
 
 -- shortcuts.lua
--- dependencies: module, callback, config, profile, search, settings, LibDataBroker + LibDBIcon
+-- dependencies: module, callback, config, util, profile, search, settings, LibDataBroker + LibDBIcon
 do
 
     ---@class ShortcutsModule : Module
     local shortcuts = ns:NewModule("Shortcuts") ---@type ShortcutsModule
     local callback = ns:GetModule("Callback") ---@type CallbackModule
     local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
     local profile = ns:GetModule("Profile") ---@type ProfileModule
     local search = ns:GetModule("Search") ---@type SearchModule
     local settings = ns:GetModule("Settings") ---@type SettingsModule
@@ -13916,6 +13930,18 @@ do
     local LDBI = LibStub("LibDBIcon-1.0", true)
     local currentFrame ---@type Frame?
     local anchorFrame ---@type Frame
+
+    ---@return string? name, string realm
+    local function GetSearchInfo()
+        if not util:IsUnitMaxLevel("target") then
+            return ---@diagnostic disable-line: missing-return-value
+        end
+        local name, realm = util:GetNameRealm("target")
+        if not name then
+            return ---@diagnostic disable-line: missing-return-value
+        end
+        return name, realm
+    end
 
     function shortcuts:GetMinimapIconDB()
         return config:Get("minimapIcon") ---@type LibDBIcon.button.DB
@@ -13957,7 +13983,13 @@ do
             search:Hide()
         else
             search:Show()
-            search:SearchAndShowProfile(ns.PLAYER_REGION, ns.PLAYER_REALM, ns.PLAYER_NAME)
+            if not search:SearchHasProfile() then
+                search:SearchAndShowProfile(ns.PLAYER_REGION, ns.PLAYER_REALM, ns.PLAYER_NAME)
+            end
+            local name, realm = GetSearchInfo()
+            if name then
+                search:SearchAndShowProfile(ns.PLAYER_REGION, realm, name)
+            end
         end
         self:OnButtonEnter(frame)
     end

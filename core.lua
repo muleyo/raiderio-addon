@@ -1,6 +1,6 @@
 local IS_RETAIL = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 local IS_CLASSIC_ERA = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
-local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC
+local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_CATA_CLASSIC
 
 local addonName = ... ---@type string @The name of the addon.
 local ns = select(2, ...) ---@class ns @The addon namespace.
@@ -1294,6 +1294,11 @@ do
     ---@return any
     function config:GetDefault(key)
         return fallbackConfig[key]
+    end
+
+    function config:Reset()
+        assert(self:IsEnabled(), "Raider.IO Config expects Reset() to only be used after the addon saved variables have been loaded.")
+        table.wipe(RaiderIO_Config)
     end
 
 end
@@ -12324,6 +12329,26 @@ do
         OnCancel = nil
     }
 
+    ---@type InternalStaticPopupDialog
+    local RESET_POPUP = {
+        id = "RAIDERIO_RESET_CONFIRM",
+        text = L.RESET_CONFIRM_TEXT,
+        button1 = L.RESET_CONFIRM_BUTTON,
+        button2 = CANCEL,
+        hasEditBox = false,
+        preferredIndex = 3,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+        OnShow = nil,
+        OnHide = nil,
+        OnAccept = function ()
+            config:Reset()
+            ReloadUI()
+        end,
+        OnCancel = nil
+    }
+
     local settingsFrame
 
     ---@class RaiderIOSettingsModuleColumn
@@ -12518,6 +12543,10 @@ do
                 util:ShowStaticPopupDialog(RELOAD_POPUP)
             end
             callback:SendEvent("RAIDERIO_SETTINGS_SAVED")
+        end
+
+        local function Reset_OnClick()
+            util:ShowStaticPopupDialog(RESET_POPUP)
         end
 
         ---@class RaiderIOConfigOptions
@@ -13428,6 +13457,7 @@ do
             buttons:Hide()
             local save = configOptions:CreateWidget("Button", 4, configButtonFrame)
             local cancel = configOptions:CreateWidget("Button", 4, configButtonFrame)
+            local reset = configOptions:CreateWidget("Button", 4, configButtonFrame)
             save:ClearAllPoints()
             save:SetPoint("LEFT", buttons, "LEFT", 0, -12)
             save:SetSize(96, 28)
@@ -13440,6 +13470,12 @@ do
             cancel.text:SetText(CANCEL)
             cancel.text:SetJustifyH("CENTER")
             cancel:SetScript("OnClick", Close_OnClick)
+            reset:ClearAllPoints()
+            reset:SetPoint("CENTER", buttons, "CENTER", 0, -12)
+            reset:SetSize(96, 28)
+            reset.text:SetText(L.RESET_BUTTON)
+            reset.text:SetJustifyH("CENTER")
+            reset:SetScript("OnClick", Reset_OnClick)
 
             -- adjust frame height dynamically
             local children = {configFrame:GetChildren()} ---@type Region[]

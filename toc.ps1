@@ -6,11 +6,6 @@ $clients = [ordered]@{
 		Version = "10.2.6"
 		Name = "mainline"
 	}
-	Cata = @{
-		Interface = 40400
-		Version = "4.4.0"
-		Name = "cata"
-	}
 	Wrath = @{
 		Interface = 30403
 		Version = "3.4.2"

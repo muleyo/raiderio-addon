@@ -291,8 +291,8 @@ L.MINIMAP_SHORTCUT_HEADER = "Minimap"
 L.MINIMAP_SHORTCUT_ENABLE = "Enable button"
 L.MINIMAP_SHORTCUT_ENABLE_DESC = "Enable to display the icon around the minimap. This will also make it available in any other addon that supports the broker system."
 L.MINIMAP_SHORTCUT_LOCK = "Lock button"
-L.RESET_BUTTON = "Reset settings"
-L.RESET_CONFIRM_TEXT = "Are you sure that you wish to reset Raider.IO to default?"
+L.RESET_BUTTON = "Reset Defaults"
+L.RESET_CONFIRM_TEXT = "Are you sure that you want to reset Raider.IO to the default settings?"
 L.RESET_CONFIRM_BUTTON = "Reset and Reload"
 
 -- Bindings.xml

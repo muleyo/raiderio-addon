@@ -13485,7 +13485,7 @@ do
             cancel:SetScript("OnClick", Close_OnClick)
             reset:ClearAllPoints()
             reset:SetPoint("CENTER", buttons, "CENTER", 0, -12)
-            reset:SetSize(96, 28)
+            reset:SetSize(128, 28)
             reset.text:SetText(L.RESET_BUTTON)
             reset.text:SetJustifyH("CENTER")
             reset:SetScript("OnClick", Reset_OnClick)

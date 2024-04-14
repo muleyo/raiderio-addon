@@ -19,7 +19,7 @@ plain-copy:
   - db/db_*.lua
 
 ignore:
-  - db/RaiderIO_DB.bat
+  - toc.ps1
   - build.sh
   - create_merged_package.sh
   - update_locale.sh
@@ -29,3 +29,5 @@ ignore:
   - package-lock.json
   - node_modules
   - .vscode
+  - .github
+  - .ackrc

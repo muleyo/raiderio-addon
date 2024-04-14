@@ -1,13 +1,11 @@
-## Interface: 100206
-## Title: Raider.IO |cffFFFFFFRaiding|r (Taiwan)
+## Interface: 11502
+## Title: Raider.IO |cffFFFFFFMythic Plus|r (Americas)
 ## Author: Vladinator (Vladinator-TarrenMill), Aspyr (Aspyrox-Skullcrusher) and Isak (Isak-Sargeras)
-## Version: 10.2.6 (@project-version@)
+## Version: 1.15.2 (@project-version@)
 ## IconTexture: Interface\AddOns\RaiderIO\icons\logo
 ## Dependencies: RaiderIO
 ## DefaultState: enabled
-## X-Type: Raiding
-## X-Region: Taiwan
+## X-Type: Mythic Plus
+## X-Region: Americas
 ## X-Faction: Both
 ## X-Website: https://raider.io
-../RaiderIO/db/db_raiding_tw_characters.lua
-../RaiderIO/db/db_raiding_tw_lookup.lua

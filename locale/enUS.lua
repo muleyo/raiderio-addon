@@ -294,6 +294,7 @@ L.MINIMAP_SHORTCUT_LOCK = "Lock button"
 L.RESET_BUTTON = "Reset Defaults"
 L.RESET_CONFIRM_TEXT = "Are you sure that you want to reset Raider.IO to the default settings?"
 L.RESET_CONFIRM_BUTTON = "Reset and Reload"
+L.ENTER_REALM_AND_CHARACTER = "Enter realm and character name:"
 
 -- Bindings.xml
 BINDING_CATEGORY_RAIDERIO = "Raider.IO"

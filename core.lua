@@ -10747,7 +10747,7 @@ do
             end
             Frame.header = Frame:CreateFontString(nil, nil, "ChatFontNormal")
             Frame.header:SetPoint("TOPLEFT", 16, -12)
-            Frame.header:SetText("Enter realm and character name:")
+            Frame.header:SetText(L.ENTER_REALM_AND_CHARACTER)
             Frame:SetMovable(true)
             Frame:RegisterForDrag("LeftButton")
             Frame:SetClampedToScreen(true)

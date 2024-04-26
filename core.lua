@@ -14035,18 +14035,20 @@ do
         end
     end
 
-    local EVENTS = {
-        "RAIDERIO_SETTINGS_SAVED",
-    }
+    function shortcuts:UpdateState()
+        local db = self:GetMinimapIconDB()
+        if db.hide then
+            self:HideIcon()
+            return
+        end
+        self:InitializeDataBroker()
+        self:InitializeDBIcon()
+        self:ShowIcon()
+    end
 
     local function OnEvent(event, ...)
         if event == "RAIDERIO_SETTINGS_SAVED" then
-            local db = shortcuts:GetMinimapIconDB()
-            if db.hide then
-                shortcuts:HideIcon()
-            else
-                shortcuts:ShowIcon()
-            end
+            shortcuts:UpdateState()
         end
     end
 
@@ -14057,19 +14059,8 @@ do
     function shortcuts:OnLoad()
         anchorFrame = CreateFrame("Frame", nil, UIParent)
         anchorFrame:SetSize(1, 1)
-        self:InitializeDataBroker()
-        self:InitializeDBIcon()
-        self:Enable()
-    end
-
-    function shortcuts:OnEnable()
-        self:ShowIcon()
-        callback:RegisterEvent(OnEvent, unpack(EVENTS))
-    end
-
-    function shortcuts:OnDisable()
-        self:HideIcon()
-        callback:UnregisterEvent(OnEvent, unpack(EVENTS))
+        self:UpdateState()
+        callback:RegisterEvent(OnEvent, "RAIDERIO_SETTINGS_SAVED")
     end
 
 end

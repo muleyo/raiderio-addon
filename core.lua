@@ -13744,10 +13744,18 @@ do
     }
 
     local canLogDifficultyIDs = {
+        -- classic
+        [3] = true, -- Classic10PlayerNormalRaid
+        [4] = true, -- Classic25PlayerNormalRaid
+        [5] = true, -- Classic10PlayerHeroicRaid
+        [6] = true, -- Classic25PlayerHeroicRaid
+        [9] = true, -- Classic40PlayerRaid
+
         -- raid
         [14] = true, -- Normal
         [15] = true, -- Heroic
         [16] = true, -- Mythic
+        [17] = true, -- LFR
     }
 
     local lastActive

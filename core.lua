@@ -13749,12 +13749,24 @@ do
         [8] = true, -- Mythic Keystone
     }
 
-    local canLogDifficultyIDs = {
+    local canLogDifficultyIDs = {}
+
+    if IS_RETAIL then
         -- raid
-        [14] = true, -- Normal
-        [15] = true, -- Heroic
-        [16] = true, -- Mythic
-    }
+        canLogDifficultyIDs[14] = true -- Normal
+        canLogDifficultyIDs[15] = true -- Heroic
+        canLogDifficultyIDs[16] = true -- Mythic
+        canLogDifficultyIDs[17] = true -- LFR
+    elseif IS_CLASSIC_ERA then
+        -- classic era
+        canLogDifficultyIDs[9] = true -- Classic40PlayerRaid
+    elseif IS_CLASSIC then
+        -- classic
+        canLogDifficultyIDs[3] = true -- Classic10PlayerNormalRaid
+        canLogDifficultyIDs[4] = true -- Classic25PlayerNormalRaid
+        canLogDifficultyIDs[5] = true -- Classic10PlayerHeroicRaid
+        canLogDifficultyIDs[6] = true -- Classic25PlayerHeroicRaid
+    end
 
     local lastActive
     local previouslyEnabledLogging

@@ -8374,7 +8374,7 @@ if IS_RETAIL then
             for i = replaySummary.index + 1, #replayEvents do
                 local replayEvent = replayEvents[i]
                 local replayEventInfo = UnpackReplayEvent(replayEvent)
-                if replayEventInfo.timer > timerMS then
+                if replayEventInfo.timer == nil or replayEventInfo.timer > timerMS then
                     break
                 end
                 replaySummary.index = i

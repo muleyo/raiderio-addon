@@ -54,6 +54,7 @@ L.SHOW_KEYSTONE_INFO_DESC = "Adds base Raider.IO Score for Keystones on their to
 L.SHOW_ROLE_ICONS = "Show Role Icons in Tooltips"
 L.SHOW_ROLE_ICONS_DESC = "When enabled, the player's top roles in Mythic+ will show on their tooltips."
 L.COPY_RAIDERIO_PROFILE_URL = "Copy Raider.IO URL"
+L.SHOW_RAIDERIO_PROFILE_OPTION = "Show Raider.IO Profile"
 L.ALLOW_ON_PLAYER_UNITS = "Allow on Player Unit Frames"
 L.ALLOW_ON_PLAYER_UNITS_DESC = "Right-click player unit frames to copy Raider.IO Profile URL."
 L.ALLOW_IN_LFD = "Allow in Dungeon Finder"

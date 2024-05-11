@@ -5803,9 +5803,9 @@ do
 
     function tooltip:OnLoad()
         self:Enable()
-        if TooltipDataProcessor then -- TODO: DF
+        if IS_RETAIL and TooltipDataProcessor then -- TODO: DF
             TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnTooltipSetUnit)
-        else
+        else -- Classic
             GameTooltip:HookScript("OnTooltipSetUnit", OnTooltipSetUnit)
         end
         GameTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
@@ -11184,12 +11184,14 @@ do
     local validTypes = {
         ARENAENEMY = true,
         BN_FRIEND = true,
+        -- BN_FRIEND_OFFLINE = true,
         CHAT_ROSTER = true,
         COMMUNITIES_GUILD_MEMBER = true,
         COMMUNITIES_WOW_MEMBER = true,
         ENEMY_PLAYER = true,
         FOCUS = true,
         FRIEND = true,
+        -- FRIEND_OFFLINE = true,
         GUILD = true,
         GUILD_OFFLINE = true,
         PARTY = true,
@@ -11316,24 +11318,41 @@ do
         end
     end
 
-    local function DropDownOptionModifiedClickHandler()
-        if not IsControlKeyDown() and not IsAltKeyDown() then
-            return
-        end
+    ---@return boolean? `true` indicates that we successfully opened the search dialog
+    local function ShowSearchAndProfile()
         local shown = search:IsShown()
         if not shown then
             search:Show()
         end
         if search:SearchAndShowProfile(ns.PLAYER_REGION, selectedRealm, selectedName) then
-            return true -- indicates we are showing the search dialog and we don't want to show the static popup
+            return true
         elseif not shown then
             search:Hide()
         end
     end
 
-    local function GetRecruitmentProfileForDropDown()
+    ---@return boolean? isDropDownHandled
+    local function DropDownOptionModifiedClickHandler()
+        if not IsControlKeyDown() and not IsAltKeyDown() then
+            return
+        end
+        return ShowSearchAndProfile()
+    end
+
+    ---@return DataProviderCharacterProfile? profile, boolean? hasRecruitment
+    local function GetProfileForDropDown()
         local profile = provider:GetProfile(selectedName, selectedRealm)
-        if not profile or not profile.recruitmentProfile or not profile.recruitmentProfile.hasRenderableData then
+        if not profile then
+            return
+        end
+        local hasRecruitment = profile.recruitmentProfile and profile.recruitmentProfile.hasRenderableData
+        return profile, hasRecruitment
+    end
+
+    ---@return DataProviderCharacterProfile? profile
+    local function GetRecruitmentProfileForDropDown()
+        local profile, hasRecruitment = GetProfileForDropDown()
+        if not hasRecruitment then
             return
         end
         return profile
@@ -11356,6 +11375,15 @@ do
                         return
                     end
                     util:ShowCopyRaiderIOProfilePopup(selectedName, selectedRealm)
+                end
+            },
+            { ---@diagnostic disable-line: missing-fields
+                text = L.SHOW_RAIDERIO_PROFILE_OPTION,
+                func = function()
+                    ShowSearchAndProfile()
+                end,
+                show = function()
+                    return GetProfileForDropDown()
                 end
             },
             { ---@diagnostic disable-line: missing-fields

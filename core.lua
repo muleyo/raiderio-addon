@@ -129,6 +129,42 @@ local HookUtil do
         return true
     end
 
+    --- In Classic the ScrollFrame uses the legacy system where the buttons are created as the frame is loaded.
+    ---
+    --- There is no race condition, so we can simply ensure that the ScrollFrame exists, and if the first row widget exists, then all of them exist and can be hooked.
+    ---
+    --- The return value is `nil` if the ScrollFrame doesn't exist. `false` if first row widget doesn't exist. Otherwise `true` to indicate success.
+    ---
+    ---@param scrollFrame Frame
+    ---@param namePattern string
+    ---@param hookMap table<string, fun()>
+    ---@param onScroll? fun()
+    ---@param maxIndex? number
+    ---@param minIndex? number
+    function HookUtil:ClassicScrollFrame(scrollFrame, namePattern, hookMap, onScroll, maxIndex, minIndex)
+        if type(scrollFrame) ~= "table" then
+            return
+        end
+        minIndex = minIndex or 1
+        maxIndex = maxIndex or 32
+        local name = format(namePattern, minIndex)
+        local button = _G[name] ---@type Button?
+        if type(button) ~= "table" then
+            return false
+        end
+        for i = minIndex, maxIndex do
+            name = format(namePattern, i)
+            button = _G[name] ---@type Button?
+            if button then
+                HookUtil:MapOn(button, hookMap)
+            end
+        end
+        if onScroll then
+            HookUtil:On(scrollFrame, onScroll, "OnVerticalScroll")
+        end
+        return true
+    end
+
 end
 
 -- clients have API naming variants and this helps bridge that gap (this will require revisions/deletion as the clients unify their API's)
@@ -1610,7 +1646,7 @@ do
         if frame == _G[addonName .. "_GuildWeeklyFrame"] then return true end
         -- whotooltip.lua
         if IsParentedBy(frame, WhoFrame.ScrollBox) then return true end
-        if IsParentedBy(frame, WhoFrameButton1 and WhoFrame) then return true end ---@diagnostic disable-line: undefined-global
+        if IsParentedBy(frame, WhoListScrollFrame and WhoFrameButton1 and WhoFrame) then return true end ---@diagnostic disable-line: undefined-global
         -- guildtooltip.lua
         if IsParentedBy(frame, GuildRosterContainer) then return true end
         -- communitytooltip.lua
@@ -5912,21 +5948,7 @@ do
             ScrollBoxUtil:OnViewScrollChanged(WhoFrame.ScrollBox, OnScroll)
             return
         end
-        -- Classic
-        ---@type Button?
-        local WhoFrameButton1 = WhoFrameButton1 ---@diagnostic disable-line: undefined-global
-        local WhoListScrollFrame = WhoListScrollFrame ---@diagnostic disable-line: undefined-global
-        if not WhoFrameButton1 or not WhoListScrollFrame then
-            return
-        end
-        for i = 1, 32 do
-            local name = format("WhoFrameButton%d", i)
-            local button = _G[name] ---@type Button?
-            if button then
-                HookUtil:MapOn(button, hookMap)
-            end
-        end
-        HookUtil:On(WhoListScrollFrame, OnScroll, "OnVerticalScroll")
+        HookUtil:ClassicScrollFrame(WhoListScrollFrame, "WhoFrameButton%d", hookMap, OnScroll) ---@diagnostic disable-line: undefined-global
     end
 
 end

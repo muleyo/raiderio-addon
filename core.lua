@@ -2445,6 +2445,24 @@ do
         end
     end
 
+    --- Dynamically check the `profile` values for any entry with the `hasRenderableData` property set.
+    ---@param profile? DataProviderCharacterProfile
+    ---@return boolean? hasRenderableData
+    function util:ProfileHasRenderableData(profile)
+        if not profile then
+            return
+        end
+        for _, value in pairs(profile) do
+            if value and type(value) == "table" then
+                local data = value ---@type DataProviderProfile
+                if data.hasRenderableData then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
     ---@param frame Frame
     ---@param icon CustomIcon
     ---@param layer? DrawLayer
@@ -3511,9 +3529,11 @@ do
     ---@field public originalScore? number @If set to a number, it means we did override the score but kept a backup of the original here
     ---@field public roles OrderedRolesItem[] @table of roles associated with the score
 
-    ---@class DataProviderMythicKeystoneProfile
-    ---@field public outdated number|nil @number or nil
-    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
+    ---@class DataProviderProfile
+    ---@field public outdated? number @see `DataProvider.outdated` for more information
+    ---@field public hasRenderableData boolean @`true` if we have any actual data to render in the tooltip without the profile appearing incomplete or empty
+
+    ---@class DataProviderMythicKeystoneProfile : DataProviderProfile
     ---@field public hasOverrideScore boolean @True if we override the score shown using in-game score data for the profile tooltip.
     ---@field public hasOverrideDungeonRuns boolean @True if we override the dungeon runs shown using in-game data for the profile tooltip.
     ---@field public blocked number|nil @number or nil
@@ -3930,9 +3950,7 @@ do
     ---@field public killsPerBoss number[]
     ---@field public raid DatabaseRaid
 
-    ---@class DataProviderRaidProfile
-    ---@field public outdated number|nil @number or nil
-    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
+    ---@class DataProviderRaidProfile : DataProviderProfile
     ---@field public progress DataProviderRaidProgress[]
     ---@field public mainProgress? DataProviderRaidProgress[]
     ---@field public previousProgress? DataProviderRaidProgress[]
@@ -4270,9 +4288,7 @@ do
         return results
     end
 
-    ---@class DataProviderRecruitmentProfile
-    ---@field public outdated number|nil @number or nil
-    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
+    ---@class DataProviderRecruitmentProfile : DataProviderProfile
     ---@field public titleIndex number
     ---@field public title RecruitmentTitle
     ---@field public entityType number @`0` (character), `1` (guild), `2` (team) - use `ns.RECRUITMENT_ENTITY_TYPES` for lookups
@@ -4309,9 +4325,7 @@ do
         return results
     end
 
-    ---@class DataProviderPvpProfile
-    ---@field public outdated number|nil @number or nil
-    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
+    ---@class DataProviderPvpProfile : DataProviderProfile
 
     ---@param provider DataProvider
     local function UnpackPvpData(bucket, baseOffset, provider)
@@ -11383,7 +11397,7 @@ do
                     ShowSearchAndProfile()
                 end,
                 show = function()
-                    return GetProfileForDropDown()
+                    return util:ProfileHasRenderableData(GetProfileForDropDown())
                 end
             },
             { ---@diagnostic disable-line: missing-fields

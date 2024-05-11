@@ -1,6 +1,6 @@
 local IS_RETAIL = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 local IS_CLASSIC_ERA = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
-local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_CATA_CLASSIC
+local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_CATACLYSM_CLASSIC
 
 local addonName = ... ---@type string @The name of the addon.
 local ns = select(2, ...) ---@class ns @The addon namespace.
@@ -502,26 +502,77 @@ do
     ---@field public name string
     ---@field public color RaidDifficultyColor
 
-    ns.RAID_DIFFICULTY = { -- Table of `1` (normal), `2` (heroic), `3` (mythic) difficulties and their names and colors.
-        ---@type RaidDifficulty
-        [1] = {
-            suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL,
-            name = L.RAID_DIFFICULTY_NAME_NORMAL,
-            color = { 0.12, 1.00, 0.00, hex = "1eff00" }
-        },
-        ---@type RaidDifficulty
-        [2] = {
-            suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC,
-            name = L.RAID_DIFFICULTY_NAME_HEROIC,
-            color = { 0.00, 0.44, 0.87, hex = "0070dd" }
-        },
-        ---@type RaidDifficulty
-        [3] = {
-            suffix = L.RAID_DIFFICULTY_SUFFIX_MYTHIC,
-            name = L.RAID_DIFFICULTY_NAME_MYTHIC,
-            color = { 0.64, 0.21, 0.93, hex = "a335ee" }
+    if IS_RETAIL then
+        ns.RAID_DIFFICULTY = { -- Table of `1` (normal), `2` (heroic), `3` (mythic) difficulties and their names and colors.
+            ---@type RaidDifficulty
+            [1] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL,
+                name = L.RAID_DIFFICULTY_NAME_NORMAL,
+                color = { 0.12, 1.00, 0.00, hex = "1eff00" }
+            },
+            ---@type RaidDifficulty
+            [2] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC,
+                name = L.RAID_DIFFICULTY_NAME_HEROIC,
+                color = { 0.00, 0.44, 0.87, hex = "0070dd" }
+            },
+            ---@type RaidDifficulty
+            [3] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_MYTHIC,
+                name = L.RAID_DIFFICULTY_NAME_MYTHIC,
+                color = { 0.64, 0.21, 0.93, hex = "a335ee" }
+            }
         }
-    }
+    elseif IS_CLASSIC then
+        ns.RAID_DIFFICULTY = { -- Table of `1` (normal10), `2` (normal25), `3` (heroic10), `4` (heroic25) difficulties and their names and colors.
+            ---@type RaidDifficulty
+            [1] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL10,
+                name = L.RAID_DIFFICULTY_NAME_NORMAL10,
+                color = { 0.12, 1.00, 0.00, hex = "1eff00" }
+            },
+            ---@type RaidDifficulty
+            [2] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL25,
+                name = L.RAID_DIFFICULTY_NAME_NORMAL25,
+                color = { 0.00, 0.44, 0.87, hex = "0070dd" }
+            },
+            ---@type RaidDifficulty
+            [3] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC10,
+                name = L.RAID_DIFFICULTY_NAME_HEROIC10,
+                color = { 0.64, 0.21, 0.93, hex = "a335ee" }
+            },
+            ---@type RaidDifficulty
+            [4] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC25,
+                name = L.RAID_DIFFICULTY_NAME_HEROIC25,
+                color = { 0.64, 0.21, 0.93, hex = "a335ee" }
+            }
+        }
+    else
+        -- TODO setup classic era difficulty
+        ns.RAID_DIFFICULTY = { -- Table of `1` (normal), `2` (heroic), `3` (mythic) difficulties and their names and colors.
+            ---@type RaidDifficulty
+            [1] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL,
+                name = L.RAID_DIFFICULTY_NAME_NORMAL,
+                color = { 0.12, 1.00, 0.00, hex = "1eff00" }
+            },
+            ---@type RaidDifficulty
+            [2] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC,
+                name = L.RAID_DIFFICULTY_NAME_HEROIC,
+                color = { 0.00, 0.44, 0.87, hex = "0070dd" }
+            },
+            ---@type RaidDifficulty
+            [3] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_MYTHIC,
+                name = L.RAID_DIFFICULTY_NAME_MYTHIC,
+                color = { 0.64, 0.21, 0.93, hex = "a335ee" }
+            }
+        }
+    end
 
     ---@class RecruitmentEntityTypes
     ns.RECRUITMENT_ENTITY_TYPES = { -- Table over recruitment entity types.
@@ -2015,6 +2066,9 @@ do
     ---@param raid DungeonRaid
     local function IsRaidFated(raid)
         if not raid then
+            return
+        end
+        if not C_ModifiedInstance then
             return
         end
         local modInfo = C_ModifiedInstance.GetModifiedInstanceInfoFromMapID(raid.instance_map_id)
@@ -3966,6 +4020,10 @@ do
         local prog = { raid = raid } ---@diagnostic disable-line: missing-fields
         local bitOffset = offset
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+        if not IS_RETAIL then
+            -- TODO: update retail to not set difficulty as one-based
+            prog.difficulty = prog.difficulty + 1
+        end
         prog.progressCount, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
         if prog.progressCount > 0 then
             local temp = results[field] ---@type DataProviderRaidProgress[]?
@@ -3988,6 +4046,10 @@ do
         local bitOffset = offset
         local value
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+        if not IS_RETAIL then
+            -- TODO: update retail to not set difficulty as one-based
+            prog.difficulty = prog.difficulty + 1
+        end
         prog.killsPerBoss = {}
         for i = 1, raid.bossCount do
             value, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)

@@ -3330,6 +3330,19 @@ do
         return DECODE_BITS_2_TABLE[1 + value] or 0
     end
 
+    ---@class DecodeBits5Table
+    local DECODE_BITS_5_TABLE = {
+        0,  1,  2,  3,  4,  5,  6,  7,
+        8,  9, 10, 11, 12, 13, 14, 15,
+       16, 17, 18, 19, 20, 21, 22, 23,
+       24, 25, 30, 35, 40, 45, 50
+    }
+
+    ---@param value number
+    local function DecodeBits5(value)
+        return DECODE_BITS_5_TABLE[1 + value] or 0
+    end
+
     ---@class OrderedRolesItem
     ---@field public [1] string @`tank`, `healer`, `dps`
     ---@field public [2] string @`full`, `partial`
@@ -4051,11 +4064,21 @@ do
             prog.difficulty = prog.difficulty + 1
         end
         prog.killsPerBoss = {}
-        for i = 1, raid.bossCount do
-            value, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
-            prog.killsPerBoss[i] = DecodeBits2(value)
-            if prog.killsPerBoss[i] > 0 then
-                prog.progressCount = prog.progressCount + 1
+        if IS_RETAIL then
+            for i = 1, raid.bossCount do
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+                prog.killsPerBoss[i] = DecodeBits2(value)
+                if prog.killsPerBoss[i] > 0 then
+                    prog.progressCount = prog.progressCount + 1
+                end
+            end
+        else
+            for i = 1, raid.bossCount do
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 5)
+                prog.killsPerBoss[i] = DecodeBits5(value)
+                if prog.killsPerBoss[i] > 0 then
+                    prog.progressCount = prog.progressCount + 1
+                end
             end
         end
         if prog.progressCount > 0 then

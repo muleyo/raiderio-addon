@@ -1646,9 +1646,10 @@ do
         if frame == _G[addonName .. "_GuildWeeklyFrame"] then return true end
         -- whotooltip.lua
         if IsParentedBy(frame, WhoFrame.ScrollBox) then return true end
-        if IsParentedBy(frame, WhoListScrollFrame and WhoFrameButton1 and WhoFrame) then return true end ---@diagnostic disable-line: undefined-global
+        if IsParentedBy(frame, WhoListScrollFrame and WhoListScrollFrame:GetParent()) then return true end
         -- guildtooltip.lua
         if IsParentedBy(frame, GuildRosterContainer) then return true end
+        if IsParentedBy(frame, GuildListScrollFrame and GuildListScrollFrame:GetParent()) then return true end
         -- communitytooltip.lua
         if CommunitiesFrame and ClubFinderGuildFinderFrame and ClubFinderCommunityAndGuildFinderFrame then
             if IsParentedBy(frame, CommunitiesFrame.MemberList.ScrollBox) then return true end
@@ -5910,13 +5911,13 @@ do
 
     ---@param self WhoFrameButtonPolyfill
     ---@return number? whoIndex
-    local function GetWhoIndex(self)
+    local function GetIndex(self)
         return self.index or self.whoIndex
     end
 
     ---@param self WhoFrameButtonPolyfill
     local function OnEnter(self)
-        local index = GetWhoIndex(self)
+        local index = GetIndex(self)
         if not index or not config:Get("enableWhoTooltips") then
             return
         end
@@ -5935,7 +5936,7 @@ do
 
     ---@param self WhoFrameButtonPolyfill
     local function OnLeave(self)
-        local index = GetWhoIndex(self)
+        local index = GetIndex(self)
         if not index or not config:Get("enableWhoTooltips") then
             return
         end
@@ -5951,7 +5952,7 @@ do
     end
 
     function tooltip:CanLoad()
-        return WhoFrame and config:IsEnabled()
+        return (WhoFrame or WhoListScrollFrame) and config:IsEnabled()
     end
 
     function tooltip:OnLoad()
@@ -5962,7 +5963,7 @@ do
             ScrollBoxUtil:OnViewScrollChanged(WhoFrame.ScrollBox, OnScroll)
             return
         end
-        HookUtil:ClassicScrollFrame(WhoListScrollFrame, "WhoFrameButton%d", hookMap, OnScroll) ---@diagnostic disable-line: undefined-global
+        HookUtil:ClassicScrollFrame(WhoListScrollFrame, "WhoFrameButton%d", hookMap, OnScroll)
     end
 
 end
@@ -7068,7 +7069,7 @@ end
 
 -- guildtooltip.lua
 -- dependencies: module, config, util, render
-do
+if IS_CLASSIC_ERA then
 
     ---@class GuildTooltipModule : Module
     local tooltip = ns:NewModule("GuildTooltip") ---@type GuildTooltipModule
@@ -7076,11 +7077,23 @@ do
     local util = ns:GetModule("Util") ---@type UtilModule
     local render = ns:GetModule("Render") ---@type RenderModule
 
+    ---@class GuildFrameButtonPolyfill : Button
+    ---@field public index? number @Used on Mainline
+    ---@field public guildIndex? number @Used on Classic
+
+    ---@param self GuildFrameButtonPolyfill
+    ---@return number? guildIndex
+    local function GetIndex(self)
+        return self.index or self.guildIndex
+    end
+
+    ---@param self GuildFrameButtonPolyfill
     local function OnEnter(self)
-        if not self.guildIndex or not config:Get("enableGuildTooltips") then
+        local index = GetIndex(self)
+        if not index or not config:Get("enableGuildTooltips") then
             return
         end
-        local fullName, _, _, level = GetGuildRosterInfo(self.guildIndex)
+        local fullName, _, _, level = GetGuildRosterInfo(index)
         if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
             return
         end
@@ -7093,8 +7106,10 @@ do
         end
     end
 
+    ---@param self GuildFrameButtonPolyfill
     local function OnLeave(self)
-        if not self.guildIndex or not config:Get("enableGuildTooltips") then
+        local index = GetIndex(self)
+        if not index or not config:Get("enableGuildTooltips") then
             return
         end
         GameTooltip:Hide()
@@ -7109,14 +7124,18 @@ do
     end
 
     function tooltip:CanLoad()
-        return GuildRosterContainer and config:IsEnabled()
+        return (GuildRosterContainer or GuildListScrollFrame) and config:IsEnabled()
     end
 
     function tooltip:OnLoad()
         self:Enable()
         local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
-        ScrollBoxUtil:OnViewFramesChanged(GuildRosterContainer, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(GuildRosterContainer, OnScroll)
+        if GuildRosterContainer then
+            ScrollBoxUtil:OnViewFramesChanged(GuildRosterContainer, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+            ScrollBoxUtil:OnViewScrollChanged(GuildRosterContainer, OnScroll)
+            return
+        end
+        HookUtil:ClassicScrollFrame(GuildListScrollFrame, "GuildFrameButton%d", hookMap, OnScroll)
     end
 
 end

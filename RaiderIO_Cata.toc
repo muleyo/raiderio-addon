@@ -10,12 +10,11 @@
 ## X-Curse-Project-ID: 279257
 ## X-Wago-ID: b6mb0XKP
 db/db_classic_client_characters.lua
-db/db_classic_client_colors.lua
 db/db_classic_client_config.lua
 db/db_classic_client_guilds.lua
 db/db_classic_client_replays.lua
 db/db_classic_dungeons.lua
-db/db_classic_score_stats.lua
-db/db_classic_score_tiers_prev.lua
-db/db_classic_score_tiers.lua
+db/db_classic_realms.lua
+db/db_classic_titles.lua
+db/db_classic_regions.lua
 core.xml

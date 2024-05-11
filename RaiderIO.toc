@@ -18,4 +18,7 @@ db/db_dungeons.lua
 db/db_score_stats.lua
 db/db_score_tiers_prev.lua
 db/db_score_tiers.lua
+db/db_realms.lua
+db/db_titles.lua
+db/db_regions.lua
 core.xml

@@ -402,6 +402,44 @@ do
 
     end
 
+    ---@class MarkupIcons
+    ---@field public markup? string
+    ---@field public markupPadLeft? string
+    ---@field public markupPadRight? string
+
+    ---@class MarkupIconsCollection
+    ns.MARKUP_ICONS = {
+        ---@class MarkupIcons
+        LeftButton = {
+            atlas = "newplayertutorial-icon-mouse-leftbutton",
+            atlasWidth = 12,
+            atlasHeight = 16,
+        },
+        ---@class MarkupIcons
+        RightButton = {
+            atlas = "newplayertutorial-icon-mouse-rightbutton",
+            atlasWidth = 12,
+            atlasHeight = 16,
+        },
+    }
+
+    -- Finalize the `ns.MARKUP_ICONS` table
+    do
+
+        for _, info in pairs(ns.MARKUP_ICONS) do
+            info = info ---@type MarkupIcons
+            if info.atlas then
+                local atlasInfo = C_Texture.GetAtlasInfo(info.atlas)
+                if atlasInfo then
+                    info.markup = format("|A:%s:%d:%d|a", info.atlas, info.atlasHeight or atlasInfo.height, info.atlasWidth or atlasInfo.width)
+                    info.markupPadLeft = format(" %s", info.markup)
+                    info.markupPadRight = format("%s ", info.markup)
+                end
+            end
+        end
+
+    end
+
     ns.REGIONS_RESET_TIME = { -- Maps each region string to their weekly reset timer.
         us = 1135695600,
         eu = 1135753200,
@@ -1524,7 +1562,7 @@ do
         return util:GetRaidByKeyValue("shortName", name) or util:GetRaidByKeyValue("shortNameLocale", name)
     end
 
-    ---@param object Frame @Any interface widget object that supports the methods GetScript.
+    ---@param object Frame|ScriptRegion @Any interface widget object that supports the methods GetScript.
     ---@param handler string @The script handler like OnEnter, OnClick, etc.
     ---@return boolean|nil @If successfully executed returns true, otherwise false if nothing has been called. nil if the widget had no handler to execute.
     function util:ExecuteWidgetHandler(object, handler, ...)
@@ -1541,7 +1579,7 @@ do
         return true
     end
 
-    ---@param frame Frame
+    ---@param frame Frame|ScriptRegion
     ---@param parent Frame
     local function IsParentedBy(frame, parent)
         if type(frame) ~= "table" or type(parent) ~= "table" or type(frame.GetParent) ~= "function" or type(parent.GetParent) ~= "function" then
@@ -1559,7 +1597,7 @@ do
         end
     end
 
-    ---@param frame Frame @Any interface widget object that supports the methods GetScript.
+    ---@param frame Frame|ScriptRegion @Any interface widget object that supports the methods GetScript.
     ---@param onEnter fun() @Any function originating from the OnEnter handler.
     ---@return boolean|nil @If the provided object is not a region or has no function we return `nil`, otherwise `true` that it is safe to call, and `false` that it is unsafe to call its function.
     local function IsOnEnterSafe(frame, onEnter)
@@ -1572,6 +1610,7 @@ do
         if frame == _G[addonName .. "_GuildWeeklyFrame"] then return true end
         -- whotooltip.lua
         if IsParentedBy(frame, WhoFrame.ScrollBox) then return true end
+        if IsParentedBy(frame, WhoFrameButton1 and WhoFrame) then return true end ---@diagnostic disable-line: undefined-global
         -- guildtooltip.lua
         if IsParentedBy(frame, GuildRosterContainer) then return true end
         -- communitytooltip.lua
@@ -1592,7 +1631,7 @@ do
     ---| 2 #Script handler executed successfully.
     ---| 3 #Script handler executed but silently errored.
 
-    ---@param object Frame @Any interface widget object that supports the methods GetScript.
+    ---@param object Frame|ScriptRegion @Any interface widget object that supports the methods GetScript.
     ---@param before? fun() @Optional function to run right before the OnEnter script executes.
     ---@return ExecuteWidgetOnEnterSafelyStatus @Returns a status enum to indicate the outcome of the call.
     function util:ExecuteWidgetOnEnterSafely(object, before)
@@ -5815,11 +5854,23 @@ do
     local util = ns:GetModule("Util") ---@type UtilModule
     local render = ns:GetModule("Render") ---@type RenderModule
 
+    ---@class WhoFrameButtonPolyfill : Button
+    ---@field public index? number @Used on Mainline
+    ---@field public whoIndex? number @Used on Classic
+
+    ---@param self WhoFrameButtonPolyfill
+    ---@return number? whoIndex
+    local function GetWhoIndex(self)
+        return self.index or self.whoIndex
+    end
+
+    ---@param self WhoFrameButtonPolyfill
     local function OnEnter(self)
-        if not self.index or not config:Get("enableWhoTooltips") then
+        local index = GetWhoIndex(self)
+        if not index or not config:Get("enableWhoTooltips") then
             return
         end
-        local info = C_FriendList.GetWhoInfo(self.index)
+        local info = C_FriendList.GetWhoInfo(index)
         if not info or not info.fullName or not util:IsMaxLevel(info.level) then
             return
         end
@@ -5832,8 +5883,10 @@ do
         end
     end
 
+    ---@param self WhoFrameButtonPolyfill
     local function OnLeave(self)
-        if not self.index or not config:Get("enableWhoTooltips") then
+        local index = GetWhoIndex(self)
+        if not index or not config:Get("enableWhoTooltips") then
             return
         end
         GameTooltip:Hide()
@@ -5844,7 +5897,7 @@ do
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
     end
 
     function tooltip:CanLoad()
@@ -5854,8 +5907,26 @@ do
     function tooltip:OnLoad()
         self:Enable()
         local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
-        ScrollBoxUtil:OnViewFramesChanged(WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(WhoFrame.ScrollBox, OnScroll)
+        if WhoFrame.ScrollBox then
+            ScrollBoxUtil:OnViewFramesChanged(WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+            ScrollBoxUtil:OnViewScrollChanged(WhoFrame.ScrollBox, OnScroll)
+            return
+        end
+        -- Classic
+        ---@type Button?
+        local WhoFrameButton1 = WhoFrameButton1 ---@diagnostic disable-line: undefined-global
+        local WhoListScrollFrame = WhoListScrollFrame ---@diagnostic disable-line: undefined-global
+        if not WhoFrameButton1 or not WhoListScrollFrame then
+            return
+        end
+        for i = 1, 32 do
+            local name = format("WhoFrameButton%d", i)
+            local button = _G[name] ---@type Button?
+            if button then
+                HookUtil:MapOn(button, hookMap)
+            end
+        end
+        HookUtil:On(WhoListScrollFrame, OnScroll, "OnVerticalScroll")
     end
 
 end
@@ -6899,7 +6970,7 @@ if IS_RETAIL then
 
     local function OnScroll()
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
     end
 
     ---@param self LFGListFrameWildcardFrame
@@ -6998,7 +7069,7 @@ do
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
     end
 
     function tooltip:CanLoad()
@@ -7016,7 +7087,7 @@ end
 
 -- communitytooltip.lua
 -- dependencies: module, config, util, render
-if IS_RETAIL then
+do
 
     ---@class CommunityTooltipModule : Module
     local tooltip = ns:NewModule("CommunityTooltip") ---@type CommunityTooltipModule
@@ -7115,7 +7186,7 @@ if IS_RETAIL then
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
     end
 
     function tooltip:CanLoad()
@@ -14030,6 +14101,14 @@ do
     local LDBI = LibStub("LibDBIcon-1.0", true)
     local anchorFrame ---@type Frame
 
+    local TooltipHelpText = format(
+        "%s%s\n%s%s",
+        ns.MARKUP_ICONS.LeftButton.markupPadRight or format("|cffffff55<%s>|r ", L.MINIMAP_SHORTCUT_HELP_LEFT_CLICK),
+        L.MINIMAP_SHORTCUT_HELP_SEARCH,
+        ns.MARKUP_ICONS.RightButton.markupPadRight or format("|cffffff55<%s>|r ", L.MINIMAP_SHORTCUT_HELP_RIGHT_CLICK),
+        L.MINIMAP_SHORTCUT_HELP_SETTINGS
+    )
+
     ---@return string? name, string realm
     local function GetSearchInfo()
         if not util:IsUnitMaxLevel("target") then
@@ -14049,7 +14128,7 @@ do
     ---@param frame Frame
     function shortcuts:OnButtonEnter(frame)
         GameTooltip:SetOwner(frame, "ANCHOR_TOPRIGHT", -frame:GetWidth(), 0)
-        GameTooltip:AddLine(L.MINIMAP_SHORTCUT_HELP)
+        GameTooltip:AddLine(TooltipHelpText)
         GameTooltip:Show()
         if profile:IsProfileShown() then
             return

@@ -1946,8 +1946,8 @@ do
         return name, realm, unit ---@diagnostic disable-line: return-type-mismatch
     end
 
-    ---@param level number @The level to test
-    ---@param fallback? boolean @If level isn't provided, we'll fallback to this boolean
+    ---@param level? number @The level to test
+    ---@param fallback? boolean @If a valid level isn't provided, we'll fallback to this boolean
     function util:IsMaxLevel(level, fallback)
         if level and type(level) == "number" then
             return level >= ns.MAX_LEVEL
@@ -5857,7 +5857,7 @@ do
                 faction = ns.PLAYER_FACTION
             end
         end
-        if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
+        if not fullName or not util:IsMaxLevel(level) then
             return
         end
         local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
@@ -5970,7 +5970,7 @@ end
 
 -- whochatframe.lua
 -- dependencies: module, config, util, provider
-do
+if IS_RETAIL then
 
     ---@class WhoChatFrameModule : Module
     local chatframe = ns:NewModule("WhoChatFrame") ---@type WhoChatFrameModule
@@ -6013,7 +6013,7 @@ do
             guild = nil
             nameLink, name, level, race, class, zone = text:match(FORMAT)
         end
-        if not nameLink or not level or not util:IsMaxLevel(tonumber(level)) then ---@diagnostic disable-line: param-type-mismatch
+        if not nameLink or not level or not util:IsMaxLevel(tonumber(level)) then
             return false
         end
         local name, realm = util:GetNameRealm(nameLink)
@@ -6025,7 +6025,7 @@ do
         if not score then
             return false
         end
-        return false, text .. " - " .. score, ...
+        return false, format("%s - %s", text, score), ...
     end
 
     function chatframe:CanLoad()
@@ -6893,7 +6893,7 @@ end
 
 -- lfgtooltip.lua
 -- dependencies: module, config, util, render, profile
-if IS_RETAIL then
+if not IS_CLASSIC_ERA then
 
     ---@class LfgTooltipModule : Module
     local tooltip = ns:NewModule("LfgTooltip") ---@type LfgTooltipModule
@@ -7094,7 +7094,7 @@ if IS_CLASSIC_ERA then
             return
         end
         local fullName, _, _, level = GetGuildRosterInfo(index)
-        if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
+        if not fullName or not util:IsMaxLevel(level) then
             return
         end
         local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_TOPLEFT", 0, 0)
@@ -11327,7 +11327,7 @@ do
                 return
             end
             selectedName, selectedRealm, selectedLevel, selectedUnit, selectedFaction = GetNameRealmForDropDown(bdropdown)
-            if not selectedName or not util:IsMaxLevel(selectedLevel, true) then ---@diagnostic disable-line: param-type-mismatch
+            if not selectedName or not util:IsMaxLevel(selectedLevel, true) then
                 return
             end
             if not options[1] then
@@ -12607,17 +12607,61 @@ do
     local settingsFrame
 
     ---@class RaiderIOSettingsModuleColumn
+    ---@field public module RaiderIODBModuleType
     ---@field public icon number|string
     ---@field public text string
-    ---@field public check "checkButton"|"checkButton2"|"checkButton3"
-    ---@field public addon "addon1"|"addon2"|"addon3"
+    ---@field public check ""|"checkButton"|"checkButton2"|"checkButton3"
+    ---@field public addon ""|"addon1"|"addon2"|"addon3"
+
+    ---@class RaiderIOSettingsModuleManifest
+    local databaseModuleColumnsManifest = {
+        ---@type RaiderIOSettingsModuleColumn
+        M = {
+            module = "M",
+            icon = IS_RETAIL and 525134 or 136106, -- inv_relics_hourglass | spell_nature_timestop
+            text = L.DB_MODULES_HEADER_MYTHIC_PLUS,
+            check = "",
+            addon = "",
+        },
+        ---@type RaiderIOSettingsModuleColumn
+        R = {
+            module = "R",
+            icon = 254652, -- achievement_boss_ragnaros
+            text = L.DB_MODULES_HEADER_RAIDING,
+            check = "",
+            addon = "",
+        },
+        ---@type RaiderIOSettingsModuleColumn
+        F = {
+            module = "F",
+            icon = 442272, -- achievement_guildperk_everybodysfriend
+            text = L.DB_MODULES_HEADER_RECRUITMENT,
+            check = "",
+            addon = "",
+        },
+    }
 
     ---@type RaiderIOSettingsModuleColumn[]
-    local databaseModuleColumns = {
-        { icon = IS_RETAIL and 525134 or 136106, text = L.DB_MODULES_HEADER_MYTHIC_PLUS, check = "checkButton", addon = "addon1" }, -- 525134 = inv_relics_hourglass | 136106 = spell_nature_timestop
-        { icon = 254652, text = L.DB_MODULES_HEADER_RAIDING, check = "checkButton2", addon = "addon2" }, -- 254652 = achievement_boss_ragnaros
-        { icon = 442272, text = L.DB_MODULES_HEADER_RECRUITMENT, check = "checkButton3", addon = "addon3" }, -- 442272 = achievement_guildperk_everybodysfriend
-    }
+    local databaseModuleColumns = {}
+
+    if IS_RETAIL then
+        databaseModuleColumns[1] = databaseModuleColumnsManifest.M
+        databaseModuleColumns[2] = databaseModuleColumnsManifest.R
+        databaseModuleColumns[3] = databaseModuleColumnsManifest.F
+    else
+        databaseModuleColumns[1] = databaseModuleColumnsManifest.R
+        databaseModuleColumns[2] = databaseModuleColumnsManifest.F
+    end
+
+    for i = #databaseModuleColumns, 1, -1 do
+        local column = databaseModuleColumns[i]
+        if column then
+            column.check = format("checkButton%s", i > 1 and i or "")
+            column.addon = format("addon%d", i)
+        else
+            table.remove(databaseModuleColumns, i)
+        end
+    end
 
     ---@class RaiderIOSettingsFrame : Frame, BackdropTemplate
 
@@ -13109,15 +13153,13 @@ do
             frame.isModuleToggle = true
             frame.text:SetTextColor(1, 1, 1)
             frame.text:SetText(name)
-            ---@type string[]
-            local addonNames = {...}
-            for i = #addonNames, 1, -1 do
-                local addonName = addonNames[i]
-                frame["addon" .. i] = addonName
-                local check = "checkButton" .. (i > 1 and i or "")
-                check = frame[check]
+            local moduleAddonNames = {...}
+            for i, column in ipairs(databaseModuleColumns) do
+                local moduleAddonName = moduleAddonNames[i] or ""
+                frame[column.addon] = moduleAddonName
+                local check = frame[column.check]
                 if check then
-                    check:SetShown(addonName)
+                    check:SetShown(moduleAddonName)
                 end
             end
             self.modules[#self.modules + 1] = frame
@@ -13562,21 +13604,25 @@ do
             local header = configOptions:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(C_AddOns.GetAddOnMetadata(addonName, "Version")), configHeaderFrame)
             header.text:SetFont(header.text:GetFont(), 16, "OUTLINE") ---@diagnostic disable-line: param-type-mismatch
 
-            configOptions:CreateHeadline(L.CHOOSE_HEADLINE_HEADER)
-            configOptions:CreateRadioToggle(L.SHOW_BEST_SEASON, L.SHOW_BEST_SEASON_DESC, "mplusHeadlineMode", 1)
-            configOptions:CreateRadioToggle(L.SHOW_CURRENT_SEASON, L.SHOW_CURRENT_SEASON_DESC, "mplusHeadlineMode", 0)
-            configOptions:CreateRadioToggle(L.SHOW_BEST_RUN, L.SHOW_BEST_RUN_DESC, "mplusHeadlineMode", 2)
+            if IS_RETAIL then
+                configOptions:CreateHeadline(L.CHOOSE_HEADLINE_HEADER)
+                configOptions:CreateRadioToggle(L.SHOW_BEST_SEASON, L.SHOW_BEST_SEASON_DESC, "mplusHeadlineMode", 1)
+                configOptions:CreateRadioToggle(L.SHOW_CURRENT_SEASON, L.SHOW_CURRENT_SEASON_DESC, "mplusHeadlineMode", 0)
+                configOptions:CreateRadioToggle(L.SHOW_BEST_RUN, L.SHOW_BEST_RUN_DESC, "mplusHeadlineMode", 2)
+                configOptions:CreatePadding()
+            end
 
-            configOptions:CreatePadding()
             configOptions:CreateHeadline(L.GENERAL_TOOLTIP_OPTIONS)
-            configOptions:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
-            configOptions:CreateOptionToggle(L.SHOW_BEST_MAINS_SCORE, L.SHOW_BEST_MAINS_SCORE_DESC, "showMainBestScore")
-            configOptions:CreateOptionToggle(L.SHOW_ROLE_ICONS, L.SHOW_ROLE_ICONS_DESC, "showRoleIcons")
-            configOptions:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
-            configOptions:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
-            -- configOptions:CreateOptionToggle(L.SHOW_CHESTS_AS_MEDALS, L.SHOW_CHESTS_AS_MEDALS_DESC, "showMedalsInsteadOfText")
-            configOptions:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
-            configOptions:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
+            if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
+                configOptions:CreateOptionToggle(L.SHOW_BEST_MAINS_SCORE, L.SHOW_BEST_MAINS_SCORE_DESC, "showMainBestScore")
+                configOptions:CreateOptionToggle(L.SHOW_ROLE_ICONS, L.SHOW_ROLE_ICONS_DESC, "showRoleIcons")
+                configOptions:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
+                configOptions:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
+                -- configOptions:CreateOptionToggle(L.SHOW_CHESTS_AS_MEDALS, L.SHOW_CHESTS_AS_MEDALS_DESC, "showMedalsInsteadOfText")
+                configOptions:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
+                configOptions:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
+            end
             configOptions:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
             configOptions:CreateOptionToggle(L.SHOW_SCORE_WITH_MODIFIER, L.SHOW_SCORE_WITH_MODIFIER_DESC, "showScoreModifier")
             configOptions:CreateOptionToggle(L.USE_ENGLISH_ABBREVIATION, L.USE_ENGLISH_ABBREVIATION_DESC, "useEnglishAbbreviations")
@@ -13584,11 +13630,17 @@ do
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.CONFIG_WHERE_TO_SHOW_TOOLTIPS)
             configOptions:CreateOptionToggle(L.SHOW_ON_PLAYER_UNITS, L.SHOW_ON_PLAYER_UNITS_DESC, "enableUnitTooltips")
-            configOptions:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
+            if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
+            else
+                configOptions:CreateOptionToggle(L.SHOW_IN_LFD_CLASSIC, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
+            end
             configOptions:CreateOptionToggle(L.SHOW_IN_FRIENDS, L.SHOW_IN_FRIENDS_DESC, "enableFriendsTooltips")
             configOptions:CreateOptionToggle(L.SHOW_ON_GUILD_ROSTER, L.SHOW_ON_GUILD_ROSTER_DESC, "enableGuildTooltips")
             configOptions:CreateOptionToggle(L.SHOW_IN_WHO_UI, L.SHOW_IN_WHO_UI_DESC, "enableWhoTooltips")
-            configOptions:CreateOptionToggle(L.SHOW_IN_SLASH_WHO_RESULTS, L.SHOW_IN_SLASH_WHO_RESULTS_DESC, "enableWhoMessages")
+            if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.SHOW_IN_SLASH_WHO_RESULTS, L.SHOW_IN_SLASH_WHO_RESULTS_DESC, "enableWhoMessages")
+            end
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.TOOLTIP_PROFILE)
@@ -13603,23 +13655,25 @@ do
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.RAIDERIO_CLIENT_CUSTOMIZATION)
             configOptions:CreateOptionToggle(L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS, L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS_DESC, "enableClientEnhancements", { needReload = true })
-            configOptions:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest")
-            local enableReplay = configOptions:CreateOptionToggle(L.ENABLE_REPLAY, L.ENABLE_REPLAY_DESC, "enableReplay")
-            local function isReplayDisabled()
-                return not enableReplay.checkButton:GetChecked()
+            if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest")
+                local enableReplay = configOptions:CreateOptionToggle(L.ENABLE_REPLAY, L.ENABLE_REPLAY_DESC, "enableReplay")
+                local function isReplayDisabled()
+                    return not enableReplay.checkButton:GetChecked()
+                end
+                configOptions:CreateDropDown(L.REPLAY_AUTO_SELECTION, L.REPLAY_AUTO_SELECTION_DESC, "replaySelection", {
+                    options = {
+                        { text = L.REPLAY_AUTO_SELECTION_MOST_RECENT, value = "user_recent_replay" },
+                        { text = L.REPLAY_AUTO_SELECTION_PERSONAL_BEST, value = "user_best_replay" },
+                        { text = L.REPLAY_AUTO_SELECTION_TEAM_BEST, value = "team_best_replay" },
+                        { text = L.REPLAY_AUTO_SELECTION_GUILD_BEST, value = "guild_best_replay" },
+                        { text = L.REPLAY_AUTO_SELECTION_STARRED, value = "watched_replay" },
+                    },
+                    isDisabled = isReplayDisabled,
+                })
+                configOptions:CreateColorPicker(L.REPLAY_BACKGROUND_COLOR, L.REPLAY_BACKGROUND_COLOR_DESC, "replayBackground", { isDisabled = isReplayDisabled })
+                configOptions:CreateSlider(L.REPLAY_FRAME_ALPHA, L.REPLAY_FRAME_ALPHA_DESC, "replayAlpha", { pctl = true, from = 0, to = 1, step = 0.01, isDisabled = isReplayDisabled })
             end
-            configOptions:CreateDropDown(L.REPLAY_AUTO_SELECTION, L.REPLAY_AUTO_SELECTION_DESC, "replaySelection", {
-                options = {
-                    { text = L.REPLAY_AUTO_SELECTION_MOST_RECENT, value = "user_recent_replay" },
-                    { text = L.REPLAY_AUTO_SELECTION_PERSONAL_BEST, value = "user_best_replay" },
-                    { text = L.REPLAY_AUTO_SELECTION_TEAM_BEST, value = "team_best_replay" },
-                    { text = L.REPLAY_AUTO_SELECTION_GUILD_BEST, value = "guild_best_replay" },
-                    { text = L.REPLAY_AUTO_SELECTION_STARRED, value = "watched_replay" },
-                },
-                isDisabled = isReplayDisabled,
-            })
-            configOptions:CreateColorPicker(L.REPLAY_BACKGROUND_COLOR, L.REPLAY_BACKGROUND_COLOR_DESC, "replayBackground", { isDisabled = isReplayDisabled })
-            configOptions:CreateSlider(L.REPLAY_FRAME_ALPHA, L.REPLAY_FRAME_ALPHA_DESC, "replayAlpha", { pctl = true, from = 0, to = 1, step = 0.01, isDisabled = isReplayDisabled })
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)
@@ -13637,7 +13691,11 @@ do
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
             configOptions:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
-            configOptions:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
+            if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
+            else
+                configOptions:CreateOptionToggle(L.ALLOW_IN_LFD_CLASSIC, L.ALLOW_IN_LFD_CLASSIC_DESC, "enableLFGDropdown")
+            end
 
             ---@class RaiderIOSettingsToggleWidgetMinimapToggle : RaiderIOSettingsToggleWidget
             ---@field public value? boolean
@@ -13697,12 +13755,39 @@ do
                 end,
             })
 
+            ---@alias RaiderIODBModuleRegion "US"|"EU"|"KR"|"TW"
+            ---@alias RaiderIODBModuleType "M"|"R"|"F"
+
+            ---@class RaiderIODBModulesInfo
+            local ModulesInfo = {
+                pattern = "RaiderIO_DB_%s_%s",
+                modules = {"M", "R", "F"}, ---@type RaiderIODBModuleType[]
+                ---@param module RaiderIODBModuleType
+                ---@return boolean
+                isSupported = function(module)
+                    return IS_RETAIL or module ~= "M" -- Mythic+ is not available on other clients except mainline
+                end,
+            }
+
+            ---@param region RaiderIODBModuleRegion
+            local function CreateModuleOptionsArgs(region)
+                local temp = {}
+                local index = 0
+                for _, module in ipairs(ModulesInfo.modules) do
+                    if ModulesInfo.isSupported(module) then
+                        index = index + 1
+                        temp[index] = format(ModulesInfo.pattern, region, module)
+                    end
+                end
+                return unpack(temp)
+            end
+
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.DB_MODULES)
-            local modulesHeader = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_M", "RaiderIO_DB_US_R", "RaiderIO_DB_US_F")
-            configOptions:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_M", "RaiderIO_DB_EU_R", "RaiderIO_DB_EU_F")
-            configOptions:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_M", "RaiderIO_DB_KR_R", "RaiderIO_DB_KR_F")
-            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_M", "RaiderIO_DB_TW_R", "RaiderIO_DB_TW_F")
+            local modulesHeader = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, CreateModuleOptionsArgs("US"))
+            configOptions:CreateModuleToggle(L.MODULE_EUROPE, CreateModuleOptionsArgs("EU"))
+            configOptions:CreateModuleToggle(L.MODULE_KOREA, CreateModuleOptionsArgs("KR"))
+            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, CreateModuleOptionsArgs("TW"))
 
             -- add save button and cancel buttons
             local buttons = configOptions:CreateWidget("Frame", 4, configButtonFrame)

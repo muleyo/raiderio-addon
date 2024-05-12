@@ -609,7 +609,7 @@ do
             [2] = {
                 suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL25,
                 name = L.RAID_DIFFICULTY_NAME_NORMAL25,
-                color = { 0.00, 0.44, 0.87, hex = "0070dd" }
+                color = { 0.12, 1.00, 0.00, hex = "1eff00" }
             },
             ---@type RaidDifficulty
             [3] = {

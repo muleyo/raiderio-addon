@@ -1,11 +1,11 @@
-## Interface: 30403
-## Title: Raider.IO |cffFFFFFFRaiding|r (Americas)
+## Interface: 40400
+## Title: Raider.IO |cffFFFFFFRecruitment|r (Taiwan)
 ## Author: Vladinator (Vladinator-TarrenMill), Aspyr (Aspyrox-Skullcrusher) and Isak (Isak-Sargeras)
-## Version: 3.4.2 (@project-version@)
+## Version: 4.4.0 (@project-version@)
 ## IconTexture: Interface\AddOns\RaiderIO\icons\logo
 ## Dependencies: RaiderIO
 ## DefaultState: enabled
-## X-Type: Raiding
-## X-Region: Americas
+## X-Type: Recruitment
+## X-Region: Taiwan
 ## X-Faction: Both
 ## X-Website: https://raider.io

@@ -58,6 +58,7 @@
         "GUILD_NEWS",
         "GUILD_NEWS_TITLE",
         "GuildRosterContainer",
+        "GuildListScrollFrame",
         "HIGHLIGHT_FONT_COLOR",
         "InterfaceOptions_AddCategory",
         "ItemRefTooltip",
@@ -101,6 +102,7 @@
         "WHISPER_LEADER",
         "WHO_LIST_FORMAT",
         "WHO_LIST_GUILD_FORMAT",
-        "WhoFrame"
+        "WhoFrame",
+        "WhoListScrollFrame"
     ]
 }

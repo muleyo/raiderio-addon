@@ -1,6 +1,6 @@
 local IS_RETAIL = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 local IS_CLASSIC_ERA = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
-local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_CATA_CLASSIC
+local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_CATACLYSM_CLASSIC
 
 local addonName = ... ---@type string @The name of the addon.
 local ns = select(2, ...) ---@class ns @The addon namespace.
@@ -125,6 +125,42 @@ local HookUtil do
         end
         for key, callback in pairs(map) do
             HookUtil:OnAll(object, callback, key)
+        end
+        return true
+    end
+
+    --- In Classic the ScrollFrame uses the legacy system where the buttons are created as the frame is loaded.
+    ---
+    --- There is no race condition, so we can simply ensure that the ScrollFrame exists, and if the first row widget exists, then all of them exist and can be hooked.
+    ---
+    --- The return value is `nil` if the ScrollFrame doesn't exist. `false` if first row widget doesn't exist. Otherwise `true` to indicate success.
+    ---
+    ---@param scrollFrame Frame
+    ---@param namePattern string
+    ---@param hookMap table<string, fun()>
+    ---@param onScroll? fun()
+    ---@param maxIndex? number
+    ---@param minIndex? number
+    function HookUtil:ClassicScrollFrame(scrollFrame, namePattern, hookMap, onScroll, maxIndex, minIndex)
+        if type(scrollFrame) ~= "table" then
+            return
+        end
+        minIndex = minIndex or 1
+        maxIndex = maxIndex or 32
+        local name = format(namePattern, minIndex)
+        local button = _G[name] ---@type Button?
+        if type(button) ~= "table" then
+            return false
+        end
+        for i = minIndex, maxIndex do
+            name = format(namePattern, i)
+            button = _G[name] ---@type Button?
+            if button then
+                HookUtil:MapOn(button, hookMap)
+            end
+        end
+        if onScroll then
+            HookUtil:On(scrollFrame, onScroll, "OnVerticalScroll")
         end
         return true
     end
@@ -402,6 +438,44 @@ do
 
     end
 
+    ---@class MarkupIcons
+    ---@field public markup? string
+    ---@field public markupPadLeft? string
+    ---@field public markupPadRight? string
+
+    ---@class MarkupIconsCollection
+    ns.MARKUP_ICONS = {
+        ---@class MarkupIcons
+        LeftButton = {
+            atlas = "newplayertutorial-icon-mouse-leftbutton",
+            atlasWidth = 12,
+            atlasHeight = 16,
+        },
+        ---@class MarkupIcons
+        RightButton = {
+            atlas = "newplayertutorial-icon-mouse-rightbutton",
+            atlasWidth = 12,
+            atlasHeight = 16,
+        },
+    }
+
+    -- Finalize the `ns.MARKUP_ICONS` table
+    do
+
+        for _, info in pairs(ns.MARKUP_ICONS) do
+            info = info ---@type MarkupIcons
+            if info.atlas then
+                local atlasInfo = C_Texture.GetAtlasInfo(info.atlas)
+                if atlasInfo then
+                    info.markup = format("|A:%s:%d:%d|a", info.atlas, info.atlasHeight or atlasInfo.height, info.atlasWidth or atlasInfo.width)
+                    info.markupPadLeft = format(" %s", info.markup)
+                    info.markupPadRight = format("%s ", info.markup)
+                end
+            end
+        end
+
+    end
+
     ns.REGIONS_RESET_TIME = { -- Maps each region string to their weekly reset timer.
         us = 1135695600,
         eu = 1135753200,
@@ -502,26 +576,77 @@ do
     ---@field public name string
     ---@field public color RaidDifficultyColor
 
-    ns.RAID_DIFFICULTY = { -- Table of `1` (normal), `2` (heroic), `3` (mythic) difficulties and their names and colors.
-        ---@type RaidDifficulty
-        [1] = {
-            suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL,
-            name = L.RAID_DIFFICULTY_NAME_NORMAL,
-            color = { 0.12, 1.00, 0.00, hex = "1eff00" }
-        },
-        ---@type RaidDifficulty
-        [2] = {
-            suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC,
-            name = L.RAID_DIFFICULTY_NAME_HEROIC,
-            color = { 0.00, 0.44, 0.87, hex = "0070dd" }
-        },
-        ---@type RaidDifficulty
-        [3] = {
-            suffix = L.RAID_DIFFICULTY_SUFFIX_MYTHIC,
-            name = L.RAID_DIFFICULTY_NAME_MYTHIC,
-            color = { 0.64, 0.21, 0.93, hex = "a335ee" }
+    if IS_RETAIL then
+        ns.RAID_DIFFICULTY = { -- Table of `1` (normal), `2` (heroic), `3` (mythic) difficulties and their names and colors.
+            ---@type RaidDifficulty
+            [1] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL,
+                name = L.RAID_DIFFICULTY_NAME_NORMAL,
+                color = { 0.12, 1.00, 0.00, hex = "1eff00" }
+            },
+            ---@type RaidDifficulty
+            [2] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC,
+                name = L.RAID_DIFFICULTY_NAME_HEROIC,
+                color = { 0.00, 0.44, 0.87, hex = "0070dd" }
+            },
+            ---@type RaidDifficulty
+            [3] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_MYTHIC,
+                name = L.RAID_DIFFICULTY_NAME_MYTHIC,
+                color = { 0.64, 0.21, 0.93, hex = "a335ee" }
+            }
         }
-    }
+    elseif IS_CLASSIC then
+        ns.RAID_DIFFICULTY = { -- Table of `1` (normal10), `2` (normal25), `3` (heroic10), `4` (heroic25) difficulties and their names and colors.
+            ---@type RaidDifficulty
+            [1] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL10,
+                name = L.RAID_DIFFICULTY_NAME_NORMAL10,
+                color = { 0.12, 1.00, 0.00, hex = "1eff00" }
+            },
+            ---@type RaidDifficulty
+            [2] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL25,
+                name = L.RAID_DIFFICULTY_NAME_NORMAL25,
+                color = { 0.12, 1.00, 0.00, hex = "1eff00" }
+            },
+            ---@type RaidDifficulty
+            [3] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC10,
+                name = L.RAID_DIFFICULTY_NAME_HEROIC10,
+                color = { 0.64, 0.21, 0.93, hex = "a335ee" }
+            },
+            ---@type RaidDifficulty
+            [4] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC25,
+                name = L.RAID_DIFFICULTY_NAME_HEROIC25,
+                color = { 0.64, 0.21, 0.93, hex = "a335ee" }
+            }
+        }
+    else
+        -- TODO setup classic era difficulty
+        ns.RAID_DIFFICULTY = { -- Table of `1` (normal), `2` (heroic), `3` (mythic) difficulties and their names and colors.
+            ---@type RaidDifficulty
+            [1] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_NORMAL,
+                name = L.RAID_DIFFICULTY_NAME_NORMAL,
+                color = { 0.12, 1.00, 0.00, hex = "1eff00" }
+            },
+            ---@type RaidDifficulty
+            [2] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_HEROIC,
+                name = L.RAID_DIFFICULTY_NAME_HEROIC,
+                color = { 0.00, 0.44, 0.87, hex = "0070dd" }
+            },
+            ---@type RaidDifficulty
+            [3] = {
+                suffix = L.RAID_DIFFICULTY_SUFFIX_MYTHIC,
+                name = L.RAID_DIFFICULTY_NAME_MYTHIC,
+                color = { 0.64, 0.21, 0.93, hex = "a335ee" }
+            }
+        }
+    end
 
     ---@class RecruitmentEntityTypes
     ns.RECRUITMENT_ENTITY_TYPES = { -- Table over recruitment entity types.
@@ -1473,7 +1598,7 @@ do
         return util:GetRaidByKeyValue("shortName", name) or util:GetRaidByKeyValue("shortNameLocale", name)
     end
 
-    ---@param object Frame @Any interface widget object that supports the methods GetScript.
+    ---@param object Frame|ScriptRegion @Any interface widget object that supports the methods GetScript.
     ---@param handler string @The script handler like OnEnter, OnClick, etc.
     ---@return boolean|nil @If successfully executed returns true, otherwise false if nothing has been called. nil if the widget had no handler to execute.
     function util:ExecuteWidgetHandler(object, handler, ...)
@@ -1490,7 +1615,7 @@ do
         return true
     end
 
-    ---@param frame Frame
+    ---@param frame Frame|ScriptRegion
     ---@param parent Frame
     local function IsParentedBy(frame, parent)
         if type(frame) ~= "table" or type(parent) ~= "table" or type(frame.GetParent) ~= "function" or type(parent.GetParent) ~= "function" then
@@ -1508,7 +1633,7 @@ do
         end
     end
 
-    ---@param frame Frame @Any interface widget object that supports the methods GetScript.
+    ---@param frame Frame|ScriptRegion @Any interface widget object that supports the methods GetScript.
     ---@param onEnter fun() @Any function originating from the OnEnter handler.
     ---@return boolean|nil @If the provided object is not a region or has no function we return `nil`, otherwise `true` that it is safe to call, and `false` that it is unsafe to call its function.
     local function IsOnEnterSafe(frame, onEnter)
@@ -1521,8 +1646,10 @@ do
         if frame == _G[addonName .. "_GuildWeeklyFrame"] then return true end
         -- whotooltip.lua
         if IsParentedBy(frame, WhoFrame.ScrollBox) then return true end
+        if IsParentedBy(frame, WhoListScrollFrame and WhoListScrollFrame:GetParent()) then return true end
         -- guildtooltip.lua
         if IsParentedBy(frame, GuildRosterContainer) then return true end
+        if IsParentedBy(frame, GuildListScrollFrame and GuildListScrollFrame:GetParent()) then return true end
         -- communitytooltip.lua
         if CommunitiesFrame and ClubFinderGuildFinderFrame and ClubFinderCommunityAndGuildFinderFrame then
             if IsParentedBy(frame, CommunitiesFrame.MemberList.ScrollBox) then return true end
@@ -1541,7 +1668,7 @@ do
     ---| 2 #Script handler executed successfully.
     ---| 3 #Script handler executed but silently errored.
 
-    ---@param object Frame @Any interface widget object that supports the methods GetScript.
+    ---@param object Frame|ScriptRegion @Any interface widget object that supports the methods GetScript.
     ---@param before? fun() @Optional function to run right before the OnEnter script executes.
     ---@return ExecuteWidgetOnEnterSafelyStatus @Returns a status enum to indicate the outcome of the call.
     function util:ExecuteWidgetOnEnterSafely(object, before)
@@ -1819,8 +1946,8 @@ do
         return name, realm, unit ---@diagnostic disable-line: return-type-mismatch
     end
 
-    ---@param level number @The level to test
-    ---@param fallback? boolean @If level isn't provided, we'll fallback to this boolean
+    ---@param level? number @The level to test
+    ---@param fallback? boolean @If a valid level isn't provided, we'll fallback to this boolean
     function util:IsMaxLevel(level, fallback)
         if level and type(level) == "number" then
             return level >= ns.MAX_LEVEL
@@ -2015,6 +2142,9 @@ do
     ---@param raid DungeonRaid
     local function IsRaidFated(raid)
         if not raid then
+            return
+        end
+        if not C_ModifiedInstance then
             return
         end
         local modInfo = C_ModifiedInstance.GetModifiedInstanceInfoFromMapID(raid.instance_map_id)
@@ -2314,6 +2444,24 @@ do
         else
             util:ShowStaticPopupDialog(COPY_PROFILE_URL_POPUP, title, url)
         end
+    end
+
+    --- Dynamically check the `profile` values for any entry with the `hasRenderableData` property set.
+    ---@param profile? DataProviderCharacterProfile
+    ---@return boolean? hasRenderableData
+    function util:ProfileHasRenderableData(profile)
+        if not profile then
+            return
+        end
+        for _, value in pairs(profile) do
+            if value and type(value) == "table" then
+                local data = value ---@type DataProviderProfile
+                if data.hasRenderableData then
+                    return true
+                end
+            end
+        end
+        return false
     end
 
     ---@param frame Frame
@@ -3276,6 +3424,19 @@ do
         return DECODE_BITS_2_TABLE[1 + value] or 0
     end
 
+    ---@class DecodeBits5Table
+    local DECODE_BITS_5_TABLE = {
+        0,  1,  2,  3,  4,  5,  6,  7,
+        8,  9, 10, 11, 12, 13, 14, 15,
+       16, 17, 18, 19, 20, 21, 22, 23,
+       24, 25, 30, 35, 40, 45, 50
+    }
+
+    ---@param value number
+    local function DecodeBits5(value)
+        return DECODE_BITS_5_TABLE[1 + value] or 0
+    end
+
     ---@class OrderedRolesItem
     ---@field public [1] string @`tank`, `healer`, `dps`
     ---@field public [2] string @`full`, `partial`
@@ -3369,9 +3530,11 @@ do
     ---@field public originalScore? number @If set to a number, it means we did override the score but kept a backup of the original here
     ---@field public roles OrderedRolesItem[] @table of roles associated with the score
 
-    ---@class DataProviderMythicKeystoneProfile
-    ---@field public outdated number|nil @number or nil
-    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
+    ---@class DataProviderProfile
+    ---@field public outdated? number @see `DataProvider.outdated` for more information
+    ---@field public hasRenderableData boolean @`true` if we have any actual data to render in the tooltip without the profile appearing incomplete or empty
+
+    ---@class DataProviderMythicKeystoneProfile : DataProviderProfile
     ---@field public hasOverrideScore boolean @True if we override the score shown using in-game score data for the profile tooltip.
     ---@field public hasOverrideDungeonRuns boolean @True if we override the dungeon runs shown using in-game data for the profile tooltip.
     ---@field public blocked number|nil @number or nil
@@ -3788,9 +3951,7 @@ do
     ---@field public killsPerBoss number[]
     ---@field public raid DatabaseRaid
 
-    ---@class DataProviderRaidProfile
-    ---@field public outdated number|nil @number or nil
-    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
+    ---@class DataProviderRaidProfile : DataProviderProfile
     ---@field public progress DataProviderRaidProgress[]
     ---@field public mainProgress? DataProviderRaidProgress[]
     ---@field public previousProgress? DataProviderRaidProgress[]
@@ -3966,6 +4127,10 @@ do
         local prog = { raid = raid } ---@diagnostic disable-line: missing-fields
         local bitOffset = offset
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+        if not IS_RETAIL then
+            -- TODO: update retail to not set difficulty as one-based
+            prog.difficulty = prog.difficulty + 1
+        end
         prog.progressCount, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
         if prog.progressCount > 0 then
             local temp = results[field] ---@type DataProviderRaidProgress[]?
@@ -3988,12 +4153,26 @@ do
         local bitOffset = offset
         local value
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+        if not IS_RETAIL then
+            -- TODO: update retail to not set difficulty as one-based
+            prog.difficulty = prog.difficulty + 1
+        end
         prog.killsPerBoss = {}
-        for i = 1, raid.bossCount do
-            value, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
-            prog.killsPerBoss[i] = DecodeBits2(value)
-            if prog.killsPerBoss[i] > 0 then
-                prog.progressCount = prog.progressCount + 1
+        if IS_RETAIL then
+            for i = 1, raid.bossCount do
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+                prog.killsPerBoss[i] = DecodeBits2(value)
+                if prog.killsPerBoss[i] > 0 then
+                    prog.progressCount = prog.progressCount + 1
+                end
+            end
+        else
+            for i = 1, raid.bossCount do
+                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 5)
+                prog.killsPerBoss[i] = DecodeBits5(value)
+                if prog.killsPerBoss[i] > 0 then
+                    prog.progressCount = prog.progressCount + 1
+                end
             end
         end
         if prog.progressCount > 0 then
@@ -4110,9 +4289,7 @@ do
         return results
     end
 
-    ---@class DataProviderRecruitmentProfile
-    ---@field public outdated number|nil @number or nil
-    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
+    ---@class DataProviderRecruitmentProfile : DataProviderProfile
     ---@field public titleIndex number
     ---@field public title RecruitmentTitle
     ---@field public entityType number @`0` (character), `1` (guild), `2` (team) - use `ns.RECRUITMENT_ENTITY_TYPES` for lookups
@@ -4149,9 +4326,7 @@ do
         return results
     end
 
-    ---@class DataProviderPvpProfile
-    ---@field public outdated number|nil @number or nil
-    ---@field public hasRenderableData boolean @True if we have any actual data to render in the tooltip without the profile appearing incomplete or empty.
+    ---@class DataProviderPvpProfile : DataProviderProfile
 
     ---@param provider DataProvider
     local function UnpackPvpData(bucket, baseOffset, provider)
@@ -5643,9 +5818,9 @@ do
 
     function tooltip:OnLoad()
         self:Enable()
-        if TooltipDataProcessor then -- TODO: DF
+        if IS_RETAIL and TooltipDataProcessor then -- TODO: DF
             TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnTooltipSetUnit)
-        else
+        else -- Classic
             GameTooltip:HookScript("OnTooltipSetUnit", OnTooltipSetUnit)
         end
         GameTooltip:HookScript("OnTooltipCleared", OnTooltipCleared)
@@ -5682,7 +5857,7 @@ do
                 faction = ns.PLAYER_FACTION
             end
         end
-        if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
+        if not fullName or not util:IsMaxLevel(level) then
             return
         end
         local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
@@ -5730,11 +5905,23 @@ do
     local util = ns:GetModule("Util") ---@type UtilModule
     local render = ns:GetModule("Render") ---@type RenderModule
 
+    ---@class WhoFrameButtonPolyfill : Button
+    ---@field public index? number @Used on Mainline
+    ---@field public whoIndex? number @Used on Classic
+
+    ---@param self WhoFrameButtonPolyfill
+    ---@return number? whoIndex
+    local function GetIndex(self)
+        return self.index or self.whoIndex
+    end
+
+    ---@param self WhoFrameButtonPolyfill
     local function OnEnter(self)
-        if not self.index or not config:Get("enableWhoTooltips") then
+        local index = GetIndex(self)
+        if not index or not config:Get("enableWhoTooltips") then
             return
         end
-        local info = C_FriendList.GetWhoInfo(self.index)
+        local info = C_FriendList.GetWhoInfo(index)
         if not info or not info.fullName or not util:IsMaxLevel(info.level) then
             return
         end
@@ -5747,8 +5934,10 @@ do
         end
     end
 
+    ---@param self WhoFrameButtonPolyfill
     local function OnLeave(self)
-        if not self.index or not config:Get("enableWhoTooltips") then
+        local index = GetIndex(self)
+        if not index or not config:Get("enableWhoTooltips") then
             return
         end
         GameTooltip:Hide()
@@ -5759,25 +5948,29 @@ do
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
     end
 
     function tooltip:CanLoad()
-        return WhoFrame and config:IsEnabled()
+        return (WhoFrame or WhoListScrollFrame) and config:IsEnabled()
     end
 
     function tooltip:OnLoad()
         self:Enable()
         local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
-        ScrollBoxUtil:OnViewFramesChanged(WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(WhoFrame.ScrollBox, OnScroll)
+        if WhoFrame.ScrollBox then
+            ScrollBoxUtil:OnViewFramesChanged(WhoFrame.ScrollBox, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+            ScrollBoxUtil:OnViewScrollChanged(WhoFrame.ScrollBox, OnScroll)
+            return
+        end
+        HookUtil:ClassicScrollFrame(WhoListScrollFrame, "WhoFrameButton%d", hookMap, OnScroll)
     end
 
 end
 
 -- whochatframe.lua
 -- dependencies: module, config, util, provider
-do
+if IS_RETAIL then
 
     ---@class WhoChatFrameModule : Module
     local chatframe = ns:NewModule("WhoChatFrame") ---@type WhoChatFrameModule
@@ -5820,7 +6013,7 @@ do
             guild = nil
             nameLink, name, level, race, class, zone = text:match(FORMAT)
         end
-        if not nameLink or not level or not util:IsMaxLevel(tonumber(level)) then ---@diagnostic disable-line: param-type-mismatch
+        if not nameLink or not level or not util:IsMaxLevel(tonumber(level)) then
             return false
         end
         local name, realm = util:GetNameRealm(nameLink)
@@ -5832,7 +6025,7 @@ do
         if not score then
             return false
         end
-        return false, text .. " - " .. score, ...
+        return false, format("%s - %s", text, score), ...
     end
 
     function chatframe:CanLoad()
@@ -6700,7 +6893,7 @@ end
 
 -- lfgtooltip.lua
 -- dependencies: module, config, util, render, profile
-if IS_RETAIL then
+if not IS_CLASSIC_ERA then
 
     ---@class LfgTooltipModule : Module
     local tooltip = ns:NewModule("LfgTooltip") ---@type LfgTooltipModule
@@ -6814,7 +7007,7 @@ if IS_RETAIL then
 
     local function OnScroll()
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
     end
 
     ---@param self LFGListFrameWildcardFrame
@@ -6876,7 +7069,7 @@ end
 
 -- guildtooltip.lua
 -- dependencies: module, config, util, render
-do
+if IS_CLASSIC_ERA then
 
     ---@class GuildTooltipModule : Module
     local tooltip = ns:NewModule("GuildTooltip") ---@type GuildTooltipModule
@@ -6884,12 +7077,24 @@ do
     local util = ns:GetModule("Util") ---@type UtilModule
     local render = ns:GetModule("Render") ---@type RenderModule
 
+    ---@class GuildFrameButtonPolyfill : Button
+    ---@field public index? number @Used on Mainline
+    ---@field public guildIndex? number @Used on Classic
+
+    ---@param self GuildFrameButtonPolyfill
+    ---@return number? guildIndex
+    local function GetIndex(self)
+        return self.index or self.guildIndex
+    end
+
+    ---@param self GuildFrameButtonPolyfill
     local function OnEnter(self)
-        if not self.guildIndex or not config:Get("enableGuildTooltips") then
+        local index = GetIndex(self)
+        if not index or not config:Get("enableGuildTooltips") then
             return
         end
-        local fullName, _, _, level = GetGuildRosterInfo(self.guildIndex)
-        if not fullName or not util:IsMaxLevel(level) then ---@diagnostic disable-line: param-type-mismatch
+        local fullName, _, _, level = GetGuildRosterInfo(index)
+        if not fullName or not util:IsMaxLevel(level) then
             return
         end
         local ownerSet, ownerExisted, ownerSetSame = util:SetOwnerSafely(GameTooltip, self, "ANCHOR_TOPLEFT", 0, 0)
@@ -6901,8 +7106,10 @@ do
         end
     end
 
+    ---@param self GuildFrameButtonPolyfill
     local function OnLeave(self)
-        if not self.guildIndex or not config:Get("enableGuildTooltips") then
+        local index = GetIndex(self)
+        if not index or not config:Get("enableGuildTooltips") then
             return
         end
         GameTooltip:Hide()
@@ -6913,25 +7120,29 @@ do
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
     end
 
     function tooltip:CanLoad()
-        return GuildRosterContainer and config:IsEnabled()
+        return (GuildRosterContainer or GuildListScrollFrame) and config:IsEnabled()
     end
 
     function tooltip:OnLoad()
         self:Enable()
         local hookMap = { OnEnter = OnEnter, OnLeave = OnLeave }
-        ScrollBoxUtil:OnViewFramesChanged(GuildRosterContainer, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
-        ScrollBoxUtil:OnViewScrollChanged(GuildRosterContainer, OnScroll)
+        if GuildRosterContainer then
+            ScrollBoxUtil:OnViewFramesChanged(GuildRosterContainer, function(buttons) HookUtil:MapOn(buttons, hookMap) end)
+            ScrollBoxUtil:OnViewScrollChanged(GuildRosterContainer, OnScroll)
+            return
+        end
+        HookUtil:ClassicScrollFrame(GuildListScrollFrame, "GuildFrameButton%d", hookMap, OnScroll)
     end
 
 end
 
 -- communitytooltip.lua
 -- dependencies: module, config, util, render
-if IS_RETAIL then
+do
 
     ---@class CommunityTooltipModule : Module
     local tooltip = ns:NewModule("CommunityTooltip") ---@type CommunityTooltipModule
@@ -7030,7 +7241,7 @@ if IS_RETAIL then
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus()) ---@diagnostic disable-line: param-type-mismatch
+        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
     end
 
     function tooltip:CanLoad()
@@ -11006,12 +11217,14 @@ do
     local validTypes = {
         ARENAENEMY = true,
         BN_FRIEND = true,
+        -- BN_FRIEND_OFFLINE = true,
         CHAT_ROSTER = true,
         COMMUNITIES_GUILD_MEMBER = true,
         COMMUNITIES_WOW_MEMBER = true,
         ENEMY_PLAYER = true,
         FOCUS = true,
         FRIEND = true,
+        -- FRIEND_OFFLINE = true,
         GUILD = true,
         GUILD_OFFLINE = true,
         PARTY = true,
@@ -11114,7 +11327,7 @@ do
                 return
             end
             selectedName, selectedRealm, selectedLevel, selectedUnit, selectedFaction = GetNameRealmForDropDown(bdropdown)
-            if not selectedName or not util:IsMaxLevel(selectedLevel, true) then ---@diagnostic disable-line: param-type-mismatch
+            if not selectedName or not util:IsMaxLevel(selectedLevel, true) then
                 return
             end
             if not options[1] then
@@ -11138,24 +11351,41 @@ do
         end
     end
 
-    local function DropDownOptionModifiedClickHandler()
-        if not IsControlKeyDown() and not IsAltKeyDown() then
-            return
-        end
+    ---@return boolean? `true` indicates that we successfully opened the search dialog
+    local function ShowSearchAndProfile()
         local shown = search:IsShown()
         if not shown then
             search:Show()
         end
         if search:SearchAndShowProfile(ns.PLAYER_REGION, selectedRealm, selectedName) then
-            return true -- indicates we are showing the search dialog and we don't want to show the static popup
+            return true
         elseif not shown then
             search:Hide()
         end
     end
 
-    local function GetRecruitmentProfileForDropDown()
+    ---@return boolean? isDropDownHandled
+    local function DropDownOptionModifiedClickHandler()
+        if not IsControlKeyDown() and not IsAltKeyDown() then
+            return
+        end
+        return ShowSearchAndProfile()
+    end
+
+    ---@return DataProviderCharacterProfile? profile, boolean? hasRecruitment
+    local function GetProfileForDropDown()
         local profile = provider:GetProfile(selectedName, selectedRealm)
-        if not profile or not profile.recruitmentProfile or not profile.recruitmentProfile.hasRenderableData then
+        if not profile then
+            return
+        end
+        local hasRecruitment = profile.recruitmentProfile and profile.recruitmentProfile.hasRenderableData
+        return profile, hasRecruitment
+    end
+
+    ---@return DataProviderCharacterProfile? profile
+    local function GetRecruitmentProfileForDropDown()
+        local profile, hasRecruitment = GetProfileForDropDown()
+        if not hasRecruitment then
             return
         end
         return profile
@@ -11178,6 +11408,15 @@ do
                         return
                     end
                     util:ShowCopyRaiderIOProfilePopup(selectedName, selectedRealm)
+                end
+            },
+            { ---@diagnostic disable-line: missing-fields
+                text = L.SHOW_RAIDERIO_PROFILE_OPTION,
+                func = function()
+                    ShowSearchAndProfile()
+                end,
+                show = function()
+                    return util:ProfileHasRenderableData(GetProfileForDropDown())
                 end
             },
             { ---@diagnostic disable-line: missing-fields
@@ -12368,17 +12607,61 @@ do
     local settingsFrame
 
     ---@class RaiderIOSettingsModuleColumn
+    ---@field public module RaiderIODBModuleType
     ---@field public icon number|string
     ---@field public text string
-    ---@field public check "checkButton"|"checkButton2"|"checkButton3"
-    ---@field public addon "addon1"|"addon2"|"addon3"
+    ---@field public check ""|"checkButton"|"checkButton2"|"checkButton3"
+    ---@field public addon ""|"addon1"|"addon2"|"addon3"
+
+    ---@class RaiderIOSettingsModuleManifest
+    local databaseModuleColumnsManifest = {
+        ---@type RaiderIOSettingsModuleColumn
+        M = {
+            module = "M",
+            icon = IS_RETAIL and 525134 or 136106, -- inv_relics_hourglass | spell_nature_timestop
+            text = L.DB_MODULES_HEADER_MYTHIC_PLUS,
+            check = "",
+            addon = "",
+        },
+        ---@type RaiderIOSettingsModuleColumn
+        R = {
+            module = "R",
+            icon = 254652, -- achievement_boss_ragnaros
+            text = L.DB_MODULES_HEADER_RAIDING,
+            check = "",
+            addon = "",
+        },
+        ---@type RaiderIOSettingsModuleColumn
+        F = {
+            module = "F",
+            icon = 442272, -- achievement_guildperk_everybodysfriend
+            text = L.DB_MODULES_HEADER_RECRUITMENT,
+            check = "",
+            addon = "",
+        },
+    }
 
     ---@type RaiderIOSettingsModuleColumn[]
-    local databaseModuleColumns = {
-        { icon = IS_RETAIL and 525134 or 136106, text = L.DB_MODULES_HEADER_MYTHIC_PLUS, check = "checkButton", addon = "addon1" }, -- 525134 = inv_relics_hourglass | 136106 = spell_nature_timestop
-        { icon = 254652, text = L.DB_MODULES_HEADER_RAIDING, check = "checkButton2", addon = "addon2" }, -- 254652 = achievement_boss_ragnaros
-        { icon = 442272, text = L.DB_MODULES_HEADER_RECRUITMENT, check = "checkButton3", addon = "addon3" }, -- 442272 = achievement_guildperk_everybodysfriend
-    }
+    local databaseModuleColumns = {}
+
+    if IS_RETAIL then
+        databaseModuleColumns[1] = databaseModuleColumnsManifest.M
+        databaseModuleColumns[2] = databaseModuleColumnsManifest.R
+        databaseModuleColumns[3] = databaseModuleColumnsManifest.F
+    else
+        databaseModuleColumns[1] = databaseModuleColumnsManifest.R
+        databaseModuleColumns[2] = databaseModuleColumnsManifest.F
+    end
+
+    for i = #databaseModuleColumns, 1, -1 do
+        local column = databaseModuleColumns[i]
+        if column then
+            column.check = format("checkButton%s", i > 1 and i or "")
+            column.addon = format("addon%d", i)
+        else
+            table.remove(databaseModuleColumns, i)
+        end
+    end
 
     ---@class RaiderIOSettingsFrame : Frame, BackdropTemplate
 
@@ -12870,15 +13153,13 @@ do
             frame.isModuleToggle = true
             frame.text:SetTextColor(1, 1, 1)
             frame.text:SetText(name)
-            ---@type string[]
-            local addonNames = {...}
-            for i = #addonNames, 1, -1 do
-                local addonName = addonNames[i]
-                frame["addon" .. i] = addonName
-                local check = "checkButton" .. (i > 1 and i or "")
-                check = frame[check]
+            local moduleAddonNames = {...}
+            for i, column in ipairs(databaseModuleColumns) do
+                local moduleAddonName = moduleAddonNames[i] or ""
+                frame[column.addon] = moduleAddonName
+                local check = frame[column.check]
                 if check then
-                    check:SetShown(addonName)
+                    check:SetShown(moduleAddonName)
                 end
             end
             self.modules[#self.modules + 1] = frame
@@ -13323,21 +13604,25 @@ do
             local header = configOptions:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(C_AddOns.GetAddOnMetadata(addonName, "Version")), configHeaderFrame)
             header.text:SetFont(header.text:GetFont(), 16, "OUTLINE") ---@diagnostic disable-line: param-type-mismatch
 
-            configOptions:CreateHeadline(L.CHOOSE_HEADLINE_HEADER)
-            configOptions:CreateRadioToggle(L.SHOW_BEST_SEASON, L.SHOW_BEST_SEASON_DESC, "mplusHeadlineMode", 1)
-            configOptions:CreateRadioToggle(L.SHOW_CURRENT_SEASON, L.SHOW_CURRENT_SEASON_DESC, "mplusHeadlineMode", 0)
-            configOptions:CreateRadioToggle(L.SHOW_BEST_RUN, L.SHOW_BEST_RUN_DESC, "mplusHeadlineMode", 2)
+            if IS_RETAIL then
+                configOptions:CreateHeadline(L.CHOOSE_HEADLINE_HEADER)
+                configOptions:CreateRadioToggle(L.SHOW_BEST_SEASON, L.SHOW_BEST_SEASON_DESC, "mplusHeadlineMode", 1)
+                configOptions:CreateRadioToggle(L.SHOW_CURRENT_SEASON, L.SHOW_CURRENT_SEASON_DESC, "mplusHeadlineMode", 0)
+                configOptions:CreateRadioToggle(L.SHOW_BEST_RUN, L.SHOW_BEST_RUN_DESC, "mplusHeadlineMode", 2)
+                configOptions:CreatePadding()
+            end
 
-            configOptions:CreatePadding()
             configOptions:CreateHeadline(L.GENERAL_TOOLTIP_OPTIONS)
-            configOptions:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
-            configOptions:CreateOptionToggle(L.SHOW_BEST_MAINS_SCORE, L.SHOW_BEST_MAINS_SCORE_DESC, "showMainBestScore")
-            configOptions:CreateOptionToggle(L.SHOW_ROLE_ICONS, L.SHOW_ROLE_ICONS_DESC, "showRoleIcons")
-            configOptions:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
-            configOptions:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
-            -- configOptions:CreateOptionToggle(L.SHOW_CHESTS_AS_MEDALS, L.SHOW_CHESTS_AS_MEDALS_DESC, "showMedalsInsteadOfText")
-            configOptions:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
-            configOptions:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
+            if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
+                configOptions:CreateOptionToggle(L.SHOW_BEST_MAINS_SCORE, L.SHOW_BEST_MAINS_SCORE_DESC, "showMainBestScore")
+                configOptions:CreateOptionToggle(L.SHOW_ROLE_ICONS, L.SHOW_ROLE_ICONS_DESC, "showRoleIcons")
+                configOptions:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
+                configOptions:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
+                -- configOptions:CreateOptionToggle(L.SHOW_CHESTS_AS_MEDALS, L.SHOW_CHESTS_AS_MEDALS_DESC, "showMedalsInsteadOfText")
+                configOptions:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
+                configOptions:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
+            end
             configOptions:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
             configOptions:CreateOptionToggle(L.SHOW_SCORE_WITH_MODIFIER, L.SHOW_SCORE_WITH_MODIFIER_DESC, "showScoreModifier")
             configOptions:CreateOptionToggle(L.USE_ENGLISH_ABBREVIATION, L.USE_ENGLISH_ABBREVIATION_DESC, "useEnglishAbbreviations")
@@ -13345,11 +13630,17 @@ do
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.CONFIG_WHERE_TO_SHOW_TOOLTIPS)
             configOptions:CreateOptionToggle(L.SHOW_ON_PLAYER_UNITS, L.SHOW_ON_PLAYER_UNITS_DESC, "enableUnitTooltips")
-            configOptions:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
+            if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
+            else
+                configOptions:CreateOptionToggle(L.SHOW_IN_LFD_CLASSIC, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
+            end
             configOptions:CreateOptionToggle(L.SHOW_IN_FRIENDS, L.SHOW_IN_FRIENDS_DESC, "enableFriendsTooltips")
             configOptions:CreateOptionToggle(L.SHOW_ON_GUILD_ROSTER, L.SHOW_ON_GUILD_ROSTER_DESC, "enableGuildTooltips")
             configOptions:CreateOptionToggle(L.SHOW_IN_WHO_UI, L.SHOW_IN_WHO_UI_DESC, "enableWhoTooltips")
-            configOptions:CreateOptionToggle(L.SHOW_IN_SLASH_WHO_RESULTS, L.SHOW_IN_SLASH_WHO_RESULTS_DESC, "enableWhoMessages")
+            if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.SHOW_IN_SLASH_WHO_RESULTS, L.SHOW_IN_SLASH_WHO_RESULTS_DESC, "enableWhoMessages")
+            end
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.TOOLTIP_PROFILE)
@@ -13364,23 +13655,25 @@ do
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.RAIDERIO_CLIENT_CUSTOMIZATION)
             configOptions:CreateOptionToggle(L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS, L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS_DESC, "enableClientEnhancements", { needReload = true })
-            configOptions:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest")
-            local enableReplay = configOptions:CreateOptionToggle(L.ENABLE_REPLAY, L.ENABLE_REPLAY_DESC, "enableReplay")
-            local function isReplayDisabled()
-                return not enableReplay.checkButton:GetChecked()
+            if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest")
+                local enableReplay = configOptions:CreateOptionToggle(L.ENABLE_REPLAY, L.ENABLE_REPLAY_DESC, "enableReplay")
+                local function isReplayDisabled()
+                    return not enableReplay.checkButton:GetChecked()
+                end
+                configOptions:CreateDropDown(L.REPLAY_AUTO_SELECTION, L.REPLAY_AUTO_SELECTION_DESC, "replaySelection", {
+                    options = {
+                        { text = L.REPLAY_AUTO_SELECTION_MOST_RECENT, value = "user_recent_replay" },
+                        { text = L.REPLAY_AUTO_SELECTION_PERSONAL_BEST, value = "user_best_replay" },
+                        { text = L.REPLAY_AUTO_SELECTION_TEAM_BEST, value = "team_best_replay" },
+                        { text = L.REPLAY_AUTO_SELECTION_GUILD_BEST, value = "guild_best_replay" },
+                        { text = L.REPLAY_AUTO_SELECTION_STARRED, value = "watched_replay" },
+                    },
+                    isDisabled = isReplayDisabled,
+                })
+                configOptions:CreateColorPicker(L.REPLAY_BACKGROUND_COLOR, L.REPLAY_BACKGROUND_COLOR_DESC, "replayBackground", { isDisabled = isReplayDisabled })
+                configOptions:CreateSlider(L.REPLAY_FRAME_ALPHA, L.REPLAY_FRAME_ALPHA_DESC, "replayAlpha", { pctl = true, from = 0, to = 1, step = 0.01, isDisabled = isReplayDisabled })
             end
-            configOptions:CreateDropDown(L.REPLAY_AUTO_SELECTION, L.REPLAY_AUTO_SELECTION_DESC, "replaySelection", {
-                options = {
-                    { text = L.REPLAY_AUTO_SELECTION_MOST_RECENT, value = "user_recent_replay" },
-                    { text = L.REPLAY_AUTO_SELECTION_PERSONAL_BEST, value = "user_best_replay" },
-                    { text = L.REPLAY_AUTO_SELECTION_TEAM_BEST, value = "team_best_replay" },
-                    { text = L.REPLAY_AUTO_SELECTION_GUILD_BEST, value = "guild_best_replay" },
-                    { text = L.REPLAY_AUTO_SELECTION_STARRED, value = "watched_replay" },
-                },
-                isDisabled = isReplayDisabled,
-            })
-            configOptions:CreateColorPicker(L.REPLAY_BACKGROUND_COLOR, L.REPLAY_BACKGROUND_COLOR_DESC, "replayBackground", { isDisabled = isReplayDisabled })
-            configOptions:CreateSlider(L.REPLAY_FRAME_ALPHA, L.REPLAY_FRAME_ALPHA_DESC, "replayAlpha", { pctl = true, from = 0, to = 1, step = 0.01, isDisabled = isReplayDisabled })
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)
@@ -13398,7 +13691,11 @@ do
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
             configOptions:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
-            configOptions:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
+            if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
+            else
+                configOptions:CreateOptionToggle(L.ALLOW_IN_LFD_CLASSIC, L.ALLOW_IN_LFD_CLASSIC_DESC, "enableLFGDropdown")
+            end
 
             ---@class RaiderIOSettingsToggleWidgetMinimapToggle : RaiderIOSettingsToggleWidget
             ---@field public value? boolean
@@ -13458,12 +13755,39 @@ do
                 end,
             })
 
+            ---@alias RaiderIODBModuleRegion "US"|"EU"|"KR"|"TW"
+            ---@alias RaiderIODBModuleType "M"|"R"|"F"
+
+            ---@class RaiderIODBModulesInfo
+            local ModulesInfo = {
+                pattern = "RaiderIO_DB_%s_%s",
+                modules = {"M", "R", "F"}, ---@type RaiderIODBModuleType[]
+                ---@param module RaiderIODBModuleType
+                ---@return boolean
+                isSupported = function(module)
+                    return IS_RETAIL or module ~= "M" -- Mythic+ is not available on other clients except mainline
+                end,
+            }
+
+            ---@param region RaiderIODBModuleRegion
+            local function CreateModuleOptionsArgs(region)
+                local temp = {}
+                local index = 0
+                for _, module in ipairs(ModulesInfo.modules) do
+                    if ModulesInfo.isSupported(module) then
+                        index = index + 1
+                        temp[index] = format(ModulesInfo.pattern, region, module)
+                    end
+                end
+                return unpack(temp)
+            end
+
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.DB_MODULES)
-            local modulesHeader = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_M", "RaiderIO_DB_US_R", "RaiderIO_DB_US_F")
-            configOptions:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_M", "RaiderIO_DB_EU_R", "RaiderIO_DB_EU_F")
-            configOptions:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_M", "RaiderIO_DB_KR_R", "RaiderIO_DB_KR_F")
-            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_M", "RaiderIO_DB_TW_R", "RaiderIO_DB_TW_F")
+            local modulesHeader = configOptions:CreateModuleToggle(L.MODULE_AMERICAS, CreateModuleOptionsArgs("US"))
+            configOptions:CreateModuleToggle(L.MODULE_EUROPE, CreateModuleOptionsArgs("EU"))
+            configOptions:CreateModuleToggle(L.MODULE_KOREA, CreateModuleOptionsArgs("KR"))
+            configOptions:CreateModuleToggle(L.MODULE_TAIWAN, CreateModuleOptionsArgs("TW"))
 
             -- add save button and cancel buttons
             local buttons = configOptions:CreateWidget("Frame", 4, configButtonFrame)
@@ -13945,6 +14269,14 @@ do
     local LDBI = LibStub("LibDBIcon-1.0", true)
     local anchorFrame ---@type Frame
 
+    local TooltipHelpText = format(
+        "%s%s\n%s%s",
+        ns.MARKUP_ICONS.LeftButton.markupPadRight or format("|cffffff55<%s>|r ", L.MINIMAP_SHORTCUT_HELP_LEFT_CLICK),
+        L.MINIMAP_SHORTCUT_HELP_SEARCH,
+        ns.MARKUP_ICONS.RightButton.markupPadRight or format("|cffffff55<%s>|r ", L.MINIMAP_SHORTCUT_HELP_RIGHT_CLICK),
+        L.MINIMAP_SHORTCUT_HELP_SETTINGS
+    )
+
     ---@return string? name, string realm
     local function GetSearchInfo()
         if not util:IsUnitMaxLevel("target") then
@@ -13964,7 +14296,7 @@ do
     ---@param frame Frame
     function shortcuts:OnButtonEnter(frame)
         GameTooltip:SetOwner(frame, "ANCHOR_TOPRIGHT", -frame:GetWidth(), 0)
-        GameTooltip:AddLine(L.MINIMAP_SHORTCUT_HELP)
+        GameTooltip:AddLine(TooltipHelpText)
         GameTooltip:Show()
         if profile:IsProfileShown() then
             return

@@ -5518,11 +5518,17 @@ do
                             if keystoneProfile.mplusMainCurrent.score > keystoneProfile.mplusCurrent.score then
                                 tooltip:AddDoubleLine(L.MAINS_SCORE, GetScoreText(keystoneProfile.mplusMainCurrent), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusMainCurrent.score))
                             end
-                        elseif keystoneProfile.mplusMainCurrent.score > keystoneProfile.mplusCurrent.score or (ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusMainPrevious.score) > keystoneProfile.mplusCurrent.score then
-                            if keystoneProfile.mplusMainCurrent.score < (ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusMainPrevious.score) then
-                                tooltip:AddDoubleLine(GetSeasonLabel(L.MAINS_BEST_SCORE_BEST_SEASON, keystoneProfile.mplusMainPrevious.season), GetScoreText(keystoneProfile.mplusMainPrevious, true), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusMainPrevious.score, true))
-                            elseif keystoneProfile.mplusMainCurrent.score > 0 or hasMod or hasModSticky then
-                                tooltip:AddDoubleLine(L.CURRENT_MAINS_SCORE, GetScoreText(keystoneProfile.mplusMainCurrent), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusMainCurrent.score))
+                        else
+                            local isMainPreviousScoreRelevant = keystoneProfile.mplusMainCurrent.score < (ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusMainPrevious.score)
+                            local isMainCurrentScoreBetter = keystoneProfile.mplusMainCurrent.score > keystoneProfile.mplusCurrent.score
+                            if isMainCurrentScoreBetter or isMainPreviousScoreRelevant then
+                                if isMainPreviousScoreRelevant then
+                                    tooltip:AddDoubleLine(GetSeasonLabel(L.MAINS_BEST_SCORE_BEST_SEASON, keystoneProfile.mplusMainPrevious.season), GetScoreText(keystoneProfile.mplusMainPrevious, true), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusMainPrevious.score, true))
+                                end
+
+                                if keystoneProfile.mplusMainCurrent.score > 0 or hasMod or hasModSticky then
+                                    tooltip:AddDoubleLine(L.CURRENT_MAINS_SCORE, GetScoreText(keystoneProfile.mplusMainCurrent), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusMainCurrent.score))
+                                end
                             end
                         end
                     end
@@ -8579,7 +8585,7 @@ if IS_RETAIL then
             for i = replaySummary.index + 1, #replayEvents do
                 local replayEvent = replayEvents[i]
                 local replayEventInfo = UnpackReplayEvent(replayEvent)
-                if replayEventInfo.timer > timerMS then
+                if replayEventInfo.timer == nil or replayEventInfo.timer > timerMS then
                     break
                 end
                 replaySummary.index = i

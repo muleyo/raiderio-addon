@@ -1668,11 +1668,11 @@ do
     ---| 2 #Script handler executed successfully.
     ---| 3 #Script handler executed but silently errored.
 
-    ---@param object Frame|ScriptRegion @Any interface widget object that supports the methods GetScript.
+    ---@param object? Frame|ScriptRegion @Any interface widget object that supports the methods GetScript.
     ---@param before? fun() @Optional function to run right before the OnEnter script executes.
     ---@return ExecuteWidgetOnEnterSafelyStatus @Returns a status enum to indicate the outcome of the call.
     function util:ExecuteWidgetOnEnterSafely(object, before)
-        if type(object) ~= "table" or type(object.GetScript) ~= "function" then
+        if not object or type(object) ~= "table" or type(object.GetScript) ~= "function" then
             return 0
         end
         local func = object:GetScript("OnEnter")
@@ -1689,6 +1689,36 @@ do
             return 3
         end
         return 2
+    end
+
+    ---@return Frame|ScriptRegion? focus
+    function util:GetMouseFocus()
+        if GetMouseFoci then
+            local focused = GetMouseFoci() ---@type Region[]?
+            if not focused then
+                return
+            end
+            local focus = focused[1]
+            if not focus or focus == WorldFrame then
+                return
+            end
+            return focus
+        end
+        local focus = GetMouseFocus()
+        if not focus or focus == WorldFrame then
+            return
+        end
+        return focus
+    end
+
+    ---@param before? fun() @Optional function to run right before the OnEnter script executes.
+    ---@return ExecuteWidgetOnEnterSafelyStatus @Returns a status enum to indicate the outcome of the call.
+    function util:ExecuteFocusWidgetOnEnterSafely(before)
+        local focus = util:GetMouseFocus()
+        if not focus then
+            return 0
+        end
+        return self:ExecuteWidgetOnEnterSafely(focus, before)
     end
 
     ---@param object GameTooltip @Any interface widget object that supports the methods GetOwner.
@@ -1819,7 +1849,8 @@ do
         return ltd, regionId
     end
 
-    ---@return number|nil, string|nil @arg1 is the faction ID or nil if no faction is appropriate. arg2 is the faction localized text for display purposes.
+    ---@param unit? string
+    ---@return number? faction, string? localizedFaction
     function util:GetFaction(unit)
         if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) then
             return
@@ -1829,6 +1860,12 @@ do
             return
         end
         return ns.FACTION_TO_ID[faction], localizedFaction
+    end
+
+    ---@param factionName string
+    ---@return number? faction
+    function util:GetFactionFromName(factionName)
+        return ns.FACTION_TO_ID[factionName]
     end
 
     local CLIENT_RACE_TO_FACTION_ID = {}
@@ -5954,7 +5991,7 @@ do
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteFocusWidgetOnEnterSafely()
     end
 
     function tooltip:CanLoad()
@@ -7013,7 +7050,7 @@ if not IS_CLASSIC_ERA then
 
     local function OnScroll()
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteFocusWidgetOnEnterSafely()
     end
 
     ---@param self LFGListFrameWildcardFrame
@@ -7126,7 +7163,7 @@ if IS_CLASSIC_ERA then
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteFocusWidgetOnEnterSafely()
     end
 
     function tooltip:CanLoad()
@@ -7247,7 +7284,7 @@ do
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteFocusWidgetOnEnterSafely()
     end
 
     function tooltip:CanLoad()
@@ -7645,7 +7682,7 @@ if IS_RETAIL then
         end
 
         if self:IsMouseOver(0, 0, 0, 0) then
-            local focus = GetMouseFocus()
+            local focus = util:GetMouseFocus()
             if focus and focus ~= GameTooltip:GetOwner() then
                 util:ExecuteWidgetOnEnterSafely(focus) ---@diagnostic disable-line: param-type-mismatch
             end
@@ -11242,6 +11279,12 @@ do
         WORLD_STATE_SCORE = true,
     }
 
+    ---@type table<string, number?> `1` LFD
+    local validTags = {
+        MENU_LFG_FRAME_SEARCH_ENTRY = 1,
+        MENU_LFG_FRAME_MEMBER_APPLY = 1,
+    }
+
     -- if the dropdown is a valid type of dropdown then we mark it as acceptable to check for a unit on it
     local function IsValidDropDown(bdropdown)
         return (bdropdown == LFGListFrameDropDown and config:Get("enableLFGDropdown")) or (type(bdropdown.which) == "string" and validTypes[bdropdown.which])
@@ -11397,11 +11440,150 @@ do
         return profile
     end
 
-    ---@type LibDropDownExtension
+    ---@type LibDropDownExtension?
     local LibDropDownExtension = LibStub and LibStub:GetLibrary("LibDropDownExtension-1.0", true)
 
+    ---@class PlayerLocationPolyfill
+    ---@field public guid? string
+    ---@field public unit? string
+    ---@field public IsValid fun(self: PlayerLocationPolyfill): boolean
+    ---@field public IsGUID fun(self: PlayerLocationPolyfill): boolean
+    ---@field public GetGUID fun(self: PlayerLocationPolyfill): string
+    ---@field public GetUnit fun(self: PlayerLocationPolyfill): string
+    ---@field public IsUnit fun(self: PlayerLocationPolyfill): boolean
+    ---@field public IsCommunityData fun(self: PlayerLocationPolyfill): boolean
+
+    ---@class ModifyMenuCallbackRootDescriptionContextDataPolyfill
+    ---@field public fromPlayerFrame? boolean
+    ---@field public isMobile? boolean
+    ---@field public isRafRecruit? boolean
+    ---@field public name? string
+    ---@field public server? string
+    ---@field public unit? string
+    ---@field public which? string
+    ---@field public accountInfo? BNetAccountInfo
+    ---@field public playerLocation? PlayerLocationPolyfill
+
+    ---@class ModifyMenuCallbackRootDescriptionPolyfill
+    ---@field public tag string
+    ---@field public contextData? ModifyMenuCallbackRootDescriptionContextDataPolyfill
+    ---@field public CreateDivider fun(self: ModifyMenuCallbackRootDescriptionPolyfill)
+    ---@field public CreateTitle fun(self: ModifyMenuCallbackRootDescriptionPolyfill, text: string)
+    ---@field public CreateButton fun(self: ModifyMenuCallbackRootDescriptionPolyfill, text: string, callback: fun())
+
+    ---@class ModifyMenuReturnPolyfill
+    ---@field public Unregister fun(self: ModifyMenuReturnPolyfill)
+
+    ---@alias ModifyMenuCallbackFuncPolyfill fun(owner: Frame, rootDescription: ModifyMenuCallbackRootDescriptionPolyfill, contextData: ModifyMenuCallbackRootDescriptionContextDataPolyfill)
+
+    ---@alias ModifyMenu fun(tag: string, callback: ModifyMenuCallbackFuncPolyfill): ModifyMenuReturnPolyfill
+
+    ---@type ModifyMenu?
+    local ModifyMenu = Menu and Menu.ModifyMenu
+
+    ---@param rootDescription ModifyMenuCallbackRootDescriptionPolyfill
+    ---@param contextData? ModifyMenuCallbackRootDescriptionContextDataPolyfill
+    local function IsValidMenu(rootDescription, contextData)
+        if not contextData then
+            local tagType = validTags[rootDescription.tag]
+            return not tagType or (tagType == 1 and config:Get("enableLFGDropdown"))
+        end
+        local which = contextData.which
+        return which and validTypes[which]
+    end
+
+    ---@param owner any
+    ---@return string? name, string? realm, number? level, string? unit, number? faction
+    local function GetLFGListInfo(owner)
+        local resultID = owner.resultID
+        if resultID then
+            local searchResultInfo = C_LFGList.GetSearchResultInfo(resultID)
+            local name, realm = util:GetNameRealm(searchResultInfo.leaderName)
+            local faction = searchResultInfo.leaderFactionGroup
+            return name, realm, nil, nil, faction
+        end
+        local memberIdx = owner.memberIdx
+        if not memberIdx then
+            return
+        end
+        local parent = owner:GetParent()
+        if not parent then
+            return
+        end
+        local applicantID = parent.applicantID
+        if not applicantID then
+            return
+        end
+        local fullName, _, _, level = C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
+        local name, realm = util:GetNameRealm(fullName)
+        return name, realm, level
+    end
+
+    ---@param accountInfo BNetAccountInfo
+    ---@return string? name, string? realm, number? level, string? unit, number? faction
+    local function GetBNetAccountInfo(accountInfo)
+        local gameAccountInfo = accountInfo.gameAccountInfo
+        local characterName = gameAccountInfo.characterName
+        local realmName = gameAccountInfo.realmName
+        local characterLevel = gameAccountInfo.characterLevel
+        local factionName = gameAccountInfo.factionName
+        local faction = factionName and util:GetFactionFromName(factionName)
+        return characterName, realmName, characterLevel, nil, faction
+    end
+
+    ---@param owner any
+    ---@param rootDescription ModifyMenuCallbackRootDescriptionPolyfill
+    ---@param contextData? ModifyMenuCallbackRootDescriptionContextDataPolyfill
+    ---@return string? name, string? realm, number? level, string? unit, number? faction
+    local function GetNameRealmForMenu(owner, rootDescription, contextData)
+        if not contextData then
+            local tagType = validTags[rootDescription.tag]
+            if tagType == 1 then
+                return GetLFGListInfo(owner)
+            end
+            return
+        end
+        local unit = contextData.unit
+        local name, realm, level, faction ---@type string?, string?, number?, number?
+        if unit and UnitExists(unit) then
+            name, realm = util:GetNameRealm(unit)
+            level = UnitLevel(unit)
+            faction = util:GetFaction(unit)
+            return name, realm, level, unit, faction
+        end
+        if contextData.isRafRecruit then
+            local accountInfo = contextData.accountInfo
+            if accountInfo then
+                return GetBNetAccountInfo(accountInfo)
+            end
+        end
+        name, realm, unit = util:GetNameRealm(contextData.name, contextData.server)
+        return name, realm, level, unit, faction
+    end
+
+    ---@type ModifyMenuCallbackFuncPolyfill
+    local function OnMenuShow(owner, rootDescription, contextData)
+        if not config:Get("showDropDownCopyURL") then
+            return
+        end
+        if not IsValidMenu(rootDescription, contextData) then
+            return
+        end
+        selectedName, selectedRealm, selectedLevel, selectedUnit, selectedFaction = GetNameRealmForMenu(owner, rootDescription, contextData)
+        if not selectedName or not util:IsMaxLevel(selectedLevel, true) then
+            return
+        end
+        rootDescription:CreateDivider()
+        rootDescription:CreateTitle(addonName)
+        for _, option in ipairs(unitOptions) do
+            if not option.show or option.show() then
+                rootDescription:CreateButton(option.text, option.func)
+            end
+        end
+    end
+
     function dropdown:CanLoad()
-        return LibDropDownExtension
+        return config:IsEnabled()
     end
 
     function dropdown:OnLoad()
@@ -11441,7 +11623,20 @@ do
                 end
             }
         }
-        LibDropDownExtension:RegisterEvent("OnShow OnHide", OnToggle, 1, dropdown)
+        if ModifyMenu then
+            for name, enabled in pairs(validTypes) do
+                if enabled then
+                    local tag = format("MENU_UNIT_%s", name)
+                    ModifyMenu(tag, GenerateClosure(OnMenuShow))
+                end
+            end
+            for tag, _ in pairs(validTags) do
+                ModifyMenu(tag, GenerateClosure(OnMenuShow))
+            end
+        end
+        if LibDropDownExtension then
+            LibDropDownExtension:RegisterEvent("OnShow OnHide", OnToggle, 1, dropdown)
+        end
     end
 
 end
@@ -13887,7 +14082,14 @@ do
             end
         end
 
-        local panel = CreateFrame("Frame", addonName .. "_SettingsPanel") ---@class RaiderIOConfigSettingsPanelFrame : Frame
+        ---@class RaiderIOConfigSettingsPanelFrame : Frame
+        ---@field public name string
+        ---@field public parent? Frame
+        ---@field public OnCommit? fun()
+        ---@field public OnDefault? fun()
+        ---@field public OnRefresh? fun()
+
+        local panel = CreateFrame("Frame", addonName .. "_SettingsPanel") ---@class RaiderIOConfigSettingsPanelFrame
         panel.name = addonName
         panel:Hide()
 
@@ -13897,7 +14099,15 @@ do
         button:SetPoint("TOPLEFT", 16, -16)
         button:SetScript("OnClick", Button_OnClick)
 
-        InterfaceOptions_AddCategory(panel, true)
+        if panel.parent then
+            local category = Settings.GetCategory(panel.parent)
+            local subcategory, layout = Settings.RegisterCanvasLayoutSubcategory(category, panel, panel.name, panel.name)
+            subcategory.ID = panel.name
+        else
+            local category, layout = Settings.RegisterCanvasLayoutCategory(panel, panel.name, panel.name)
+            category.ID = panel.name
+            Settings.RegisterAddOnCategory(category)
+        end
     end
 
     local function CreateSlashCommand()

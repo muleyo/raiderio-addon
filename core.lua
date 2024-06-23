@@ -169,6 +169,21 @@ end
 
 local DropDownUtil do
 
+    ---@class UIDropDownMenuTemplatePolyfill : Frame
+
+    ---@class UIDropDownMenuInfoPolyfill
+    ---@field public checked boolean
+    ---@field public text string
+    ---@field public hasArrow boolean
+    ---@field public notCheckable boolean
+    ---@field public tooltipTitle? string
+    ---@field public tooltipText? string
+    ---@field public tooltipOnButton? boolean
+    ---@field public menuList any
+    ---@field public func? fun(self: UIDropDownMenuInfoPolyfill)
+    ---@field public arg1 any
+    ---@field public arg2 any
+
     ---@alias WowStyle1DropdownTemplateGeneratorFunctionPolyfill fun(owner: WowStyle1DropdownTemplatePolyfill, rootDescription: WowStyle1DropdownTemplateRootDescriptionPolyfill)
     ---@alias WowStyle1DropdownTemplateTooltipHandlerPolyfill fun(tooltip: GameTooltip, elementDescription: WowStyle1DropdownTemplateElementDescriptionPolyfill)
     ---@alias WowStyle1DropdownTemplateButtonBindingPolyfill fun(data: any)
@@ -209,10 +224,10 @@ local DropDownUtil do
 
     ---@generic T, L
     ---@param owner T
-    ---@param initialize fun(self: UIDropDownMenuTemplate, level: number, menuList?: L)
+    ---@param initialize fun(self: UIDropDownMenuTemplatePolyfill, level: number, menuList?: L)
     ---@param style? "MENU"
     function DropDownUtil:CreateDropDown(owner, initialize, style)
-        local menu = CreateFrame("Frame", nil, owner, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
+        local menu = CreateFrame("Frame", nil, owner, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplatePolyfill
         UIDropDownMenu_Initialize(menu, initialize, style or "MENU")
     end
 
@@ -247,7 +262,7 @@ local DropDownUtil do
         end
     end
 
-    ---@param dropDownMenu UIDropDownMenuTemplate
+    ---@param dropDownMenu UIDropDownMenuTemplatePolyfill
     ---@param anchor? "cursor"|Region
     ---@param anchorX? number
     ---@param anchorY? number
@@ -255,19 +270,19 @@ local DropDownUtil do
         ToggleDropDownMenu(1, nil, dropDownMenu, anchor, anchorX, anchorY)
     end
 
-    ---@param dropDownMenu UIDropDownMenuTemplate
+    ---@param dropDownMenu UIDropDownMenuTemplatePolyfill
     function DropDownUtil:IsDropDownOpen(dropDownMenu)
         return DropDownList1:IsShown() and DropDownList1.dropdown == dropDownMenu
     end
 
-    ---@param dropDownMenu UIDropDownMenuTemplate
+    ---@param dropDownMenu UIDropDownMenuTemplatePolyfill
     function DropDownUtil:CloseDropDown(dropDownMenu)
         if self:IsDropDownOpen(dropDownMenu) then
             CloseDropDownMenus()
         end
     end
 
-    ---@param dropDownMenu UIDropDownMenuTemplate
+    ---@param dropDownMenu UIDropDownMenuTemplatePolyfill
     ---@param anchor? "cursor"|Region
     ---@param anchorX? number
     ---@param anchorY? number
@@ -8963,20 +8978,11 @@ if IS_RETAIL then
 
         ---@alias ReplayFrameDropDownPositionOption "lock"|"unlock"|"dock"|"undock"
 
-        ---@class UIDropDownMenuTemplate : Frame
-
-        ---@class UIDropDownMenuInfo
-        ---@field public checked boolean
-        ---@field public text string
-        ---@field public hasArrow boolean
-        ---@field public notCheckable boolean
+        ---@class ReplayFrameDropDownMenuInfoPolyfill : UIDropDownMenuInfoPolyfill
         ---@field public menuList ReplayFrameDropDownMenuList
-        ---@field public func? fun(self: UIDropDownMenuInfo)
+        ---@field public func? fun(self: ReplayFrameDropDownMenuInfoPolyfill)
         ---@field public arg1 ReplayFrameConfigButton
         ---@field public arg2 Replay|ReplayFrameStyle|ReplayFrameDropDownPositionOption
-        ---@field public tooltipTitle? string
-        ---@field public tooltipText? string
-        ---@field public tooltipOnButton? boolean
 
         function ReplayFrameConfigButtonMixin:OnLoad()
             local parent = self:GetParent() ---@type ReplayFrame
@@ -9131,12 +9137,12 @@ if IS_RETAIL then
             self:Close()
         end
 
-        ---@param self UIDropDownMenuTemplate
+        ---@param self UIDropDownMenuTemplatePolyfill
         ---@param level number
         ---@param menuList? ReplayFrameDropDownMenuList
         function ReplayFrameConfigButtonMixin:InitializeDropDown(level, menuList)
             local parent = self:GetParent() ---@type ReplayFrameConfigButton
-            local info = UIDropDownMenu_CreateInfo() ---@type UIDropDownMenuInfo
+            local info = UIDropDownMenu_CreateInfo() ---@type ReplayFrameDropDownMenuInfoPolyfill
             if level == 1 then
                 info.notCheckable = true
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
@@ -9229,7 +9235,7 @@ if IS_RETAIL then
             end
         end
 
-        ---@param self UIDropDownMenuInfo
+        ---@param self ReplayFrameDropDownMenuInfoPolyfill
         function ReplayFrameConfigButtonMixin:OnDropDownOptionClick()
             local dropDownMenu = self.arg1
             local value = self.arg2 ---@type ReplayFrameStyle|ReplayFrameTiming
@@ -9249,7 +9255,7 @@ if IS_RETAIL then
             dropDownMenu:Close()
         end
 
-        ---@param self UIDropDownMenuInfo
+        ---@param self ReplayFrameDropDownMenuInfoPolyfill
         function ReplayFrameConfigButtonMixin:OnDropDownCopyReplayUrlClick()
             local dropDownMenu = self.arg1
             local value = self.arg2 ---@type Replay
@@ -9257,7 +9263,7 @@ if IS_RETAIL then
             dropDownMenu:Close()
         end
 
-        ---@param self UIDropDownMenuInfo
+        ---@param self ReplayFrameDropDownMenuInfoPolyfill
         function ReplayFrameConfigButtonMixin:OnDropDownPositionClick()
             local dropDownMenu = self.arg1
             local action = self.arg2 ---@type ReplayFrameDropDownPositionOption
@@ -9274,7 +9280,7 @@ if IS_RETAIL then
             dropDownMenu:Close()
         end
 
-        ---@param self UIDropDownMenuInfo
+        ---@param self ReplayFrameDropDownMenuInfoPolyfill
         function ReplayFrameConfigButtonMixin:OnDropDownDisableClick()
             local dropDownMenu = self.arg1
             local popup = util:ShowStaticPopupDialog(DISABLE_REPLAY_POPUP, L.REPLAY_DISABLE_CONFIRM)

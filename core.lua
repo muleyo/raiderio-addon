@@ -2879,6 +2879,15 @@ do
         return group
     end
 
+    ---@return boolean isTimerunning, number seasonID
+    function util:IsTimerunning()
+        local seasonID = PlayerGetTimerunningSeasonID and PlayerGetTimerunningSeasonID() or 0
+        if seasonID == 0 then
+            return false, seasonID
+        end
+        return true, seasonID
+    end
+
 end
 
 -- json.lua
@@ -13057,8 +13066,152 @@ if IS_RETAIL then
 
 end
 
+-- combatlog.lua
+-- dependencies: module, callback, config, util
+do
+
+    ---@class CombatLogModule : Module
+    local combatlog = ns:NewModule("CombatLog") ---@type CombatLogModule
+    local callback = ns:GetModule("Callback") ---@type CallbackModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+
+    local clientConfig = ns:GetClientConfig()
+
+    local function UpdateModuleState()
+        local enableCombatLogTracking
+        if config:Get("allowClientToControlCombatLog") then
+            enableCombatLogTracking = clientConfig and clientConfig.enableCombatLogTracking
+        end
+        if enableCombatLogTracking == nil then
+            enableCombatLogTracking = config:Get("enableCombatLogTracking")
+        end
+        if enableCombatLogTracking then
+            C_CVar.SetCVar("advancedCombatLogging", "1")
+            combatlog:Enable()
+        else
+            combatlog:Disable()
+        end
+    end
+
+    function combatlog:CanLoad()
+        return config:IsEnabled() and not util:IsTimerunning()
+    end
+
+    function combatlog:OnLoad()
+        UpdateModuleState()
+        callback:RegisterEvent(UpdateModuleState, "RAIDERIO_SETTINGS_SAVED")
+    end
+
+    local LibCombatLogging = LibStub and LibStub:GetLibrary("LibCombatLogging-1.0", true) ---@type LibCombatLogging
+    local LoggingCombat = LibCombatLogging and function(...) return LibCombatLogging.LoggingCombat("Raider.IO", ...) end or _G.LoggingCombat
+
+    local autoLogFromMapID do
+        ---@param instances DungeonInstance[]
+        local function getLowestMapIdForInstances(instances)
+            local mapID
+            for _, instance in ipairs(instances) do
+                if not mapID or mapID > instance.instance_map_id then
+                    mapID = instance.instance_map_id
+                end
+            end
+            return mapID
+        end
+        local raidMapID = getLowestMapIdForInstances(ns:GetDungeonRaidData())
+        local keystoneMapID = getLowestMapIdForInstances(select(3, ns:GetDungeonData()))
+        if raidMapID and keystoneMapID then
+            autoLogFromMapID = keystoneMapID > raidMapID and raidMapID or keystoneMapID
+        elseif raidMapID then
+            autoLogFromMapID = raidMapID
+        elseif keystoneMapID then
+            autoLogFromMapID = keystoneMapID
+        else
+            autoLogFromMapID = 0
+        end
+    end
+
+    local alwaysLogDifficultyIDs = {
+        -- scenario
+        [167] = true, -- Torghast
+        -- party
+        [23] = true, -- Mythic
+        [8] = true, -- Mythic Keystone
+    }
+
+    local canLogDifficultyIDs = {}
+
+    if IS_RETAIL then
+        -- raid
+        canLogDifficultyIDs[14] = true -- Normal
+        canLogDifficultyIDs[15] = true -- Heroic
+        canLogDifficultyIDs[16] = true -- Mythic
+        canLogDifficultyIDs[17] = true -- LFR
+    elseif IS_CLASSIC_ERA then
+        -- classic era
+        canLogDifficultyIDs[9] = true -- Classic40PlayerRaid
+    elseif IS_CLASSIC then
+        -- classic
+        canLogDifficultyIDs[3] = true -- Classic10PlayerNormalRaid
+        canLogDifficultyIDs[4] = true -- Classic25PlayerNormalRaid
+        canLogDifficultyIDs[5] = true -- Classic10PlayerHeroicRaid
+        canLogDifficultyIDs[6] = true -- Classic25PlayerHeroicRaid
+    end
+
+    local lastActive
+    local previouslyEnabledLogging
+    local function CheckInstance(newModuleState)
+        local _, _, difficultyID, _, _, _, _, instanceMapID = GetInstanceInfo()
+        if not difficultyID or not instanceMapID then
+            return
+        end
+        local isActive = not not (alwaysLogDifficultyIDs[difficultyID] or (instanceMapID >= autoLogFromMapID and canLogDifficultyIDs[difficultyID]))
+        if isActive == lastActive then
+            return
+        end
+        lastActive = isActive
+        local isLogging = LoggingCombat()
+        local setLogging
+        if isActive and isLogging and newModuleState == true then
+            setLogging = true
+        elseif isActive and isLogging and newModuleState == false then
+            setLogging = false
+        elseif isActive and not isLogging then
+            setLogging = true
+        elseif not isActive and isLogging then
+            setLogging = false
+        end
+        if setLogging == nil then
+            return
+        end
+        if not setLogging and not previouslyEnabledLogging then
+            return
+        end
+        previouslyEnabledLogging = setLogging
+        config:Set("previouslyEnabledLogging", setLogging)
+        LoggingCombat(setLogging)
+        if not LibCombatLogging then
+            local info = ChatTypeInfo.SYSTEM
+            DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFFRaider.IO|r: " .. (setLogging and COMBATLOGENABLED or COMBATLOGDISABLED), info.r, info.g, info.b, info.id)
+        end
+    end
+
+    function combatlog:OnEnable()
+        previouslyEnabledLogging = config:Get("previouslyEnabledLogging")
+        CheckInstance(true)
+        callback:RegisterEvent(CheckInstance, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED_INDOORS", "RAID_INSTANCE_WELCOME")
+    end
+
+    function combatlog:OnDisable()
+        lastActive = nil
+        CheckInstance(false)
+        callback:UnregisterCallback(CheckInstance)
+        lastActive = nil
+    end
+
+end
+
 -- settings.lua
--- dependencies: module, callback, json, config, util, profile, search, rwf?
+-- dependencies: module, callback, json, config, util, profile, search, rwf?, combatlog
 do
 
     ---@class SettingsModule : Module
@@ -13070,6 +13223,7 @@ do
     local profile = ns:GetModule("Profile") ---@type ProfileModule
     local search = ns:GetModule("Search") ---@type SearchModule
     local rwf = ns:GetModule("RaceWorldFirst", true) ---@type RaceWorldFirstModule?
+    local combatlog = ns:GetModule("CombatLog") ---@type CombatLogModule
 
     ---@type InternalStaticPopupDialog
     local RELOAD_POPUP = {
@@ -13685,6 +13839,14 @@ do
             return frame
         end
 
+        function configOptions.CreateDescription(self, text, parentFrame)
+            local frame = self:CreateWidget("Frame", nil, parentFrame)
+            frame.bg:Hide()
+            frame.text:SetFontObject("GameFontWhite")
+            frame.text:SetText(text)
+            return frame
+        end
+
         ---@class RaiderIOSettingsModuleToggleWidget : RaiderIOSettingsBaseWidget
         ---@field public isModuleToggle boolean
         ---@field public addon1? string
@@ -14257,16 +14419,20 @@ do
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)
-            local allowClientToControlCombatLogFrame = configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC, "allowClientToControlCombatLog")
-            local allowClientToControlCombatLogFrameIsChecked = function() return allowClientToControlCombatLogFrame.checkButton:GetChecked() end
-            local clientConfig = ns:GetClientConfig()
-            local isClientAutoCombatLoggingEnabled = function()
-                if not allowClientToControlCombatLogFrameIsChecked() then
-                    return
+            if combatlog:IsLoaded() then
+                local allowClientToControlCombatLogFrame = configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC, "allowClientToControlCombatLog")
+                local allowClientToControlCombatLogFrameIsChecked = function() return allowClientToControlCombatLogFrame.checkButton:GetChecked() end
+                local clientConfig = ns:GetClientConfig()
+                local isClientAutoCombatLoggingEnabled = function()
+                    if not allowClientToControlCombatLogFrameIsChecked() then
+                        return
+                    end
+                    return clientConfig and clientConfig.enableCombatLogTracking, config:Get("enableCombatLogTracking")
                 end
-                return clientConfig and clientConfig.enableCombatLogTracking, config:Get("enableCombatLogTracking")
+                configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking", { isDisabled = allowClientToControlCombatLogFrameIsChecked, isFakeChecked = isClientAutoCombatLoggingEnabled })
+            else
+                configOptions:CreateDescription(L.AUTO_COMBATLOG_DISABLED_DESC)
             end
-            configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking", { isDisabled = allowClientToControlCombatLogFrameIsChecked, isFakeChecked = isClientAutoCombatLoggingEnabled })
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
@@ -14588,149 +14754,6 @@ do
     -- always have the interface panel and slash commands available
     CreateInterfacePanel()
     CreateSlashCommand()
-
-end
-
--- combatlog.lua
--- dependencies: module, callback, config
-do
-
-    ---@class CombatLogModule : Module
-    local combatlog = ns:NewModule("CombatLog") ---@type CombatLogModule
-    local callback = ns:GetModule("Callback") ---@type CallbackModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-
-    local clientConfig = ns:GetClientConfig()
-
-    local function UpdateModuleState()
-        local enableCombatLogTracking
-        if config:Get("allowClientToControlCombatLog") then
-            enableCombatLogTracking = clientConfig and clientConfig.enableCombatLogTracking
-        end
-        if enableCombatLogTracking == nil then
-            enableCombatLogTracking = config:Get("enableCombatLogTracking")
-        end
-        if enableCombatLogTracking then
-            C_CVar.SetCVar("advancedCombatLogging", "1")
-            combatlog:Enable()
-        else
-            combatlog:Disable()
-        end
-    end
-
-    function combatlog:CanLoad()
-        return config:IsEnabled()
-    end
-
-    function combatlog:OnLoad()
-        UpdateModuleState()
-        callback:RegisterEvent(UpdateModuleState, "RAIDERIO_SETTINGS_SAVED")
-    end
-
-    local LibCombatLogging = LibStub and LibStub:GetLibrary("LibCombatLogging-1.0", true) ---@type LibCombatLogging
-    local LoggingCombat = LibCombatLogging and function(...) return LibCombatLogging.LoggingCombat("Raider.IO", ...) end or _G.LoggingCombat
-
-    local autoLogFromMapID do
-        ---@param instances DungeonInstance[]
-        local function getLowestMapIdForInstances(instances)
-            local mapID
-            for _, instance in ipairs(instances) do
-                if not mapID or mapID > instance.instance_map_id then
-                    mapID = instance.instance_map_id
-                end
-            end
-            return mapID
-        end
-        local raidMapID = getLowestMapIdForInstances(ns:GetDungeonRaidData())
-        local keystoneMapID = getLowestMapIdForInstances(select(3, ns:GetDungeonData()))
-        if raidMapID and keystoneMapID then
-            autoLogFromMapID = keystoneMapID > raidMapID and raidMapID or keystoneMapID
-        elseif raidMapID then
-            autoLogFromMapID = raidMapID
-        elseif keystoneMapID then
-            autoLogFromMapID = keystoneMapID
-        else
-            autoLogFromMapID = 0
-        end
-    end
-
-    local alwaysLogDifficultyIDs = {
-        -- scenario
-        [167] = true, -- Torghast
-        -- party
-        [23] = true, -- Mythic
-        [8] = true, -- Mythic Keystone
-    }
-
-    local canLogDifficultyIDs = {}
-
-    if IS_RETAIL then
-        -- raid
-        canLogDifficultyIDs[14] = true -- Normal
-        canLogDifficultyIDs[15] = true -- Heroic
-        canLogDifficultyIDs[16] = true -- Mythic
-        canLogDifficultyIDs[17] = true -- LFR
-    elseif IS_CLASSIC_ERA then
-        -- classic era
-        canLogDifficultyIDs[9] = true -- Classic40PlayerRaid
-    elseif IS_CLASSIC then
-        -- classic
-        canLogDifficultyIDs[3] = true -- Classic10PlayerNormalRaid
-        canLogDifficultyIDs[4] = true -- Classic25PlayerNormalRaid
-        canLogDifficultyIDs[5] = true -- Classic10PlayerHeroicRaid
-        canLogDifficultyIDs[6] = true -- Classic25PlayerHeroicRaid
-    end
-
-    local lastActive
-    local previouslyEnabledLogging
-    local function CheckInstance(newModuleState)
-        local _, _, difficultyID, _, _, _, _, instanceMapID = GetInstanceInfo()
-        if not difficultyID or not instanceMapID then
-            return
-        end
-        local isActive = not not (alwaysLogDifficultyIDs[difficultyID] or (instanceMapID >= autoLogFromMapID and canLogDifficultyIDs[difficultyID]))
-        if isActive == lastActive then
-            return
-        end
-        lastActive = isActive
-        local isLogging = LoggingCombat()
-        local setLogging
-        if isActive and isLogging and newModuleState == true then
-            setLogging = true
-        elseif isActive and isLogging and newModuleState == false then
-            setLogging = false
-        elseif isActive and not isLogging then
-            setLogging = true
-        elseif not isActive and isLogging then
-            setLogging = false
-        end
-        if setLogging == nil then
-            return
-        end
-        if not setLogging and not previouslyEnabledLogging then
-            return
-        end
-        previouslyEnabledLogging = setLogging
-        config:Set("previouslyEnabledLogging", setLogging)
-        LoggingCombat(setLogging)
-        if not LibCombatLogging then
-            local info = ChatTypeInfo.SYSTEM
-            DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFFRaider.IO|r: " .. (setLogging and COMBATLOGENABLED or COMBATLOGDISABLED), info.r, info.g, info.b, info.id)
-        end
-    end
-
-    function combatlog:OnEnable()
-        previouslyEnabledLogging = config:Get("previouslyEnabledLogging")
-        CheckInstance(true)
-        callback:RegisterEvent(CheckInstance, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED_INDOORS", "RAID_INSTANCE_WELCOME")
-    end
-
-    function combatlog:OnDisable()
-        lastActive = nil
-        CheckInstance(false)
-        callback:UnregisterCallback(CheckInstance)
-        lastActive = nil
-    end
 
 end
 

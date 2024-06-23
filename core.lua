@@ -167,6 +167,121 @@ local HookUtil do
 
 end
 
+local DropDownUtil do
+
+    ---@alias WowStyle1DropdownTemplateGeneratorFunctionPolyfill fun(owner: WowStyle1DropdownTemplatePolyfill, rootDescription: WowStyle1DropdownTemplateRootDescriptionPolyfill)
+    ---@alias WowStyle1DropdownTemplateTooltipHandlerPolyfill fun(tooltip: GameTooltip, elementDescription: WowStyle1DropdownTemplateElementDescriptionPolyfill)
+    ---@alias WowStyle1DropdownTemplateButtonBindingPolyfill fun(data: any)
+    ---@alias WowStyle1DropdownTemplateRadioIsSelectedPolyfill fun(index: number): boolean?
+    ---@alias WowStyle1DropdownTemplateRadioSetSelectedPolyfill fun(index: number)
+
+    ---@class WowStyle1DropdownTemplatePolyfill : Button
+    ---@field public SetDefaultText fun(self: WowStyle1DropdownTemplatePolyfill, text?: string)
+    ---@field public SetupMenu fun(self: WowStyle1DropdownTemplatePolyfill, generatorFunction?: WowStyle1DropdownTemplateGeneratorFunctionPolyfill)
+
+    ---@class WowStyle1DropdownTemplateElementDescriptionPolyfill : WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public text string
+    ---@field public index number
+
+    ---@class WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public CreateTitle fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string)
+    ---@field public CreateButton fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string, binding?: WowStyle1DropdownTemplateButtonBindingPolyfill): WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public CreateRadio fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string, isSelected: WowStyle1DropdownTemplateRadioIsSelectedPolyfill, setSelected: WowStyle1DropdownTemplateRadioSetSelectedPolyfill, index: number): WowStyle1DropdownTemplateRootDescriptionRadioPolyfill
+    ---@field public SetTooltip fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, tooltipFunction?: WowStyle1DropdownTemplateTooltipHandlerPolyfill)
+
+    ---@class WowStyle1DropdownTemplateRootDescriptionRadioPolyfill : WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public AddInitializer fun(owner: WowStyle1DropdownTemplatePolyfill, elementDescription?: WowStyle1DropdownTemplateElementDescriptionPolyfill, menu?: any)
+
+    DropDownUtil = {}
+
+    function DropDownUtil:IsMenuSupported()
+        return Menu and MenuUtil and true or false
+    end
+
+    ---@generic T
+    ---@param owner T
+    ---@param generatorFunction fun(owner: T, rootDescription: WowStyle1DropdownTemplateRootDescriptionPolyfill)
+    function DropDownUtil:CreateMenu(owner, generatorFunction)
+        local menu = CreateFrame("DropdownButton", nil, owner, "WowStyle1DropdownTemplate") ---@class WowStyle1DropdownTemplatePolyfill
+        menu:SetupMenu(generatorFunction)
+        return menu
+    end
+
+    ---@generic T, L
+    ---@param owner T
+    ---@param initialize fun(self: UIDropDownMenuTemplate, level: number, menuList?: L)
+    ---@param style? "MENU"
+    function DropDownUtil:CreateDropDown(owner, initialize, style)
+        local menu = CreateFrame("Frame", nil, owner, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
+        UIDropDownMenu_Initialize(menu, initialize, style or "MENU")
+    end
+
+    ---@param menu WowStyle1DropdownTemplatePolyfill
+    ---@param anchor? "cursor"|Region
+    ---@param anchorX? number
+    ---@param anchorY? number
+    function DropDownUtil:OpenMenu(menu, anchor, anchorX, anchorY)
+        -- TODO
+    end
+
+    ---@param menu WowStyle1DropdownTemplatePolyfill
+    function DropDownUtil:IsMenuOpen(menu)
+        -- TODO
+    end
+
+    ---@param menu WowStyle1DropdownTemplatePolyfill
+    function DropDownUtil:CloseMenu(menu)
+        -- TODO
+    end
+
+    ---@param menu WowStyle1DropdownTemplatePolyfill
+    ---@param anchor? "cursor"|Region
+    ---@param anchorX? number
+    ---@param anchorY? number
+    function DropDownUtil:ToggleMenu(menu, anchor, anchorX, anchorY)
+        PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+        if self:IsMenuOpen(menu) then
+            self:CloseMenu(menu)
+        else
+            self:OpenMenu(menu, anchor, anchorX, anchorY)
+        end
+    end
+
+    ---@param dropDownMenu UIDropDownMenuTemplate
+    ---@param anchor? "cursor"|Region
+    ---@param anchorX? number
+    ---@param anchorY? number
+    function DropDownUtil:OpenDropDown(dropDownMenu, anchor, anchorX, anchorY)
+        ToggleDropDownMenu(1, nil, dropDownMenu, anchor, anchorX, anchorY)
+    end
+
+    ---@param dropDownMenu UIDropDownMenuTemplate
+    function DropDownUtil:IsDropDownOpen(dropDownMenu)
+        return DropDownList1:IsShown() and DropDownList1.dropdown == dropDownMenu
+    end
+
+    ---@param dropDownMenu UIDropDownMenuTemplate
+    function DropDownUtil:CloseDropDown(dropDownMenu)
+        if self:IsDropDownOpen(dropDownMenu) then
+            CloseDropDownMenus()
+        end
+    end
+
+    ---@param dropDownMenu UIDropDownMenuTemplate
+    ---@param anchor? "cursor"|Region
+    ---@param anchorX? number
+    ---@param anchorY? number
+    function DropDownUtil:ToggleDropDown(dropDownMenu, anchor, anchorX, anchorY)
+        PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+        if self:IsDropDownOpen(dropDownMenu) then
+            self:CloseDropDown(dropDownMenu)
+        else
+            self:OpenDropDown(dropDownMenu, anchor, anchorX, anchorY)
+        end
+    end
+
+end
+
 -- clients have API naming variants and this helps bridge that gap (this will require revisions/deletion as the clients unify their API's)
 local GetDetailedItemLevelInfo = GetDetailedItemLevelInfo or C_Item.GetDetailedItemLevelInfo ---@diagnostic disable-line: deprecated
 local GetItemInfo = GetItemInfo or C_Item.GetItemInfo ---@diagnostic disable-line: deprecated
@@ -8872,14 +8987,154 @@ if IS_RETAIL then
             self.Texture = self:CreateTexture(nil, "ARTWORK")
             self.Texture:SetAllPoints()
             self.Texture:SetTexture(851903)
-            self.DropDownMenu = CreateFrame("Frame", nil, self, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
-            UIDropDownMenu_Initialize(self.DropDownMenu, self.Initialize, "MENU")
+            if DropDownUtil:IsMenuSupported() then
+                self.DropDownMenu2 = DropDownUtil:CreateMenu(self, function(_, ...) self:InitializeMenu(...) end)
+            else
+                self.DropDownMenu = DropDownUtil:CreateDropDown(self, self.InitializeDropDown)
+            end
+        end
+
+        ---@param rootDescription WowStyle1DropdownTemplateRootDescriptionPolyfill
+        function ReplayFrameConfigButtonMixin:InitializeMenu(rootDescription)
+            local replayDataProvider = replayFrame:GetReplayDataProvider()
+            local currentReplay = replayDataProvider:GetReplay()
+            if currentReplay then
+                rootDescription:CreateButton(L.REPLAY_MENU_COPY_URL, function() self:OnMenuCopyReplayUrlClick(currentReplay) end)
+            end
+            local replayMenu = rootDescription:CreateButton(L.REPLAY_MENU_REPLAY)
+            do
+                local mapID, _, otherMapIDs = replayFrame:GetKeystone()
+                ---@type WowStyle1DropdownTemplateRadioIsSelectedPolyfill
+                local function isSelected(index)
+                    return currentReplay == replays[index]
+                end
+                ---@type WowStyle1DropdownTemplateRadioSetSelectedPolyfill
+                local function setSelected(index)
+                    local replay = replays[index]
+                    self:OnMenuOptionClick("replay", replay)
+                end
+                ---@type WowStyle1DropdownTemplateTooltipHandlerPolyfill
+                local function setTooltip(tooltip, elementDescription)
+                    local index = elementDescription.index
+                    local replay = replays[index]
+                    local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface\\icons\\%s:16:16|t", affix.icon) end, "")
+                    GameTooltip_SetTitle(tooltip, affixesText)
+                end
+                for index, replay in ipairs(replays) do
+                    local checked = replay == currentReplay
+                    local dungeon = util:GetDungeonByID(replay.dungeon.id)
+                    local showDungeon = checked or (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
+                    if showDungeon then
+                        local radio = replayMenu:CreateRadio(replay.title, isSelected, setSelected, index)
+                        radio:SetTooltip(setTooltip)
+                    end
+                end
+            end
+            local timingMenu = rootDescription:CreateButton(L.REPLAY_MENU_TIMING)
+            do
+                local currentTiming = replayFrame:GetTiming()
+                ---@type WowStyle1DropdownTemplateRadioIsSelectedPolyfill
+                local function isSelected(index)
+                    return currentTiming == ReplayFrameTimings[index]
+                end
+                ---@type WowStyle1DropdownTemplateRadioSetSelectedPolyfill
+                local function setSelected(index)
+                    local timing = ReplayFrameTimings[index]
+                    self:OnMenuOptionClick("timing", timing)
+                end
+                for index, timing in ipairs(ReplayFrameTimings) do
+                    local text = L[format("REPLAY_TIMING_TITLE_%s", timing)]
+                    timingMenu:CreateRadio(text, isSelected, setSelected, index)
+                end
+            end
+            local styleMenu = rootDescription:CreateButton(L.REPLAY_MENU_STYLE)
+            do
+                local currentStyle = replayFrame:GetStyle()
+                ---@type WowStyle1DropdownTemplateRadioIsSelectedPolyfill
+                local function isSelected(index)
+                    return currentStyle == ReplayFrameStyles[index]
+                end
+                ---@type WowStyle1DropdownTemplateRadioSetSelectedPolyfill
+                local function setSelected(index)
+                    local style = ReplayFrameStyles[index]
+                    self:OnMenuOptionClick("style", style)
+                end
+                for index, style in ipairs(ReplayFrameStyles) do
+                    local text = L[format("REPLAY_STYLE_TITLE_%s", style)]
+                    styleMenu:CreateRadio(text, isSelected, setSelected, index)
+                end
+            end
+            local positionMenu = rootDescription:CreateButton(L.REPLAY_MENU_POSITION)
+            do
+                if config:Get("dockReplay") then
+                    positionMenu:CreateButton(L.REPLAY_MENU_UNDOCK, function() self:OnMenuPositionClick("undock") end)
+                else
+                    positionMenu:CreateButton(L.REPLAY_MENU_DOCK, function() self:OnMenuPositionClick("dock") end)
+                    if config:Get("lockReplay") then
+                        positionMenu:CreateButton(L.REPLAY_MENU_UNLOCK, function() self:OnMenuPositionClick("unlock") end)
+                    else
+                        positionMenu:CreateButton(L.REPLAY_MENU_LOCK, function() self:OnMenuPositionClick("lock") end)
+                    end
+                end
+            end
+            rootDescription:CreateButton(L.REPLAY_MENU_DISABLE, self.OnMenuDisableClick)
+        end
+
+        ---@param action "replay"|"timing"|"style"
+        ---@param data any
+        function ReplayFrameConfigButtonMixin:OnMenuOptionClick(action, data)
+            if action == "replay" then
+                local replay = data ---@type Replay
+                local replayDataProvider = replayFrame:GetReplayDataProvider()
+                replayDataProvider:SetReplay(replay, replayFrame:IsState("COMPLETED"))
+            elseif action == "timing" then
+                local timing = data ---@type ReplayFrameTiming
+                if ReplayFrameTimings[timing] then
+                    replayFrame:SetTiming(timing, true)
+                end
+            elseif action == "style" then
+                local style = data ---@type ReplayFrameStyle
+                if ReplayFrameStyles[style] then
+                    replayFrame:SetStyle(style, true)
+                end
+            end
+            self:Close()
+        end
+
+        ---@param replay Replay
+        function ReplayFrameConfigButtonMixin:OnMenuCopyReplayUrlClick(replay)
+            util:ShowCopyRaiderIOReplayPopup(replay.title, replay.run_url)
+            self:Close()
+        end
+
+        ---@param action ReplayFrameDropDownPositionOption
+        function ReplayFrameConfigButtonMixin:OnMenuPositionClick(action)
+            if action == "dock" then
+                config:Set("dockReplay", true)
+            elseif action == "undock" then
+                config:Set("dockReplay", false)
+            elseif action == "lock" then
+                config:Set("lockReplay", true)
+            elseif action == "unlock" then
+                config:Set("lockReplay", false)
+            end
+            replayFrame:UpdatePosition()
+            self:Close()
+        end
+
+        function ReplayFrameConfigButtonMixin:OnMenuDisableClick()
+            local popup = util:ShowStaticPopupDialog(DISABLE_REPLAY_POPUP, L.REPLAY_DISABLE_CONFIRM)
+            popup.OnAcceptCallback = function()
+                config:Set("enableReplay", false)
+                replay:Disable()
+            end
+            self:Close()
         end
 
         ---@param self UIDropDownMenuTemplate
         ---@param level number
         ---@param menuList? ReplayFrameDropDownMenuList
-        function ReplayFrameConfigButtonMixin:Initialize(level, menuList)
+        function ReplayFrameConfigButtonMixin:InitializeDropDown(level, menuList)
             local parent = self:GetParent() ---@type ReplayFrameConfigButton
             local info = UIDropDownMenu_CreateInfo() ---@type UIDropDownMenuInfo
             if level == 1 then
@@ -8888,7 +9143,7 @@ if IS_RETAIL then
                 local currentReplay = replayDataProvider:GetReplay()
                 if currentReplay then
                     info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_COPY_URL, false, nil
-                    info.func = parent.OnCopyReplayUrlClick
+                    info.func = parent.OnDropDownCopyReplayUrlClick
                     info.arg1 = parent
                     info.arg2 = currentReplay
                     UIDropDownMenu_AddButton(info, level)
@@ -8904,7 +9159,7 @@ if IS_RETAIL then
                 UIDropDownMenu_AddButton(info, level)
                 info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_POSITION, true, "position"
                 UIDropDownMenu_AddButton(info, level)
-                info.func = parent.OnDisableClick
+                info.func = parent.OnDropDownDisableClick
                 info.arg1 = parent
                 info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_DISABLE, false, nil
                 UIDropDownMenu_AddButton(info, level)
@@ -8912,7 +9167,7 @@ if IS_RETAIL then
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
                 local currentReplay = replayDataProvider:GetReplay()
                 local mapID, _, otherMapIDs = replayFrame:GetKeystone()
-                info.func = parent.OnOptionClick
+                info.func = parent.OnDropDownOptionClick
                 info.arg1 = parent
                 info.tooltipOnButton = true
                 for _, replay in ipairs(replays) do
@@ -8929,7 +9184,7 @@ if IS_RETAIL then
                 end
             elseif menuList == "timing" then
                 local currentTiming = replayFrame:GetTiming()
-                info.func = parent.OnOptionClick
+                info.func = parent.OnDropDownOptionClick
                 info.arg1 = parent
                 for _, timing in ipairs(ReplayFrameTimings) do
                     info.checked = timing == currentTiming
@@ -8939,7 +9194,7 @@ if IS_RETAIL then
                 end
             elseif menuList == "style" then
                 local currentStyle = replayFrame:GetStyle()
-                info.func = parent.OnOptionClick
+                info.func = parent.OnDropDownOptionClick
                 info.arg1 = parent
                 for _, style in ipairs(ReplayFrameStyles) do
                     info.checked = style == currentStyle
@@ -8951,7 +9206,7 @@ if IS_RETAIL then
                 info.checked = nil
                 info.notCheckable = true
                 info.hasArrow = false
-                info.func = parent.OnPositionClick
+                info.func = parent.OnDropDownPositionClick
                 info.arg1 = parent
                 if config:Get("dockReplay") then
                     info.text = L.REPLAY_MENU_UNDOCK
@@ -8975,7 +9230,7 @@ if IS_RETAIL then
         end
 
         ---@param self UIDropDownMenuInfo
-        function ReplayFrameConfigButtonMixin:OnOptionClick()
+        function ReplayFrameConfigButtonMixin:OnDropDownOptionClick()
             local dropDownMenu = self.arg1
             local value = self.arg2 ---@type ReplayFrameStyle|ReplayFrameTiming
             if value and type(value) == "string" then
@@ -8995,7 +9250,7 @@ if IS_RETAIL then
         end
 
         ---@param self UIDropDownMenuInfo
-        function ReplayFrameConfigButtonMixin:OnCopyReplayUrlClick()
+        function ReplayFrameConfigButtonMixin:OnDropDownCopyReplayUrlClick()
             local dropDownMenu = self.arg1
             local value = self.arg2 ---@type Replay
             util:ShowCopyRaiderIOReplayPopup(value.title, value.run_url)
@@ -9003,7 +9258,7 @@ if IS_RETAIL then
         end
 
         ---@param self UIDropDownMenuInfo
-        function ReplayFrameConfigButtonMixin:OnPositionClick()
+        function ReplayFrameConfigButtonMixin:OnDropDownPositionClick()
             local dropDownMenu = self.arg1
             local action = self.arg2 ---@type ReplayFrameDropDownPositionOption
             if action == "dock" then
@@ -9020,7 +9275,7 @@ if IS_RETAIL then
         end
 
         ---@param self UIDropDownMenuInfo
-        function ReplayFrameConfigButtonMixin:OnDisableClick()
+        function ReplayFrameConfigButtonMixin:OnDropDownDisableClick()
             local dropDownMenu = self.arg1
             local popup = util:ShowStaticPopupDialog(DISABLE_REPLAY_POPUP, L.REPLAY_DISABLE_CONFIRM)
             popup.OnAcceptCallback = function()
@@ -9031,15 +9286,31 @@ if IS_RETAIL then
         end
 
         function ReplayFrameConfigButtonMixin:Open()
-            ToggleDropDownMenu(1, nil, self.DropDownMenu, "cursor", 2, 2)
+            if self.DropDownMenu2 then
+                DropDownUtil:OpenMenu(self.DropDownMenu2, "cursor", 2, 2)
+            elseif self.DropDownMenu then
+                DropDownUtil:OpenDropDown(self.DropDownMenu, "cursor", 2, 2)
+            end
         end
 
         function ReplayFrameConfigButtonMixin:Close()
-            CloseDropDownMenus()
+            if self.DropDownMenu2 then
+                DropDownUtil:CloseMenu(self.DropDownMenu2)
+            elseif self.DropDownMenu then
+                DropDownUtil:CloseDropDown(self.DropDownMenu)
+            end
+        end
+
+        function ReplayFrameConfigButtonMixin:IsOpen()
+            if self.DropDownMenu2 then
+                return DropDownUtil:IsMenuOpen(self.DropDownMenu2)
+            elseif self.DropDownMenu then
+                return DropDownUtil:IsDropDownOpen(self.DropDownMenu)
+            end
         end
 
         function ReplayFrameConfigButtonMixin:Toggle()
-            if DropDownList1:IsShown() and DropDownList1.dropdown == self.DropDownMenu then
+            if self:IsOpen() then
                 self:Close()
             else
                 self:Open()
@@ -13469,12 +13740,47 @@ do
 
         ---@param self RaiderIOSettingsDropDownWidget
         function configOptions.DropDownOnClick(self)
-            PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
-            if DropDownList1:IsShown() and DropDownList1.dropdown == self.toggleButton.DropDownMenu then
-                CloseDropDownMenus()
-            else
-                ToggleDropDownMenu(1, nil, self.toggleButton.DropDownMenu, self.toggleButton, 0, 0)
+            local toggleButton = self.toggleButton
+            if toggleButton.DropDownMenu2 then
+                DropDownUtil:ToggleMenu(toggleButton.DropDownMenu2, toggleButton, 0, 0)
+            elseif toggleButton.DropDownMenu then
+                DropDownUtil:ToggleDropDown(toggleButton.DropDownMenu, toggleButton, 0, 0)
             end
+        end
+
+        ---@param self RaiderIOSettingsDropDownWidget
+        ---@param rootDescription WowStyle1DropdownTemplateRootDescriptionPolyfill
+        function configOptions.MenuOnInitialize(self, rootDescription)
+            local value = self.selected and self.selected.value
+            local currentIndex = 0
+            for index, option in ipairs(self.options) do
+                if value == option.value then
+                    currentIndex = index
+                    break
+                end
+            end
+            ---@type WowStyle1DropdownTemplateRadioIsSelectedPolyfill
+            local function isSelected(index)
+                return currentIndex == index
+            end
+            ---@type WowStyle1DropdownTemplateRadioSetSelectedPolyfill
+            local function setSelected(index)
+                local option = self.options[index]
+                currentIndex = index
+                value = option.value
+                configOptions.MenuOnSelected(self, option)
+            end
+            for index, option in ipairs(self.options) do
+                rootDescription:CreateRadio(option.text, isSelected, setSelected, index)
+            end
+        end
+
+        ---@param self RaiderIOSettingsDropDownWidget
+        ---@param option RaiderIOSettingsDropDownOption
+        function configOptions.MenuOnSelected(self, option)
+            local toggleButton = self.toggleButton
+            toggleButton.text:SetText(option.text)
+            DropDownUtil:CloseMenu(toggleButton.DropDownMenu2)
         end
 
         ---@class RaiderIOSettingsDropDownWidgetMenuInfo
@@ -13508,8 +13814,9 @@ do
             local parent = self.arg1
             local option = self.arg2
             parent.selected = option
-            parent.toggleButton.text:SetText(option.text)
-            CloseDropDownMenus()
+            local toggleButton = parent.toggleButton
+            toggleButton.text:SetText(option.text)
+            DropDownUtil:CloseDropDown(toggleButton.DropDownMenu)
         end
 
         ---@param self RaiderIOConfigOptions
@@ -13544,10 +13851,11 @@ do
             frame.toggleButton:EnableMouse(true)
             frame.toggleButton:RegisterForClicks("LeftButtonUp")
             frame.toggleButton:SetScript("OnClick", function(...) self.DropDownOnClick(frame, ...) end)
-            local value = config:Get(cvar)
-            local valueText = L[format("REPLAY_AUTO_SELECTION_%s", value)] ---@type string?
-            frame.toggleButton.DropDownMenu = CreateFrame("Frame", nil, frame.toggleButton, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
-            UIDropDownMenu_Initialize(frame.toggleButton.DropDownMenu, function(...) self.DropDownOnInitialize(frame, ...) end, "MENU")
+            if DropDownUtil:IsMenuSupported() then
+                frame.toggleButton.DropDownMenu2 = DropDownUtil:CreateMenu(frame.toggleButton, function(_, ...) self.MenuOnInitialize(frame, ...) end)
+            else
+                frame.toggleButton.DropDownMenu = DropDownUtil:CreateDropDown(frame.toggleButton, function(...) self.DropDownOnInitialize(frame, ...) end)
+            end
             self.dropdowns[#self.dropdowns + 1] = frame
             return frame
         end

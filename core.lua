@@ -262,6 +262,10 @@ local DropDownUtil do
         return Menu and MenuUtil and AnchorUtil and true or false
     end
 
+    function DropDownUtil:PlaySound()
+        PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+    end
+
     ---@generic T
     ---@param owner T
     ---@param generatorFunction fun(owner: T, rootDescription: WowStyle1DropdownTemplateRootDescriptionPolyfill)
@@ -278,6 +282,7 @@ local DropDownUtil do
     function DropDownUtil:CreateDropDown(owner, initialize, style)
         local menu = CreateFrame("Frame", nil, owner, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplatePolyfill
         UIDropDownMenu_Initialize(menu, initialize, style or "MENU")
+        return menu
     end
 
     ---@param menu WowStyle1DropdownTemplatePolyfill
@@ -311,7 +316,7 @@ local DropDownUtil do
     ---@param anchorX? number
     ---@param anchorY? number
     function DropDownUtil:ToggleMenu(menu, anchorPoint, anchorRelativePoint, anchorRelativeTo, anchorX, anchorY)
-        PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+        self:PlaySound()
         if self:IsMenuOpen(menu) then
             self:CloseMenu(menu)
         else
@@ -344,7 +349,7 @@ local DropDownUtil do
     ---@param anchorX? number
     ---@param anchorY? number
     function DropDownUtil:ToggleDropDown(dropDownMenu, anchor, anchorX, anchorY)
-        PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+        self:PlaySound()
         if self:IsDropDownOpen(dropDownMenu) then
             self:CloseDropDown(dropDownMenu)
         else
@@ -9352,6 +9357,7 @@ if IS_RETAIL then
         end
 
         function ReplayFrameConfigButtonMixin:Open()
+            DropDownUtil:PlaySound()
             if self.DropDownMenu2 then
                 DropDownUtil:OpenMenu(self.DropDownMenu2, nil, self)
             elseif self.DropDownMenu then
@@ -9388,7 +9394,7 @@ if IS_RETAIL then
                 return
             end
             if self.Texture:IsShown() then
-                PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+                DropDownUtil:PlaySound()
             end
             self:Toggle()
         end

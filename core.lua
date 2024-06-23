@@ -190,27 +190,76 @@ local DropDownUtil do
     ---@alias WowStyle1DropdownTemplateRadioIsSelectedPolyfill fun(index: number): boolean?
     ---@alias WowStyle1DropdownTemplateRadioSetSelectedPolyfill fun(index: number)
 
+    ---@class WowStyle1DropdownTemplateMenuAnchorPolyfill
+    ---@field public point AnchorPoint
+    ---@field public relativeTo Region
+    ---@field public relativePoint AnchorPoint
+    ---@field public x number
+    ---@field public y number
+
     ---@class WowStyle1DropdownTemplatePolyfill : Button
+    ---@field public intrinsic "DropdownButton"
+    ---@field public menu? Frame @The menu frame when the menu is being shown.
+    ---@field public menuAnchor WowStyle1DropdownTemplateMenuAnchorPolyfill
+    ---@field public menuDescription WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public menuRelativePoint AnchorPoint
+    ---@field public menuPoint AnchorPoint
+    ---@field public menuPointX number
+    ---@field public menuPointY number
+    ---@field public text string
+    ---@field public Arrow Texture
+    ---@field public Background Texture
+    ---@field public Text FontString
     ---@field public SetDefaultText fun(self: WowStyle1DropdownTemplatePolyfill, text?: string)
+    ---@field public GetDefaultText fun(self: WowStyle1DropdownTemplatePolyfill): string?
     ---@field public SetupMenu fun(self: WowStyle1DropdownTemplatePolyfill, generatorFunction?: WowStyle1DropdownTemplateGeneratorFunctionPolyfill)
+    ---@field public GenerateMenu fun(self: WowStyle1DropdownTemplatePolyfill)
+    ---@field public GetMenuDescription fun(self: WowStyle1DropdownTemplatePolyfill): WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public SetMenuAnchor fun(self: WowStyle1DropdownTemplatePolyfill, anchor: WowStyle1DropdownTemplateMenuAnchorPolyfill)
+    ---@field public SetMouseWheelEnabled fun(self: WowStyle1DropdownTemplatePolyfill, enabled?: boolean)
+    ---@field public SetMenuOpen fun(self: WowStyle1DropdownTemplatePolyfill, open?: boolean)
+    ---@field public OpenMenu fun(self: WowStyle1DropdownTemplatePolyfill, ownerRegion: Region, menuDescription: WowStyle1DropdownTemplateRootDescriptionPolyfill, anchor: WowStyle1DropdownTemplateMenuAnchorPolyfill)
+    ---@field public CloseMenu fun(self: WowStyle1DropdownTemplatePolyfill)
+    ---@field public SetSelectionText fun(self: WowStyle1DropdownTemplatePolyfill) @TODO
+    ---@field public SetSelectionTranslator fun(self: WowStyle1DropdownTemplatePolyfill) @TODO
+    ---@field public GetSelectionData fun(self: WowStyle1DropdownTemplatePolyfill) @TODO
+    ---@field public SetText fun(self: WowStyle1DropdownTemplatePolyfill, text?: string)
+    ---@field public GetText fun(self: WowStyle1DropdownTemplatePolyfill): string?
+    ---@field public GetUpdateText fun(self: WowStyle1DropdownTemplatePolyfill): string?
+    ---@field public SetTooltip fun(self: WowStyle1DropdownTemplatePolyfill, tooltipFunction?: WowStyle1DropdownTemplateTooltipHandlerPolyfill)
+
+    ---@class WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public AddInitializer fun(owner: WowStyle1DropdownTemplatePolyfill, elementDescription?: WowStyle1DropdownTemplateElementDescriptionPolyfill, menu?: any)
+    ---@field public CreateButton fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string, binding?: WowStyle1DropdownTemplateButtonBindingPolyfill): WowStyle1DropdownTemplateRootDescriptionCheckboxPolyfill
+    ---@field public CreateCheckbox fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateColorSwatch fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateDivider fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateFrame fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateRadio fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string, isSelected: WowStyle1DropdownTemplateRadioIsSelectedPolyfill, setSelected: WowStyle1DropdownTemplateRadioSetSelectedPolyfill, index: number): WowStyle1DropdownTemplateRootDescriptionRadioPolyfill
+    ---@field public CreateSpacer fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateTemplate fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateTitle fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string)
+    ---@field public QueueDivider fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public QueueSpacer fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public QueueTitle fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public SetTooltip fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, tooltipFunction?: WowStyle1DropdownTemplateTooltipHandlerPolyfill)
+    ---@field public SetTitleAndTextTooltip fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+
+    ---@class WowStyle1DropdownTemplateRootDescriptionCheckboxPolyfill : WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public defaultResponse number `2`
+
+    ---@class WowStyle1DropdownTemplateRootDescriptionRadioPolyfill : WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public isRadio true
+    ---@field public soundKit number
 
     ---@class WowStyle1DropdownTemplateElementDescriptionPolyfill : WowStyle1DropdownTemplateRootDescriptionPolyfill
     ---@field public text string
-    ---@field public index number
-
-    ---@class WowStyle1DropdownTemplateRootDescriptionPolyfill
-    ---@field public CreateTitle fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string)
-    ---@field public CreateButton fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string, binding?: WowStyle1DropdownTemplateButtonBindingPolyfill): WowStyle1DropdownTemplateRootDescriptionPolyfill
-    ---@field public CreateRadio fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string, isSelected: WowStyle1DropdownTemplateRadioIsSelectedPolyfill, setSelected: WowStyle1DropdownTemplateRadioSetSelectedPolyfill, index: number): WowStyle1DropdownTemplateRootDescriptionRadioPolyfill
-    ---@field public SetTooltip fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, tooltipFunction?: WowStyle1DropdownTemplateTooltipHandlerPolyfill)
-
-    ---@class WowStyle1DropdownTemplateRootDescriptionRadioPolyfill : WowStyle1DropdownTemplateRootDescriptionPolyfill
-    ---@field public AddInitializer fun(owner: WowStyle1DropdownTemplatePolyfill, elementDescription?: WowStyle1DropdownTemplateElementDescriptionPolyfill, menu?: any)
+    ---@field public data number
 
     DropDownUtil = {}
 
     function DropDownUtil:IsMenuSupported()
-        return Menu and MenuUtil and true or false
+        return Menu and MenuUtil and AnchorUtil and true or false
     end
 
     ---@generic T
@@ -232,33 +281,41 @@ local DropDownUtil do
     end
 
     ---@param menu WowStyle1DropdownTemplatePolyfill
-    ---@param anchor? "cursor"|Region
+    ---@param anchorPoint? AnchorPoint
+    ---@param anchorRelativePoint? Region
+    ---@param anchorRelativeTo? AnchorPoint
     ---@param anchorX? number
     ---@param anchorY? number
-    function DropDownUtil:OpenMenu(menu, anchor, anchorX, anchorY)
-        -- TODO
+    function DropDownUtil:OpenMenu(menu, anchorPoint, anchorRelativePoint, anchorRelativeTo, anchorX, anchorY)
+        if not menu.menuAnchor or menu.menuAnchor.relativeTo ~= anchorRelativePoint then
+            local anchor = AnchorUtil.CreateAnchor(anchorPoint or "TOPLEFT", anchorRelativePoint or menu:GetParent(), anchorRelativeTo or "BOTTOMLEFT", anchorX or 0, anchorY or 0)
+            menu:SetMenuAnchor(anchor)
+        end
+        menu:SetMenuOpen(true)
     end
 
     ---@param menu WowStyle1DropdownTemplatePolyfill
     function DropDownUtil:IsMenuOpen(menu)
-        -- TODO
+        return menu.menu ~= nil
     end
 
     ---@param menu WowStyle1DropdownTemplatePolyfill
     function DropDownUtil:CloseMenu(menu)
-        -- TODO
+        menu:SetMenuOpen(false)
     end
 
     ---@param menu WowStyle1DropdownTemplatePolyfill
-    ---@param anchor? "cursor"|Region
+    ---@param anchorPoint? AnchorPoint
+    ---@param anchorRelativePoint? Region
+    ---@param anchorRelativeTo? AnchorPoint
     ---@param anchorX? number
     ---@param anchorY? number
-    function DropDownUtil:ToggleMenu(menu, anchor, anchorX, anchorY)
+    function DropDownUtil:ToggleMenu(menu, anchorPoint, anchorRelativePoint, anchorRelativeTo, anchorX, anchorY)
         PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
         if self:IsMenuOpen(menu) then
             self:CloseMenu(menu)
         else
-            self:OpenMenu(menu, anchor, anchorX, anchorY)
+            self:OpenMenu(menu, anchorPoint, anchorRelativePoint, anchorRelativeTo, anchorX, anchorY)
         end
     end
 
@@ -9002,6 +9059,9 @@ if IS_RETAIL then
 
         ---@param rootDescription WowStyle1DropdownTemplateRootDescriptionPolyfill
         function ReplayFrameConfigButtonMixin:InitializeMenu(rootDescription)
+            if not replayFrame then
+                return
+            end
             local replayDataProvider = replayFrame:GetReplayDataProvider()
             local currentReplay = replayDataProvider:GetReplay()
             if currentReplay then
@@ -9021,7 +9081,7 @@ if IS_RETAIL then
                 end
                 ---@type WowStyle1DropdownTemplateTooltipHandlerPolyfill
                 local function setTooltip(tooltip, elementDescription)
-                    local index = elementDescription.index
+                    local index = elementDescription.data
                     local replay = replays[index]
                     local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface\\icons\\%s:16:16|t", affix.icon) end, "")
                     GameTooltip_SetTitle(tooltip, affixesText)
@@ -9083,7 +9143,7 @@ if IS_RETAIL then
                     end
                 end
             end
-            rootDescription:CreateButton(L.REPLAY_MENU_DISABLE, self.OnMenuDisableClick)
+            rootDescription:CreateButton(L.REPLAY_MENU_DISABLE, function() self:OnMenuDisableClick() end)
         end
 
         ---@param action "replay"|"timing"|"style"
@@ -9293,7 +9353,7 @@ if IS_RETAIL then
 
         function ReplayFrameConfigButtonMixin:Open()
             if self.DropDownMenu2 then
-                DropDownUtil:OpenMenu(self.DropDownMenu2, "cursor", 2, 2)
+                DropDownUtil:OpenMenu(self.DropDownMenu2, nil, self)
             elseif self.DropDownMenu then
                 DropDownUtil:OpenDropDown(self.DropDownMenu, "cursor", 2, 2)
             end
@@ -13748,7 +13808,7 @@ do
         function configOptions.DropDownOnClick(self)
             local toggleButton = self.toggleButton
             if toggleButton.DropDownMenu2 then
-                DropDownUtil:ToggleMenu(toggleButton.DropDownMenu2, toggleButton, 0, 0)
+                DropDownUtil:ToggleMenu(toggleButton.DropDownMenu2, nil, toggleButton)
             elseif toggleButton.DropDownMenu then
                 DropDownUtil:ToggleDropDown(toggleButton.DropDownMenu, toggleButton, 0, 0)
             end
@@ -13774,19 +13834,14 @@ do
                 local option = self.options[index]
                 currentIndex = index
                 value = option.value
-                configOptions.MenuOnSelected(self, option)
+                self.selected = option
+                local toggleButton = self.toggleButton
+                toggleButton.text:SetText(option.text)
+                DropDownUtil:CloseMenu(toggleButton.DropDownMenu2)
             end
             for index, option in ipairs(self.options) do
                 rootDescription:CreateRadio(option.text, isSelected, setSelected, index)
             end
-        end
-
-        ---@param self RaiderIOSettingsDropDownWidget
-        ---@param option RaiderIOSettingsDropDownOption
-        function configOptions.MenuOnSelected(self, option)
-            local toggleButton = self.toggleButton
-            toggleButton.text:SetText(option.text)
-            DropDownUtil:CloseMenu(toggleButton.DropDownMenu2)
         end
 
         ---@class RaiderIOSettingsDropDownWidgetMenuInfo
@@ -13891,7 +13946,8 @@ do
         ---@field public r number
         ---@field public g number
         ---@field public b number
-        ---@field public opacity number
+        ---@field public a number
+        ---@field public opacity? number TODO `pre-11.0`
 
         ---@class OpenColorPickerOptions : OpenColorPickerColorOptions
         ---@field public hasOpacity boolean
@@ -13899,9 +13955,6 @@ do
         ---@field public opacityFunc fun()
         ---@field public cancelFunc fun(previousValues: OpenColorPickerColorOptions)
         ---@field public extraInfo? any
-
-        ---@alias OpenColorPicker fun(options: OpenColorPickerOptions)
-        local OpenColorPicker = OpenColorPicker ---@type OpenColorPicker
 
         ---@param self RaiderIOSettingsColorPickerWidget
         function configOptions.ColorPickerOnClick(self)
@@ -13912,29 +13965,35 @@ do
             ---@param applyPreviousValues? OpenColorPickerColorOptions
             local function update(applyPreviousValues)
                 if applyPreviousValues then
+                    local a = applyPreviousValues.a and (1 - applyPreviousValues.a) or applyPreviousValues.opacity -- TODO `pre-11.0`
                     value.r, value.g, value.b = applyPreviousValues.r, applyPreviousValues.g, applyPreviousValues.b
-                    if 1 + applyPreviousValues.opacity > 1 then
-                        value.a = 1 - applyPreviousValues.opacity
+                    if 1 + a > 1 then
+                        value.a = 1 - a
                     else
-                        value.a = 1 + applyPreviousValues.opacity
+                        value.a = 1 + a
                     end
                 else
+                    local a = ColorPickerFrame.GetColorAlpha and ColorPickerFrame:GetColorAlpha() or (1 - OpacitySliderFrame:GetValue()) -- TODO `pre-11.0`
                     value.r, value.g, value.b = ColorPickerFrame:GetColorRGB()
-                    value.a = 1 - OpacitySliderFrame:GetValue()
+                    value.a = a
                 end
                 configOptions.ColorPickerUpdate(self, value)
             end
-            OpenColorPicker({
+
+            ---@type OpenColorPickerOptions
+            local options = {
                 r = value.r,
                 g = value.g,
                 b = value.b,
-                opacity = 1 - value.a,
+                opacity = value.a,
                 hasOpacity = true,
                 swatchFunc = function() update() end,
                 opacityFunc = function() update() end,
                 cancelFunc = function(previousValues) update(previousValues) end,
                 -- extraInfo = {},
-            })
+            }
+
+            ColorPickerFrame:SetupColorPickerAndShow(options)
         end
 
         ---@param self RaiderIOConfigOptions

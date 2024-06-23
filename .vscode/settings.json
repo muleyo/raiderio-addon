@@ -12,6 +12,7 @@
     ],
     "Lua.diagnostics.globals": [
         "ActionButton_ShowOverlayGlow",
+        "AnchorUtil",
         "AUTOCOMPLETE_FLAG_ALL",
         "AUTOCOMPLETE_FLAG_NONE",
         "AutoComplete_Update",

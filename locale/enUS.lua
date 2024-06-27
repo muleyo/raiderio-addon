@@ -146,6 +146,7 @@ L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS = "Allow Raider.IO Client to Contro
 L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC = "Allow the Raider.IO Client (when present) to control your Combat Logging settings automatically."
 L.AUTO_COMBATLOG = "Automatically Enable Combat Logging"
 L.AUTO_COMBATLOG_DESC = "Turn Combat Logging on or off automatically when entering and exiting supported raids and dungeons."
+L.AUTO_COMBATLOG_DISABLED_DESC = "Combat Logging is disabled on a Timerunner."
 L.GUILD_BEST_TITLE = "Raider.IO Records"
 L.GUILD_BEST_WEEKLY = "Guild: Weekly Best"
 L.GUILD_BEST_SEASON = "Guild: Season Best"

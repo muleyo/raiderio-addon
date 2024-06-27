@@ -167,6 +167,198 @@ local HookUtil do
 
 end
 
+local DropDownUtil do
+
+    ---@class UIDropDownMenuTemplatePolyfill : Frame
+
+    ---@class UIDropDownMenuInfoPolyfill
+    ---@field public checked boolean
+    ---@field public text string
+    ---@field public hasArrow boolean
+    ---@field public notCheckable boolean
+    ---@field public tooltipTitle? string
+    ---@field public tooltipText? string
+    ---@field public tooltipOnButton? boolean
+    ---@field public menuList any
+    ---@field public func? fun(self: UIDropDownMenuInfoPolyfill)
+    ---@field public arg1 any
+    ---@field public arg2 any
+
+    ---@alias WowStyle1DropdownTemplateGeneratorFunctionPolyfill fun(owner: WowStyle1DropdownTemplatePolyfill, rootDescription: WowStyle1DropdownTemplateRootDescriptionPolyfill)
+    ---@alias WowStyle1DropdownTemplateTooltipHandlerPolyfill fun(tooltip: GameTooltip, elementDescription: WowStyle1DropdownTemplateElementDescriptionPolyfill)
+    ---@alias WowStyle1DropdownTemplateButtonBindingPolyfill fun(data: any)
+    ---@alias WowStyle1DropdownTemplateRadioIsSelectedPolyfill fun(index: number): boolean?
+    ---@alias WowStyle1DropdownTemplateRadioSetSelectedPolyfill fun(index: number)
+
+    ---@class WowStyle1DropdownTemplateMenuAnchorPolyfill
+    ---@field public point AnchorPoint
+    ---@field public relativeTo Region
+    ---@field public relativePoint AnchorPoint
+    ---@field public x number
+    ---@field public y number
+
+    ---@class WowStyle1DropdownTemplatePolyfill : Button
+    ---@field public intrinsic "DropdownButton"
+    ---@field public menu? Frame @The menu frame when the menu is being shown.
+    ---@field public menuAnchor WowStyle1DropdownTemplateMenuAnchorPolyfill
+    ---@field public menuDescription WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public menuRelativePoint AnchorPoint
+    ---@field public menuPoint AnchorPoint
+    ---@field public menuPointX number
+    ---@field public menuPointY number
+    ---@field public text string
+    ---@field public Arrow Texture
+    ---@field public Background Texture
+    ---@field public Text FontString
+    ---@field public SetDefaultText fun(self: WowStyle1DropdownTemplatePolyfill, text?: string)
+    ---@field public GetDefaultText fun(self: WowStyle1DropdownTemplatePolyfill): string?
+    ---@field public SetupMenu fun(self: WowStyle1DropdownTemplatePolyfill, generatorFunction?: WowStyle1DropdownTemplateGeneratorFunctionPolyfill)
+    ---@field public GenerateMenu fun(self: WowStyle1DropdownTemplatePolyfill)
+    ---@field public GetMenuDescription fun(self: WowStyle1DropdownTemplatePolyfill): WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public SetMenuAnchor fun(self: WowStyle1DropdownTemplatePolyfill, anchor: WowStyle1DropdownTemplateMenuAnchorPolyfill)
+    ---@field public SetMouseWheelEnabled fun(self: WowStyle1DropdownTemplatePolyfill, enabled?: boolean)
+    ---@field public SetMenuOpen fun(self: WowStyle1DropdownTemplatePolyfill, open?: boolean)
+    ---@field public OpenMenu fun(self: WowStyle1DropdownTemplatePolyfill, ownerRegion: Region, menuDescription: WowStyle1DropdownTemplateRootDescriptionPolyfill, anchor: WowStyle1DropdownTemplateMenuAnchorPolyfill)
+    ---@field public CloseMenu fun(self: WowStyle1DropdownTemplatePolyfill)
+    ---@field public SetSelectionText fun(self: WowStyle1DropdownTemplatePolyfill) @TODO
+    ---@field public SetSelectionTranslator fun(self: WowStyle1DropdownTemplatePolyfill) @TODO
+    ---@field public GetSelectionData fun(self: WowStyle1DropdownTemplatePolyfill) @TODO
+    ---@field public SetText fun(self: WowStyle1DropdownTemplatePolyfill, text?: string)
+    ---@field public GetText fun(self: WowStyle1DropdownTemplatePolyfill): string?
+    ---@field public GetUpdateText fun(self: WowStyle1DropdownTemplatePolyfill): string?
+    ---@field public SetTooltip fun(self: WowStyle1DropdownTemplatePolyfill, tooltipFunction?: WowStyle1DropdownTemplateTooltipHandlerPolyfill)
+
+    ---@class WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public AddInitializer fun(owner: WowStyle1DropdownTemplatePolyfill, elementDescription?: WowStyle1DropdownTemplateElementDescriptionPolyfill, menu?: any)
+    ---@field public CreateButton fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string, binding?: WowStyle1DropdownTemplateButtonBindingPolyfill): WowStyle1DropdownTemplateRootDescriptionCheckboxPolyfill
+    ---@field public CreateCheckbox fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateColorSwatch fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateDivider fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateFrame fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateRadio fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string, isSelected: WowStyle1DropdownTemplateRadioIsSelectedPolyfill, setSelected: WowStyle1DropdownTemplateRadioSetSelectedPolyfill, index: number): WowStyle1DropdownTemplateRootDescriptionRadioPolyfill
+    ---@field public CreateSpacer fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateTemplate fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public CreateTitle fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, text?: string)
+    ---@field public QueueDivider fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public QueueSpacer fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public QueueTitle fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+    ---@field public SetTooltip fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill, tooltipFunction?: WowStyle1DropdownTemplateTooltipHandlerPolyfill)
+    ---@field public SetTitleAndTextTooltip fun(self: WowStyle1DropdownTemplateRootDescriptionPolyfill) TODO
+
+    ---@class WowStyle1DropdownTemplateRootDescriptionCheckboxPolyfill : WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public defaultResponse number `2`
+
+    ---@class WowStyle1DropdownTemplateRootDescriptionRadioPolyfill : WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public isRadio true
+    ---@field public soundKit number
+
+    ---@class WowStyle1DropdownTemplateElementDescriptionPolyfill : WowStyle1DropdownTemplateRootDescriptionPolyfill
+    ---@field public text string
+    ---@field public data number
+
+    DropDownUtil = {}
+
+    function DropDownUtil:IsMenuSupported()
+        return Menu and MenuUtil and AnchorUtil and true or false
+    end
+
+    function DropDownUtil:PlaySound()
+        PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+    end
+
+    ---@generic T
+    ---@param owner T
+    ---@param generatorFunction fun(owner: T, rootDescription: WowStyle1DropdownTemplateRootDescriptionPolyfill)
+    function DropDownUtil:CreateMenu(owner, generatorFunction)
+        local menu = CreateFrame("DropdownButton", nil, owner, "WowStyle1DropdownTemplate") ---@class WowStyle1DropdownTemplatePolyfill
+        menu:SetupMenu(generatorFunction)
+        return menu
+    end
+
+    ---@generic T, L
+    ---@param owner T
+    ---@param initialize fun(self: UIDropDownMenuTemplatePolyfill, level: number, menuList?: L)
+    ---@param style? "MENU"
+    function DropDownUtil:CreateDropDown(owner, initialize, style)
+        local menu = CreateFrame("Frame", nil, owner, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplatePolyfill
+        UIDropDownMenu_Initialize(menu, initialize, style or "MENU")
+        return menu
+    end
+
+    ---@param menu WowStyle1DropdownTemplatePolyfill
+    ---@param anchorPoint? AnchorPoint
+    ---@param anchorRelativePoint? Region
+    ---@param anchorRelativeTo? AnchorPoint
+    ---@param anchorX? number
+    ---@param anchorY? number
+    function DropDownUtil:OpenMenu(menu, anchorPoint, anchorRelativePoint, anchorRelativeTo, anchorX, anchorY)
+        if not menu.menuAnchor or menu.menuAnchor.relativeTo ~= anchorRelativePoint then
+            local anchor = AnchorUtil.CreateAnchor(anchorPoint or "TOPLEFT", anchorRelativePoint or menu:GetParent(), anchorRelativeTo or "BOTTOMLEFT", anchorX or 0, anchorY or 0)
+            menu:SetMenuAnchor(anchor)
+        end
+        menu:SetMenuOpen(true)
+    end
+
+    ---@param menu WowStyle1DropdownTemplatePolyfill
+    function DropDownUtil:IsMenuOpen(menu)
+        return menu.menu ~= nil
+    end
+
+    ---@param menu WowStyle1DropdownTemplatePolyfill
+    function DropDownUtil:CloseMenu(menu)
+        menu:SetMenuOpen(false)
+    end
+
+    ---@param menu WowStyle1DropdownTemplatePolyfill
+    ---@param anchorPoint? AnchorPoint
+    ---@param anchorRelativePoint? Region
+    ---@param anchorRelativeTo? AnchorPoint
+    ---@param anchorX? number
+    ---@param anchorY? number
+    function DropDownUtil:ToggleMenu(menu, anchorPoint, anchorRelativePoint, anchorRelativeTo, anchorX, anchorY)
+        self:PlaySound()
+        if self:IsMenuOpen(menu) then
+            self:CloseMenu(menu)
+        else
+            self:OpenMenu(menu, anchorPoint, anchorRelativePoint, anchorRelativeTo, anchorX, anchorY)
+        end
+    end
+
+    ---@param dropDownMenu UIDropDownMenuTemplatePolyfill
+    ---@param anchor? "cursor"|Region
+    ---@param anchorX? number
+    ---@param anchorY? number
+    function DropDownUtil:OpenDropDown(dropDownMenu, anchor, anchorX, anchorY)
+        ToggleDropDownMenu(1, nil, dropDownMenu, anchor, anchorX, anchorY)
+    end
+
+    ---@param dropDownMenu UIDropDownMenuTemplatePolyfill
+    function DropDownUtil:IsDropDownOpen(dropDownMenu)
+        return DropDownList1:IsShown() and DropDownList1.dropdown == dropDownMenu
+    end
+
+    ---@param dropDownMenu UIDropDownMenuTemplatePolyfill
+    function DropDownUtil:CloseDropDown(dropDownMenu)
+        if self:IsDropDownOpen(dropDownMenu) then
+            CloseDropDownMenus()
+        end
+    end
+
+    ---@param dropDownMenu UIDropDownMenuTemplatePolyfill
+    ---@param anchor? "cursor"|Region
+    ---@param anchorX? number
+    ---@param anchorY? number
+    function DropDownUtil:ToggleDropDown(dropDownMenu, anchor, anchorX, anchorY)
+        self:PlaySound()
+        if self:IsDropDownOpen(dropDownMenu) then
+            self:CloseDropDown(dropDownMenu)
+        else
+            self:OpenDropDown(dropDownMenu, anchor, anchorX, anchorY)
+        end
+    end
+
+end
+
 -- clients have API naming variants and this helps bridge that gap (this will require revisions/deletion as the clients unify their API's)
 local GetDetailedItemLevelInfo = GetDetailedItemLevelInfo or C_Item.GetDetailedItemLevelInfo ---@diagnostic disable-line: deprecated
 local GetItemInfo = GetItemInfo or C_Item.GetItemInfo ---@diagnostic disable-line: deprecated
@@ -1668,11 +1860,11 @@ do
     ---| 2 #Script handler executed successfully.
     ---| 3 #Script handler executed but silently errored.
 
-    ---@param object Frame|ScriptRegion @Any interface widget object that supports the methods GetScript.
+    ---@param object? Frame|ScriptRegion @Any interface widget object that supports the methods GetScript.
     ---@param before? fun() @Optional function to run right before the OnEnter script executes.
     ---@return ExecuteWidgetOnEnterSafelyStatus @Returns a status enum to indicate the outcome of the call.
     function util:ExecuteWidgetOnEnterSafely(object, before)
-        if type(object) ~= "table" or type(object.GetScript) ~= "function" then
+        if not object or type(object) ~= "table" or type(object.GetScript) ~= "function" then
             return 0
         end
         local func = object:GetScript("OnEnter")
@@ -1689,6 +1881,36 @@ do
             return 3
         end
         return 2
+    end
+
+    ---@return Frame|ScriptRegion? focus
+    function util:GetMouseFocus()
+        if GetMouseFoci then
+            local focused = GetMouseFoci() ---@type Region[]?
+            if not focused then
+                return
+            end
+            local focus = focused[1]
+            if not focus or focus == WorldFrame then
+                return
+            end
+            return focus
+        end
+        local focus = GetMouseFocus()
+        if not focus or focus == WorldFrame then
+            return
+        end
+        return focus
+    end
+
+    ---@param before? fun() @Optional function to run right before the OnEnter script executes.
+    ---@return ExecuteWidgetOnEnterSafelyStatus @Returns a status enum to indicate the outcome of the call.
+    function util:ExecuteFocusWidgetOnEnterSafely(before)
+        local focus = util:GetMouseFocus()
+        if not focus then
+            return 0
+        end
+        return self:ExecuteWidgetOnEnterSafely(focus, before)
     end
 
     ---@param object GameTooltip @Any interface widget object that supports the methods GetOwner.
@@ -1819,7 +2041,8 @@ do
         return ltd, regionId
     end
 
-    ---@return number|nil, string|nil @arg1 is the faction ID or nil if no faction is appropriate. arg2 is the faction localized text for display purposes.
+    ---@param unit? string
+    ---@return number? faction, string? localizedFaction
     function util:GetFaction(unit)
         if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) then
             return
@@ -1829,6 +2052,12 @@ do
             return
         end
         return ns.FACTION_TO_ID[faction], localizedFaction
+    end
+
+    ---@param factionName string
+    ---@return number? faction
+    function util:GetFactionFromName(factionName)
+        return ns.FACTION_TO_ID[factionName]
     end
 
     local CLIENT_RACE_TO_FACTION_ID = {}
@@ -2648,6 +2877,15 @@ do
         group.Alpha2:HookScript("OnFinished", function() group:Stop() end)
         group.SetShown = AnimationGroupFadeScaleInOutSetShown
         return group
+    end
+
+    ---@return boolean isTimerunning, number seasonID
+    function util:IsTimerunning()
+        local seasonID = PlayerGetTimerunningSeasonID and PlayerGetTimerunningSeasonID() or 0
+        if seasonID == 0 then
+            return false, seasonID
+        end
+        return true, seasonID
     end
 
 end
@@ -5954,7 +6192,7 @@ do
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteFocusWidgetOnEnterSafely()
     end
 
     function tooltip:CanLoad()
@@ -7013,7 +7251,7 @@ if not IS_CLASSIC_ERA then
 
     local function OnScroll()
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteFocusWidgetOnEnterSafely()
     end
 
     ---@param self LFGListFrameWildcardFrame
@@ -7126,7 +7364,7 @@ if IS_CLASSIC_ERA then
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteFocusWidgetOnEnterSafely()
     end
 
     function tooltip:CanLoad()
@@ -7247,7 +7485,7 @@ do
             return
         end
         GameTooltip:Hide()
-        util:ExecuteWidgetOnEnterSafely(GetMouseFocus())
+        util:ExecuteFocusWidgetOnEnterSafely()
     end
 
     function tooltip:CanLoad()
@@ -7645,7 +7883,7 @@ if IS_RETAIL then
         end
 
         if self:IsMouseOver(0, 0, 0, 0) then
-            local focus = GetMouseFocus()
+            local focus = util:GetMouseFocus()
             if focus and focus ~= GameTooltip:GetOwner() then
                 util:ExecuteWidgetOnEnterSafely(focus) ---@diagnostic disable-line: param-type-mismatch
             end
@@ -8811,20 +9049,11 @@ if IS_RETAIL then
 
         ---@alias ReplayFrameDropDownPositionOption "lock"|"unlock"|"dock"|"undock"
 
-        ---@class UIDropDownMenuTemplate : Frame
-
-        ---@class UIDropDownMenuInfo
-        ---@field public checked boolean
-        ---@field public text string
-        ---@field public hasArrow boolean
-        ---@field public notCheckable boolean
+        ---@class ReplayFrameDropDownMenuInfoPolyfill : UIDropDownMenuInfoPolyfill
         ---@field public menuList ReplayFrameDropDownMenuList
-        ---@field public func? fun(self: UIDropDownMenuInfo)
+        ---@field public func? fun(self: ReplayFrameDropDownMenuInfoPolyfill)
         ---@field public arg1 ReplayFrameConfigButton
         ---@field public arg2 Replay|ReplayFrameStyle|ReplayFrameDropDownPositionOption
-        ---@field public tooltipTitle? string
-        ---@field public tooltipText? string
-        ---@field public tooltipOnButton? boolean
 
         function ReplayFrameConfigButtonMixin:OnLoad()
             local parent = self:GetParent() ---@type ReplayFrame
@@ -8835,23 +9064,166 @@ if IS_RETAIL then
             self.Texture = self:CreateTexture(nil, "ARTWORK")
             self.Texture:SetAllPoints()
             self.Texture:SetTexture(851903)
-            self.DropDownMenu = CreateFrame("Frame", nil, self, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
-            UIDropDownMenu_Initialize(self.DropDownMenu, self.Initialize, "MENU")
+            if DropDownUtil:IsMenuSupported() then
+                self.DropDownMenu2 = DropDownUtil:CreateMenu(self, function(_, ...) self:InitializeMenu(...) end)
+            else
+                self.DropDownMenu = DropDownUtil:CreateDropDown(self, self.InitializeDropDown)
+            end
         end
 
-        ---@param self UIDropDownMenuTemplate
+        ---@param rootDescription WowStyle1DropdownTemplateRootDescriptionPolyfill
+        function ReplayFrameConfigButtonMixin:InitializeMenu(rootDescription)
+            if not replayFrame then
+                return
+            end
+            local replayDataProvider = replayFrame:GetReplayDataProvider()
+            local currentReplay = replayDataProvider:GetReplay()
+            if currentReplay then
+                rootDescription:CreateButton(L.REPLAY_MENU_COPY_URL, function() self:OnMenuCopyReplayUrlClick(currentReplay) end)
+            end
+            local replayMenu = rootDescription:CreateButton(L.REPLAY_MENU_REPLAY)
+            do
+                local mapID, _, otherMapIDs = replayFrame:GetKeystone()
+                ---@type WowStyle1DropdownTemplateRadioIsSelectedPolyfill
+                local function isSelected(index)
+                    return currentReplay == replays[index]
+                end
+                ---@type WowStyle1DropdownTemplateRadioSetSelectedPolyfill
+                local function setSelected(index)
+                    local replay = replays[index]
+                    self:OnMenuOptionClick("replay", replay)
+                end
+                ---@type WowStyle1DropdownTemplateTooltipHandlerPolyfill
+                local function setTooltip(tooltip, elementDescription)
+                    local index = elementDescription.data
+                    local replay = replays[index]
+                    local affixesText = util:TableMapConcat(replay.affixes, function(affix) return format("|Tinterface\\icons\\%s:16:16|t", affix.icon) end, "")
+                    GameTooltip_SetTitle(tooltip, affixesText)
+                end
+                for index, replay in ipairs(replays) do
+                    local checked = replay == currentReplay
+                    local dungeon = util:GetDungeonByID(replay.dungeon.id)
+                    local showDungeon = checked or (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
+                    if showDungeon then
+                        local radio = replayMenu:CreateRadio(replay.title, isSelected, setSelected, index)
+                        radio:SetTooltip(setTooltip)
+                    end
+                end
+            end
+            local timingMenu = rootDescription:CreateButton(L.REPLAY_MENU_TIMING)
+            do
+                local currentTiming = replayFrame:GetTiming()
+                ---@type WowStyle1DropdownTemplateRadioIsSelectedPolyfill
+                local function isSelected(index)
+                    return currentTiming == ReplayFrameTimings[index]
+                end
+                ---@type WowStyle1DropdownTemplateRadioSetSelectedPolyfill
+                local function setSelected(index)
+                    local timing = ReplayFrameTimings[index]
+                    self:OnMenuOptionClick("timing", timing)
+                end
+                for index, timing in ipairs(ReplayFrameTimings) do
+                    local text = L[format("REPLAY_TIMING_TITLE_%s", timing)]
+                    timingMenu:CreateRadio(text, isSelected, setSelected, index)
+                end
+            end
+            local styleMenu = rootDescription:CreateButton(L.REPLAY_MENU_STYLE)
+            do
+                local currentStyle = replayFrame:GetStyle()
+                ---@type WowStyle1DropdownTemplateRadioIsSelectedPolyfill
+                local function isSelected(index)
+                    return currentStyle == ReplayFrameStyles[index]
+                end
+                ---@type WowStyle1DropdownTemplateRadioSetSelectedPolyfill
+                local function setSelected(index)
+                    local style = ReplayFrameStyles[index]
+                    self:OnMenuOptionClick("style", style)
+                end
+                for index, style in ipairs(ReplayFrameStyles) do
+                    local text = L[format("REPLAY_STYLE_TITLE_%s", style)]
+                    styleMenu:CreateRadio(text, isSelected, setSelected, index)
+                end
+            end
+            local positionMenu = rootDescription:CreateButton(L.REPLAY_MENU_POSITION)
+            do
+                if config:Get("dockReplay") then
+                    positionMenu:CreateButton(L.REPLAY_MENU_UNDOCK, function() self:OnMenuPositionClick("undock") end)
+                else
+                    positionMenu:CreateButton(L.REPLAY_MENU_DOCK, function() self:OnMenuPositionClick("dock") end)
+                    if config:Get("lockReplay") then
+                        positionMenu:CreateButton(L.REPLAY_MENU_UNLOCK, function() self:OnMenuPositionClick("unlock") end)
+                    else
+                        positionMenu:CreateButton(L.REPLAY_MENU_LOCK, function() self:OnMenuPositionClick("lock") end)
+                    end
+                end
+            end
+            rootDescription:CreateButton(L.REPLAY_MENU_DISABLE, function() self:OnMenuDisableClick() end)
+        end
+
+        ---@param action "replay"|"timing"|"style"
+        ---@param data any
+        function ReplayFrameConfigButtonMixin:OnMenuOptionClick(action, data)
+            if action == "replay" then
+                local replay = data ---@type Replay
+                local replayDataProvider = replayFrame:GetReplayDataProvider()
+                replayDataProvider:SetReplay(replay, replayFrame:IsState("COMPLETED"))
+            elseif action == "timing" then
+                local timing = data ---@type ReplayFrameTiming
+                if ReplayFrameTimings[timing] then
+                    replayFrame:SetTiming(timing, true)
+                end
+            elseif action == "style" then
+                local style = data ---@type ReplayFrameStyle
+                if ReplayFrameStyles[style] then
+                    replayFrame:SetStyle(style, true)
+                end
+            end
+            self:Close()
+        end
+
+        ---@param replay Replay
+        function ReplayFrameConfigButtonMixin:OnMenuCopyReplayUrlClick(replay)
+            util:ShowCopyRaiderIOReplayPopup(replay.title, replay.run_url)
+            self:Close()
+        end
+
+        ---@param action ReplayFrameDropDownPositionOption
+        function ReplayFrameConfigButtonMixin:OnMenuPositionClick(action)
+            if action == "dock" then
+                config:Set("dockReplay", true)
+            elseif action == "undock" then
+                config:Set("dockReplay", false)
+            elseif action == "lock" then
+                config:Set("lockReplay", true)
+            elseif action == "unlock" then
+                config:Set("lockReplay", false)
+            end
+            replayFrame:UpdatePosition()
+            self:Close()
+        end
+
+        function ReplayFrameConfigButtonMixin:OnMenuDisableClick()
+            local popup = util:ShowStaticPopupDialog(DISABLE_REPLAY_POPUP, L.REPLAY_DISABLE_CONFIRM)
+            popup.OnAcceptCallback = function()
+                config:Set("enableReplay", false)
+                replay:Disable()
+            end
+            self:Close()
+        end
+
+        ---@param self UIDropDownMenuTemplatePolyfill
         ---@param level number
         ---@param menuList? ReplayFrameDropDownMenuList
-        function ReplayFrameConfigButtonMixin:Initialize(level, menuList)
+        function ReplayFrameConfigButtonMixin:InitializeDropDown(level, menuList)
             local parent = self:GetParent() ---@type ReplayFrameConfigButton
-            local info = UIDropDownMenu_CreateInfo() ---@type UIDropDownMenuInfo
+            local info = UIDropDownMenu_CreateInfo() ---@type ReplayFrameDropDownMenuInfoPolyfill
             if level == 1 then
                 info.notCheckable = true
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
                 local currentReplay = replayDataProvider:GetReplay()
                 if currentReplay then
                     info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_COPY_URL, false, nil
-                    info.func = parent.OnCopyReplayUrlClick
+                    info.func = parent.OnDropDownCopyReplayUrlClick
                     info.arg1 = parent
                     info.arg2 = currentReplay
                     UIDropDownMenu_AddButton(info, level)
@@ -8867,7 +9239,7 @@ if IS_RETAIL then
                 UIDropDownMenu_AddButton(info, level)
                 info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_POSITION, true, "position"
                 UIDropDownMenu_AddButton(info, level)
-                info.func = parent.OnDisableClick
+                info.func = parent.OnDropDownDisableClick
                 info.arg1 = parent
                 info.text, info.hasArrow, info.menuList = L.REPLAY_MENU_DISABLE, false, nil
                 UIDropDownMenu_AddButton(info, level)
@@ -8875,7 +9247,7 @@ if IS_RETAIL then
                 local replayDataProvider = replayFrame:GetReplayDataProvider()
                 local currentReplay = replayDataProvider:GetReplay()
                 local mapID, _, otherMapIDs = replayFrame:GetKeystone()
-                info.func = parent.OnOptionClick
+                info.func = parent.OnDropDownOptionClick
                 info.arg1 = parent
                 info.tooltipOnButton = true
                 for _, replay in ipairs(replays) do
@@ -8892,7 +9264,7 @@ if IS_RETAIL then
                 end
             elseif menuList == "timing" then
                 local currentTiming = replayFrame:GetTiming()
-                info.func = parent.OnOptionClick
+                info.func = parent.OnDropDownOptionClick
                 info.arg1 = parent
                 for _, timing in ipairs(ReplayFrameTimings) do
                     info.checked = timing == currentTiming
@@ -8902,7 +9274,7 @@ if IS_RETAIL then
                 end
             elseif menuList == "style" then
                 local currentStyle = replayFrame:GetStyle()
-                info.func = parent.OnOptionClick
+                info.func = parent.OnDropDownOptionClick
                 info.arg1 = parent
                 for _, style in ipairs(ReplayFrameStyles) do
                     info.checked = style == currentStyle
@@ -8914,7 +9286,7 @@ if IS_RETAIL then
                 info.checked = nil
                 info.notCheckable = true
                 info.hasArrow = false
-                info.func = parent.OnPositionClick
+                info.func = parent.OnDropDownPositionClick
                 info.arg1 = parent
                 if config:Get("dockReplay") then
                     info.text = L.REPLAY_MENU_UNDOCK
@@ -8937,8 +9309,8 @@ if IS_RETAIL then
             end
         end
 
-        ---@param self UIDropDownMenuInfo
-        function ReplayFrameConfigButtonMixin:OnOptionClick()
+        ---@param self ReplayFrameDropDownMenuInfoPolyfill
+        function ReplayFrameConfigButtonMixin:OnDropDownOptionClick()
             local dropDownMenu = self.arg1
             local value = self.arg2 ---@type ReplayFrameStyle|ReplayFrameTiming
             if value and type(value) == "string" then
@@ -8957,16 +9329,16 @@ if IS_RETAIL then
             dropDownMenu:Close()
         end
 
-        ---@param self UIDropDownMenuInfo
-        function ReplayFrameConfigButtonMixin:OnCopyReplayUrlClick()
+        ---@param self ReplayFrameDropDownMenuInfoPolyfill
+        function ReplayFrameConfigButtonMixin:OnDropDownCopyReplayUrlClick()
             local dropDownMenu = self.arg1
             local value = self.arg2 ---@type Replay
             util:ShowCopyRaiderIOReplayPopup(value.title, value.run_url)
             dropDownMenu:Close()
         end
 
-        ---@param self UIDropDownMenuInfo
-        function ReplayFrameConfigButtonMixin:OnPositionClick()
+        ---@param self ReplayFrameDropDownMenuInfoPolyfill
+        function ReplayFrameConfigButtonMixin:OnDropDownPositionClick()
             local dropDownMenu = self.arg1
             local action = self.arg2 ---@type ReplayFrameDropDownPositionOption
             if action == "dock" then
@@ -8982,8 +9354,8 @@ if IS_RETAIL then
             dropDownMenu:Close()
         end
 
-        ---@param self UIDropDownMenuInfo
-        function ReplayFrameConfigButtonMixin:OnDisableClick()
+        ---@param self ReplayFrameDropDownMenuInfoPolyfill
+        function ReplayFrameConfigButtonMixin:OnDropDownDisableClick()
             local dropDownMenu = self.arg1
             local popup = util:ShowStaticPopupDialog(DISABLE_REPLAY_POPUP, L.REPLAY_DISABLE_CONFIRM)
             popup.OnAcceptCallback = function()
@@ -8994,15 +9366,32 @@ if IS_RETAIL then
         end
 
         function ReplayFrameConfigButtonMixin:Open()
-            ToggleDropDownMenu(1, nil, self.DropDownMenu, "cursor", 2, 2)
+            DropDownUtil:PlaySound()
+            if self.DropDownMenu2 then
+                DropDownUtil:OpenMenu(self.DropDownMenu2, nil, self)
+            elseif self.DropDownMenu then
+                DropDownUtil:OpenDropDown(self.DropDownMenu, "cursor", 2, 2)
+            end
         end
 
         function ReplayFrameConfigButtonMixin:Close()
-            CloseDropDownMenus()
+            if self.DropDownMenu2 then
+                DropDownUtil:CloseMenu(self.DropDownMenu2)
+            elseif self.DropDownMenu then
+                DropDownUtil:CloseDropDown(self.DropDownMenu)
+            end
+        end
+
+        function ReplayFrameConfigButtonMixin:IsOpen()
+            if self.DropDownMenu2 then
+                return DropDownUtil:IsMenuOpen(self.DropDownMenu2)
+            elseif self.DropDownMenu then
+                return DropDownUtil:IsDropDownOpen(self.DropDownMenu)
+            end
         end
 
         function ReplayFrameConfigButtonMixin:Toggle()
-            if DropDownList1:IsShown() and DropDownList1.dropdown == self.DropDownMenu then
+            if self:IsOpen() then
                 self:Close()
             else
                 self:Open()
@@ -9014,7 +9403,7 @@ if IS_RETAIL then
                 return
             end
             if self.Texture:IsShown() then
-                PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
+                DropDownUtil:PlaySound()
             end
             self:Toggle()
         end
@@ -11242,6 +11631,12 @@ do
         WORLD_STATE_SCORE = true,
     }
 
+    ---@type table<string, number?> `1` LFD
+    local validTags = {
+        MENU_LFG_FRAME_SEARCH_ENTRY = 1,
+        MENU_LFG_FRAME_MEMBER_APPLY = 1,
+    }
+
     -- if the dropdown is a valid type of dropdown then we mark it as acceptable to check for a unit on it
     local function IsValidDropDown(bdropdown)
         return (bdropdown == LFGListFrameDropDown and config:Get("enableLFGDropdown")) or (type(bdropdown.which) == "string" and validTypes[bdropdown.which])
@@ -11397,11 +11792,150 @@ do
         return profile
     end
 
-    ---@type LibDropDownExtension
+    ---@type LibDropDownExtension?
     local LibDropDownExtension = LibStub and LibStub:GetLibrary("LibDropDownExtension-1.0", true)
 
+    ---@class PlayerLocationPolyfill
+    ---@field public guid? string
+    ---@field public unit? string
+    ---@field public IsValid fun(self: PlayerLocationPolyfill): boolean
+    ---@field public IsGUID fun(self: PlayerLocationPolyfill): boolean
+    ---@field public GetGUID fun(self: PlayerLocationPolyfill): string
+    ---@field public GetUnit fun(self: PlayerLocationPolyfill): string
+    ---@field public IsUnit fun(self: PlayerLocationPolyfill): boolean
+    ---@field public IsCommunityData fun(self: PlayerLocationPolyfill): boolean
+
+    ---@class ModifyMenuCallbackRootDescriptionContextDataPolyfill
+    ---@field public fromPlayerFrame? boolean
+    ---@field public isMobile? boolean
+    ---@field public isRafRecruit? boolean
+    ---@field public name? string
+    ---@field public server? string
+    ---@field public unit? string
+    ---@field public which? string
+    ---@field public accountInfo? BNetAccountInfo
+    ---@field public playerLocation? PlayerLocationPolyfill
+
+    ---@class ModifyMenuCallbackRootDescriptionPolyfill
+    ---@field public tag string
+    ---@field public contextData? ModifyMenuCallbackRootDescriptionContextDataPolyfill
+    ---@field public CreateDivider fun(self: ModifyMenuCallbackRootDescriptionPolyfill)
+    ---@field public CreateTitle fun(self: ModifyMenuCallbackRootDescriptionPolyfill, text: string)
+    ---@field public CreateButton fun(self: ModifyMenuCallbackRootDescriptionPolyfill, text: string, callback: fun())
+
+    ---@class ModifyMenuReturnPolyfill
+    ---@field public Unregister fun(self: ModifyMenuReturnPolyfill)
+
+    ---@alias ModifyMenuCallbackFuncPolyfill fun(owner: Frame, rootDescription: ModifyMenuCallbackRootDescriptionPolyfill, contextData: ModifyMenuCallbackRootDescriptionContextDataPolyfill)
+
+    ---@alias ModifyMenu fun(tag: string, callback: ModifyMenuCallbackFuncPolyfill): ModifyMenuReturnPolyfill
+
+    ---@type ModifyMenu?
+    local ModifyMenu = Menu and Menu.ModifyMenu
+
+    ---@param rootDescription ModifyMenuCallbackRootDescriptionPolyfill
+    ---@param contextData? ModifyMenuCallbackRootDescriptionContextDataPolyfill
+    local function IsValidMenu(rootDescription, contextData)
+        if not contextData then
+            local tagType = validTags[rootDescription.tag]
+            return not tagType or (tagType == 1 and config:Get("enableLFGDropdown"))
+        end
+        local which = contextData.which
+        return which and validTypes[which]
+    end
+
+    ---@param owner any
+    ---@return string? name, string? realm, number? level, string? unit, number? faction
+    local function GetLFGListInfo(owner)
+        local resultID = owner.resultID
+        if resultID then
+            local searchResultInfo = C_LFGList.GetSearchResultInfo(resultID)
+            local name, realm = util:GetNameRealm(searchResultInfo.leaderName)
+            local faction = searchResultInfo.leaderFactionGroup
+            return name, realm, nil, nil, faction
+        end
+        local memberIdx = owner.memberIdx
+        if not memberIdx then
+            return
+        end
+        local parent = owner:GetParent()
+        if not parent then
+            return
+        end
+        local applicantID = parent.applicantID
+        if not applicantID then
+            return
+        end
+        local fullName, _, _, level = C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
+        local name, realm = util:GetNameRealm(fullName)
+        return name, realm, level
+    end
+
+    ---@param accountInfo BNetAccountInfo
+    ---@return string? name, string? realm, number? level, string? unit, number? faction
+    local function GetBNetAccountInfo(accountInfo)
+        local gameAccountInfo = accountInfo.gameAccountInfo
+        local characterName = gameAccountInfo.characterName
+        local realmName = gameAccountInfo.realmName
+        local characterLevel = gameAccountInfo.characterLevel
+        local factionName = gameAccountInfo.factionName
+        local faction = factionName and util:GetFactionFromName(factionName)
+        return characterName, realmName, characterLevel, nil, faction
+    end
+
+    ---@param owner any
+    ---@param rootDescription ModifyMenuCallbackRootDescriptionPolyfill
+    ---@param contextData? ModifyMenuCallbackRootDescriptionContextDataPolyfill
+    ---@return string? name, string? realm, number? level, string? unit, number? faction
+    local function GetNameRealmForMenu(owner, rootDescription, contextData)
+        if not contextData then
+            local tagType = validTags[rootDescription.tag]
+            if tagType == 1 then
+                return GetLFGListInfo(owner)
+            end
+            return
+        end
+        local unit = contextData.unit
+        local name, realm, level, faction ---@type string?, string?, number?, number?
+        if unit and UnitExists(unit) then
+            name, realm = util:GetNameRealm(unit)
+            level = UnitLevel(unit)
+            faction = util:GetFaction(unit)
+            return name, realm, level, unit, faction
+        end
+        if contextData.isRafRecruit then
+            local accountInfo = contextData.accountInfo
+            if accountInfo then
+                return GetBNetAccountInfo(accountInfo)
+            end
+        end
+        name, realm, unit = util:GetNameRealm(contextData.name, contextData.server)
+        return name, realm, level, unit, faction
+    end
+
+    ---@type ModifyMenuCallbackFuncPolyfill
+    local function OnMenuShow(owner, rootDescription, contextData)
+        if not config:Get("showDropDownCopyURL") then
+            return
+        end
+        if not IsValidMenu(rootDescription, contextData) then
+            return
+        end
+        selectedName, selectedRealm, selectedLevel, selectedUnit, selectedFaction = GetNameRealmForMenu(owner, rootDescription, contextData)
+        if not selectedName or not util:IsMaxLevel(selectedLevel, true) then
+            return
+        end
+        rootDescription:CreateDivider()
+        rootDescription:CreateTitle(addonName)
+        for _, option in ipairs(unitOptions) do
+            if not option.show or option.show() then
+                rootDescription:CreateButton(option.text, option.func)
+            end
+        end
+    end
+
     function dropdown:CanLoad()
-        return LibDropDownExtension
+        return config:IsEnabled()
     end
 
     function dropdown:OnLoad()
@@ -11441,7 +11975,20 @@ do
                 end
             }
         }
-        LibDropDownExtension:RegisterEvent("OnShow OnHide", OnToggle, 1, dropdown)
+        if ModifyMenu then
+            for name, enabled in pairs(validTypes) do
+                if enabled then
+                    local tag = format("MENU_UNIT_%s", name)
+                    ModifyMenu(tag, GenerateClosure(OnMenuShow))
+                end
+            end
+            for tag, _ in pairs(validTags) do
+                ModifyMenu(tag, GenerateClosure(OnMenuShow))
+            end
+        end
+        if LibDropDownExtension then
+            LibDropDownExtension:RegisterEvent("OnShow OnHide", OnToggle, 1, dropdown)
+        end
     end
 
 end
@@ -12519,8 +13066,152 @@ if IS_RETAIL then
 
 end
 
+-- combatlog.lua
+-- dependencies: module, callback, config, util
+do
+
+    ---@class CombatLogModule : Module
+    local combatlog = ns:NewModule("CombatLog") ---@type CombatLogModule
+    local callback = ns:GetModule("Callback") ---@type CallbackModule
+    local config = ns:GetModule("Config") ---@type ConfigModule
+    local util = ns:GetModule("Util") ---@type UtilModule
+
+    local clientConfig = ns:GetClientConfig()
+
+    local function UpdateModuleState()
+        local enableCombatLogTracking
+        if config:Get("allowClientToControlCombatLog") then
+            enableCombatLogTracking = clientConfig and clientConfig.enableCombatLogTracking
+        end
+        if enableCombatLogTracking == nil then
+            enableCombatLogTracking = config:Get("enableCombatLogTracking")
+        end
+        if enableCombatLogTracking then
+            C_CVar.SetCVar("advancedCombatLogging", "1")
+            combatlog:Enable()
+        else
+            combatlog:Disable()
+        end
+    end
+
+    function combatlog:CanLoad()
+        return config:IsEnabled() and not util:IsTimerunning()
+    end
+
+    function combatlog:OnLoad()
+        UpdateModuleState()
+        callback:RegisterEvent(UpdateModuleState, "RAIDERIO_SETTINGS_SAVED")
+    end
+
+    local LibCombatLogging = LibStub and LibStub:GetLibrary("LibCombatLogging-1.0", true) ---@type LibCombatLogging
+    local LoggingCombat = LibCombatLogging and function(...) return LibCombatLogging.LoggingCombat("Raider.IO", ...) end or _G.LoggingCombat
+
+    local autoLogFromMapID do
+        ---@param instances DungeonInstance[]
+        local function getLowestMapIdForInstances(instances)
+            local mapID
+            for _, instance in ipairs(instances) do
+                if not mapID or mapID > instance.instance_map_id then
+                    mapID = instance.instance_map_id
+                end
+            end
+            return mapID
+        end
+        local raidMapID = getLowestMapIdForInstances(ns:GetDungeonRaidData())
+        local keystoneMapID = getLowestMapIdForInstances(select(3, ns:GetDungeonData()))
+        if raidMapID and keystoneMapID then
+            autoLogFromMapID = keystoneMapID > raidMapID and raidMapID or keystoneMapID
+        elseif raidMapID then
+            autoLogFromMapID = raidMapID
+        elseif keystoneMapID then
+            autoLogFromMapID = keystoneMapID
+        else
+            autoLogFromMapID = 0
+        end
+    end
+
+    local alwaysLogDifficultyIDs = {
+        -- scenario
+        [167] = true, -- Torghast
+        -- party
+        [23] = true, -- Mythic
+        [8] = true, -- Mythic Keystone
+    }
+
+    local canLogDifficultyIDs = {}
+
+    if IS_RETAIL then
+        -- raid
+        canLogDifficultyIDs[14] = true -- Normal
+        canLogDifficultyIDs[15] = true -- Heroic
+        canLogDifficultyIDs[16] = true -- Mythic
+        canLogDifficultyIDs[17] = true -- LFR
+    elseif IS_CLASSIC_ERA then
+        -- classic era
+        canLogDifficultyIDs[9] = true -- Classic40PlayerRaid
+    elseif IS_CLASSIC then
+        -- classic
+        canLogDifficultyIDs[3] = true -- Classic10PlayerNormalRaid
+        canLogDifficultyIDs[4] = true -- Classic25PlayerNormalRaid
+        canLogDifficultyIDs[5] = true -- Classic10PlayerHeroicRaid
+        canLogDifficultyIDs[6] = true -- Classic25PlayerHeroicRaid
+    end
+
+    local lastActive
+    local previouslyEnabledLogging
+    local function CheckInstance(newModuleState)
+        local _, _, difficultyID, _, _, _, _, instanceMapID = GetInstanceInfo()
+        if not difficultyID or not instanceMapID then
+            return
+        end
+        local isActive = not not (alwaysLogDifficultyIDs[difficultyID] or (instanceMapID >= autoLogFromMapID and canLogDifficultyIDs[difficultyID]))
+        if isActive == lastActive then
+            return
+        end
+        lastActive = isActive
+        local isLogging = LoggingCombat()
+        local setLogging
+        if isActive and isLogging and newModuleState == true then
+            setLogging = true
+        elseif isActive and isLogging and newModuleState == false then
+            setLogging = false
+        elseif isActive and not isLogging then
+            setLogging = true
+        elseif not isActive and isLogging then
+            setLogging = false
+        end
+        if setLogging == nil then
+            return
+        end
+        if not setLogging and not previouslyEnabledLogging then
+            return
+        end
+        previouslyEnabledLogging = setLogging
+        config:Set("previouslyEnabledLogging", setLogging)
+        LoggingCombat(setLogging)
+        if not LibCombatLogging then
+            local info = ChatTypeInfo.SYSTEM
+            DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFFRaider.IO|r: " .. (setLogging and COMBATLOGENABLED or COMBATLOGDISABLED), info.r, info.g, info.b, info.id)
+        end
+    end
+
+    function combatlog:OnEnable()
+        previouslyEnabledLogging = config:Get("previouslyEnabledLogging")
+        CheckInstance(true)
+        callback:RegisterEvent(CheckInstance, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED_INDOORS", "RAID_INSTANCE_WELCOME")
+    end
+
+    function combatlog:OnDisable()
+        lastActive = nil
+        CheckInstance(false)
+        callback:UnregisterCallback(CheckInstance)
+        lastActive = nil
+    end
+
+end
+
 -- settings.lua
--- dependencies: module, callback, json, config, util, profile, search, rwf?
+-- dependencies: module, callback, json, config, util, profile, search, rwf?, combatlog
 do
 
     ---@class SettingsModule : Module
@@ -12532,6 +13223,7 @@ do
     local profile = ns:GetModule("Profile") ---@type ProfileModule
     local search = ns:GetModule("Search") ---@type SearchModule
     local rwf = ns:GetModule("RaceWorldFirst", true) ---@type RaceWorldFirstModule?
+    local combatlog = ns:GetModule("CombatLog") ---@type CombatLogModule
 
     ---@type InternalStaticPopupDialog
     local RELOAD_POPUP = {
@@ -13147,6 +13839,14 @@ do
             return frame
         end
 
+        function configOptions.CreateDescription(self, text, parentFrame)
+            local frame = self:CreateWidget("Frame", nil, parentFrame)
+            frame.bg:Hide()
+            frame.text:SetFontObject("GameFontWhite")
+            frame.text:SetText(text)
+            return frame
+        end
+
         ---@class RaiderIOSettingsModuleToggleWidget : RaiderIOSettingsBaseWidget
         ---@field public isModuleToggle boolean
         ---@field public addon1? string
@@ -13274,11 +13974,41 @@ do
 
         ---@param self RaiderIOSettingsDropDownWidget
         function configOptions.DropDownOnClick(self)
-            PlaySound(SOUNDKIT.IG_CHAT_EMOTE_BUTTON)
-            if DropDownList1:IsShown() and DropDownList1.dropdown == self.toggleButton.DropDownMenu then
-                CloseDropDownMenus()
-            else
-                ToggleDropDownMenu(1, nil, self.toggleButton.DropDownMenu, self.toggleButton, 0, 0)
+            local toggleButton = self.toggleButton
+            if toggleButton.DropDownMenu2 then
+                DropDownUtil:ToggleMenu(toggleButton.DropDownMenu2, nil, toggleButton)
+            elseif toggleButton.DropDownMenu then
+                DropDownUtil:ToggleDropDown(toggleButton.DropDownMenu, toggleButton, 0, 0)
+            end
+        end
+
+        ---@param self RaiderIOSettingsDropDownWidget
+        ---@param rootDescription WowStyle1DropdownTemplateRootDescriptionPolyfill
+        function configOptions.MenuOnInitialize(self, rootDescription)
+            local value = self.selected and self.selected.value
+            local currentIndex = 0
+            for index, option in ipairs(self.options) do
+                if value == option.value then
+                    currentIndex = index
+                    break
+                end
+            end
+            ---@type WowStyle1DropdownTemplateRadioIsSelectedPolyfill
+            local function isSelected(index)
+                return currentIndex == index
+            end
+            ---@type WowStyle1DropdownTemplateRadioSetSelectedPolyfill
+            local function setSelected(index)
+                local option = self.options[index]
+                currentIndex = index
+                value = option.value
+                self.selected = option
+                local toggleButton = self.toggleButton
+                toggleButton.text:SetText(option.text)
+                DropDownUtil:CloseMenu(toggleButton.DropDownMenu2)
+            end
+            for index, option in ipairs(self.options) do
+                rootDescription:CreateRadio(option.text, isSelected, setSelected, index)
             end
         end
 
@@ -13313,8 +14043,9 @@ do
             local parent = self.arg1
             local option = self.arg2
             parent.selected = option
-            parent.toggleButton.text:SetText(option.text)
-            CloseDropDownMenus()
+            local toggleButton = parent.toggleButton
+            toggleButton.text:SetText(option.text)
+            DropDownUtil:CloseDropDown(toggleButton.DropDownMenu)
         end
 
         ---@param self RaiderIOConfigOptions
@@ -13349,10 +14080,11 @@ do
             frame.toggleButton:EnableMouse(true)
             frame.toggleButton:RegisterForClicks("LeftButtonUp")
             frame.toggleButton:SetScript("OnClick", function(...) self.DropDownOnClick(frame, ...) end)
-            local value = config:Get(cvar)
-            local valueText = L[format("REPLAY_AUTO_SELECTION_%s", value)] ---@type string?
-            frame.toggleButton.DropDownMenu = CreateFrame("Frame", nil, frame.toggleButton, "UIDropDownMenuTemplate") ---@class UIDropDownMenuTemplate
-            UIDropDownMenu_Initialize(frame.toggleButton.DropDownMenu, function(...) self.DropDownOnInitialize(frame, ...) end, "MENU")
+            if DropDownUtil:IsMenuSupported() then
+                frame.toggleButton.DropDownMenu2 = DropDownUtil:CreateMenu(frame.toggleButton, function(_, ...) self.MenuOnInitialize(frame, ...) end)
+            else
+                frame.toggleButton.DropDownMenu = DropDownUtil:CreateDropDown(frame.toggleButton, function(...) self.DropDownOnInitialize(frame, ...) end)
+            end
             self.dropdowns[#self.dropdowns + 1] = frame
             return frame
         end
@@ -13382,7 +14114,8 @@ do
         ---@field public r number
         ---@field public g number
         ---@field public b number
-        ---@field public opacity number
+        ---@field public a number
+        ---@field public opacity? number TODO `pre-11.0`
 
         ---@class OpenColorPickerOptions : OpenColorPickerColorOptions
         ---@field public hasOpacity boolean
@@ -13390,9 +14123,6 @@ do
         ---@field public opacityFunc fun()
         ---@field public cancelFunc fun(previousValues: OpenColorPickerColorOptions)
         ---@field public extraInfo? any
-
-        ---@alias OpenColorPicker fun(options: OpenColorPickerOptions)
-        local OpenColorPicker = OpenColorPicker ---@type OpenColorPicker
 
         ---@param self RaiderIOSettingsColorPickerWidget
         function configOptions.ColorPickerOnClick(self)
@@ -13403,29 +14133,35 @@ do
             ---@param applyPreviousValues? OpenColorPickerColorOptions
             local function update(applyPreviousValues)
                 if applyPreviousValues then
+                    local a = applyPreviousValues.a and (1 - applyPreviousValues.a) or applyPreviousValues.opacity -- TODO `pre-11.0`
                     value.r, value.g, value.b = applyPreviousValues.r, applyPreviousValues.g, applyPreviousValues.b
-                    if 1 + applyPreviousValues.opacity > 1 then
-                        value.a = 1 - applyPreviousValues.opacity
+                    if 1 + a > 1 then
+                        value.a = 1 - a
                     else
-                        value.a = 1 + applyPreviousValues.opacity
+                        value.a = 1 + a
                     end
                 else
+                    local a = ColorPickerFrame.GetColorAlpha and ColorPickerFrame:GetColorAlpha() or (1 - OpacitySliderFrame:GetValue()) -- TODO `pre-11.0`
                     value.r, value.g, value.b = ColorPickerFrame:GetColorRGB()
-                    value.a = 1 - OpacitySliderFrame:GetValue()
+                    value.a = a
                 end
                 configOptions.ColorPickerUpdate(self, value)
             end
-            OpenColorPicker({
+
+            ---@type OpenColorPickerOptions
+            local options = {
                 r = value.r,
                 g = value.g,
                 b = value.b,
-                opacity = 1 - value.a,
+                opacity = value.a,
                 hasOpacity = true,
                 swatchFunc = function() update() end,
                 opacityFunc = function() update() end,
                 cancelFunc = function(previousValues) update(previousValues) end,
                 -- extraInfo = {},
-            })
+            }
+
+            ColorPickerFrame:SetupColorPickerAndShow(options)
         end
 
         ---@param self RaiderIOConfigOptions
@@ -13683,16 +14419,20 @@ do
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)
-            local allowClientToControlCombatLogFrame = configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC, "allowClientToControlCombatLog")
-            local allowClientToControlCombatLogFrameIsChecked = function() return allowClientToControlCombatLogFrame.checkButton:GetChecked() end
-            local clientConfig = ns:GetClientConfig()
-            local isClientAutoCombatLoggingEnabled = function()
-                if not allowClientToControlCombatLogFrameIsChecked() then
-                    return
+            if combatlog:IsLoaded() then
+                local allowClientToControlCombatLogFrame = configOptions:CreateOptionToggle(L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC, "allowClientToControlCombatLog")
+                local allowClientToControlCombatLogFrameIsChecked = function() return allowClientToControlCombatLogFrame.checkButton:GetChecked() end
+                local clientConfig = ns:GetClientConfig()
+                local isClientAutoCombatLoggingEnabled = function()
+                    if not allowClientToControlCombatLogFrameIsChecked() then
+                        return
+                    end
+                    return clientConfig and clientConfig.enableCombatLogTracking, config:Get("enableCombatLogTracking")
                 end
-                return clientConfig and clientConfig.enableCombatLogTracking, config:Get("enableCombatLogTracking")
+                configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking", { isDisabled = allowClientToControlCombatLogFrameIsChecked, isFakeChecked = isClientAutoCombatLoggingEnabled })
+            else
+                configOptions:CreateDescription(L.AUTO_COMBATLOG_DISABLED_DESC)
             end
-            configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking", { isDisabled = allowClientToControlCombatLogFrameIsChecked, isFakeChecked = isClientAutoCombatLoggingEnabled })
 
             configOptions:CreatePadding()
             configOptions:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
@@ -13887,7 +14627,14 @@ do
             end
         end
 
-        local panel = CreateFrame("Frame", addonName .. "_SettingsPanel") ---@class RaiderIOConfigSettingsPanelFrame : Frame
+        ---@class RaiderIOConfigSettingsPanelFrame : Frame
+        ---@field public name string
+        ---@field public parent? Frame
+        ---@field public OnCommit? fun()
+        ---@field public OnDefault? fun()
+        ---@field public OnRefresh? fun()
+
+        local panel = CreateFrame("Frame", addonName .. "_SettingsPanel") ---@class RaiderIOConfigSettingsPanelFrame
         panel.name = addonName
         panel:Hide()
 
@@ -13897,7 +14644,15 @@ do
         button:SetPoint("TOPLEFT", 16, -16)
         button:SetScript("OnClick", Button_OnClick)
 
-        InterfaceOptions_AddCategory(panel, true)
+        if panel.parent then
+            local category = Settings.GetCategory(panel.parent)
+            local subcategory, layout = Settings.RegisterCanvasLayoutSubcategory(category, panel, panel.name, panel.name)
+            subcategory.ID = panel.name
+        else
+            local category, layout = Settings.RegisterCanvasLayoutCategory(panel, panel.name, panel.name)
+            category.ID = panel.name
+            Settings.RegisterAddOnCategory(category)
+        end
     end
 
     local function CreateSlashCommand()
@@ -13999,149 +14754,6 @@ do
     -- always have the interface panel and slash commands available
     CreateInterfacePanel()
     CreateSlashCommand()
-
-end
-
--- combatlog.lua
--- dependencies: module, callback, config
-do
-
-    ---@class CombatLogModule : Module
-    local combatlog = ns:NewModule("CombatLog") ---@type CombatLogModule
-    local callback = ns:GetModule("Callback") ---@type CallbackModule
-    local config = ns:GetModule("Config") ---@type ConfigModule
-
-    local clientConfig = ns:GetClientConfig()
-
-    local function UpdateModuleState()
-        local enableCombatLogTracking
-        if config:Get("allowClientToControlCombatLog") then
-            enableCombatLogTracking = clientConfig and clientConfig.enableCombatLogTracking
-        end
-        if enableCombatLogTracking == nil then
-            enableCombatLogTracking = config:Get("enableCombatLogTracking")
-        end
-        if enableCombatLogTracking then
-            C_CVar.SetCVar("advancedCombatLogging", "1")
-            combatlog:Enable()
-        else
-            combatlog:Disable()
-        end
-    end
-
-    function combatlog:CanLoad()
-        return config:IsEnabled()
-    end
-
-    function combatlog:OnLoad()
-        UpdateModuleState()
-        callback:RegisterEvent(UpdateModuleState, "RAIDERIO_SETTINGS_SAVED")
-    end
-
-    local LibCombatLogging = LibStub and LibStub:GetLibrary("LibCombatLogging-1.0", true) ---@type LibCombatLogging
-    local LoggingCombat = LibCombatLogging and function(...) return LibCombatLogging.LoggingCombat("Raider.IO", ...) end or _G.LoggingCombat
-
-    local autoLogFromMapID do
-        ---@param instances DungeonInstance[]
-        local function getLowestMapIdForInstances(instances)
-            local mapID
-            for _, instance in ipairs(instances) do
-                if not mapID or mapID > instance.instance_map_id then
-                    mapID = instance.instance_map_id
-                end
-            end
-            return mapID
-        end
-        local raidMapID = getLowestMapIdForInstances(ns:GetDungeonRaidData())
-        local keystoneMapID = getLowestMapIdForInstances(select(3, ns:GetDungeonData()))
-        if raidMapID and keystoneMapID then
-            autoLogFromMapID = keystoneMapID > raidMapID and raidMapID or keystoneMapID
-        elseif raidMapID then
-            autoLogFromMapID = raidMapID
-        elseif keystoneMapID then
-            autoLogFromMapID = keystoneMapID
-        else
-            autoLogFromMapID = 0
-        end
-    end
-
-    local alwaysLogDifficultyIDs = {
-        -- scenario
-        [167] = true, -- Torghast
-        -- party
-        [23] = true, -- Mythic
-        [8] = true, -- Mythic Keystone
-    }
-
-    local canLogDifficultyIDs = {}
-
-    if IS_RETAIL then
-        -- raid
-        canLogDifficultyIDs[14] = true -- Normal
-        canLogDifficultyIDs[15] = true -- Heroic
-        canLogDifficultyIDs[16] = true -- Mythic
-        canLogDifficultyIDs[17] = true -- LFR
-    elseif IS_CLASSIC_ERA then
-        -- classic era
-        canLogDifficultyIDs[9] = true -- Classic40PlayerRaid
-    elseif IS_CLASSIC then
-        -- classic
-        canLogDifficultyIDs[3] = true -- Classic10PlayerNormalRaid
-        canLogDifficultyIDs[4] = true -- Classic25PlayerNormalRaid
-        canLogDifficultyIDs[5] = true -- Classic10PlayerHeroicRaid
-        canLogDifficultyIDs[6] = true -- Classic25PlayerHeroicRaid
-    end
-
-    local lastActive
-    local previouslyEnabledLogging
-    local function CheckInstance(newModuleState)
-        local _, _, difficultyID, _, _, _, _, instanceMapID = GetInstanceInfo()
-        if not difficultyID or not instanceMapID then
-            return
-        end
-        local isActive = not not (alwaysLogDifficultyIDs[difficultyID] or (instanceMapID >= autoLogFromMapID and canLogDifficultyIDs[difficultyID]))
-        if isActive == lastActive then
-            return
-        end
-        lastActive = isActive
-        local isLogging = LoggingCombat()
-        local setLogging
-        if isActive and isLogging and newModuleState == true then
-            setLogging = true
-        elseif isActive and isLogging and newModuleState == false then
-            setLogging = false
-        elseif isActive and not isLogging then
-            setLogging = true
-        elseif not isActive and isLogging then
-            setLogging = false
-        end
-        if setLogging == nil then
-            return
-        end
-        if not setLogging and not previouslyEnabledLogging then
-            return
-        end
-        previouslyEnabledLogging = setLogging
-        config:Set("previouslyEnabledLogging", setLogging)
-        LoggingCombat(setLogging)
-        if not LibCombatLogging then
-            local info = ChatTypeInfo.SYSTEM
-            DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFFRaider.IO|r: " .. (setLogging and COMBATLOGENABLED or COMBATLOGDISABLED), info.r, info.g, info.b, info.id)
-        end
-    end
-
-    function combatlog:OnEnable()
-        previouslyEnabledLogging = config:Get("previouslyEnabledLogging")
-        CheckInstance(true)
-        callback:RegisterEvent(CheckInstance, "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED_INDOORS", "RAID_INSTANCE_WELCOME")
-    end
-
-    function combatlog:OnDisable()
-        lastActive = nil
-        CheckInstance(false)
-        callback:UnregisterCallback(CheckInstance)
-        lastActive = nil
-    end
 
 end
 

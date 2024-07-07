@@ -11942,21 +11942,21 @@ do
         self:Enable()
         unitOptions = {
             { ---@diagnostic disable-line: missing-fields
-                text = L.COPY_RAIDERIO_PROFILE_URL,
-                func = function()
-                    if DropDownOptionModifiedClickHandler() then
-                        return
-                    end
-                    util:ShowCopyRaiderIOProfilePopup(selectedName, selectedRealm)
-                end
-            },
-            { ---@diagnostic disable-line: missing-fields
                 text = L.SHOW_RAIDERIO_PROFILE_OPTION,
                 func = function()
                     ShowSearchAndProfile()
                 end,
                 show = function()
                     return util:ProfileHasRenderableData(GetProfileForDropDown())
+                end
+            },
+            { ---@diagnostic disable-line: missing-fields
+                text = L.COPY_RAIDERIO_PROFILE_URL,
+                func = function()
+                    if DropDownOptionModifiedClickHandler() then
+                        return
+                    end
+                    util:ShowCopyRaiderIOProfilePopup(selectedName, selectedRealm)
                 end
             },
             { ---@diagnostic disable-line: missing-fields

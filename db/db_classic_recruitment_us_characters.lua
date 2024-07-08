@@ -1,8 +1,8 @@
 --
--- Copyright (c) 2024 by Ludicrous Speed, LLC
+-- Copyright (c) 2023 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="us",date="2024-07-07T21:41:15Z",numCharacters=193,db={}}
+local provider={name=...,data=3,region="us",date="2024-07-08T06:11:02Z",numCharacters=192,db={}}
 local F
 
 F = function() provider.db["Grobbulus"]={0,"Alandia","Alice","Calivar","Calivardk","Calivarr","Calivarra","Calivartwo","Culmination","Disorders","Idalia","Idalie","Idari","Idaria","Imisscalivar","Imisslarker","Ixia","Katmai","Lapushka","Lillet","Lizocka","Macadamias","Molteenie","Molten","Moltengoat","Moltenqt","Natasha","Nith","Nsty","Nvsty","Poaching","Pulaundoh","Pulire","Shiftro","Southbeard","Tatsu","Testimony","Thiccivar","Tidder","Tidders","Vieliessar","Vistakia","Ytsan","Ytsanbald","Ytsandk"} end F()

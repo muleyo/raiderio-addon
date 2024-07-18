@@ -1,8 +1,8 @@
 --
--- Copyright (c) 2023 by Ludicrous Speed, LLC
+-- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="us",date="2024-07-17T06:12:16Z",numCharacters=157,lookup={},recordSizeInBytes=2,encodingOrder={0,1,3}}
+local provider={name=...,data=3,region="us",date="2024-07-18T06:12:36Z",numCharacters=156,lookup={},recordSizeInBytes=2,encodingOrder={0,1,3}}
 local F
 
 -- chunk size: 110

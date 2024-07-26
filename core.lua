@@ -8952,7 +8952,7 @@ if IS_RETAIL then
                 local anyBossesInCombat = false
                 for i = 1, numCriteria do
                     ---@type string?, number?, boolean?, number?, number?, number?, number?, string?, number?, number?, number?, boolean?, boolean?
-                    local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_Scenario.GetCriteriaInfo(i)
+                    local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_ScenarioInfo.GetCriteriaInfo(i)
                     if criteriaString then
                         local isTrash = i == numCriteria
                         if isTrash then

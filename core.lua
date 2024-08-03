@@ -11815,6 +11815,7 @@ do
     ---@field public which? string
     ---@field public accountInfo? BNetAccountInfo
     ---@field public playerLocation? PlayerLocationPolyfill
+    ---@field public friendsList? number
 
     ---@class ModifyMenuCallbackRootDescriptionPolyfill
     ---@field public tag string
@@ -11903,13 +11904,22 @@ do
             faction = util:GetFaction(unit)
             return name, realm, level, unit, faction
         end
-        if contextData.isRafRecruit then
-            local accountInfo = contextData.accountInfo
-            if accountInfo then
-                return GetBNetAccountInfo(accountInfo)
+        local accountInfo = contextData.accountInfo
+        if accountInfo then
+            name, realm, level, unit, faction = GetBNetAccountInfo(accountInfo)
+            if not realm then
+                return -- HOTFIX: characters on classic when on retail will have their realm missing so this ensures we skip showing the dropdown menu unless we have the realm available
             end
+            return name, realm, level, unit, faction
         end
         name, realm, unit = util:GetNameRealm(contextData.name, contextData.server)
+        if contextData.friendsList then
+            local friendInfo = C_FriendList.GetFriendInfoByIndex(contextData.friendsList)
+            if friendInfo then
+                level = friendInfo.level
+                faction = ns.PLAYER_FACTION
+            end
+        end
         return name, realm, level, unit, faction
     end
 

@@ -12,7 +12,7 @@
         "utf8": "disable"
     },
     "Lua.workspace.library": [
-        "~\\.vscode\\extensions\\ketho.wow-api-0.16.4\\Annotations"
+        "~\\.vscode\\extensions\\ketho.wow-api-0.16.5\\Annotations"
     ],
     "Lua.diagnostics.disable": [
         "assign-type-mismatch",
@@ -27,6 +27,7 @@
     ],
     "Lua.diagnostics.globals": [
         "ActionButton_ShowOverlayGlow",
+        "AddonCompartmentFrame",
         "AnchorUtil",
         "AUTOCOMPLETE_FLAG_ALL",
         "AUTOCOMPLETE_FLAG_NONE",
@@ -128,7 +129,6 @@
         "WHO_LIST_GUILD_FORMAT",
         "WhoFrame",
         "WhoListScrollFrame",
-        "WorldFrame",
-        "AddonCompartmentFrame"
+        "WorldFrame"
     ]
 }

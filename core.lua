@@ -8962,12 +8962,16 @@ if IS_RETAIL then
             if numCriteria and numCriteria > 1 then
                 local anyBossesInCombat = false
                 for i = 1, numCriteria do
-                    ---@type string?, number?, boolean?, number?, number?, number?, number?, string?, number?, number?, number?, boolean?, boolean?
-                    local criteriaString, criteriaType, completed, quantity, totalQuantity, flags, assetID, quantityString, criteriaID, duration, elapsed, criteriaFailed, isWeightedProgress = C_ScenarioInfo.GetCriteriaInfo(i)
-                    if criteriaString then
+                    local criteriaInfo = C_ScenarioInfo.GetCriteriaInfo(i)
+                    if criteriaInfo then
+                        -- `quantityString` is not provided, but we attempt to read it in case it comes back
+                        -- https://github.com/Stanzilla/WoWUIBugs/issues/592
+                        ---@diagnostic disable-next-line: undefined-field
+                        local quantityString = criteriaInfo.quantityString
+                        local completed = criteriaInfo.completed
                         local isTrash = i == numCriteria
                         if isTrash then
-                            local trash = quantityString and tonumber(strsub(quantityString, 1, strlen(quantityString) - 1)) or -1
+                            local trash = quantityString and tonumber(strsub(quantityString, 1, strlen(quantityString) - 1)) or criteriaInfo.quantity or -1
                             if trash > 0 then
                                 liveSummary.trash = trash
                             end

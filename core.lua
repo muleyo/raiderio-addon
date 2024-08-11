@@ -8964,15 +8964,23 @@ if IS_RETAIL then
                 for i = 1, numCriteria do
                     local criteriaInfo = C_ScenarioInfo.GetCriteriaInfo(i)
                     if criteriaInfo then
-                        -- `quantityString` is not provided, but we attempt to read it in case it comes back
-                        -- https://github.com/Stanzilla/WoWUIBugs/issues/592
-                        ---@diagnostic disable-next-line: undefined-field
-                        local quantityString = criteriaInfo.quantityString
                         local completed = criteriaInfo.completed
                         local isTrash = i == numCriteria
                         if isTrash then
-                            local trash = quantityString and tonumber(strsub(quantityString, 1, strlen(quantityString) - 1)) or criteriaInfo.quantity or -1
-                            if trash > 0 then
+                            -- `quantityString` is not provided, but we attempt to read it in case it comes back
+                            -- https://github.com/Stanzilla/WoWUIBugs/issues/592
+                            ---@diagnostic disable-next-line: undefined-field
+                            local quantityString = criteriaInfo.quantityString ---@type string?
+                            local quantity = criteriaInfo.quantity
+                            local totalQuantity = criteriaInfo.totalQuantity
+                            local trash ---@type number?
+                            if quantityString then
+                                trash = tonumber(strsub(quantityString, 1, strlen(quantityString) - 1))
+                            end
+                            if not trash and quantity and totalQuantity then
+                                trash = quantity*totalQuantity/100
+                            end
+                            if trash and trash > 0 then
                                 liveSummary.trash = trash
                             end
                         else

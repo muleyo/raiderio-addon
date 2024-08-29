@@ -3853,7 +3853,7 @@ do
             local dungeonLevel = results.dungeons[i]
             local dungeonChests = results.dungeonUpgrades[dungeon.index]
             local dungeonFractionalTime = results.dungeonTimes[dungeon.index]
-            local sortOrder = format("%02d-%02d", 99 - dungeonLevel, 99 - dungeonChests)
+            local sortOrder = format("%02d-%02d-%s", 99 - dungeonLevel, 99 - dungeonChests, dungeon.shortName)
             results.sortedDungeons[i] = {
                 dungeon = dungeon,
                 level = dungeonLevel,
@@ -3866,7 +3866,7 @@ do
     end
 
     ---@param results DataProviderMythicKeystoneProfile
-    local function ApplySortedMilestonesForAffix(results)
+    local function ApplySortedMilestones(results)
         results.sortedMilestones = {}
         if results.keystoneTwentyPlus > 0 then
             results.sortedMilestones[#results.sortedMilestones + 1] = {
@@ -4025,7 +4025,7 @@ do
             end
         end
         ApplySortedDungeons(results)
-        ApplySortedMilestonesForAffix(results)
+        ApplySortedMilestones(results)
         -- ApplyClientDataToMythicKeystoneData(results, name, realm) -- TODO: weekly affix handling so we disable this until we know what kind of data we expect here
         return results
     end
@@ -4551,13 +4551,14 @@ do
             maxDungeonLevel = 0,
             maxDungeon = nil,
             maxDungeonUpgrades = 0,
-            sortedMilestones = {}
+            sortedMilestones = {},
         }
         for i = 1, #DUNGEONS do
             results.dungeons[i] = 0
             results.dungeonUpgrades[i] = 0
             results.dungeonTimes[i] = 999
         end
+        ApplySortedDungeons(results)
         return results
     end
 
@@ -4573,7 +4574,7 @@ do
         local region = ns.PLAYER_REGION
         local guid = format("%s %s %s", region, realm, name)
         local cache = provider:GetProfile(name, realm, region)
-        local mythicKeystoneProfile
+        local mythicKeystoneProfile ---@type DataProviderMythicKeystoneProfile?
         if cache and cache.success and cache.mythicKeystoneProfile and not cache.mythicKeystoneProfile.blocked and cache.mythicKeystoneProfile.hasRenderableData then
             mythicKeystoneProfile = cache.mythicKeystoneProfile
         end

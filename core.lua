@@ -3885,10 +3885,16 @@ do
             local milestoneLevel = keystoneMilestoneLevels[i]
             local milestoneLevelCount = results["keystoneMilestone" .. milestoneLevel] or 0
             if milestoneLevelCount > 0 then
+                local milestoneLabel
+                if i < #keystoneMilestoneLevels - 1 then
+                    milestoneLabel = format(L["TIMED_RUNS_RANGE"], milestoneLevel, keystoneMilestoneLevels[i + 1] - 1)
+                else
+                    milestoneLabel = formta(L["TIMED_RUNS_MINIMUM"], milestoneLevel)
+                end
                 results.sortedMilestones[#results.sortedMilestones + 1] = {
                     level = milestoneLevel,
-                    label = L["TIMED_" .. milestoneLevel .. "_RUNS"],
-                    text = milestoneLevelCount .. (milestoneLevelCount > 10 and "+" or "")
+                    label = milestoneLabel,
+                    text = milestoneLevelCount .. (milestoneLevelCount > 255 and "+" or "")
                 }
             end
         end

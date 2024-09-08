@@ -1504,6 +1504,7 @@ do
         useEnglishAbbreviations = false,
         showMainsScore = true,
         showMainBestScore = true,
+        showWarbandScore = true,
         showDropDownCopyURL = true,
         showSimpleScoreColors = false,
         showScoreInCombat = true,
@@ -3491,17 +3492,20 @@ do
 
     ---@class EncoderMythicPlusFields
     local ENCODER_MYTHICPLUS_FIELDS = { -- TODO: can this be part of the provider? we can see if we can make a more dynamic system
-        CURRENT_SCORE       = 1,  -- current season score
-        CURRENT_ROLES       = 2,  -- current season roles
-        PREVIOUS_SCORE      = 3,  -- previous season score
-        PREVIOUS_ROLES      = 4,  -- previous season roles
-        MAIN_CURRENT_SCORE  = 5,  -- main's current season score
-        MAIN_CURRENT_ROLES  = 6,  -- main's current season roles
-        MAIN_PREVIOUS_SCORE = 7,  -- main's previous season score
-        MAIN_PREVIOUS_ROLES = 8,  -- main's previous season roles
-        DUNGEON_RUN_COUNTS  = 9,  -- number of runs this season for 5+, 10+, 15+, and 20+
-        DUNGEON_LEVELS      = 10, -- dungeon levels and stars for each dungeon completed
-        DUNGEON_BEST_INDEX  = 11  -- best dungeon index
+        CURRENT_SCORE          = 1,     -- current season score
+        CURRENT_ROLES          = 2,     -- current season roles
+        PREVIOUS_SCORE         = 3,     -- previous season score
+        PREVIOUS_ROLES         = 4,     -- previous season roles
+        MAIN_CURRENT_SCORE     = 5,     -- main's current season score
+        MAIN_CURRENT_ROLES     = 6,     -- main's current season roles
+        MAIN_PREVIOUS_SCORE    = 7,     -- main's previous season score
+        MAIN_PREVIOUS_ROLES    = 8,     -- main's previous season roles
+        DUNGEON_RUN_COUNTS     = 9,     -- number of runs this season for 5+, 10+, 15+, and 20+
+        DUNGEON_LEVELS         = 10,    -- dungeon levels and stars for each dungeon completed
+        DUNGEON_BEST_INDEX     = 11,    -- best dungeon index
+        WARBAND_CURRENT_SCORE  = 12,    -- warband current season score
+        WARBAND_PREVIOUS_SCORE = 13,    -- warband previous season score
+        WARBAND_DUNGEON_LEVELS = 14     -- warband dungeon levels and stars for each dungeon completed
     }
 
     ---@class EncoderRecruitmentFields
@@ -3779,6 +3783,11 @@ do
     ---@field public dungeons number[] 
     ---@field public dungeonUpgrades number[]
     ---@field public dungeonTimes number[]
+    ---@field public warbandCurrentScore number
+    ---@field public warbandPreviousScore number
+    ---@field public warbandDungeons number[] 
+    ---@field public warbandDungeonUpgrades number[]
+    ---@field public warbandDungeonTimes number[]
     ---@field public maxDungeonIndex number
     ---@field public maxDungeonLevel number
     ---@field public maxDungeon Dungeon
@@ -3814,7 +3823,8 @@ do
     ---@param results DataProviderMythicKeystoneProfile
     ---@param bucket string
     ---@param bitOffset number
-    local function ApplyWeeklyAffixForDungeons(results, bucket, bitOffset)
+    ---@param mode string
+    local function ReadDungeonLevelStats(results, bucket, bitOffset, mode)
         local dungeons = {}
         local dungeonUpgrades = {}
         local dungeonTimes = {}
@@ -3824,9 +3834,15 @@ do
             dungeonTimes[i] = 3 - dungeonUpgrades[i]
             results.hasRenderableData = results.hasRenderableData or dungeons[i] > 0
         end
-        results.dungeons = dungeons
-        results.dungeonUpgrades = dungeonUpgrades
-        results.dungeonTimes = dungeonTimes
+        if mode == 'warband' then
+            results.warbandDungeons = dungeons
+            results.warbandDungeonUpgrades = dungeonUpgrades
+            results.warbandDungeonTimes = dungeonTimes
+        else
+            results.dungeons = dungeons
+            results.dungeonUpgrades = dungeonUpgrades
+            results.dungeonTimes = dungeonTimes
+        end
         return bitOffset
     end
 
@@ -3913,6 +3929,15 @@ do
             season = results.mainPreviousScoreSeason,
             score = results.mainPreviousScore or 0,
             roles = ORDERED_ROLES[results.mainPreviousRoleOrdinalIndex] or ORDERED_ROLES[1]
+        }
+        results.mplusWarbandCurrent = {
+            score = results.warbandCurrentScore or 0,
+            roles = {}  -- no roles for warband scores
+        }
+        results.mplusWarbandPrevious = {
+            season = results.warbandPreviousScoreSeason,
+            score = results.warbandPreviousScore or 0,
+            roles = {} -- no roles for warband scores
         }
     end
 
@@ -4017,11 +4042,18 @@ do
                 results.keystoneTwentyPlus = DecodeBits8(value)
                 results.hasRenderableData = results.hasRenderableData or results.keystoneFivePlus > 0 or results.keystoneTenPlus > 0 or results.keystoneFifteenPlus > 0 or results.keystoneTwentyPlus > 0
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_LEVELS then
-                bitOffset = ApplyWeeklyAffixForDungeons(results, bucket, bitOffset, "fortified")
-                bitOffset = ApplyWeeklyAffixForDungeons(results, bucket, bitOffset, "tyrannical")
+                bitOffset = ReadDungeonLevelStats(results, bucket, bitOffset, 'base')
             elseif field == ENCODER_MYTHICPLUS_FIELDS.DUNGEON_BEST_INDEX then
-                bitOffset = ApplyWeeklyAffixForDungeonBest(results, bucket, bitOffset, "fortified")
-                bitOffset = ApplyWeeklyAffixForDungeonBest(results, bucket, bitOffset, "tyrannical")
+                bitOffset = ApplyWeeklyAffixForDungeonBest(results, bucket, bitOffset)
+            elseif field == ENCODER_MYTHICPLUS_FIELDS.WARBAND_CURRENT_SCORE then
+                results.warbandCurrentScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 12)
+                results.hasRenderableData = results.hasRenderableData or results.warbandCurrentScore > 0
+            elseif field == ENCODER_MYTHICPLUS_FIELDS.WARBAND_PREVIOUS_SCORE then
+                results.warbandPreviousScore, bitOffset = ReadBitsFromString(bucket, bitOffset, 12)
+                results.warbandPreviousScoreSeason, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
+                results.hasRenderableData = results.hasRenderableData or results.warbandPreviousScore > 0
+            elseif field == ENCODER_MYTHICPLUS_FIELDS.WARBAND_DUNGEON_LEVELS then
+                bitOffset = ReadDungeonLevelStats(results, bucket, bitOffset, 'warband')
             end
         end
         ApplySortedDungeons(results)
@@ -4547,6 +4579,17 @@ do
             dungeons = {},
             dungeonUpgrades = {},
             dungeonTimes = {},
+            mplusWarbandCurrent = {
+                score = 0,
+                roles = {}
+            },
+            mplusWarbandPrevious = {
+                score = 0,
+                roles = {}
+            },
+            warbandDungeons = {},
+            warbandDungeonUpgrades = {},
+            warbandDungeonTimes = {},
             maxDungeonIndex = 1,
             maxDungeonLevel = 0,
             maxDungeon = nil,
@@ -4557,6 +4600,10 @@ do
             results.dungeons[i] = 0
             results.dungeonUpgrades[i] = 0
             results.dungeonTimes[i] = 999
+
+            results.warbandDungeons[i] = 0
+            results.warbandDungeonUpgrades[i] = 0
+            results.warbandDungeonTimes[i] = 999
         end
         ApplySortedDungeons(results)
         return results
@@ -5532,6 +5579,25 @@ do
                             end
                         end
                     end
+                    if config:Get("showWarbandScore") then
+                        if not config:Get("showWarbandScore") then
+                            if keystoneProfile.mplusWarbandCurrent.score > keystoneProfile.mplusCurrent.score then
+                                tooltip:AddDoubleLine(L.WARBAND_SCORE, GetScoreText(keystoneProfile.mplusWarbandCurrent), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusWarbandCurrent.score))
+                            end
+                        else
+                            local isWarbandPreviousScoreRelevant = keystoneProfile.mplusWarbandCurrent.score < (ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusWarbandPrevious.score)
+                            local isWarbandCurrentScoreBetter = keystoneProfile.mplusWarbandCurrent.score > keystoneProfile.mplusCurrent.score
+                            if isWarbandCurrentScoreBetter or isWarbandPreviousScoreRelevant then
+                                if isWarbandPreviousScoreRelevant then
+                                    tooltip:AddDoubleLine(GetSeasonLabel(L.WARBAND_BEST_SCORE_BEST_SEASON, keystoneProfile.mplusWarbandPrevious.season), GetScoreText(keystoneProfile.mplusWarbandPrevious, true), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusWarbandPrevious.score, true))
+                                end
+
+                                if keystoneProfile.mplusWarbandCurrent.score > 0 or hasMod or hasModSticky then
+                                    tooltip:AddDoubleLine(L.WARBAND_SCORE, GetScoreText(keystoneProfile.mplusWarbandCurrent), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusWarbandCurrent.score))
+                                end
+                            end
+                        end
+                    end
                     if config:Get("showMainsScore") then
                         if not config:Get("showMainBestScore") then
                             if keystoneProfile.mplusMainCurrent.score > keystoneProfile.mplusCurrent.score then
@@ -5546,7 +5612,7 @@ do
                                 end
 
                                 if keystoneProfile.mplusMainCurrent.score > 0 or hasMod or hasModSticky then
-                                    tooltip:AddDoubleLine(L.CURRENT_MAINS_SCORE, GetScoreText(keystoneProfile.mplusMainCurrent), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusMainCurrent.score))
+                                    tooltip:AddDoubleLine(L.MAINS_SCORE, GetScoreText(keystoneProfile.mplusMainCurrent), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusMainCurrent.score))
                                 end
                             end
                         end
@@ -14132,6 +14198,7 @@ do
 
             configOptions:CreateHeadline(L.GENERAL_TOOLTIP_OPTIONS)
             if IS_RETAIL then
+                configOptions:CreateOptionToggle(L.SHOW_WARBAND_SCORE, L.SHOW_WARBAND_SCORE_DESC, "showWarbandScore")
                 configOptions:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
                 configOptions:CreateOptionToggle(L.SHOW_BEST_MAINS_SCORE, L.SHOW_BEST_MAINS_SCORE_DESC, "showMainBestScore")
                 configOptions:CreateOptionToggle(L.SHOW_ROLE_ICONS, L.SHOW_ROLE_ICONS_DESC, "showRoleIcons")

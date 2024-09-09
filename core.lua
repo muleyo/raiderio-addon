@@ -4231,10 +4231,7 @@ do
         local prog = { raid = raid } ---@diagnostic disable-line: missing-fields
         local bitOffset = offset
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
-        if not IS_RETAIL then
-            -- TODO: update retail to not set difficulty as one-based
-            prog.difficulty = prog.difficulty + 1
-        end
+        prog.difficulty = prog.difficulty + 1
         prog.progressCount, bitOffset = ReadBitsFromString(bucket, bitOffset, 4)
         if prog.progressCount > 0 then
             local temp = results[field] ---@type DataProviderRaidProgress[]?
@@ -4257,26 +4254,13 @@ do
         local bitOffset = offset
         local value
         prog.difficulty, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
-        if not IS_RETAIL then
-            -- TODO: update retail to not set difficulty as one-based
-            prog.difficulty = prog.difficulty + 1
-        end
+        prog.difficulty = prog.difficulty + 1
         prog.killsPerBoss = {}
-        if IS_RETAIL then
-            for i = 1, raid.bossCount do
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 2)
-                prog.killsPerBoss[i] = DecodeBits2(value)
-                if prog.killsPerBoss[i] > 0 then
-                    prog.progressCount = prog.progressCount + 1
-                end
-            end
-        else
-            for i = 1, raid.bossCount do
-                value, bitOffset = ReadBitsFromString(bucket, bitOffset, 5)
-                prog.killsPerBoss[i] = DecodeBits5(value)
-                if prog.killsPerBoss[i] > 0 then
-                    prog.progressCount = prog.progressCount + 1
-                end
+        for i = 1, raid.bossCount do
+            value, bitOffset = ReadBitsFromString(bucket, bitOffset, 5)
+            prog.killsPerBoss[i] = DecodeBits5(value)
+            if prog.killsPerBoss[i] > 0 then
+                prog.progressCount = prog.progressCount + 1
             end
         end
         if prog.progressCount > 0 then

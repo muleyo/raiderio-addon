@@ -425,7 +425,7 @@ do
     ns.OUTDATED_BLOCK_CUTOFF = 86400 * 7 -- number of seconds before we hide the data (block showing score as its most likely inaccurate)
     ns.PROVIDER_DATA_TYPE = { MythicKeystone = 1, Raid = 2, Recruitment = 3, PvP = 4 }
     ns.LOOKUP_MAX_SIZE = floor(2^18-1) -- the maximum index we can use in a table before we start to get errors
-    ns.CURRENT_SEASON = 1 -- the current mythic keystone season. dynamically assigned once keystone data is loaded.
+    ns.CURRENT_SEASON = 0 -- the current mythic keystone season. dynamically assigned once keystone data is loaded. 0-index based.
     ns.RAIDERIO_ADDON_DOWNLOAD_URL = "https://rio.gg/addon"
     ns.RAIDERIO_DOMAIN = "raider.io"
 
@@ -3212,10 +3212,11 @@ do
     ---@field public dungeon? DungeonRaid
 
     ---@class DataProviderMythicKeystone
-    ---@field public currentSeasonId number
+    ---@field public currentSeasonId number 0-index based
     ---@field public numCharacters number
     ---@field public recordSizeInBytes number
     ---@field public encodingOrder number[]
+    ---@field public keystoneMilestoneLevels number[]
 
     -- hack to implement both keystone and raid classes on the dataprovider below so we do this weird inheritance
     ---@class DataProviderRaid : DataProviderMythicKeystone
@@ -3782,6 +3783,7 @@ do
     ---@field public dungeonTimes number[]
     ---@field public warbandCurrentScore number
     ---@field public warbandPreviousScore number
+    ---@field public warbandPreviousScoreSeason number
     ---@field public warbandDungeons number[] 
     ---@field public warbandDungeonUpgrades number[]
     ---@field public warbandDungeonTimes number[]
@@ -3795,6 +3797,8 @@ do
     ---@field public mplusPrevious DataProviderMythicKeystoneScore
     ---@field public mplusMainCurrent DataProviderMythicKeystoneScore
     ---@field public mplusMainPrevious DataProviderMythicKeystoneScore
+    ---@field public mplusWarbandCurrent DataProviderMythicKeystoneScore
+    ---@field public mplusWarbandPrevious DataProviderMythicKeystoneScore
 
     ---@class SortedDungeon
     ---@field public dungeon Dungeon
@@ -3888,14 +3892,14 @@ do
             if milestoneLevelCount > 0 then
                 local milestoneLabel
                 if i < #keystoneMilestoneLevels - 1 then
-                    milestoneLabel = format(L["TIMED_RUNS_RANGE"], milestoneLevel, keystoneMilestoneLevels[i + 1] - 1)
+                    milestoneLabel = format(L.TIMED_RUNS_RANGE, milestoneLevel, keystoneMilestoneLevels[i + 1] - 1)
                 else
-                    milestoneLabel = formta(L["TIMED_RUNS_MINIMUM"], milestoneLevel)
+                    milestoneLabel = format(L.TIMED_RUNS_MINIMUM, milestoneLevel)
                 end
                 results.sortedMilestones[#results.sortedMilestones + 1] = {
                     level = milestoneLevel,
                     label = milestoneLabel,
-                    text = milestoneLevelCount .. (milestoneLevelCount > 255 and "+" or "")
+                    text = milestoneLevelCount .. (milestoneLevelCount > 255 and "+" or ""),
                 }
             end
         end
@@ -3971,6 +3975,7 @@ do
     ---@param bucket string
     ---@param baseOffset number
     ---@param encodingOrder number[]
+    ---@param keystoneMilestoneLevels number[]
     ---@param providerOutdated number
     ---@param providerBlocked number
     ---@param name? string
@@ -5134,10 +5139,14 @@ do
         tooltip:Hide()
     end
 
+    ---@param flag number
+    ---@param mask number
     local function Has(flag, mask)
         return band(flag, mask) == mask
     end
 
+    ---@param label string
+    ---@param seasonId? number 0-index based
     local function GetSeasonLabel(label, seasonId)
         if not seasonId then
             seasonId = ns.CURRENT_SEASON

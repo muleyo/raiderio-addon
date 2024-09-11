@@ -442,6 +442,9 @@ do
             },
             ["Ysondre"] = {
                 ["Isakem"] = "Raider.IO Developer"
+            },
+            ["TwistingNether"] = {
+                ["Piccoò"] = "Raider.IO Super Tato"
             }
         },
         ["us"] = {
@@ -454,10 +457,17 @@ do
                 ["Infoxicated"] = "Pogged out of her mind"
             },
             ["Thrall"] = {
-                ["Firstclass"] = "Author of mythicpl.us"
+                ["Firstclass"] = "Author of mythicpl.us",
+                ["Hulahoops"] = "Raider.IO Cool Kid"
             },
             ["Tichondrius"] = {
                 ["Johnsamdi"] = "Raider.IO Developer"
+            },
+            ["Mal'Ganis"] = {
+                ["Qbgosa"] = "Raider.IO Support Dragon"
+            },
+            ["BurningBlade"] = {
+                ["Pelinal"] = "Raider.IO Developer"
             }
         }
     }

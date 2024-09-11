@@ -2,7 +2,7 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={["name"]=...,["data"]=2,["region"]="tw",["date"]="2024-09-11T02:53:36Z",["numCharacters"]=54460,["recordSizeInBytes"]=12,["encodingOrder"]={1,4},["currentRaids"]={{["id"]=14980,["mapId"]=2657,["name"]="Nerub-ar Palace",["shortName"]="NP",["bossCount"]=8,["ordinal"]=1}},["previousRaids"]={},["db"]={}}
+local provider={["name"]=...,["data"]=2,["region"]="tw",["date"]="2024-09-11T06:00:50Z",["numCharacters"]=62997,["recordSizeInBytes"]=12,["encodingOrder"]={1,4},["currentRaids"]={{["id"]=14980,["mapId"]=2657,["name"]="Nerub-ar Palace",["shortName"]="NP",["bossCount"]=8,["ordinal"]=1}},["previousRaids"]={},["db"]={}}
 local F
 
 F = function() provider.db["米奈希爾"]={0,"Yamadk","Yamadope","Yamadruid","Yamaybmy","抹茶布丁貓","草莓優格貓","雪鹽焦糖貓"} end F()

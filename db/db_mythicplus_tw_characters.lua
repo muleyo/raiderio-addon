@@ -2,7 +2,7 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=1,region="tw",date="2024-09-11T06:44:11Z",currentSeasonId=0,numCharacters=8383,keystoneMilestoneLevels={2,4,7,9,12,15},db={}}
+local provider={name=...,data=1,region="tw",date="2024-09-12T06:34:39Z",currentSeasonId=0,numCharacters=8722,keystoneMilestoneLevels={2,4,7,9,12,15},db={}}
 local F
 
 F = function() provider.db["米奈希爾"]={0,"Yamadk","Yamadope","Yamadruid","Yamaybmy","抹茶布丁貓","草莓優格貓","雪鹽焦糖貓"} end F()

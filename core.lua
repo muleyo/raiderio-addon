@@ -4600,7 +4600,7 @@ do
     ---@param name string @Character name
     ---@param realm string @Realm name
     ---@param overallScore number @Blizzard keystone score directly from the game.
-    ---@param keystoneRuns? MythicPlusRatingMapSummaryRaiderIOExtended[] @Blizzard keystone runs directly from the game.
+    ---@param keystoneRuns? MythicPlusRatingMapSummary[] @Blizzard keystone runs directly from the game.
     function provider:OverrideProfile(name, realm, overallScore, keystoneRuns)
         if type(name) ~= "string" or type(realm) ~= "string" or (type(overallScore) ~= "number" and type(keystoneRuns) ~= "table") then
             return
@@ -4794,46 +4794,10 @@ do
         return cache
     end
 
-    ---@class MythicPlusRatingSummaryRaiderIOExtended : MythicPlusRatingSummary
-    ---@field public runs MythicPlusRatingMapSummaryRaiderIOExtended[]
-
-    ---@class MythicPlusRatingMapSummaryRaiderIOExtended : MythicPlusRatingMapSummary
-    ---@field public fortified? MythicPlusAffixScoreInfo
-    ---@field public tyrannical? MythicPlusAffixScoreInfo
-
-    ---@param bioSummary MythicPlusRatingSummary
-    ---@return MythicPlusRatingSummaryRaiderIOExtended bioSummaryExtended
-    local function ExpandSummaryWithChallengeModeMapData(bioSummary)
-        local mapIDs = C_ChallengeMode.GetMapTable()
-        for _, mapID in ipairs(mapIDs) do
-            local affixScores ---@type MythicPlusAffixScoreInfo[]?
-            local bestOverAllScore ---@type number?
-            local mapRun ---@type MythicPlusRatingMapSummaryRaiderIOExtended?
-            for _, run in ipairs(bioSummary.runs) do
-                if mapID == run.challengeModeID then
-                    affixScores, bestOverAllScore = C_MythicPlus.GetSeasonBestAffixScoreInfoForMap(mapID)
-                    mapRun = run ---@diagnostic disable-line: cast-local-type
-                    break
-                end
-            end
-            if affixScores and mapRun then
-                for _, data in pairs(affixScores) do
-                    if data.name == "Fortified" then
-                        mapRun.fortified = data
-                    elseif data.name == "Tyrannical" then
-                        mapRun.tyrannical = data
-                    end
-                end
-            end
-        end
-        return bioSummary ---@diagnostic disable-line: return-type-mismatch
-    end
-
     local function OverridePlayerData()
         local bioSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player")
         if bioSummary and bioSummary.currentSeasonScore then
-            local bioSummaryExtended = ExpandSummaryWithChallengeModeMapData(bioSummary)
-            provider:OverrideProfile(ns.PLAYER_NAME, ns.PLAYER_REALM, bioSummaryExtended.currentSeasonScore, bioSummaryExtended.runs)
+            provider:OverrideProfile(ns.PLAYER_NAME, ns.PLAYER_REALM, bioSummary.currentSeasonScore, bioSummary.runs)
         end
     end
 

@@ -4625,21 +4625,20 @@ do
             mythicKeystoneProfile.mplusCurrent.score = overallScore
         end
         if type(keystoneRuns) == "table" and keystoneRuns[1] then
-            local isPlayer = util:IsUnitPlayer(name, realm)
-            local weekDungeons = mythicKeystoneProfile.dungeons
-            local weekDungeonUpgrades = mythicKeystoneProfile.dungeonUpgrades
-            local weekDungeonTimes = mythicKeystoneProfile.dungeonTimes
+            local dungeons = mythicKeystoneProfile.dungeons
+            local dungeonUpgrades = mythicKeystoneProfile.dungeonUpgrades
+            local dungeonTimes = mythicKeystoneProfile.dungeonTimes
             local maxDungeonIndex = 0
             -- local maxDungeonTime = 999
             -- local maxDungeonScore = 0
             local maxDungeonLevel = 0
             local maxDungeonUpgrades = 0
             local maxDungeonRunTimer = 2
-            local needsMaxDungeonUpgrade
+            local dungeonsRequireUpdate ---@type boolean?
             for i = 1, #keystoneRuns do
                 local run = keystoneRuns[i]
-                local dungeonIndex ---@type number|nil
-                local dungeon ---@type Dungeon|nil
+                local dungeonIndex ---@type number?
+                local dungeon ---@type Dungeon?
                 for j = 1, #DUNGEONS do
                     dungeon = DUNGEONS[j]
                     if dungeon.keystone_instance == run.challengeModeID then
@@ -4648,12 +4647,12 @@ do
                     end
                     dungeon = nil
                 end
-                if dungeonIndex and not isPlayer then
+                if dungeonIndex then
                     local runBestRunLevel = run.bestRunLevel
                     local runBestRunDurationMS = run.bestRunDurationMS
                     local runFinishedSuccess = run.finishedSuccess
                     -- local runMapScore = run.mapScore
-                    if dungeonIndex and weekDungeons[dungeonIndex] <= runBestRunLevel then
+                    if dungeonIndex and dungeons[dungeonIndex] <= runBestRunLevel then
                         mythicKeystoneProfile.hasOverrideDungeonRuns = true
                         local _, _, dungeonTimeLimit = C_ChallengeMode.GetMapUIInfo(run.challengeModeID)
                         local goldTimeLimit, silverTimeLimit, bronzeTimeLimit = -1, -1, dungeonTimeLimit
@@ -4672,10 +4671,10 @@ do
                         end
                         local runTimerAsFraction = runSeconds / (dungeonTimeLimit and dungeonTimeLimit > 0 and dungeonTimeLimit or 1) -- convert game timer to a fraction (1 or below is timed, above is depleted)
                         local fractionalTime = runFinishedSuccess and (mythicKeystoneProfile.isEnhanced and runTimerAsFraction or (3 - runNumUpgrades)) or 3 -- the data here depends if we are using client enhanced data or not
-                        needsMaxDungeonUpgrade = true
-                        weekDungeons[dungeonIndex] = runBestRunLevel
-                        weekDungeonUpgrades[dungeonIndex] = runNumUpgrades
-                        weekDungeonTimes[dungeonIndex] = fractionalTime
+                        dungeonsRequireUpdate = true
+                        dungeons[dungeonIndex] = runBestRunLevel
+                        dungeonUpgrades[dungeonIndex] = runNumUpgrades
+                        dungeonTimes[dungeonIndex] = fractionalTime
                         -- if runNumUpgrades > 0 and (runMapScore > maxDungeonScore or (runMapScore == maxDungeonScore and fractionalTime < maxDungeonTime)) then
                         if runNumUpgrades > 0 and (runBestRunLevel > maxDungeonLevel or (runBestRunLevel == maxDungeonLevel and runTimerAsFraction < maxDungeonRunTimer)) then
                             maxDungeonIndex = dungeonIndex ---@type number
@@ -4688,13 +4687,13 @@ do
                     end
                 end
             end
-            if needsMaxDungeonUpgrade then
+            if dungeonsRequireUpdate then
                 mythicKeystoneProfile.maxDungeon = DUNGEONS[maxDungeonIndex]
                 mythicKeystoneProfile.maxDungeonLevel = maxDungeonLevel
                 mythicKeystoneProfile.maxDungeonIndex = maxDungeonIndex
                 mythicKeystoneProfile.maxDungeonUpgrades = maxDungeonUpgrades
+                ApplySortedDungeons(mythicKeystoneProfile)
             end
-            table.sort(mythicKeystoneProfile.sortedDungeons, SortDungeons)
         end
         if mythicKeystoneProfile.hasOverrideScore or mythicKeystoneProfile.hasOverrideDungeonRuns then
             mythicKeystoneProfile.blocked = nil

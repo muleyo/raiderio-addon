@@ -8009,6 +8009,19 @@ if IS_RETAIL then
         return floor(ms/1000 + 0.5)
     end
 
+    ---@param ms1 number?
+    ---@param ms2 number?
+    ---@return number deltaRoundedSeconds
+    local function SafelyConvertDeltaMillisecondsToSeconds(ms1, ms2)
+        if not ms1 then
+            ms1 = 0
+        end
+        if not ms2 then
+            ms2 = 0
+        end
+        return ConvertMillisecondsToSeconds(ms1 - ms2)
+    end
+
     ---@alias ReplaySplitStyle
     ---|"NONE"
     ---|"NONE_COLORLESS"
@@ -8243,12 +8256,12 @@ if IS_RETAIL then
                 local delta
                 local comparisonDelta
                 if timing == "BOSS" then
-                    delta = ConvertMillisecondsToSeconds(liveBoss.killed - liveBoss.killedStart)
-                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss and replayBoss.killed - replayBoss.killedStart or 0)
+                    delta = SafelyConvertDeltaMillisecondsToSeconds(liveBoss.killed, liveBoss.killedStart)
+                    comparisonDelta = SafelyConvertDeltaMillisecondsToSeconds(replayBoss and replayBoss.killed, replayBoss.killedStart)
                 else
                     local prevLiveBoss, prevReplayBoss = self:GetBosses(self.index - 1)
-                    delta = ConvertMillisecondsToSeconds(liveBoss.killed - (prevLiveBoss and prevLiveBoss.killed or 0))
-                    comparisonDelta = ConvertMillisecondsToSeconds(replayBoss.killed - (prevReplayBoss and prevReplayBoss.killed or 0))
+                    delta = SafelyConvertDeltaMillisecondsToSeconds(liveBoss.killed, prevLiveBoss and prevLiveBoss.killed)
+                    comparisonDelta = SafelyConvertDeltaMillisecondsToSeconds(replayBoss.killed, prevReplayBoss and prevReplayBoss.killed)
                 end
                 -- HOTFIX: handles the special case where `ENCOUNTER_START` was never called, but we know about it because the value is `false`, and that means that the boss was defeated (this bug will be resolved in 10.1.7)
                 if timing == "BOSS" and delta <= 0 then
@@ -8257,7 +8270,7 @@ if IS_RETAIL then
                     self.InfoL:SetFormattedText("%s\n%s", liveBoss.killedText, SecondsToTimeTextCompared(delta, comparisonDelta, "PARENTHESIS"))
                 end
             elseif liveBoss and liveBoss.combat then
-                local delta = ConvertMillisecondsToSeconds(timerMS - liveBoss.combatStart)
+                local delta = SafelyConvertDeltaMillisecondsToSeconds(timerMS, liveBoss.combatStart)
                 self.InfoL:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
             else
                 self.InfoL:SetText("")
@@ -8265,15 +8278,15 @@ if IS_RETAIL then
             if isReplayBossDead then
                 local delta
                 if timing == "BOSS" then
-                    delta = ConvertMillisecondsToSeconds(replayBoss.killed - replayBoss.killedStart)
+                    delta = SafelyConvertDeltaMillisecondsToSeconds(replayBoss.killed, replayBoss.killedStart)
                 else
                     local _, prevReplayBoss = self:GetBosses(self.index - 1)
                     delta = prevReplayBoss and prevReplayBoss.killed or 0
-                    delta = ConvertMillisecondsToSeconds(replayBoss.killed - delta)
+                    delta = SafelyConvertDeltaMillisecondsToSeconds(replayBoss.killed, delta)
                 end
                 self.InfoR:SetFormattedText("%s\n%s", replayBoss.killedText, SecondsToTimeText(delta, "PARENTHESIS", true))
             elseif replayBoss and replayBoss.combat then
-                local delta = ConvertMillisecondsToSeconds(timerMS - replayBoss.combatStart)
+                local delta = SafelyConvertDeltaMillisecondsToSeconds(timerMS, replayBoss.combatStart)
                 self.InfoR:SetText(SecondsToTimeText(delta, "NONE_YELLOW"))
             else
                 self.InfoR:SetText("")

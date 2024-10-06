@@ -461,7 +461,8 @@ do
                 ["Hulahoops"] = "Raider.IO Cool Kid"
             },
             ["Tichondrius"] = {
-                ["Johnsamdi"] = "Raider.IO Developer"
+                ["Johnsamdi"] = "Raider.IO Developer",
+                ["Vitamiinp"] = "Content Manager of Raider.IO"
             },
             ["Mal'Ganis"] = {
                 ["Qbgosa"] = "Raider.IO Support Dragon"

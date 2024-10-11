@@ -2,7 +2,7 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="eu",date="2024-10-10T06:16:17Z",numCharacters=53,db={}}
+local provider={name=...,data=3,region="eu",date="2024-10-11T06:15:50Z",numCharacters=53,db={}}
 local F
 
 F = function() provider.db["MirageRaceway"]={0,"Daloon","Dýnem","Loneta","Sanshein","Taala","Veznik"} end F()

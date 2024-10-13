@@ -3902,8 +3902,8 @@ do
             local milestoneLevelCount = results["keystoneMilestone" .. milestoneLevel] or 0
             if milestoneLevelCount > 0 then
                 local milestoneLabel
-                if i < #keystoneMilestoneLevels - 1 then
-                    milestoneLabel = format(L.TIMED_RUNS_RANGE, milestoneLevel, keystoneMilestoneLevels[i + 1] - 1)
+                if i > 1 then
+                    milestoneLabel = format(L.TIMED_RUNS_RANGE, milestoneLevel, keystoneMilestoneLevels[i - 1] - 1)
                 else
                     milestoneLabel = format(L.TIMED_RUNS_MINIMUM, milestoneLevel)
                 end

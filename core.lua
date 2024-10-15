@@ -8486,15 +8486,7 @@ if IS_RETAIL then
         return bossFramePool
     end
 
-    ---@class KeystoneDeathPenaltyInfo
-    ---@field public level number
-    ---@field public penalty number seconds
-
-    ---@type KeystoneDeathPenaltyInfo[]
-    local DEATH_PENALTY_MAP = {
-        { level = 7, penalty = 15 },
-        { level = 0, penalty = 5 },
-    }
+    local DEATH_PENALTY = 5
 
     ---@class ReplayDataProvider
     local ReplayDataProviderMixin = {}
@@ -8527,7 +8519,7 @@ if IS_RETAIL then
 
         function ReplayDataProviderMixin:OnLoad()
             self.replaySummary = self:CreateSummary()
-            self:SetDeathPenaltyMap(DEATH_PENALTY_MAP)
+            self:SetDeathPenalty(DEATH_PENALTY)
         end
 
         ---@param replay? Replay
@@ -8554,23 +8546,14 @@ if IS_RETAIL then
             return self.replay
         end
 
-        ---@param deathPenaltyMap KeystoneDeathPenaltyInfo[]
-        function ReplayDataProviderMixin:SetDeathPenaltyMap(deathPenaltyMap)
-            self.deathPenaltyMap = deathPenaltyMap
+        ---@param seconds number
+        function ReplayDataProviderMixin:SetDeathPenalty(seconds)
+            self.deathPenalty = seconds
         end
 
-        ---@return number deathPenalty seconds
+        ---@return number deathPenalty
         function ReplayDataProviderMixin:GetDeathPenalty()
-            local replaySummary = self:GetSummary()
-            local level = replaySummary.level
-            local deathPenaltyMap = self.deathPenaltyMap
-            for _, deathPenalty in ipairs(deathPenaltyMap) do
-                if level >= deathPenalty.level then
-                    return deathPenalty.penalty
-                end
-            end
-            local deathPenalty = deathPenaltyMap[#deathPenaltyMap]
-            return deathPenalty.penalty
+            return self.deathPenalty
         end
 
         ---@return ReplaySummary replaySummary
@@ -10612,7 +10595,6 @@ if IS_RETAIL then
         end
         if replayCount > 1 then
             local replaySelection = config:Get("replaySelection") ---@type ReplayFrameSelection
-            -- TODO: implement logic that both respects the `replaySelection` but also tries to pick the highest level run that is available
             for _, replay in ipairs(relevantReplays) do
                 local index = util:TableContains(replay.sources, replaySelection)
                 if index == #replay.sources then
@@ -10712,16 +10694,15 @@ if IS_RETAIL then
     end
 
     ---@param replays Replay[]
-    local function SortReplaysByLevelAndTime(replays)
+    local function SortReplaysByWeeklyAffix(replays)
         table.sort(replays, function(a, b)
             local x = a.mythic_level
             local y = b.mythic_level
-            if x ~= y then
-                return x > y
+            if x == y then
+                x = a.clear_time_ms
+                y = b.clear_time_ms
             end
-            x = a.clear_time_ms
-            y = b.clear_time_ms
-            return x < y
+            return x > y
         end)
     end
 
@@ -10755,7 +10736,7 @@ if IS_RETAIL then
         TrimHistoryFromSV()
         replays = ns:GetReplays()
         util:TableSort(replays, "date", "keystone_run_id")
-        SortReplaysByLevelAndTime(replays)
+        SortReplaysByWeeklyAffix(replays)
         hiddenContainer = CreateFrame("Frame")
         hiddenContainer:SetClipsChildren(true)
         replayFrame = CreateReplayFrame()

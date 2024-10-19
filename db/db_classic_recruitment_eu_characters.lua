@@ -2,7 +2,7 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="eu",date="2024-10-18T06:19:57Z",numCharacters=72,db={}}
+local provider={name=...,data=3,region="eu",date="2024-10-19T06:17:54Z",numCharacters=72,db={}}
 local F
 
 F = function() provider.db["Golemagg"]={0,"Acelle","Defig","Defiq","Derbicek","Derbino","Derblock","Grandios","Hypatus","Ironteon","Ironteonx","Irontheon","Mysllivec","Qetinka","Qetoslav","Shapy","Shapypally","Unmag","Watacarr","Zigros"} end F()

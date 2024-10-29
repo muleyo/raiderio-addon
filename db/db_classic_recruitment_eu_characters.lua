@@ -2,16 +2,15 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="eu",date="2024-10-28T06:14:23Z",numCharacters=105,db={}}
+local provider={name=...,data=3,region="eu",date="2024-10-29T06:15:05Z",numCharacters=90,db={}}
 local F
 
 F = function() provider.db["Golemagg"]={0,"Acelle","Agresátor","Defiq","Derbicek","Derbino","Derblock","Grandios","Hypatus","Ironteon","Ironteonx","Irontheon","Mysllivec","Qetinka","Qetoslav","Shapy","Shapypally","Unmag","Watacarr","Watacarris","Zigros"} end F()
 F = function() provider.db["PyrewoodVillage"]={40,"Bearlydying","Boredofbored","Boredofsword","Esmdrood","Essemdk","Eszem","Ezm","Ezsem","Ezzem","Flumpadin","Hahadkbtw","Hahashamanxd","Hecel","Kinsym","Kynsim","Miskyn","Myksin","Myskin","Niksym","Pachamamie","Peteenjoyer","Petenjoyer","Sinkym","Sykmin","Syreczek","Tyrz","Tyrzs","Tyrzx","Warriorcoper","Xaistlol","Xaistmage","Xaistown","Xaistylol","Xaistymourne","Xaistyown","Xaistyr","Xaistytwo","Xaistyy","Xaizty"} end F()
 F = function() provider.db["MirageRaceway"]={118,"Ceillia","Deadrage","Deadseal","Jessih","Oxeen","Valerish","Zelline"} end F()
 F = function() provider.db["Everlook"]={132,"Anýpriest","Anýsteps","Cerciia","Díru","Huuthuut","Pogpüh","Shifthàppens","Swiggidy","Tizle"} end F()
-F = function() provider.db["Mandokir"]={150,"Choppeer","Explicita","Explicitø","Fendi","Gryphüs","Grÿphus","Moä","Rieh","Sylverwing","Titânia","Trankita","Trankïta","Trankös","Títania","Xplicitø"} end F()
-F = function() provider.db["Firemaw"]={180,"Arcusdruid","Dmentor","Husgris","Oranguboo","Oranguroo","Tigersclaw","Zaphyria","Zircona"} end F()
-F = function() provider.db["Flamegor"]={196,"Анлакистори","Лайфстори","Хардстори","Эндстори"} end F()
+F = function() provider.db["Firemaw"]={150,"Arcusdruid","Dmentor","Husgris","Oranguboo","Oranguroo","Tigersclaw","Zaphyria","Zircona"} end F()
+F = function() provider.db["Flamegor"]={166,"Анлакистори","Лайфстори","Хардстори","Эндстори"} end F()
 
 F = nil
 RaiderIO.AddProvider(provider)

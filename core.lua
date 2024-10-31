@@ -5163,7 +5163,7 @@ do
         overallBest.chests = keystoneProfile.dungeonUpgrades[keystoneProfile.maxDungeonIndex]
         if showLFD then
             local focusDungeon = util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
-            if focusDungeon then
+            if focusDungeon and focusDungeon.type == "SEASON" then
                 best.dungeon = focusDungeon
                 best.level = keystoneProfile.dungeons[focusDungeon.index]
                 best.chests = keystoneProfile.dungeonUpgrades[focusDungeon.index]

@@ -2,11 +2,11 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="us",date="2024-11-02T06:15:21Z",numCharacters=94,lookup={},recordSizeInBytes=2,encodingOrder={0,1,3}}
+local provider={name=...,data=3,region="us",date="2024-11-03T06:15:47Z",numCharacters=91,lookup={},recordSizeInBytes=2,encodingOrder={0,1,3}}
 local F
 
--- chunk size: 8
-F = function() provider.lookup[1] = "\10\13\10\13\10\13\4\4" end F()
+-- chunk size: 2
+F = function() provider.lookup[1] = "\4\4" end F()
 
 F = nil
 RaiderIO.AddProvider(provider)

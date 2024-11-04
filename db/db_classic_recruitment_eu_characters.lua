@@ -2,7 +2,7 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="eu",date="2024-11-03T06:15:47Z",numCharacters=91,db={}}
+local provider={name=...,data=3,region="eu",date="2024-11-04T06:15:07Z",numCharacters=108,db={}}
 local F
 
 F = function() provider.db["Golemagg"]={0,"Acelle","Agresátor","Defiq","Derbicek","Derbino","Derblock","Grandios","Hypatus","Ironteon","Ironteonx","Irontheon","Mysllivec","Qetinka","Qetoslav","Shapy","Shapypally","Unmag","Watacarr","Watacarris","Zigros"} end F()
@@ -13,6 +13,7 @@ F = function() provider.db["Firemaw"]={152,"Arcusdruid","Husgris","Oranguboo","O
 F = function() provider.db["Flamegor"]={166,"Анлакистори","Лайфстори","Хардстори","Эндстори"} end F()
 F = function() provider.db["Auberdine"]={174,"Druidille"} end F()
 F = function() provider.db["Sulfuron"]={176,"Hazas","Hazasham"} end F()
+F = function() provider.db["Gehennas"]={180,"Tindk","Tinsham","Tínpriest"} end F()
 
 F = nil
 RaiderIO.AddProvider(provider)

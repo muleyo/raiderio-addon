@@ -4660,6 +4660,19 @@ do
                         if dungeon and dungeon.timers then
                             goldTimeLimit, silverTimeLimit, bronzeTimeLimit = dungeon.timers[1], dungeon.timers[2], dungeonTimeLimit or dungeon.timers[3] -- TODO: always prefer the game data time limit for bronze or the addons time limit?
                         end
+
+                        if runBestRunLevel >= 7 then
+                            if goldTimeLimit > 0 then
+                                goldTimeLimit = goldTimeLimit + 90
+                            end
+                            if silverTimeLimit > 0 then
+                                silverTimeLimit = silverTimeLimit + 90
+                            end
+                            if bronzeTimeLimit > 0 then
+                                bronzeTimeLimit = bronzeTimeLimit + 90
+                            end
+                        end
+
                         local runSeconds = runBestRunDurationMS / 1000
                         local runNumUpgrades = 0
                         if runFinishedSuccess then

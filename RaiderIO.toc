@@ -10,7 +10,6 @@
 ## X-Curse-Project-ID: 279257
 ## X-Wago-ID: b6mb0XKP
 db/db_client_characters.lua
-db/db_client_colors.lua
 db/db_client_config.lua
 db/db_client_guilds.lua
 db/db_client_replays.lua

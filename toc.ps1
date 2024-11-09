@@ -63,7 +63,6 @@ $types = @{
 
 $clientPlaceholderFiles = @(
 	"db_client_characters"
-	"db_client_colors"
 	"db_client_config"
 	"db_client_guilds"
 	"db_client_replays"

@@ -394,6 +394,7 @@ do
     ---@field public previousScoreTiersSimple table<number, ScoreTierSimple> @DEPRECATED
     ---@field public CUSTOM_TITLES table<number, RecruitmentTitle>
     ---@field public CLIENT_CHARACTERS table<string, CharacterCollection>
+    ---@field public CLIENT_RECENT_CHARACTERS table<string, RecentCharacterCollection>
     ---@field public CLIENT_COLORS table<number, ScoreColor>
     ---@field public CLIENT_CONFIG ClientConfig
     ---@field public GUILD_BEST_DATA table<string, GuildCollection>
@@ -907,8 +908,15 @@ do
     ---@field public runs CharacterMythicKeystoneRun[]
 
     ---@return table<string, CharacterCollection>
-    function ns:GetClientData()
+    function ns:GetClientCharactersData()
         return ns.CLIENT_CHARACTERS
+    end
+
+    ---@alias RecentCharacterCollection unknown[]
+
+    ---@return table<string, RecentCharacterCollection>
+    function ns:GetClientRecentCharactersData()
+        return ns.CLIENT_RECENT_CHARACTERS
     end
 
     ---@class ScoreColor
@@ -2521,6 +2529,36 @@ do
         return SCORE_STATS[level]
     end
 
+    ---@param dungeon Dungeon
+    ---@return number goldTimeLimit, number silverTimeLimit, number bronzeTimeLimit
+    function util:GetKeystoneTimeLimits(dungeon)
+        local timers = dungeon.timers
+        local goldTimeLimit = timers[1]
+        local silverTimeLimit = timers[2]
+        local bronzeTimeLimit = timers[3]
+        return goldTimeLimit, silverTimeLimit, bronzeTimeLimit
+    end
+
+    ---@param goldTimeLimit number
+    ---@param silverTimeLimit number
+    ---@param bronzeTimeLimit number
+    ---@param level? number
+    ---@return number goldTimeLimit, number silverTimeLimit, number bronzeTimeLimit
+    function util:ApplyKeystoneTimeLimitsForLevel(goldTimeLimit, silverTimeLimit, bronzeTimeLimit, level)
+        if level and level >= 7 then
+            if goldTimeLimit > 0 then
+                goldTimeLimit = goldTimeLimit + 90
+            end
+            if silverTimeLimit > 0 then
+                silverTimeLimit = silverTimeLimit + 90
+            end
+            if bronzeTimeLimit > 0 then
+                bronzeTimeLimit = bronzeTimeLimit + 90
+            end
+        end
+        return goldTimeLimit, silverTimeLimit, bronzeTimeLimit
+    end
+
     ---@type FontString
     local TOOLTIP_TEXT_FONTSTRING do
         TOOLTIP_TEXT_FONTSTRING = UIParent:CreateFontString(nil, nil, "GameTooltipText")
@@ -3823,7 +3861,7 @@ do
     ---@field public label string
     ---@field public text string
 
-    local CLIENT_CHARACTERS = ns:GetClientData()
+    local CLIENT_CHARACTERS = ns:GetClientCharactersData()
     local DUNGEONS = ns:GetDungeonData()
 
     ---@param a SortedDungeon
@@ -4660,19 +4698,7 @@ do
                         if dungeon and dungeon.timers then
                             goldTimeLimit, silverTimeLimit, bronzeTimeLimit = dungeon.timers[1], dungeon.timers[2], dungeonTimeLimit or dungeon.timers[3] -- TODO: always prefer the game data time limit for bronze or the addons time limit?
                         end
-
-                        if runBestRunLevel >= 7 then
-                            if goldTimeLimit > 0 then
-                                goldTimeLimit = goldTimeLimit + 90
-                            end
-                            if silverTimeLimit > 0 then
-                                silverTimeLimit = silverTimeLimit + 90
-                            end
-                            if bronzeTimeLimit > 0 then
-                                bronzeTimeLimit = bronzeTimeLimit + 90
-                            end
-                        end
-
+                        goldTimeLimit, silverTimeLimit, bronzeTimeLimit = util:ApplyKeystoneTimeLimitsForLevel(goldTimeLimit, silverTimeLimit, bronzeTimeLimit, runBestRunLevel)
                         local runSeconds = runBestRunDurationMS / 1000
                         local runNumUpgrades = 0
                         if runFinishedSuccess then
@@ -5210,6 +5236,62 @@ do
         end
     end
 
+    local CLIENT_RECENT_CHARACTERS = ns:GetClientRecentCharactersData()
+
+    ---@param tooltip GameTooltip
+    ---@param profile DataProviderCharacterProfile
+    ---@param state TooltipState
+    local function AppendRecentRunsWithCharacter(tooltip, profile, state)
+        if not CLIENT_RECENT_CHARACTERS or not config:Get("enableClientEnhancements") then
+            return
+        end
+        local lookupKey = format("%s-%s", profile.name, profile.realm)
+        local data = CLIENT_RECENT_CHARACTERS[lookupKey]
+        if not data then
+            return
+        end
+        local FIELD_INDEX_DATE = 1
+        local FIELD_INDEX_NUM_RUNS = 2
+        local FIELD_INDEX_FIRST_MAP = 3
+        local NUM_FIELDS = 4
+        local MAP_FIELD_INSTANCE_MAP_ID = 1
+        local MAP_FIELD_KEY_LEVEL = 2
+        local MAP_FIELD_IS_SUCCESS = 3
+        local MAP_FIELD_CLEAR_TIME_MS = 4
+        local MAP_NUM_FIELDS = MAP_FIELD_CLEAR_TIME_MS
+        local MAX_RUNS_TO_SHOW = 3
+        local numRuns = data[FIELD_INDEX_NUM_RUNS]
+        tooltip:AddDoubleLine(L.RECENT_RUNS_WITH_YOU, numRuns, 1, 1, 1, 1, 1, 1)
+        local runsText = {} ---@type string[]
+        for runIndex = 0, min(MAX_RUNS_TO_SHOW - 1, numRuns) do
+            local baseIndex = FIELD_INDEX_FIRST_MAP + (runIndex * MAP_NUM_FIELDS) - 1
+            local instanceMapID = data[baseIndex + MAP_FIELD_INSTANCE_MAP_ID] ---@type number?
+            if not instanceMapID then
+                break
+            end
+            local dungeon = util:GetDungeonByInstanceMapID(instanceMapID)
+            if dungeon then
+                local keyLevel = data[baseIndex + MAP_FIELD_KEY_LEVEL] ---@type number
+                local isSuccess = data[baseIndex + MAP_FIELD_IS_SUCCESS] ~= 0 and true or false ---@type boolean
+                local clearTimeMS = data[baseIndex + MAP_FIELD_CLEAR_TIME_MS] ---@type number
+                local goldTimeLimit, silverTimeLimit, bronzeTimeLimit = util:GetKeystoneTimeLimits(dungeon)
+                goldTimeLimit, silverTimeLimit, bronzeTimeLimit = util:ApplyKeystoneTimeLimitsForLevel(goldTimeLimit, silverTimeLimit, bronzeTimeLimit, keyLevel)
+                local runSeconds = clearTimeMS / 1000
+                local runNumUpgrades = 0
+                if runSeconds <= goldTimeLimit then
+                    runNumUpgrades = 3
+                elseif runSeconds <= silverTimeLimit then
+                    runNumUpgrades = 2
+                elseif runSeconds <= bronzeTimeLimit then
+                    runNumUpgrades = 1
+                end
+                runsText[#runsText + 1] = format("%s%s %s", util:GetNumChests(runNumUpgrades), keyLevel, dungeon.shortName)
+            end
+        end
+        local text = table.concat(runsText, " |cff888888/|r ")
+        tooltip:AddLine(text, 1, 1, 1)
+    end
+
     ---@class PartyMember
     ---@field public unit string
     ---@field public level number
@@ -5559,7 +5641,6 @@ do
                                 if isWarbandPreviousScoreRelevant then
                                     tooltip:AddDoubleLine(GetSeasonLabel(L.WARBAND_BEST_SCORE_BEST_SEASON, keystoneProfile.mplusWarbandPrevious.season), GetScoreText(keystoneProfile.mplusWarbandPrevious, true), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusWarbandPrevious.score, true))
                                 end
-
                                 if keystoneProfile.mplusWarbandCurrent.score > 0 or hasMod or hasModSticky then
                                     tooltip:AddDoubleLine(L.WARBAND_SCORE, GetScoreText(keystoneProfile.mplusWarbandCurrent), 1, 1, 1, util:GetScoreColor(keystoneProfile.mplusWarbandCurrent.score))
                                 end
@@ -5594,6 +5675,9 @@ do
                         end
                         local sortedMilestone = keystoneProfile.sortedMilestones[i]
                         tooltip:AddDoubleLine(sortedMilestone.label, sortedMilestone.text, 1, 1, 1, 1, 1, 1)
+                    end
+                    do
+                        AppendRecentRunsWithCharacter(tooltip, profile, state)
                     end
                     if isExtendedProfile and (hasMod or hasModSticky) and keystoneProfile.sortedDungeons[1] then
                         local hasBestDungeons = false
@@ -9870,6 +9954,8 @@ if IS_RETAIL then
             local mapID = self:GetKeystone()
             local liveDataProvider = self:GetLiveDataProvider()
             local liveSummary = liveDataProvider:GetSummary()
+            local liveDeathPenalty = liveDataProvider:GetDeathPenalty(liveSummary.level)
+            local liveDeathPenaltyMS = liveDeathPenalty * 1000
             ---@type ReplayCompletedSummary
             local summary = {
                 replaySeason = replay.season,
@@ -9878,7 +9964,7 @@ if IS_RETAIL then
                 zoneId = mapID,
                 keyLevel = liveSummary.level,
                 completedAt = time(),
-                clearTimeMS = liveSummary.timer,
+                clearTimeMS = liveSummary.timer + liveDeathPenaltyMS,
             }
             table.insert(_G.RaiderIO_CompletedReplays, summary)
             local delta = ConvertMillisecondsToSeconds(summary.clearTimeMS)

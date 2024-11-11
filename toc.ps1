@@ -2,18 +2,18 @@
 
 $clients = [ordered]@{
 	Mainline = @{
-		Interface = 110000
-		Version = "11.0.0"
+		Interface = "110002, 110005, 110007"
+		Version = "11.0.5"
 		Name = "mainline"
 	}
 	Cata = @{
-		Interface = 40400
+		Interface = "40400, 40401"
 		Version = "4.4.0"
 		Name = "classic"
 	}
 	Classic = @{
-		Interface = 11502
-		Version = "1.15.2"
+		Interface = "11504"
+		Version = "1.15.4"
 		Name = "era"
 	}
 }
@@ -63,6 +63,7 @@ $types = @{
 
 $clientPlaceholderFiles = @(
 	"db_client_characters"
+	"db_client_recent_characters"
 	"db_client_config"
 	"db_client_guilds"
 	"db_client_replays"
@@ -71,6 +72,10 @@ $clientPlaceholderFiles = @(
 	"db_score_tiers"
 	"db_score_tiers_prev"
 )
+
+$clientPlaceholderFilesClientSpecific = @{
+	"db_client_recent_characters" = "mainline"
+}
 
 $clientPlaceholderContent = "
 -- __________        .__    .___           .___________   
@@ -216,6 +221,11 @@ foreach ($clientKey in $clients.Keys)
 
 	foreach ($clientPlaceholderFile in $clientPlaceholderFiles)
 	{
+		$specificClient = $clientPlaceholderFilesClientSpecific[$clientPlaceholderFile]
+		if ($specificClient -and $specificClient -ne $clientName)
+		{
+			continue
+		}
 		$clientPlaceholderFile = "db/$($clientPlaceholderFile).lua"
 		if (-not $clientInfo.IsMainline)
 		{

@@ -12,7 +12,6 @@
 db/db_client_characters.lua
 db/db_client_config.lua
 db/db_client_guilds.lua
-db/db_client_recent_characters.lua
 db/db_client_replays.lua
 db/db_dungeons.lua
 db/db_realms.lua

@@ -4119,9 +4119,11 @@ do
 
     ---@alias DataProviderRaidProgressFields "progress"|"mainProgress"|"previousProgress"
 
-    ---@class SortedRaidProgress
-    ---@field public obsolete? boolean If this evaluates truthy we hide it unless tooltip is expanded on purpose.
-    ---@field public tier number Weighted number based on current or previous raid, difficulty and boss kill count.
+    ---@class RaidWithTierWeight
+    ---@field public tier number Weighted number based on: current or previous raid, difficulty and boss kill count. This is compared like `tier1 < tier2` to find the most progressed raid with highest difficulty and boss kills.
+
+    ---@class SortedRaidProgress : RaidWithTierWeight
+    ---@field public obsolete? boolean If this evaluates truthy it means this progress is replaced by a better progress. For example a full Normal clear is obsolete if there is a full Heroic clear available.
     ---@field public isProgress? boolean
     ---@field public isProgressPrev? boolean
     ---@field public isMainProgress? boolean
@@ -4133,7 +4135,7 @@ do
     ---@field public progress RaidProgressGroup[]
     ---@field public isMainProgress boolean
 
-    ---@class RaidProgressGroup
+    ---@class RaidProgressGroup : RaidWithTierWeight
     ---@field public difficulty number
     ---@field public progress RaidProgressBossInfo[]
     ---@field public kills? number
@@ -4199,10 +4201,11 @@ do
                     }
                     local diffToIndexMap = {} ---@type number[]
                     local diffNextIndex = 1
+                    ---@param tier number
                     ---@param difficulty number
                     ---@param index number
                     ---@param count number
-                    local function appendBossInfo(difficulty, index, count)
+                    local function appendBossInfo(tier, difficulty, index, count)
                         ---@type RaidProgressBossInfo
                         local bossInfo = {
                             difficulty = difficulty,
@@ -4220,6 +4223,7 @@ do
                         if not diffGroup then
                             ---@type RaidProgressGroup
                             diffGroup = {
+                                tier = tier,
                                 difficulty = difficulty,
                                 progress = {},
                             }
@@ -4237,12 +4241,12 @@ do
                             if progProgress.killsPerBoss then
                                 for k = 1, #progProgress.killsPerBoss do
                                     local killsPerBoss = progProgress.killsPerBoss[k]
-                                    appendBossInfo(progProgress.difficulty, k, killsPerBoss)
+                                    appendBossInfo(prog.tier, progProgress.difficulty, k, killsPerBoss)
                                 end
                             else
                                 for k = 1, progProgress.raid.bossCount do
                                     local killsPerBoss = progProgress.progressCount >= k and 1 or 0
-                                    appendBossInfo(progProgress.difficulty, k, killsPerBoss)
+                                    appendBossInfo(prog.tier, progProgress.difficulty, k, killsPerBoss)
                                 end
                             end
                         end
@@ -5492,6 +5496,28 @@ do
         end)
     end
 
+    ---@param raidGroup RaidProgressExtended
+    ---@param raidGroups RaidProgressExtended[]
+    local function IsRaidGroupBestMainProgress(raidGroup, raidGroups)
+        local groupProgress = raidGroup.progress
+        if not groupProgress.isMainProgress then
+            return
+        end
+        local currentProg = groupProgress.progress
+        local currentBest = currentProg[#currentProg]
+        for i = 1, #raidGroups do
+            local otherRaidGroup = raidGroups[i]
+            if otherRaidGroup ~= raidGroup then
+                local otherProg = otherRaidGroup.progress.progress
+                local otherBest = otherProg[#otherProg]
+                if currentBest.tier < otherBest.tier then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
     ---@param tooltip GameTooltip
     ---@param raidProfile DataProviderRaidProfile
     ---@param state TooltipState
@@ -5522,7 +5548,7 @@ do
         end
         for i = 1, #raidGroups do
             local raidGroup = raidGroups[i]
-            if raidGroup.show or hasShown == false then
+            if raidGroup.show or hasShown == false or IsRaidGroupBestMainProgress(raidGroup, raidGroups) then
                 local groupProgress = raidGroup.progress
                 local tempIndex = 0
                 local temp = {}

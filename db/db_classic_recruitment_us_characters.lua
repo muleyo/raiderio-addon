@@ -2,13 +2,14 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="us",date="2024-12-02T06:09:31Z",numCharacters=66,db={}}
+local provider={name=...,data=3,region="us",date="2024-12-04T06:08:53Z",numCharacters=54,db={}}
 local F
 
 F = function() provider.db["Whitemane"]={0,"Gsm","Gunpowder","Jadey","Tramclam","Vrokar"} end F()
-F = function() provider.db["Mankrik"]={10,"Ayahuascå","Ayå","Blazem","Davinthian","Dethknel","Galacnocok","Huuzzin","Kadron","Mayorsluv","Message","Oakenhooves","Reeana","Reeath","Reeck","Reegue","Reeny","Screamzz","Steelhorns","Styggmz","Styggz","Tassadór","Tyder","Tydesin","Tydison","Weast","Zulabiba"} end F()
-F = function() provider.db["Atiesh"]={62,"Immadk","Immaheal"} end F()
-F = function() provider.db["Benediction"]={66,"Baraz"} end F()
+F = function() provider.db["Arugal"]={10,"Careface","Chubs","Harrock"} end F()
+F = function() provider.db["Mankrik"]={16,"Blazem","Galacnocok","Huuzzin","Kadron","Message","Styggmz","Styggz","Tyder","Tydesin","Tydison","Weast"} end F()
+F = function() provider.db["Atiesh"]={38,"Immadk","Immaheal"} end F()
+F = function() provider.db["Benediction"]={42,"Baraz"} end F()
 
 F = nil
 RaiderIO.AddProvider(provider)

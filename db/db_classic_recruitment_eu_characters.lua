@@ -2,7 +2,7 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="eu",date="2024-12-02T06:09:31Z",numCharacters=66,db={}}
+local provider={name=...,data=3,region="eu",date="2024-12-04T06:08:53Z",numCharacters=54,db={}}
 local F
 
 F = function() provider.db["PyrewoodVillage"]={0,"Ambelin","Ambelintvå","Bearsnout","Daethariel","Dystopatica","Elethia","Ellandrieth","Gnomelie","Gnuttus","Ludidoktor","Mordentha","Noshecant","Paliox","Psyvise","Syreczek","Wariox"} end F()

@@ -2,7 +2,7 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="tw",date="2024-12-06T07:19:12Z",numCharacters=31507,db={}}
+local provider={name=...,data=3,region="tw",date="2024-12-07T07:17:59Z",numCharacters=31286,db={}}
 local F
 
 F = function() provider.db["世界之樹"]={0,"石小傑"} end F()

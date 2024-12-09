@@ -2,7 +2,7 @@
 -- Copyright (c) 2024 by Ludicrous Speed, LLC
 -- All rights reserved.
 --
-local provider={name=...,data=3,region="us",date="2024-12-08T06:08:47Z",numCharacters=42,db={}}
+local provider={name=...,data=3,region="us",date="2024-12-09T06:09:31Z",numCharacters=41,db={}}
 local F
 
 F = function() provider.db["Whitemane"]={0,"Gsm","Gunpowder","Jadey","Tramclam","Vrokar"} end F()

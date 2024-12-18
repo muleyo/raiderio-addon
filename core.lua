@@ -7100,7 +7100,7 @@ if not IS_CLASSIC_ERA then
             return
         end
         local leaderFaction = util:FactionGroupToFactionId(entry.leaderFactionGroup)
-        local activityInfo = C_LFGList.GetActivityInfoTable(entry.activityID, nil, entry.isWarMode)
+        local activityInfo = C_LFGList.GetActivityInfoTable(entry.activityIDs[1], nil, entry.isWarMode)
         if activityInfo and activityInfo.isMythicPlusActivity and entry.leaderOverallDungeonScore then
             local leaderName, leaderRealm = util:GetNameRealm(entry.leaderName)
             provider:OverrideProfile(leaderName, leaderRealm, entry.leaderOverallDungeonScore)

@@ -1,7 +1,7 @@
 local IS_RETAIL = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 local IS_CLASSIC_ERA = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
 local IS_CLASSIC = WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC or WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC or
-WOW_PROJECT_ID == WOW_PROJECT_CATACLYSM_CLASSIC
+    WOW_PROJECT_ID == WOW_PROJECT_CATACLYSM_CLASSIC
 
 local addonName = ... ---@type string @The name of the addon.
 local ns = select(2, ...) ---@class ns @The addon namespace.
@@ -360,7 +360,7 @@ end
 
 -- clients have API naming variants and this helps bridge that gap (this will require revisions/deletion as the clients unify their API's)
 local GetDetailedItemLevelInfo = GetDetailedItemLevelInfo or
-C_Item.GetDetailedItemLevelInfo ---@diagnostic disable-line: deprecated
+    C_Item.GetDetailedItemLevelInfo ---@diagnostic disable-line: deprecated
 local GetItemInfo = GetItemInfo or C_Item.GetItemInfo ---@diagnostic disable-line: deprecated
 local GetItemInfoInstant = GetItemInfoInstant or C_Item.GetItemInfoInstant ---@diagnostic disable-line: deprecated
 local GetItemQualityColor = GetItemQualityColor or C_Item.GetItemQualityColor ---@diagnostic disable-line: deprecated
@@ -422,12 +422,12 @@ do
     ns.PLAYER_FACTION = nil
     ns.PLAYER_FACTION_TEXT = nil
     ns.OUTDATED_CUTOFF = 86400 *
-    3                                    -- number of seconds before we start warning about stale data (warning the user should update their addon)
+        3                                  -- number of seconds before we start warning about stale data (warning the user should update their addon)
     ns.OUTDATED_BLOCK_CUTOFF = 86400 *
-    7                                    -- number of seconds before we hide the data (block showing score as its most likely inaccurate)
+        7                                  -- number of seconds before we hide the data (block showing score as its most likely inaccurate)
     ns.PROVIDER_DATA_TYPE = { MythicKeystone = 1, Raid = 2, Recruitment = 3, PvP = 4 }
     ns.LOOKUP_MAX_SIZE = floor(2 ^ 18 - 1) -- the maximum index we can use in a table before we start to get errors
-    ns.CURRENT_SEASON = 0                -- the current mythic keystone season. dynamically assigned once keystone data is loaded. 0-index based.
+    ns.CURRENT_SEASON = 0                  -- the current mythic keystone season. dynamically assigned once keystone data is loaded. 0-index based.
     ns.RAIDERIO_ADDON_DOWNLOAD_URL = "https://rio.gg/addon"
     ns.RAIDERIO_DOMAIN = "raider.io"
 
@@ -1072,7 +1072,7 @@ do
 
     ---@type Dungeon[]
     local EXPANSION_DUNGEONS = ns.EXPANSION_DUNGEONS or ns.expansionDungeons or
-    {}                                                                             -- DEPRECATED: ns.expansionDungeons + FALLBACK
+        {} -- DEPRECATED: ns.expansionDungeons + FALLBACK
 
     for i = 1, #EXPANSION_DUNGEONS do
         local dungeon = EXPANSION_DUNGEONS[i] ---@type Dungeon
@@ -1125,7 +1125,7 @@ do
 
     ---@type table<number, DungeonScoreStats>
     local DUNGEON_SCORE_STATS = ns.DUNGEON_SCORE_STATS or ns.dungeonScoreStats or
-    {}                                                                               -- DEPRECATED: ns.dungeonScoreStats + FALLBACK
+        {} -- DEPRECATED: ns.dungeonScoreStats + FALLBACK
 
     function ns:GetDungeonScoreStatsData()
         return DUNGEON_SCORE_STATS
@@ -1144,7 +1144,7 @@ do
 
     ---@type table<number, ScoreTierSimple>
     local SCORE_TIERS_SIMPLE = ns.SCORE_TIERS_SIMPLE or ns.scoreTiersSimple or
-    {}                                                                            -- DEPRECATED: ns.scoreTiersSimple + FALLBACK
+        {} -- DEPRECATED: ns.scoreTiersSimple + FALLBACK
 
     function ns:GetScoreTiersSimpleData()
         return SCORE_TIERS_SIMPLE
@@ -1152,7 +1152,7 @@ do
 
     ---@type table<number, ScoreColor>
     local SCORE_TIERS_PREV = ns.SCORE_TIERS_PREV or ns.previousScoreTiers or
-    {}                                                                          -- DEPRECATED ns.previousScoreTiers + FALLBACK
+        {} -- DEPRECATED ns.previousScoreTiers + FALLBACK
 
     function ns:GetScoreTiersPrevData()
         return SCORE_TIERS_PREV
@@ -1160,7 +1160,7 @@ do
 
     ---@type table<number, ScoreTierSimple>
     local SCORE_TIERS_SIMPLE_PREV = ns.SCORE_TIERS_SIMPLE_PREV or ns.previousScoreTiersSimple or
-    {}                                                                                              -- DEPRECATED: ns.previousScoreTiersSimple + FALLBACK
+        {} -- DEPRECATED: ns.previousScoreTiersSimple + FALLBACK
 
     function ns:GetScoreTiersSimplePrevData()
         return SCORE_TIERS_SIMPLE_PREV
@@ -1375,7 +1375,7 @@ do
         end
         assert(silent,
             format(
-            "Raider.IO Module expects GetModule(\"%s\") but the module doesn't exist and the silent flag is not set.",
+                "Raider.IO Module expects GetModule(\"%s\") but the module doesn't exist and the silent flag is not set.",
                 tostring(id)))
     end
 end
@@ -2322,17 +2322,17 @@ do
         }
         local index = 0
         local activityInfo = C_LFGList.GetActiveEntryInfo()
-        if activityInfo and activityInfo.activityID then
-            temp.dungeon = util:GetDungeonByLFDActivityID(activityInfo.activityID) or
-            util:GetRaidByLFDActivityID(activityInfo.activityID)
+        if activityInfo and activityInfo.activityIDs then
+            temp.dungeon = util:GetDungeonByLFDActivityID(activityInfo.activityIDs[1]) or
+                util:GetRaidByLFDActivityID(activityInfo.activityIDs[1])
             temp.hosting = true
         end
         local applications = C_LFGList.GetApplications() ---@type number[]
         for _, resultID in ipairs(applications) do
             local searchResultInfo = C_LFGList.GetSearchResultInfo(resultID)
-            if searchResultInfo and searchResultInfo.activityID and not searchResultInfo.isDelisted then
-                local dungeon = util:GetDungeonByLFDActivityID(searchResultInfo.activityID) or
-                util:GetRaidByLFDActivityID(searchResultInfo.activityID)
+            if searchResultInfo and searchResultInfo.activityIDs and not searchResultInfo.isDelisted then
+                local dungeon = util:GetDungeonByLFDActivityID(searchResultInfo.activityIDs[1]) or
+                    util:GetRaidByLFDActivityID(searchResultInfo.activityIDs[1])
                 if dungeon then
                     local _, appStatus, pendingStatus = C_LFGList.GetApplicationInfo(resultID)
                     if not pendingStatus and (appStatus == "applied" or appStatus == "invited") then
@@ -2613,8 +2613,8 @@ do
         local name, realm = util:GetNameRealm(...)
         local realmSlug = util:GetRealmSlug(realm, true)
         return
-        format("https://%s/characters/%s/%s/%s/%s?utm_source=addon", ns.RAIDERIO_DOMAIN, ns.PLAYER_REGION, realmSlug,
-            name, urlSuffix), name, realm, realmSlug
+            format("https://%s/characters/%s/%s/%s/%s?utm_source=addon", ns.RAIDERIO_DOMAIN, ns.PLAYER_REGION, realmSlug,
+                name, urlSuffix), name, realm, realmSlug
     end
 
     ---@class InternalStaticPopupDialog : Frame
@@ -3094,7 +3094,7 @@ do
             local applicantGroup
             for j = 1, applicantInfo.numMembers do
                 local fullName, class, localizedClass, level, itemLevel, honorLevel, tank, healer, damage, assignedRole, relationship =
-                C_LFGList.GetApplicantMemberInfo(applicantInfo.applicantID, j)
+                    C_LFGList.GetApplicantMemberInfo(applicantInfo.applicantID, j)
                 local name, realm = util:GetNameRealm(fullName)
                 if name then
                     local role = GetQueuedRole(tank, healer, damage)
@@ -3137,8 +3137,8 @@ do
             data.group = GetGroupData(unitPrefix, startIndex, endIndex)
         end
         local entry = C_LFGList.GetActiveEntryInfo()
-        if entry and entry.activityID then
-            data.activity = entry.activityID
+        if entry and entry.activityIDs then
+            data.activity = entry.activityIDs[1]
             data.queue = GetApplicantsData()
         end
         return TableToJSON(data)
@@ -3350,11 +3350,11 @@ do
         -- print result of this injection
         if aliasRealm then
             ns.Print(format(
-            "|cffFFFFFF%s|r Test client detected. Because |cffFFFFFF%s|r doesn't exist we are borrowing data from |cffFFFFFF%s|r. Region is set to |cffFFFFFF%s|r.",
+                "|cffFFFFFF%s|r Test client detected. Because |cffFFFFFF%s|r doesn't exist we are borrowing data from |cffFFFFFF%s|r. Region is set to |cffFFFFFF%s|r.",
                 addonName, ns.PLAYER_REALM, aliasRealm, ns.PLAYER_REGION))
         else
             ns.Print(format(
-            "|cffFFFFFF%s|r Test client detected. Couldn't borrow test data from anywhere as no providers appear to be loaded for the region |cffFFFFFF%s|r.",
+                "|cffFFFFFF%s|r Test client detected. Couldn't borrow test data from anywhere as no providers appear to be loaded for the region |cffFFFFFF%s|r.",
                 addonName, ns.PLAYER_REGION))
         end
     end
@@ -3492,8 +3492,8 @@ do
         -- sanity check that the data structure is as we expect it to be
         assert(type(data) == "table", "Raider.IO Provider expects Add(data) where data is a table.")
         assert(
-        type(data.name) == "string" and type(data.data) == "number" and type(data.region) == "string" and
-        type(data.date) == "string",
+            type(data.name) == "string" and type(data.data) == "number" and type(data.region) == "string" and
+            type(data.date) == "string",
             "Raider.IO Provider expects AddProvider(data) where data is a table and has the appropriate structure expected of a data provider.")
         -- expand with additional information
         data.outdated, data.blocked = GetOutdatedAndBlockState(data.date)
@@ -3738,83 +3738,83 @@ do
     local ORDERED_ROLES = {
         {},
         { { "dps", "full" }, },
-        { { "dps", "full" },    { "healer", "full" }, },
-        { { "dps", "full" },    { "healer", "full" }, { "tank", "full" }, },
-        { { "dps", "full" },    { "healer", "full" }, { "tank", "partial" }, },
-        { { "dps", "full" },    { "healer", "partial" }, },
-        { { "dps", "full" },    { "healer", "partial" }, { "tank", "full" }, },
-        { { "dps", "full" },    { "healer", "partial" }, { "tank", "partial" }, },
-        { { "dps", "full" },    { "tank", "full" }, },
-        { { "dps", "full" },    { "tank", "full" },   { "healer", "full" }, },
-        { { "dps", "full" },    { "tank", "full" },   { "healer", "partial" }, },
-        { { "dps", "full" },    { "tank", "partial" }, },
-        { { "dps", "full" },    { "tank", "partial" }, { "healer", "full" }, },
-        { { "dps", "full" },    { "tank", "partial" }, { "healer", "partial" }, },
+        { { "dps", "full" },       { "healer", "full" }, },
+        { { "dps", "full" },       { "healer", "full" },    { "tank", "full" }, },
+        { { "dps", "full" },       { "healer", "full" },    { "tank", "partial" }, },
+        { { "dps", "full" },       { "healer", "partial" }, },
+        { { "dps", "full" },       { "healer", "partial" }, { "tank", "full" }, },
+        { { "dps", "full" },       { "healer", "partial" }, { "tank", "partial" }, },
+        { { "dps", "full" },       { "tank", "full" }, },
+        { { "dps", "full" },       { "tank", "full" },      { "healer", "full" }, },
+        { { "dps", "full" },       { "tank", "full" },      { "healer", "partial" }, },
+        { { "dps", "full" },       { "tank", "partial" }, },
+        { { "dps", "full" },       { "tank", "partial" },   { "healer", "full" }, },
+        { { "dps", "full" },       { "tank", "partial" },   { "healer", "partial" }, },
         { { "dps", "partial" }, },
-        { { "dps", "partial" }, { "healer", "full" }, },
-        { { "dps", "partial" }, { "healer", "full" }, { "tank", "full" }, },
-        { { "dps", "partial" }, { "healer", "full" }, { "tank", "partial" }, },
-        { { "dps", "partial" }, { "healer", "partial" }, },
-        { { "dps", "partial" }, { "healer", "partial" }, { "tank", "full" }, },
-        { { "dps", "partial" }, { "healer", "partial" }, { "tank", "partial" }, },
-        { { "dps", "partial" }, { "tank", "full" }, },
-        { { "dps", "partial" }, { "tank", "full" },   { "healer", "full" }, },
-        { { "dps", "partial" }, { "tank", "full" },   { "healer", "partial" }, },
-        { { "dps", "partial" }, { "tank", "partial" }, },
-        { { "dps", "partial" }, { "tank", "partial" }, { "healer", "full" }, },
-        { { "dps", "partial" }, { "tank", "partial" }, { "healer", "partial" }, },
+        { { "dps", "partial" },    { "healer", "full" }, },
+        { { "dps", "partial" },    { "healer", "full" },    { "tank", "full" }, },
+        { { "dps", "partial" },    { "healer", "full" },    { "tank", "partial" }, },
+        { { "dps", "partial" },    { "healer", "partial" }, },
+        { { "dps", "partial" },    { "healer", "partial" }, { "tank", "full" }, },
+        { { "dps", "partial" },    { "healer", "partial" }, { "tank", "partial" }, },
+        { { "dps", "partial" },    { "tank", "full" }, },
+        { { "dps", "partial" },    { "tank", "full" },      { "healer", "full" }, },
+        { { "dps", "partial" },    { "tank", "full" },      { "healer", "partial" }, },
+        { { "dps", "partial" },    { "tank", "partial" }, },
+        { { "dps", "partial" },    { "tank", "partial" },   { "healer", "full" }, },
+        { { "dps", "partial" },    { "tank", "partial" },   { "healer", "partial" }, },
         { { "healer", "full" }, },
-        { { "healer", "full" }, { "dps", "full" }, },
-        { { "healer", "full" }, { "dps", "full" },    { "tank", "full" }, },
-        { { "healer", "full" }, { "dps", "full" },    { "tank", "partial" }, },
-        { { "healer", "full" }, { "dps", "partial" }, },
-        { { "healer", "full" }, { "dps", "partial" }, { "tank", "full" }, },
-        { { "healer", "full" }, { "dps", "partial" }, { "tank", "partial" }, },
-        { { "healer", "full" }, { "tank", "full" }, },
-        { { "healer", "full" }, { "tank", "full" },   { "dps", "full" }, },
-        { { "healer", "full" }, { "tank", "full" },   { "dps", "partial" }, },
-        { { "healer", "full" }, { "tank", "partial" }, },
-        { { "healer", "full" }, { "tank", "partial" }, { "dps", "full" }, },
-        { { "healer", "full" }, { "tank", "partial" }, { "dps", "partial" }, },
+        { { "healer", "full" },    { "dps", "full" }, },
+        { { "healer", "full" },    { "dps", "full" },       { "tank", "full" }, },
+        { { "healer", "full" },    { "dps", "full" },       { "tank", "partial" }, },
+        { { "healer", "full" },    { "dps", "partial" }, },
+        { { "healer", "full" },    { "dps", "partial" },    { "tank", "full" }, },
+        { { "healer", "full" },    { "dps", "partial" },    { "tank", "partial" }, },
+        { { "healer", "full" },    { "tank", "full" }, },
+        { { "healer", "full" },    { "tank", "full" },      { "dps", "full" }, },
+        { { "healer", "full" },    { "tank", "full" },      { "dps", "partial" }, },
+        { { "healer", "full" },    { "tank", "partial" }, },
+        { { "healer", "full" },    { "tank", "partial" },   { "dps", "full" }, },
+        { { "healer", "full" },    { "tank", "partial" },   { "dps", "partial" }, },
         { { "healer", "partial" }, },
         { { "healer", "partial" }, { "dps", "full" }, },
-        { { "healer", "partial" }, { "dps", "full" }, { "tank", "full" }, },
-        { { "healer", "partial" }, { "dps", "full" }, { "tank", "partial" }, },
+        { { "healer", "partial" }, { "dps", "full" },       { "tank", "full" }, },
+        { { "healer", "partial" }, { "dps", "full" },       { "tank", "partial" }, },
         { { "healer", "partial" }, { "dps", "partial" }, },
-        { { "healer", "partial" }, { "dps", "partial" }, { "tank", "full" }, },
-        { { "healer", "partial" }, { "dps", "partial" }, { "tank", "partial" }, },
+        { { "healer", "partial" }, { "dps", "partial" },    { "tank", "full" }, },
+        { { "healer", "partial" }, { "dps", "partial" },    { "tank", "partial" }, },
         { { "healer", "partial" }, { "tank", "full" }, },
-        { { "healer", "partial" }, { "tank", "full" }, { "dps", "full" }, },
-        { { "healer", "partial" }, { "tank", "full" }, { "dps", "partial" }, },
+        { { "healer", "partial" }, { "tank", "full" },      { "dps", "full" }, },
+        { { "healer", "partial" }, { "tank", "full" },      { "dps", "partial" }, },
         { { "healer", "partial" }, { "tank", "partial" }, },
-        { { "healer", "partial" }, { "tank", "partial" }, { "dps", "full" }, },
-        { { "healer", "partial" }, { "tank", "partial" }, { "dps", "partial" }, },
+        { { "healer", "partial" }, { "tank", "partial" },   { "dps", "full" }, },
+        { { "healer", "partial" }, { "tank", "partial" },   { "dps", "partial" }, },
         { { "tank", "full" }, },
-        { { "tank", "full" },   { "dps", "full" }, },
-        { { "tank", "full" },   { "dps", "full" },    { "healer", "full" }, },
-        { { "tank", "full" },   { "dps", "full" },    { "healer", "partial" }, },
-        { { "tank", "full" },   { "dps", "partial" }, },
-        { { "tank", "full" },   { "dps", "partial" }, { "healer", "full" }, },
-        { { "tank", "full" },   { "dps", "partial" }, { "healer", "partial" }, },
-        { { "tank", "full" },   { "healer", "full" }, },
-        { { "tank", "full" },   { "healer", "full" }, { "dps", "full" }, },
-        { { "tank", "full" },   { "healer", "full" }, { "dps", "partial" }, },
-        { { "tank", "full" },   { "healer", "partial" }, },
-        { { "tank", "full" },   { "healer", "partial" }, { "dps", "full" }, },
-        { { "tank", "full" },   { "healer", "partial" }, { "dps", "partial" }, },
+        { { "tank", "full" },      { "dps", "full" }, },
+        { { "tank", "full" },      { "dps", "full" },       { "healer", "full" }, },
+        { { "tank", "full" },      { "dps", "full" },       { "healer", "partial" }, },
+        { { "tank", "full" },      { "dps", "partial" }, },
+        { { "tank", "full" },      { "dps", "partial" },    { "healer", "full" }, },
+        { { "tank", "full" },      { "dps", "partial" },    { "healer", "partial" }, },
+        { { "tank", "full" },      { "healer", "full" }, },
+        { { "tank", "full" },      { "healer", "full" },    { "dps", "full" }, },
+        { { "tank", "full" },      { "healer", "full" },    { "dps", "partial" }, },
+        { { "tank", "full" },      { "healer", "partial" }, },
+        { { "tank", "full" },      { "healer", "partial" }, { "dps", "full" }, },
+        { { "tank", "full" },      { "healer", "partial" }, { "dps", "partial" }, },
         { { "tank", "partial" }, },
-        { { "tank", "partial" }, { "dps", "full" }, },
-        { { "tank", "partial" }, { "dps", "full" },   { "healer", "full" }, },
-        { { "tank", "partial" }, { "dps", "full" },   { "healer", "partial" }, },
-        { { "tank", "partial" }, { "dps", "partial" }, },
-        { { "tank", "partial" }, { "dps", "partial" }, { "healer", "full" }, },
-        { { "tank", "partial" }, { "dps", "partial" }, { "healer", "partial" }, },
-        { { "tank", "partial" }, { "healer", "full" }, },
-        { { "tank", "partial" }, { "healer", "full" }, { "dps", "full" }, },
-        { { "tank", "partial" }, { "healer", "full" }, { "dps", "partial" }, },
-        { { "tank", "partial" }, { "healer", "partial" }, },
-        { { "tank", "partial" }, { "healer", "partial" }, { "dps", "full" }, },
-        { { "tank", "partial" }, { "healer", "partial" }, { "dps", "partial" }, },
+        { { "tank", "partial" },   { "dps", "full" }, },
+        { { "tank", "partial" },   { "dps", "full" },       { "healer", "full" }, },
+        { { "tank", "partial" },   { "dps", "full" },       { "healer", "partial" }, },
+        { { "tank", "partial" },   { "dps", "partial" }, },
+        { { "tank", "partial" },   { "dps", "partial" },    { "healer", "full" }, },
+        { { "tank", "partial" },   { "dps", "partial" },    { "healer", "partial" }, },
+        { { "tank", "partial" },   { "healer", "full" }, },
+        { { "tank", "partial" },   { "healer", "full" },    { "dps", "full" }, },
+        { { "tank", "partial" },   { "healer", "full" },    { "dps", "partial" }, },
+        { { "tank", "partial" },   { "healer", "partial" }, },
+        { { "tank", "partial" },   { "healer", "partial" }, { "dps", "full" }, },
+        { { "tank", "partial" },   { "healer", "partial" }, { "dps", "partial" }, },
     }
 
     ---@class DataProviderMythicKeystoneScore
@@ -4724,10 +4724,10 @@ do
                             goldTimeLimit, silverTimeLimit, bronzeTimeLimit = dungeon.timers[1], dungeon.timers[2],
                                 dungeonTimeLimit or
                                 dungeon.timers
-                                [3]                                                                                                                       -- TODO: always prefer the game data time limit for bronze or the addons time limit?
+                                [3] -- TODO: always prefer the game data time limit for bronze or the addons time limit?
                         end
                         goldTimeLimit, silverTimeLimit, bronzeTimeLimit = util:ApplyKeystoneTimeLimitsForLevel(
-                        goldTimeLimit, silverTimeLimit, bronzeTimeLimit, runBestRunLevel)
+                            goldTimeLimit, silverTimeLimit, bronzeTimeLimit, runBestRunLevel)
                         local runSeconds = runBestRunDurationMS / 1000
                         local runNumUpgrades = 0
                         if runFinishedSuccess then
@@ -4739,10 +4739,10 @@ do
                             end
                         end
                         local runTimerAsFraction = runSeconds /
-                        (dungeonTimeLimit and dungeonTimeLimit > 0 and dungeonTimeLimit or 1)                                                                -- convert game timer to a fraction (1 or below is timed, above is depleted)
+                            (dungeonTimeLimit and dungeonTimeLimit > 0 and dungeonTimeLimit or 1) -- convert game timer to a fraction (1 or below is timed, above is depleted)
                         local fractionalTime = runFinishedSuccess and
-                        (mythicKeystoneProfile.isEnhanced and runTimerAsFraction or (3 - runNumUpgrades)) or
-                        3                                                                                                                                    -- the data here depends if we are using client enhanced data or not
+                            (mythicKeystoneProfile.isEnhanced and runTimerAsFraction or (3 - runNumUpgrades)) or
+                            3 -- the data here depends if we are using client enhanced data or not
                         dungeonsRequireUpdate = true
                         dungeons[dungeonIndex] = runBestRunLevel
                         dungeonUpgrades[dungeonIndex] = runNumUpgrades
@@ -5499,8 +5499,8 @@ do
                             progressFound = true
                             local difficulty = ns.RAID_DIFFICULTY[progress.difficulty]
                             tooltip:AddDoubleLine(
-                            format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix,
-                                L[format("RAID_BOSS_%s_%d", raid.shortName, j)]), bossKills, 1, 1, 1, 1, 1, 1)
+                                format("|cff%s%s|r %s", difficulty.color.hex, difficulty.suffix,
+                                    L[format("RAID_BOSS_%s_%d", raid.shortName, j)]), bossKills, 1, 1, 1, 1, 1, 1)
                         end
                         if progressFound then
                             break
@@ -5613,7 +5613,7 @@ do
                     local prefixText = groupProgress.isMainProgress and format("%s ", L.MAINS_RAID_PROGRESS) or ""
                     local fatedTexture = raidGroup.fated and format("|A:%s-small:0:0:0:1|a", raidGroup.fated) or ""
                     tooltip:AddDoubleLine(format("%s%s %s", prefixText, groupProgress.raid.shortName, fatedTexture),
-                        table.concat(temp, " "), r, g, b, 1, 1, 1)                                                                                              -- TODO: groupProgress.raid.dungeon?.shortNameLocale
+                        table.concat(temp, " "), r, g, b, 1, 1, 1) -- TODO: groupProgress.raid.dungeon?.shortNameLocale
                 end
             end
         end
@@ -5636,17 +5636,17 @@ do
                 local pvpProfile = profile.pvpProfile
                 local isExtendedProfile = Has(state.options, render.Flags.PROFILE_TOOLTIP)
                 local isKeystoneBlockShown = keystoneProfile and
-                ((isExtendedProfile or keystoneProfile.hasRenderableData) and not keystoneProfile.blocked)
+                    ((isExtendedProfile or keystoneProfile.hasRenderableData) and not keystoneProfile.blocked)
                 local isBlocked = keystoneProfile and (keystoneProfile.blocked or keystoneProfile.softBlocked)
                 local isOutdated = keystoneProfile and keystoneProfile.outdated
                 local showRaidEncounters = config:Get("showRaidEncountersInProfile")
                 local isRaidBlockShown = raidProfile and
-                ((isExtendedProfile and showRaidEncounters) or raidProfile.hasRenderableData) and
-                (not isExtendedProfile or showRaidEncounters)
+                    ((isExtendedProfile and showRaidEncounters) or raidProfile.hasRenderableData) and
+                    (not isExtendedProfile or showRaidEncounters)
                 local isRecruitmentBlockShown = recruitmentProfile and recruitmentProfile.hasRenderableData
                 local isPvpBlockShown = pvpProfile and pvpProfile.hasRenderableData
                 local isAnyBlockShown = isKeystoneBlockShown or isRaidBlockShown or isRecruitmentBlockShown or
-                isPvpBlockShown
+                    isPvpBlockShown
                 local isUnitTooltip = Has(state.options, render.Flags.UNIT_TOOLTIP)
                 local hasMod = Has(state.options, render.Flags.MOD)
                 local hasModSticky = Has(state.options, render.Flags.MOD_STICKY)
@@ -5680,7 +5680,7 @@ do
                         if headlineMode == ns.HEADLINE_MODE.BEST_SEASON then
                             if ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusPrevious.score > keystoneProfile.mplusCurrent.score then
                                 tooltip:AddDoubleLine(
-                                GetSeasonLabel(L.RAIDERIO_MP_BEST_SCORE, keystoneProfile.mplusPrevious.season),
+                                    GetSeasonLabel(L.RAIDERIO_MP_BEST_SCORE, keystoneProfile.mplusPrevious.season),
                                     GetScoreText(keystoneProfile.mplusPrevious, true), 1, 0.85, 0,
                                     util:GetScoreColor(keystoneProfile.mplusPrevious.score, true))
                                 if keystoneProfile.mplusCurrent.score > 0 then
@@ -5705,7 +5705,7 @@ do
                             end
                             if ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusPrevious.score > keystoneProfile.mplusCurrent.score then
                                 tooltip:AddDoubleLine(
-                                GetSeasonLabel(L.PREVIOUS_SCORE, keystoneProfile.mplusPrevious.season),
+                                    GetSeasonLabel(L.PREVIOUS_SCORE, keystoneProfile.mplusPrevious.season),
                                     GetScoreText(keystoneProfile.mplusPrevious, true), r, g, b,
                                     util:GetScoreColor(keystoneProfile.mplusPrevious.score, true))
                             end
@@ -5715,7 +5715,7 @@ do
                                 util:GetScoreColor(keystoneProfile.mplusCurrent.score))
                             if ns.PREVIOUS_SEASON_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusPrevious.score > keystoneProfile.mplusCurrent.score then
                                 tooltip:AddDoubleLine(
-                                GetSeasonLabel(L.PREVIOUS_SCORE, keystoneProfile.mplusPrevious.season),
+                                    GetSeasonLabel(L.PREVIOUS_SCORE, keystoneProfile.mplusPrevious.season),
                                     GetScoreText(keystoneProfile.mplusPrevious, true), 1, 1, 1,
                                     util:GetScoreColor(keystoneProfile.mplusPrevious.score, true))
                             end
@@ -5729,14 +5729,14 @@ do
                             end
                         else
                             local isWarbandPreviousScoreRelevant = keystoneProfile.mplusWarbandCurrent.score <
-                            (ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusWarbandPrevious.score)
+                                (ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusWarbandPrevious.score)
                             local isWarbandCurrentScoreBetter = keystoneProfile.mplusWarbandCurrent.score >
-                            keystoneProfile.mplusCurrent.score
+                                keystoneProfile.mplusCurrent.score
                             if isWarbandCurrentScoreBetter or isWarbandPreviousScoreRelevant then
                                 if isWarbandPreviousScoreRelevant then
                                     tooltip:AddDoubleLine(
-                                    GetSeasonLabel(L.WARBAND_BEST_SCORE_BEST_SEASON,
-                                        keystoneProfile.mplusWarbandPrevious.season),
+                                        GetSeasonLabel(L.WARBAND_BEST_SCORE_BEST_SEASON,
+                                            keystoneProfile.mplusWarbandPrevious.season),
                                         GetScoreText(keystoneProfile.mplusWarbandPrevious, true), 1, 1, 1,
                                         util:GetScoreColor(keystoneProfile.mplusWarbandPrevious.score, true))
                                 end
@@ -5756,14 +5756,14 @@ do
                             end
                         else
                             local isMainPreviousScoreRelevant = keystoneProfile.mplusMainCurrent.score <
-                            (ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusMainPrevious.score)
+                                (ns.PREVIOUS_SEASON_MAIN_SCORE_RELEVANCE_THRESHOLD * keystoneProfile.mplusMainPrevious.score)
                             local isMainCurrentScoreBetter = keystoneProfile.mplusMainCurrent.score >
-                            keystoneProfile.mplusCurrent.score
+                                keystoneProfile.mplusCurrent.score
                             if isMainCurrentScoreBetter or isMainPreviousScoreRelevant then
                                 if isMainPreviousScoreRelevant then
                                     tooltip:AddDoubleLine(
-                                    GetSeasonLabel(L.MAINS_BEST_SCORE_BEST_SEASON,
-                                        keystoneProfile.mplusMainPrevious.season),
+                                        GetSeasonLabel(L.MAINS_BEST_SCORE_BEST_SEASON,
+                                            keystoneProfile.mplusMainPrevious.season),
                                         GetScoreText(keystoneProfile.mplusMainPrevious, true), 1, 1, 1,
                                         util:GetScoreColor(keystoneProfile.mplusMainPrevious.score, true))
                                 end
@@ -5799,7 +5799,7 @@ do
                         end
                         if hasBestDungeons or true then -- HOTFIX: we prefer to always display this in the expanded profile so even empty profiles can display what dungeons there are for the player to complete
                             local focusDungeon = showLFD and
-                            util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
+                                util:GetLFDStatusForCurrentActivity(state.args and state.args.activityID)
                             local dungeonLines = GetSortedDungeonsTooltipText(keystoneProfile.sortedDungeons)
                             if showHeader then
                                 if showPadding then
@@ -6299,7 +6299,7 @@ if IS_RETAIL then
                 if name then
                     index = index + 1
                     profiles[index] = provider:GetProfile(name, realm) or
-                    false ---@diagnostic disable-line: assign-type-mismatch
+                        false ---@diagnostic disable-line: assign-type-mismatch
                 end
             end
         end
@@ -6444,7 +6444,7 @@ if IS_RETAIL then
                 bestUpgrade.fractionalTimeDiff = currentRun.fractionalTime - bestRun.fractionalTime
             end
             bestUpgrade.isUpgrade = bestIsCurrentRun or bestUpgrade.levelDiff > 0 or
-            (bestUpgrade.levelDiff == 0 and bestUpgrade.fractionalTimeDiff < 0) ---@diagnostic disable-line: need-check-nil
+                (bestUpgrade.levelDiff == 0 and bestUpgrade.fractionalTimeDiff < 0) ---@diagnostic disable-line: need-check-nil
             bestRun.chests = currentRun.chests
             bestRun.level = currentRun.level
             bestRun.fractionalTime = currentRun.fractionalTime
@@ -6503,7 +6503,7 @@ if IS_RETAIL then
         self.frame.Sparks:Hide()
     end
 
-    local PERCENTILE_LOWEST = 0.01                          -- 0.01%
+    local PERCENTILE_LOWEST = 0.01                            -- 0.01%
     local PERCENTILE_LOWEST_DECIMAL = PERCENTILE_LOWEST / 100 -- % to decimal
 
     ---@param upgrade DungeonDifference
@@ -6717,12 +6717,25 @@ if IS_RETAIL then
         hooked = true
         hooksecurefunc(frame, "PlayBanner", OnChallengeModeCompleteBannerPlay)
         local mapID, level, time, onTime, keystoneUpgradeLevels, practiceRun, oldDungeonScore, newDungeonScore, isAffixRecord, isMapRecord, primaryAffix, isEligibleForScore, upgradeMembers =
-        C_ChallengeMode.GetCompletionInfo()
+            C_ChallengeMode.GetCompletionInfo()
         if not practiceRun then
-            local bannerData = { mapID = mapID, level = level, time = time, onTime = onTime, keystoneUpgradeLevels =
-            keystoneUpgradeLevels or 0, oldDungeonScore = oldDungeonScore, newDungeonScore = newDungeonScore, isAffixRecord =
-            isAffixRecord, isMapRecord = isMapRecord, primaryAffix = primaryAffix, isEligibleForScore =
-            isEligibleForScore, upgradeMembers = upgradeMembers } ---@type ChallengeModeCompleteBannerData
+            local bannerData = {
+                mapID = mapID,
+                level = level,
+                time = time,
+                onTime = onTime,
+                keystoneUpgradeLevels =
+                    keystoneUpgradeLevels or 0,
+                oldDungeonScore = oldDungeonScore,
+                newDungeonScore = newDungeonScore,
+                isAffixRecord =
+                    isAffixRecord,
+                isMapRecord = isMapRecord,
+                primaryAffix = primaryAffix,
+                isEligibleForScore =
+                    isEligibleForScore,
+                upgradeMembers = upgradeMembers
+            } ---@type ChallengeModeCompleteBannerData
             OnChallengeModeCompleteBannerPlay(frame, bannerData)
         end
     end
@@ -6752,7 +6765,7 @@ if IS_RETAIL then
 
     function fanfare:CanLoad()
         return config:IsEnabled() and
-        config:Get("debugMode")                               -- TODO: do not load this module by default (it's not yet tested well enough) but we do load it if debug mode is enabled
+            config:Get("debugMode") -- TODO: do not load this module by default (it's not yet tested well enough) but we do load it if debug mode is enabled
     end
 
     function fanfare:OnLoad()
@@ -7192,11 +7205,11 @@ if not IS_CLASSIC_ERA then
             local leaderName, leaderRealm = util:GetNameRealm(entry.leaderName)
             provider:OverrideProfile(leaderName, leaderRealm, entry.leaderOverallDungeonScore)
         end
-        currentResult.activityID = entry.activityID
+        currentResult.activityID = entry.activityIDs[1]
         currentResult.leaderName = entry.leaderName
         currentResult.leaderFaction = leaderFaction
         currentResult.keystoneLevel = util:GetKeystoneLevelFromText(entry.name) or
-        util:GetKeystoneLevelFromText(entry.comment) or 0
+            util:GetKeystoneLevelFromText(entry.comment) or 0
         local success1 = render:ShowProfile(tooltip, currentResult.leaderName,
             render.Preset.Unit(render.Flags.MOD_STICKY), currentResult)
         local success2 = profile:ShowProfile(tooltip, currentResult.leaderName, currentResult)
@@ -7231,7 +7244,7 @@ if not IS_CLASSIC_ERA then
     ---@param memberIdx number
     local function ShowApplicantProfile(parent, applicantID, memberIdx)
         local fullName, _, _, _, _, _, _, _, _, _, _, dungeonScore, _, factionGroup = C_LFGList.GetApplicantMemberInfo(
-        applicantID, memberIdx)
+            applicantID, memberIdx)
         if not fullName then
             return false
         end
@@ -7258,7 +7271,7 @@ if not IS_CLASSIC_ERA then
     function OnEnter(self)
         local entry = C_LFGList.GetActiveEntryInfo()
         if entry then
-            currentResult.activityID = entry.activityID
+            currentResult.activityID = entry.activityIDs[1]
         end
         if not currentResult.activityID or not config:Get("enableLFGTooltips") then
             return
@@ -7489,24 +7502,24 @@ do
 
     function tooltip:CanLoad()
         return CommunitiesFrame and ClubFinderGuildFinderFrame and ClubFinderCommunityAndGuildFinderFrame and
-        config:IsEnabled()
+            config:IsEnabled()
     end
 
     function tooltip:OnLoad()
         self:Enable()
-        ScrollBoxUtil:OnViewFramesChanged(CommunitiesFrame.MemberList.ScrollBox, SmartHookButtons)                                  -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(CommunitiesFrame.MemberList.ScrollBox, OnScroll)                                          -- TODO: DF
-        ScrollBoxUtil:OnViewFramesChanged(ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, SmartHookButtons)                    -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, OnScroll)                            -- TODO: DF
-        ScrollBoxUtil:OnViewFramesChanged(ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, SmartHookButtons)             -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, OnScroll)                     -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(CommunitiesFrame.MemberList.ScrollBox, SmartHookButtons)                      -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(CommunitiesFrame.MemberList.ScrollBox, OnScroll)                              -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, SmartHookButtons)        -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderGuildFinderFrame.CommunityCards.ScrollBox, OnScroll)                -- TODO: DF
+        ScrollBoxUtil:OnViewFramesChanged(ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, SmartHookButtons) -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderGuildFinderFrame.PendingCommunityCards.ScrollBox, OnScroll)         -- TODO: DF
         ScrollBoxUtil:OnViewFramesChanged(ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox,
-            SmartHookButtons)                                                                                                       -- TODO: DF
-        ScrollBoxUtil:OnViewScrollChanged(ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox, OnScroll)                -- TODO: DF
+            SmartHookButtons)                                                                                           -- TODO: DF
+        ScrollBoxUtil:OnViewScrollChanged(ClubFinderCommunityAndGuildFinderFrame.CommunityCards.ScrollBox, OnScroll)    -- TODO: DF
         ScrollBoxUtil:OnViewFramesChanged(ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox,
-            SmartHookButtons)                                                                                                       -- TODO: DF
+            SmartHookButtons)                                                                                           -- TODO: DF
         ScrollBoxUtil:OnViewScrollChanged(ClubFinderCommunityAndGuildFinderFrame.PendingCommunityCards.ScrollBox,
-            OnScroll)                                                                                                               -- TODO: DF
+            OnScroll)                                                                                                   -- TODO: DF
         hooksecurefunc(ClubFinderGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
         hooksecurefunc(ClubFinderGuildFinderFrame.PendingGuildCards, "RefreshLayout", OnRefreshApplyHooks)
         hooksecurefunc(ClubFinderCommunityAndGuildFinderFrame.GuildCards, "RefreshLayout", OnRefreshApplyHooks)
@@ -7577,7 +7590,7 @@ if IS_RETAIL then
     local function UpdateKeystoneInfo(keystone, link)
         keystone.link = link
         keystone.item, keystone.instance, keystone.level, keystone.affix1, keystone.affix2, keystone.affix3, keystone.affix4 =
-        GetKeystoneInfo(link)
+            GetKeystoneInfo(link)
         return keystone.link and keystone.level
     end
 
@@ -7785,7 +7798,7 @@ if IS_RETAIL then
                 end
                 if texture then
                     GameTooltip:AddLine(MYTHIC_PLUS_LEADER_BOARD_NAME_ICON:format(texture, member.name), color.r, color
-                    .g, color.b)
+                        .g, color.b)
                 else
                     GameTooltip:AddLine(member.name, color.r, color.g, color.b)
                 end
@@ -7894,7 +7907,7 @@ if IS_RETAIL then
         end
 
         self:SetHeight(35 + (numVisibleRuns > 0 and numVisibleRuns * self.GuildBests[1]:GetHeight() or 0) +
-        switchRealHeight)
+            switchRealHeight)
 
         return numRuns, numVisibleRuns
     end
@@ -8479,7 +8492,7 @@ if IS_RETAIL then
                 else
                     local prevLiveBoss, prevReplayBoss = self:GetBosses(self.index - 1)
                     delta = SafelyConvertDeltaMillisecondsToSeconds(liveBoss.killed, prevLiveBoss and prevLiveBoss
-                    .killed)
+                        .killed)
                     comparisonDelta = SafelyConvertDeltaMillisecondsToSeconds(replayBoss.killed,
                         prevReplayBoss and prevReplayBoss.killed)
                 end
@@ -9147,7 +9160,7 @@ if IS_RETAIL then
                     local checked = replay == currentReplay
                     local dungeon = util:GetDungeonByID(replay.dungeon.id)
                     local showDungeon = checked or
-                    (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
+                        (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
                     if showDungeon then
                         local radio = replayMenu:CreateRadio(replay.title, isSelected, setSelected, index)
                         radio:SetTooltip(setTooltip)
@@ -9298,7 +9311,7 @@ if IS_RETAIL then
                     info.checked = replay == currentReplay
                     local dungeon = util:GetDungeonByID(replay.dungeon.id)
                     local showDungeon = info.checked or
-                    (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
+                        (dungeon and (dungeon.keystone_instance == mapID or (otherMapIDs and util:TableContains(otherMapIDs, dungeon.keystone_instance))))
                     if showDungeon then
                         local affixesText = util:TableMapConcat(replay.affixes,
                             function(affix) return format("|Tinterface\\icons\\%s:16:16|t", affix.icon) end, "")
@@ -9718,7 +9731,7 @@ if IS_RETAIL then
             self.textRowHeightMDI = 30
             self.textColumnWidth = (self.width - (self.contentPaddingX * 4)) / 3 ---@type number
             self.textHeight = self.textRowHeight * self.textRowCount +
-            self.contentPaddingY * (self.textRowCount - 1) ---@type number
+                self.contentPaddingY * (self.textRowCount - 1) ---@type number
             self.bossesHeight = 0
 
             self.trackerFrameParent = UIParentRightManagedFrameContainer ---@type Region
@@ -9848,7 +9861,7 @@ if IS_RETAIL then
             self.TextBlock.TrashL, self.TextBlock.TrashM, self.TextBlock.TrashR = CreateTextRow(self.TextBlock.BossL,
                 ns.CUSTOM_ICONS.replay.TRASH("TextureMarkup"))
             self.TextBlock.DeathPenL, self.TextBlock.DeathPenM, self.TextBlock.DeathPenR = CreateTextRow(
-            self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.DEATH("TextureMarkup"))
+                self.TextBlock.TrashL, ns.CUSTOM_ICONS.replay.DEATH("TextureMarkup"))
 
             ---@class FontStringWithBackground : FontString
             ---@field public Background Texture
@@ -9873,7 +9886,7 @@ if IS_RETAIL then
                 middlePadding = middlePadding or 0
                 fontObject = fontObject or "GameFontNormalHuge4"
                 local equalWidth = (self.widthMDI - (self.contentPaddingX * 2)) / 2 - (self.edgePaddingMDI * 3 / 2) -
-                (middlePadding / 2)
+                    (middlePadding / 2)
                 local LF = self.MDI:CreateFontString(nil, "ARTWORK", fontObject) ---@diagnostic disable-line: param-type-mismatch
                 LF:SetTextColor(1, 1, 1)
                 LF:SetSize(equalWidth, self.textRowHeightMDI)
@@ -9949,7 +9962,7 @@ if IS_RETAIL then
             if self.trackerFrame:GetParent() ~= self.trackerFrameParent or self.trackerFrame == self.trackerFrameParent then
                 local offsetX = -32 - self.trackerFrameParent:GetWidth()
                 self.trackerFramePoint, self.trackerFrame, self.trackerFrameRelativePoint, self.trackerFrameOffsetX, self.trackerFrameOffsetY =
-                "TOPRIGHT", self.trackerFrameParent, "TOPRIGHT", offsetX, 0
+                    "TOPRIGHT", self.trackerFrameParent, "TOPRIGHT", offsetX, 0
             end
             return self.trackerFramePoint, self.trackerFrame, self.trackerFrameRelativePoint, self.trackerFrameOffsetX,
                 self.trackerFrameOffsetY
@@ -9990,7 +10003,7 @@ if IS_RETAIL then
                 SetReplayFrameBossRowShown("DeathPen", showModernTopDetails)
             end
             self.textHeight = heightOffset + self.textRowHeight * self.textRowCount +
-            self.contentPaddingY * (self.textRowCount - 1)
+                self.contentPaddingY * (self.textRowCount - 1)
             self.TextBlock:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", -self.contentPaddingX, -self.textHeight)
             self.Background:SetShown(style ~= "MDI")
             self.TextBlock:SetShown(style ~= "MDI")
@@ -10461,7 +10474,7 @@ if IS_RETAIL then
             local liveDeathsDuringTimer, replayDeathsDuringTimer = self:GetCurrentDeaths()
             local liveTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + liveDeathsDuringTimer * liveDeathPenaltyMS)
             local replayTimer = ConvertMillisecondsToSeconds(keystoneTimeMS +
-            replayDeathsDuringTimer * replayDeathPenaltyMS)
+                replayDeathsDuringTimer * replayDeathPenaltyMS)
             local totalTimer = ConvertMillisecondsToSeconds(_replay.clear_time_ms)
             if replayTimer > totalTimer then
                 replayTimer = totalTimer
@@ -10496,7 +10509,7 @@ if IS_RETAIL then
             local keystoneTimeMS = self:GetKeystoneTimeMS()
             local liveTimer = ConvertMillisecondsToSeconds(keystoneTimeMS + liveDeathsDuringTimer * liveDeathPenaltyMS)
             local replayTimer = ConvertMillisecondsToSeconds(replayTimeMS +
-            replayDeathsDuringTimer * replayDeathPenaltyMS)
+                replayDeathsDuringTimer * replayDeathPenaltyMS)
             local totalTimer = ConvertMillisecondsToSeconds(keystoneTimeMS)
             if replayTimer > totalTimer then
                 replayTimer = totalTimer
@@ -11230,7 +11243,7 @@ do
 
     local function GetRegionName()
         return (searchRegionBox:GetText() and searchRegionBox:GetText() ~= "") and searchRegionBox:GetText() or
-        ns.PLAYER_REGION
+            ns.PLAYER_REGION
     end
 
     local function GetRegionProviders()
@@ -11729,7 +11742,7 @@ do
     -- if the dropdown is a valid type of dropdown then we mark it as acceptable to check for a unit on it
     local function IsValidDropDown(bdropdown)
         return (bdropdown == LFGListFrameDropDown and config:Get("enableLFGDropdown")) or
-        (type(bdropdown.which) == "string" and validTypes[bdropdown.which])
+            (type(bdropdown.which) == "string" and validTypes[bdropdown.which])
     end
 
     -- get name and realm from dropdown or nil if it's not applicable
@@ -11818,7 +11831,7 @@ do
                 return
             end
             selectedName, selectedRealm, selectedLevel, selectedUnit, selectedFaction = GetNameRealmForDropDown(
-            bdropdown)
+                bdropdown)
             if not selectedName or not util:IsMaxLevel(selectedLevel, true) then
                 return
             end
@@ -12132,7 +12145,7 @@ if IS_RETAIL then
             return
         end
         local linkHexColor, linkType, linkArg1, linkArg2N, linkText, trailingText = text:match(
-        "|cff(......)|H([^:]-):(%d+)(.-)|h%[(.-)%]|h|r(.*)")
+            "|cff(......)|H([^:]-):(%d+)(.-)|h%[(.-)%]|h|r(.*)")
         if not linkHexColor then
             return
         end
@@ -12255,12 +12268,12 @@ if IS_RETAIL then
         lootEntry.isUpdated = timestamp - lootEntry.timestamp > 60
         lootEntry.itemLevel = GetDetailedItemLevelInfo(link)
         lootEntry.id, lootEntry.itemType, lootEntry.itemSubType, lootEntry.itemEquipLoc, lootEntry.itemIcon, lootEntry.itemClassID, lootEntry.itemSubClassID =
-        GetItemInfoInstant(link)
+            GetItemInfoInstant(link)
         lootEntry.link = link
         lootEntry.index = lootEntry.index or
-        CountItems(tables[3])                                                                                       -- keep same index or count (our item is already included in the count)
+            CountItems(tables[3])                                                    -- keep same index or count (our item is already included in the count)
         lootEntry.guid = lootEntry.guid or
-        format("%05d %010d %s", lootEntry.index, lootEntry.timestamp, linkAsKey)                                    -- attempt to create unique loot guid when the item is inserted into the SV
+            format("%05d %010d %s", lootEntry.index, lootEntry.timestamp, linkAsKey) -- attempt to create unique loot guid when the item is inserted into the SV
         if logType == LOG_TYPE.Chat then
             lootEntry.count = (lootEntry.count or 0) + (count or 0)
         elseif logType == LOG_TYPE.News then
@@ -12469,7 +12482,7 @@ if IS_RETAIL then
 
     local LOOT_SLOT_ITEM = LOOT_SLOT_ITEM or Enum.LootSlotType.Item ---@diagnostic disable-line: undefined-global
     local LOOT_SLOT_CURRENCY = LOOT_SLOT_CURRENCY or
-    Enum.LootSlotType.Currency ---@diagnostic disable-line: undefined-global
+        Enum.LootSlotType.Currency ---@diagnostic disable-line: undefined-global
 
     local function OnEvent(event, ...)
         if event == "LOOT_READY" then
@@ -12480,7 +12493,7 @@ if IS_RETAIL then
                     local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(lootLink)
                     if itemType and CanLogItem(itemLink, itemType, itemQuality) then
                         local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive =
-                        GetLootSlotInfo(i)
+                            GetLootSlotInfo(i)
                         local lootSources = { GetLootSourceInfo(i) }
                         local itemSources = {}
                         for j = 1, #lootSources, 2 do
@@ -12495,7 +12508,7 @@ if IS_RETAIL then
         elseif event == "LOOT_HISTORY_FULL_UPDATE" or event == "LOOT_HISTORY_ROLL_COMPLETE" then
             for i = 1, C_LootHistory.GetNumItems() do
                 local rollID, rollLink, numPlayers, isDone, winnerIdx, isMasterLoot, isCurrency = C_LootHistory.GetItem(
-                i)
+                    i)
                 local itemType, itemID, itemLink, itemCount, itemQuality = GetItemFromText(rollLink)
                 if itemType and CanLogItem(itemLink, itemType, itemQuality) then
                     HandleLootEntry(LogItemLink(LOG_TYPE.Roll, itemType, itemID, rollLink, itemCount or 1))
@@ -12747,7 +12760,7 @@ if IS_RETAIL then
             frame.MiniFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
             frame.MiniFrame:SetScript("OnEvent", function(self, event)
                 self:UpdateState((event == "PLAYER_REGEN_DISABLED" and true) or
-                (event == "PLAYER_REGEN_ENABLED" and false))
+                    (event == "PLAYER_REGEN_ENABLED" and false))
             end)
         end
 
@@ -12999,11 +13012,11 @@ if IS_RETAIL then
         local function GetDisplayText(elementData)
             local lootEntry = elementData.lootEntry ---@type RWFLootEntry
             local timeText = lootEntry.timestamp and
-            date(lootEntry.type == LOG_TYPE.News and "%Y/%m/%d --:--:--" or "%Y/%m/%d %H:%M:%S", lootEntry.timestamp) or
-            "----/--/-- --:--:--"
+                date(lootEntry.type == LOG_TYPE.News and "%Y/%m/%d --:--:--" or "%Y/%m/%d %H:%M:%S", lootEntry.timestamp) or
+                "----/--/-- --:--:--"
             local typeText = lootEntry.type and LOG_TYPE_LABEL[lootEntry.type] or "Unknown"
             local linkText = lootEntry.count and lootEntry.count > 1 and format("%sx%d", lootEntry.link, lootEntry.count) or
-            lootEntry.link
+                lootEntry.link
             local sourcesText = lootEntry.sources and CountSources(lootEntry.sources) or ""
             return format("%s | %s | %s%s%s", timeText, typeText, linkText, sourcesText,
                 lootEntry.who and format(" (%s)", lootEntry.who) or "")
@@ -13149,7 +13162,7 @@ if IS_RETAIL then
             return
         end
         local name, instanceType, difficultyID, difficultyName, maxPlayers, dynamicDifficulty, isDynamic, instanceID, instanceGroupSize, LfgDungeonID =
-        GetInstanceInfo()
+            GetInstanceInfo()
         -- if config:Get("debugMode") then instanceType, difficultyID = "raid", 16 end -- DEBUG: treat any zone as a loggable zone
         if instanceType == "raid" and difficultyID == 16 then
             LOCATION.logging, LOCATION.instanceName, LOCATION.instanceDifficulty, LOCATION.instanceID = true, name,
@@ -13239,7 +13252,7 @@ do
 
     local LibCombatLogging = LibStub and LibStub:GetLibrary("LibCombatLogging-1.0", true) ---@type LibCombatLogging
     local LoggingCombat = LibCombatLogging and function(...) return LibCombatLogging.LoggingCombat("Raider.IO", ...) end or
-    _G.LoggingCombat
+        _G.LoggingCombat
 
     local autoLogFromMapID
     do
@@ -13328,7 +13341,8 @@ do
         if not LibCombatLogging then
             local info = ChatTypeInfo.SYSTEM
             DEFAULT_CHAT_FRAME:AddMessage(
-            "|cffFFFFFFRaider.IO|r: " .. (setLogging and COMBATLOGENABLED or COMBATLOGDISABLED), info.r, info.g, info.b,
+                "|cffFFFFFFRaider.IO|r: " .. (setLogging and COMBATLOGENABLED or COMBATLOGDISABLED), info.r, info.g,
+                info.b,
                 info.id)
         end
     end
@@ -14277,7 +14291,7 @@ do
             local function update(applyPreviousValues)
                 if applyPreviousValues then
                     local a = applyPreviousValues.a and (1 - applyPreviousValues.a) or
-                    applyPreviousValues.opacity                                                                    -- TODO `pre-11.0`
+                        applyPreviousValues.opacity -- TODO `pre-11.0`
                     value.r, value.g, value.b = applyPreviousValues.r, applyPreviousValues.g, applyPreviousValues.b
                     if 1 + a > 1 then
                         value.a = 1 - a
@@ -14286,7 +14300,7 @@ do
                     end
                 else
                     local a = ColorPickerFrame.GetColorAlpha and ColorPickerFrame:GetColorAlpha() or
-                    (1 - OpacitySliderFrame:GetValue())                                                                                  -- TODO `pre-11.0`
+                        (1 - OpacitySliderFrame:GetValue()) -- TODO `pre-11.0`
                     value.r, value.g, value.b = ColorPickerFrame:GetColorRGB()
                     value.a = a
                 end
@@ -14489,7 +14503,7 @@ do
 
             -- add widgets
             local header = configOptions:CreateHeadline(
-            L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(C_AddOns.GetAddOnMetadata(addonName, "Version")),
+                L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(C_AddOns.GetAddOnMetadata(addonName, "Version")),
                 configHeaderFrame)
             header.text:SetFont(header.text:GetFont(), 16, "OUTLINE") ---@diagnostic disable-line: param-type-mismatch
 
@@ -14585,10 +14599,12 @@ do
             configOptions:CreateHeadline(L.RAIDERIO_LIVE_TRACKING)
             if combatlog:IsLoaded() then
                 local allowClientToControlCombatLogFrame = configOptions:CreateOptionToggle(
-                L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC,
+                    L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS, L.USE_RAIDERIO_CLIENT_LIVE_TRACKING_SETTINGS_DESC,
                     "allowClientToControlCombatLog")
-                local allowClientToControlCombatLogFrameIsChecked = function() return allowClientToControlCombatLogFrame
-                    .checkButton:GetChecked() end
+                local allowClientToControlCombatLogFrameIsChecked = function()
+                    return allowClientToControlCombatLogFrame
+                        .checkButton:GetChecked()
+                end
                 local clientConfig = ns:GetClientConfig()
                 local isClientAutoCombatLoggingEnabled = function()
                     if not allowClientToControlCombatLogFrameIsChecked() then
@@ -14597,8 +14613,11 @@ do
                     return clientConfig and clientConfig.enableCombatLogTracking, config:Get("enableCombatLogTracking")
                 end
                 configOptions:CreateOptionToggle(L.AUTO_COMBATLOG, L.AUTO_COMBATLOG_DESC, "enableCombatLogTracking",
-                    { isDisabled = allowClientToControlCombatLogFrameIsChecked, isFakeChecked =
-                    isClientAutoCombatLoggingEnabled })
+                    {
+                        isDisabled = allowClientToControlCombatLogFrameIsChecked,
+                        isFakeChecked =
+                            isClientAutoCombatLoggingEnabled
+                    })
             else
                 configOptions:CreateDescription(L.AUTO_COMBATLOG_DISABLED_DESC)
             end
@@ -14646,31 +14665,31 @@ do
                 })
             configOptions:CreateOptionToggle(L.MINIMAP_SHORTCUT_MINIMAP_ENABLE, L.MINIMAP_SHORTCUT_MINIMAP_ENABLE_DESC,
                 nil, {
-                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
-                isRealChecked = function(self)
-                    if self.value == nil then
+                    ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                    isRealChecked = function(self)
+                        if self.value == nil then
+                            local db = config:Get("minimapIcon") ---@type MinimapIconDB
+                            self.value = not db.hide
+                        end
+                        return self.value
+                    end,
+                    ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                    onPreClick = function(self)
+                        if self.value ~= nil then
+                            self.value = not self.value
+                        end
+                    end,
+                    ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                    callback = function(self)
                         local db = config:Get("minimapIcon") ---@type MinimapIconDB
-                        self.value = not db.hide
-                    end
-                    return self.value
-                end,
-                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
-                onPreClick = function(self)
-                    if self.value ~= nil then
-                        self.value = not self.value
-                    end
-                end,
-                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
-                callback = function(self)
-                    local db = config:Get("minimapIcon") ---@type MinimapIconDB
-                    db.hide = not self.value
-                    self.value = nil
-                end,
-                ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
-                callbackClose = function(self)
-                    self.value = nil
-                end,
-            })
+                        db.hide = not self.value
+                        self.value = nil
+                    end,
+                    ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
+                    callbackClose = function(self)
+                        self.value = nil
+                    end,
+                })
             configOptions:CreateOptionToggle(L.MINIMAP_SHORTCUT_MINIMAP_LOCK, nil, nil, {
                 ---@param self RaiderIOSettingsToggleWidgetMinimapToggle
                 isRealChecked = function(self)
@@ -15047,7 +15066,7 @@ do
 
     function serverlog:CanLoad()
         return config:IsEnabled() and
-        config:Get("debugMode")                               -- TODO: do not load this module by default (it's not yet tested well enough) but we do load it if debug mode is enabled
+            config:Get("debugMode") -- TODO: do not load this module by default (it's not yet tested well enough) but we do load it if debug mode is enabled
     end
 
     function serverlog:OnLoad()
@@ -15272,9 +15291,9 @@ do
             return
         end
         return profile1 == profile2 or
-        (profile1.mythicKeystoneProfile and profile1.mythicKeystoneProfile == profile2.mythicKeystoneProfile) or
-        (profile1.raidProfile and profile1.raidProfile == profile2.raidProfile) or
-        (profile1.pvpProfile and profile1.pvpProfile == profile2.pvpProfile)
+            (profile1.mythicKeystoneProfile and profile1.mythicKeystoneProfile == profile2.mythicKeystoneProfile) or
+            (profile1.raidProfile and profile1.raidProfile == profile2.raidProfile) or
+            (profile1.pvpProfile and profile1.pvpProfile == profile2.pvpProfile)
     end
 
     ---@param collection TestData[]
@@ -15359,10 +15378,20 @@ do
                             characterNameLC = characterName
                         end
                         index = index + 3
-                        collection[index - 2] = { region = region, realm = realmNameLC or realmName, name =
-                        characterNameLC or characterName, success = true }
-                        collection[index - 1] = { region = region, realm = realmNameUC or realmName, name =
-                        characterNameUC or characterName, success = true }
+                        collection[index - 2] = {
+                            region = region,
+                            realm = realmNameLC or realmName,
+                            name =
+                                characterNameLC or characterName,
+                            success = true
+                        }
+                        collection[index - 1] = {
+                            region = region,
+                            realm = realmNameUC or realmName,
+                            name =
+                                characterNameUC or characterName,
+                            success = true
+                        }
                         collection[index] = CheckBothTestsAboveForSameProfiles
                     end
                 end
@@ -15546,7 +15575,7 @@ do
 
     function tests:CanLoad()
         return config:IsEnabled() and
-        config:Get("debugMode")                               -- TODO: do not load this module by default as we only care if tests pass or fail when in debug mode
+            config:Get("debugMode") -- TODO: do not load this module by default as we only care if tests pass or fail when in debug mode
     end
 
     function tests:OnLoad()
@@ -15579,7 +15608,7 @@ do
         if not IsSafeCall() then
             unsafe = true
             ns.Print(
-            "Error: Another AddOn has modified Raider.IO and is most likely forcing it to return invalid data. Please disable other addons until this message disappears.")
+                "Error: Another AddOn has modified Raider.IO and is most likely forcing it to return invalid data. Please disable other addons until this message disappears.")
             return false
         end
         return true
@@ -15587,7 +15616,7 @@ do
 
     local function IsReady()
         return ns.PLAYER_REGION ~=
-        nil                            -- GetProfile will fail if called too early before the player info is properly loaded so we avoid doing that by safely checking if we're loaded ready
+            nil -- GetProfile will fail if called too early before the player info is properly loaded so we avoid doing that by safely checking if we're loaded ready
     end
 
     ---@class RaiderIOPublicAPIPristine
@@ -15681,19 +15710,19 @@ do
             return pristine.GetScoreForKeystone(...)
         end,
         -- DEPRECATED: these are here just to help mitigate the transition but do avoid using these as they will probably go away during Shadowlands
-        ProfileOutput = setmetatable({}, { __index = function() return 0 end }),                                                                                                                 -- returns 0 for any query
-        TooltipProfileOutput = setmetatable({}, { __index = function() return 0 end }),                                                                                                          -- returns 0 for any query
-        DataProvider = setmetatable({}, { __index = function() return 0 end }),                                                                                                                  -- returns 0 for any query
-        HasPlayerProfile = function(...) return _G.RaiderIO.GetProfile(...) end,                                                                                                                 -- passes the request to the GetProfile API (if its there then it exists)
-        GetPlayerProfile = function(mask, ...) return _G.RaiderIO.GetProfile(...) end,                                                                                                           -- skips the mask and passes the rest to the GetProfile API
-        ShowTooltip = function(tooltip, mask, ...) return _G.RaiderIO.ShowProfile(tooltip, ...) end,                                                                                             -- skips the mask and passes the rest to the ShowProfile API
+        ProfileOutput = setmetatable({}, { __index = function() return 0 end }),                     -- returns 0 for any query
+        TooltipProfileOutput = setmetatable({}, { __index = function() return 0 end }),              -- returns 0 for any query
+        DataProvider = setmetatable({}, { __index = function() return 0 end }),                      -- returns 0 for any query
+        HasPlayerProfile = function(...) return _G.RaiderIO.GetProfile(...) end,                     -- passes the request to the GetProfile API (if its there then it exists)
+        GetPlayerProfile = function(mask, ...) return _G.RaiderIO.GetProfile(...) end,               -- skips the mask and passes the rest to the GetProfile API
+        ShowTooltip = function(tooltip, mask, ...) return _G.RaiderIO.ShowProfile(tooltip, ...) end, -- skips the mask and passes the rest to the ShowProfile API
         GetRaidDifficultyColor = function(difficulty)
             local rd = ns.RAID_DIFFICULTY[difficulty]
             local t
             if rd then t = { rd.color[1], rd.color[2], rd.color[3], rd.color.hex } end
             return t
-        end,                                                                                                                                                                                     -- returns the color table for the queried raid difficulty
-        GetScore = function() end,                                                                                                                                                               -- deprecated early BfA so we just return nothing
+        end,                       -- returns the color table for the queried raid difficulty
+        GetScore = function() end, -- deprecated early BfA so we just return nothing
     }
 
     if replay then

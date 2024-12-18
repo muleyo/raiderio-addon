@@ -3137,7 +3137,7 @@ do
             data.group = GetGroupData(unitPrefix, startIndex, endIndex)
         end
         local entry = C_LFGList.GetActiveEntryInfo()
-        if entry and entry.activityIDs then
+        if entry and entry.activityID then
             data.activity = entry.activityIDs[1]
             data.queue = GetApplicantsData()
         end
